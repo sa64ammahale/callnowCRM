@@ -138,6 +138,24 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### 7. Prepared statements standardized
 - `lead_insert.php` and `lead_update.php` duplicate mobile checks converted to prepared statements
 
+## Database Schema (Post-Migration 2026-07-11)
+**`MAIN_DATABASE` migrated from old schema (CUST_*, ADDED_*, CALLED_*) to new schema (MAINDATABASE_*)** with no data loss. All 105,593 customer records, 8 users, 22 leads, 16,168 temp records, 212 activity logs preserved.
+
+Column mapping applied:
+- `CUST_NAME` → `MAINDATABASE_NAME`
+- `CUST_MOBILE` → `MAINDATABASE_MOBILE`
+- `CUST_COMPANY` → `MAINDATABASE_COMPANY`
+- `CUST_OTHER_INFO` → `MAINDATABASE_OTHER_INFO`
+- `CALL_DIALED_STATUS` → `MAINDATABASE_CALL_DIALED_STATUS`
+- `ADDED_AT` → `MAINDATABASE_UPLOAD_DATETIME`
+- `CALLED_AT` → `MAINDATABASE_CALL_DIAL_TIME`
+- `CALL_DIAL_COUNT_NUMBER` → `CALL_COUNT`
+- `SOURCE` column dropped
+- New columns added: `MAINDATABASE_CALL_DIALED_USER`, `LAST_DIALED_DATE_TIME`, `CALL_TIME`, `archived_at`, `archived_by`, `archive_reason`
+- Indexes added: `idx_upload_dt`, `idx_user` (on MAINDATABASE_CALL_DIALED_USER)
+
+**IMPORTANT**: Do NOT run `setup_callnow_crm.sql` — it uses `DROP TABLE IF EXISTS` and will wipe all live data. The live DB is now the source of truth.
+
 ## Remaining Known Issues (not yet fixed)
 - `data_management_main.php` references `bulk_assign.php` which doesn't exist
 - `lead_common.php` runs runtime ALTER TABLE migrations on page load (static-guarded, but still risky)
