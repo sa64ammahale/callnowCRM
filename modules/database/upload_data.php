@@ -351,6 +351,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
             }
         }
     }
+    }
 }
 ?>
 <!doctype html>
@@ -407,6 +408,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
       <div class="card shadow-sm">
         <div class="card-body">
           <form method="post" enctype="multipart/form-data" id="uploadForm" novalidate>
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="import" id="importHidden" value="0">
 
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -636,6 +638,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
 
           <div class="small text-muted">Archive/Transfer old rows from Maindatabase to New Database</div>
           <form method="post" class="mt-2" onsubmit="return confirm('Proceed to archive older rows? This will move and delete from main table.');">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
             <div class="input-group input-group-sm mb-2">
                 <label class="me-2 mb-0"> Enter Months </label>
               <input type="number" name="archive_months" class="form-control form-control-sm" min="1" value="12" aria-label="months">

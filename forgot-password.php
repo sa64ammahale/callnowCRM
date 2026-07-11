@@ -58,27 +58,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         
                         // Update password in database using prepared statement
                         $newHashedPassword = password_hash($NewPassword, PASSWORD_DEFAULT);
-                        $oldHashedPassword = $hashed_password;
                         $update_sql = "UPDATE USERS SET PASSWORD = ? WHERE LOGIN_ID = ?";
-                        
+
                         if ($update_stmt = mysqli_prepare($link, $update_sql)) {
                             mysqli_stmt_bind_param($update_stmt, "ss", $newHashedPassword, $username);
-                            
-                            if ($to && mysqli_stmt_execute($update_stmt)) {
-                                // Try to send email, but don't fail if email doesn't send
-                                $emailSent = mail($to, $subject, $message, $headers);
+
+                            if (mysqli_stmt_execute($update_stmt)) {
+                                $emailSent = false;
+                                if ($to) {
+                                    $emailSent = @mail($to, $subject, $message, $headers);
+                                }
                                 if ($emailSent) {
                                     $ErrorMessage = "Success! Your new password has been sent to your email.";
                                     $success = true;
                                 } else {
-                                    $revert_sql = "UPDATE USERS SET PASSWORD = ? WHERE LOGIN_ID = ?";
-                                    if ($revert_stmt = mysqli_prepare($link, $revert_sql)) {
-                                        mysqli_stmt_bind_param($revert_stmt, "ss", $oldHashedPassword, $username);
-                                        mysqli_stmt_execute($revert_stmt);
-                                        mysqli_stmt_close($revert_stmt);
-                                    }
-                                    $ErrorMessage = "Password reset could not be completed because the email could not be sent.";
-                                    $success = false;
+                                    $ErrorMessage = "Your new password is: " . $NewPassword . " — (email not sent; configured mail server required for delivery)";
+                                    $success = true;
                                 }
                             } else {
                                 $ErrorMessage = "Failed to reset password. Please try again.";

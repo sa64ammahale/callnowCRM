@@ -75,10 +75,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         mysqli_begin_transaction($link);
 
         try {
-            $mobileEscaped = mysqli_real_escape_string($link, $form['mobile']);
-            $existingMain = mysqli_fetch_assoc(
-                mysqli_query($link, "SELECT ID FROM MAIN_DATABASE WHERE MAINDATABASE_MOBILE = '{$mobileEscaped}' LIMIT 1")
-            );
+            $stmtDup = mysqli_prepare($link, "SELECT ID FROM MAIN_DATABASE WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
+            mysqli_stmt_bind_param($stmtDup, "s", $form['mobile']);
+            mysqli_stmt_execute($stmtDup);
+            $resDup = mysqli_stmt_get_result($stmtDup);
+            $existingMain = mysqli_fetch_assoc($resDup);
+            mysqli_stmt_close($stmtDup);
 
             if ($existingMain) {
                 $custId = (int)$existingMain['ID'];

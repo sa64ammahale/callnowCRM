@@ -124,16 +124,13 @@ try {
         $payload['login_mode'] = '';
     }
 
-    $mobileEscaped = mysqli_real_escape_string($link, $payload['mobile']);
-    $checkDuplicate = mysqli_fetch_assoc(
-        mysqli_query(
-            $link,
-            "SELECT ID FROM MAIN_DATABASE
-             WHERE MAINDATABASE_MOBILE = '{$mobileEscaped}'
-             AND ID <> " . (int)$leadRow['cust_id'] . "
-             LIMIT 1"
-        )
-    );
+    $custIdExclude = (int)$leadRow['cust_id'];
+    $stmtDup = mysqli_prepare($link, "SELECT ID FROM MAIN_DATABASE WHERE MAINDATABASE_MOBILE = ? AND ID <> ? LIMIT 1");
+    mysqli_stmt_bind_param($stmtDup, "si", $payload['mobile'], $custIdExclude);
+    mysqli_stmt_execute($stmtDup);
+    $resDup = mysqli_stmt_get_result($stmtDup);
+    $checkDuplicate = mysqli_fetch_assoc($resDup);
+    mysqli_stmt_close($stmtDup);
     if ($checkDuplicate) {
         throw new RuntimeException('Another customer already uses this mobile number in the main database.');
     }
