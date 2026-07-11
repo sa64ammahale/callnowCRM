@@ -384,42 +384,10 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 
 /* ---------- Render UI ---------- */
 ?>
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Temporary Database — Manager</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="../../assets/css/app-theme.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-  <style>
-    :root{ --accent:#0b5cff; --muted:#6b7280; --row-h:34px; }
-    body{background:#f4f8ff; font-size:13px;}
-    .container-compact{max-width:1200px;margin:18px auto;}
-    .card-compact{border-radius:10px;padding:10px;background:#fff;box-shadow:0 6px 18px rgba(11,92,255,0.04);}
-    .filters .form-control, .filters .form-select{height:36px;padding:.25rem .5rem;font-size:.9rem;}
-    .table-compact{--bs-table-cell-padding:.3rem .5rem;font-size:12px;}
-    table thead th{position:sticky;top:0;background:linear-gradient(90deg,var(--accent),#2ea2ff);color:#fff;font-weight:600;font-size:12px;}
-    .table-wrapper{overflow:auto;max-height:66vh;border-radius:8px;background:white;border:1px solid rgba(15,60,201,0.06);}
-    table tbody tr{height:var(--row-h);}
-    /* status colors */
-    tr.status-Connected td{background:#e6ffea!important;}
-    tr.status-Dialed td{background:#fff9e6!important;}
-    tr.status-Busy td{background:#fff0f0!important;}
-    tr.status-Pending td{background:#eef4ff!important;}
-    tr.status-DoNotCall td{background:#ffecec!important;}
-    tr.status-NoAnswer td{background:#fff7f0!important;}
-    .btn-small{padding:.25rem .5rem;font-size:.82rem;}
-    .spinner-inline{display:inline-block;width:18px;height:18px;border:2px solid rgba(0,0,0,0.08);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @media (max-width:768px){ .container-compact{padding:0 10px} }
-  </style>
-</head>
-<body>
+<?php $pageTitle = 'Temporary Database'; ?>
 <?php include '../../php_scripts/header.php'; ?>
 
-<div class="container-compact">
+<div class="container py-3" style="max-width:1200px">
 
   <div class="d-flex justify-content-between align-items-center mb-2">
     <div>
@@ -427,12 +395,12 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
       <div class="text-muted small">Fast, compact view — default 1000 rows per page</div>
     </div>
     <div class="d-flex gap-2 align-items-center">
-      <button id="activityBtn" class="btn btn-outline-info btn-small" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-list-check"></i> Activity</button>
+      <button id="activityBtn" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-list-check"></i> Activity</button>
     </div>
   </div>
 
 <!-- ====== ACTION ROW + FILTER ROW (2-ROW clean layout) ====== -->
-<div class="card-compact mb-3 p-2">
+<div class="card mb-3 p-2">
 
   <!-- ROW 1: ACTION BUTTONS -->
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -494,10 +462,10 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 
 
   <!-- table -->
-  <div class="card-compact">
+  <div class="card">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <div class="small text-muted" id="infoText">Loading…</div>
-      <div><button id="loadMore" class="btn btn-sm btn-outline-secondary btn-small">Load more</button></div>
+      <div><button id="loadMore" class="btn btn-sm btn-outline-secondary">Load more</button></div>
     </div>
 
     <div class="table-wrapper">
@@ -545,7 +513,7 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
         </div>
         <div class="mt-2 text-danger small" id="editError" style="display:none"></div>
       </div>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary btn-small" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary btn-small">Save</button></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary btn-sm">Save</button></div>
     </form>
   </div>
 </div>
@@ -556,7 +524,7 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title">Activity Log (latest 200)</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body"><div id="activityList" style="max-height:60vh;overflow:auto;font-size:13px">Loading…</div></div>
-      <div class="modal-footer"><button class="btn btn-secondary btn-small" data-bs-dismiss="modal">Close</button></div>
+      <div class="modal-footer"><button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button></div>
     </div>
   </div>
 </div>
@@ -564,7 +532,6 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 <?php include '../../php_scripts/footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 const CSRF_TOKEN = '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>';

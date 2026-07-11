@@ -7,7 +7,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 
 ## Tech Stack
 - **Backend**: PHP 8.x procedural, MySQL via `mysqli` (procedural + occasional OO), database `callnow_incredit`
-- **Frontend**: Bootstrap 5.3, jQuery, DataTables, Font Awesome via CDN; glassmorphism theme (`assets/css/app-theme.css`)
+- **Frontend**: Bootstrap 5.3, jQuery, DataTables, Bootstrap Icons via CDN; monochrome theme (`assets/css/app-theme.css` with light+dark tokens)
 - **Auth**: Hand-rolled session-based, bcrypt (`password_hash`/`verify`), 30-min idle timeout
 - **Roles**: Admin / Manager / Supervisor / Officer
 - **Routing**: Direct file-based, no front controller
@@ -31,8 +31,8 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose |
 |---|---|
 | `auth.php` | Core auth bootstrap: session, timeouts, role constants, `logActivity()`, `getAccessibleUserIds()`, `requireRole()`, `getTeamFilter()` |
-| `header.php` | Navbar with role-based menu; `url()` helper |
-| `footer.php` | Static footer |
+| `header.php` | Full HTML `<head>` (Bootstrap CSS, Bootstrap Icons, app-theme.css), sidebar, topbar, opens `<main>`; `url()` helper. Pages set `$pageTitle` before including. |
+| `footer.php` | Closes layout, loads Bootstrap JS bundle, theme.js, sidebar.js, APP_BASE, APP_CSRF |
 | `team_auth.php` | Team-scoped helpers: `canViewAllTeams()`, `getTeamFilterSQL()`, `requireTeamAccess()` |
 | `lead_ajax_check.php` | Stale duplicate (superseded by modules/leads/php_scripts/) |
 
@@ -139,6 +139,11 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 - `lead_insert.php` and `lead_update.php` duplicate mobile checks converted to prepared statements
 
 ## Database Schema (Post-Migration 2026-07-11)
+**`TEMPORARY_DATABASE` migrated from old schema to current schema** with no data loss. All 16,168 records preserved.
+- Renamed `ADDED_AT` → `TEMP_UPLOAD_DATETIME`, `CALLED_AT` → `TEMP_LAST_CALLED_AT`
+- Dropped `SOURCE`, `NOTES`, `ADDED_BY`
+- Added indexes: `idx_temp_mobile`, `idx_temp_status`, `idx_temp_upload_dt`
+
 **`MAIN_DATABASE` migrated from old schema (CUST_*, ADDED_*, CALLED_*) to new schema (MAINDATABASE_*)** with no data loss. All 105,593 customer records, 8 users, 22 leads, 16,168 temp records, 212 activity logs preserved.
 
 Column mapping applied:
@@ -176,3 +181,5 @@ Column mapping applied:
 - **URLs**: use `url('path')` helper from header.php or `APP_BASE . 'path'`
 - **Charset**: utf8mb4 is set globally in config.php — no need to set per-page
 - **Debug**: `display_errors` only on when `APP_DEBUG=1` env var set
+- **CSS architecture**: `header.php` includes Bootstrap CSS, Bootstrap Icons, and `app-theme.css` centrally. Module pages should NOT include their own `<link>` tags for these. Only add minimal page-specific `<style>` blocks when needed. Standalone pages (index.php, forgot-password.php, CallNowSignUp.php) keep their own `<head>` but should use theme classes.
+- **Page pattern**: Protected pages set `$pageTitle` then `include header.php` at top, `include footer.php` at bottom. No `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags in module pages.

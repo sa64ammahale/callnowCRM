@@ -121,138 +121,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
     
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
-    <!-- Custom CSS -->
     <style>
-        :root {
-            --primary-color: #4a6bff;
-            --secondary-color: #6c757d;
-            --accent-color: #00d4aa;
-            --light-bg: #f8f9fa;
-            --dark-bg: #1a1d29;
-            --success-color: #28a745;
-            --danger-color: #dc3545;
-        }
-        
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .reset-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex: 1;
-            padding: 2rem 1rem;
-        }
-        
-        .reset-card {
-            background-color: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            overflow: hidden;
-            width: 100%;
-            max-width: 450px;
-            border: none;
-        }
-        
-        .card-header {
-            background: linear-gradient(135deg, var(--primary-color), #3a56d9);
-            color: white;
-            padding: 1rem 1rem;
+        .login-header {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: #fff;
+            padding: 1.25rem 1rem;
             text-align: center;
-            border-bottom: none;
         }
-        
-        .brand-logo {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            color: white;
+        .login-header h1 { color: #fff; font-size: 1.125rem; margin: 0.5rem 0 0.25rem; }
+        .login-header .bi { font-size: 2rem; }
+        .login-header p { opacity: 0.9; font-size: 0.8rem; margin: 0; }
+        .instructions {
+            background-color: var(--surface-2);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--accent);
         }
-        
-        .brand-title {
-            font-weight: 700;
-            font-size: 1.6rem;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.25rem;
-        }
-        
-        .brand-subtitle {
-            font-size: 0.85rem;
-            opacity: 0.9;
-            margin-top: 0;
-            line-height: 1.2;
-        }
-        
-        .card-body {
-            padding: 2rem 1.5rem;
-        }
-        
-        .form-label {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-        
-        .input-group-text {
-            background-color: #f8f9fa;
-            border-right: none;
-        }
-        
-        .form-control {
-            border-left: none;
-            padding-left: 0;
-            transition: all 0.3s;
-        }
-        
-        .form-control:focus {
-            border-color: #ced4da;
-            box-shadow: 0 0 0 0.25rem rgba(74, 107, 255, 0.15);
-        }
-        
-        .input-group:focus-within .input-group-text {
-            border-color: #86b7fe;
-        }
-        
-        .btn-reset {
-            background: linear-gradient(to right, var(--primary-color), #3a56d9);
-            border: none;
-            padding: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            transition: all 0.3s;
-            width: 100%;
-        }
-        
-        .btn-reset:hover {
-            background: linear-gradient(to right, #3a56d9, #2a46c9);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(74, 107, 255, 0.3);
-        }
-        
-        .btn-back {
-            background-color: #6c757d;
-            border: none;
-            padding: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            transition: all 0.3s;
-            width: 100%;
-            margin-top: 10px;
-        }
-        
-        .btn-back:hover {
-            background-color: #5a6268;
-            transform: translateY(-2px);
-        }
-        
+        .instructions h6 { color: var(--accent); font-weight: 600; margin-bottom: 0.5rem; }
+        .instructions ul { margin-bottom: 0; padding-left: 1rem; }
+        .instructions li { font-size: 0.85rem; margin-bottom: 0.25rem; }
         .alert-custom {
             border: none;
             border-left: 4px solid;
@@ -260,115 +150,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             padding: 1rem;
             font-size: 0.95rem;
         }
-        
         .alert-success-custom {
-            background-color: rgba(40, 167, 69, 0.1);
-            border-left-color: var(--success-color);
-            color: #155724;
+            background-color: var(--success-soft);
+            border-left-color: var(--success);
+            color: var(--success);
         }
-        
         .alert-danger-custom {
-            background-color: rgba(220, 53, 69, 0.1);
-            border-left-color: var(--danger-color);
-            color: #721c24;
-        }
-        
-        .instructions {
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid var(--primary-color);
-        }
-        
-        .instructions h6 {
-            color: var(--primary-color);
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        .instructions ul {
-            margin-bottom: 0;
-            padding-left: 1rem;
-        }
-        
-        .instructions li {
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
-        }
-        
-        .footer {
-            background-color: var(--dark-bg);
-            color: #adb5bd;
-            padding: 1.5rem 0;
-            margin-top: auto;
-        }
-        
-        .company-name {
-            color: var(--accent-color);
-            font-weight: 600;
-        }
-        
-        @media (max-width: 576px) {
-            .reset-card {
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            }
-            
-            .card-header {
-                padding: 1.25rem 1rem;
-            }
-            
-            .brand-logo {
-                font-size: 1.75rem;
-            }
-            
-            .brand-title {
-                font-size: 1.4rem;
-            }
-            
-            .card-body {
-                padding: 1.5rem 1rem;
-            }
-        }
-        
-        /* Animation for success message */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .fade-in-up {
-            animation: fadeInUp 0.5s ease-out;
+            background-color: var(--danger-soft);
+            border-left-color: var(--danger);
+            color: var(--danger);
         }
     </style>
 </head>
 
 <body>
-    <div class="reset-container">
-        <div class="reset-card">
+    <div class="login-shell">
+        <div class="login-card" style="max-width:450px">
             <!-- Header -->
-            <div class="card-header">
-                <div class="brand-logo">
-                    <i class="fas fa-key"></i>
-                </div>
-                <h1 class="brand-title">Reset Password</h1>
-                <p class="brand-subtitle">CallNow Account Recovery</p>
+            <div class="login-header">
+                <i class="bi bi-key"></i>
+                <h1>Reset Password</h1>
+                <p>CallNow Account Recovery</p>
             </div>
             
             <!-- Reset Form -->
-            <div class="card-body">
+            <div class="p-4">
                 <?php if($success && !empty($ErrorMessage)): ?>
                     <!-- Success Message -->
                     <div class="alert alert-success-custom alert-custom fade-in-up mb-4" role="alert">
                         <div class="d-flex">
                             <div class="me-3">
-                                <i class="fas fa-check-circle" style="font-size: 1.5rem; color: var(--success-color);"></i>
+                                <i class="bi bi-check-circle" style="font-size: 1.5rem;"></i>
                             </div>
                             <div>
                                 <h5 class="alert-heading mb-2">Password Reset Successful!</h5>
@@ -380,8 +192,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                     </div>
                                 <?php endif; ?>
                                 <div class="mt-3">
-                                    <a href="index.php" class="btn btn-reset">
-                                        <i class="fas fa-sign-in-alt me-2"></i>Back to Login
+                                    <a href="index.php" class="btn btn-primary w-100">
+                                        <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
                                     </a>
                                 </div>
                             </div>
@@ -390,7 +202,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <?php else: ?>
                     <!-- Instructions -->
                     <div class="instructions mb-4">
-                        <h6><i class="fas fa-info-circle me-2"></i>Password Reset Instructions</h6>
+                        <h6><i class="bi bi-info-circle me-2"></i>Password Reset Instructions</h6>
                         <ul>
                             <li>Enter your registered company name</li>
                             <li>Enter your registered email address</li>
@@ -407,7 +219,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <label for="company" class="form-label">Company Name</label>
                             <div class="input-group">
                                 <span class="input-group-text">
-                                    <i class="fas fa-building"></i>
+                                    <i class="bi bi-building"></i>
                                 </span>
                                 <input 
                                     type="text" 
@@ -426,7 +238,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <label for="username" class="form-label">Email Address</label>
                             <div class="input-group">
                                 <span class="input-group-text">
-                                    <i class="fas fa-envelope"></i>
+                                    <i class="bi bi-envelope"></i>
                                 </span>
                                 <input 
                                     type="email" 
@@ -445,7 +257,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <div class="alert alert-danger-custom alert-custom mb-4 fade-in-up" role="alert">
                                 <div class="d-flex">
                                     <div class="me-3">
-                                        <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: var(--danger-color);"></i>
+                                        <i class="bi bi-exclamation-triangle" style="font-size: 1.5rem;"></i>
                                     </div>
                                     <div>
                                         <h5 class="alert-heading mb-1">Unable to Reset Password</h5>
@@ -457,15 +269,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         
                         <!-- Submit Button -->
                         <div class="d-grid mb-3">
-                            <button type="submit" class="btn btn-reset btn-lg text-white">
-                                <i class="fas fa-redo-alt me-2"></i>Reset Password
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="bi bi-arrow-repeat me-2"></i>Reset Password
                             </button>
                         </div>
                         
                         <!-- Back to Login -->
                         <div class="d-grid">
-                            <a href="index.php" class="btn btn-back text-white">
-                                <i class="fas fa-arrow-left me-2"></i>Back to Login
+                            <a href="index.php" class="btn btn-secondary w-100">
+                                <i class="bi bi-arrow-left me-2"></i>Back to Login
                             </a>
                         </div>
                     </form>
@@ -475,10 +287,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
     
     <!-- Footer -->
-    <footer class="footer">
+    <footer class="app-footer">
         <div class="container text-center">
             <p class="mb-0">
-                Copyright &copy; <span class="company-name">Sangam Mahale</span> 
+                Copyright &copy; <span class="text-primary fw-semibold">Sangam Mahale</span> 
                 <script>document.write(new Date().getFullYear())</script>
             </p>
             <p class="mb-0 small mt-1">CallNow V5.00</p>

@@ -149,69 +149,7 @@ function buildQuery($overrides = []) {
     return http_build_query($q);
 }
 ?>
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DND Numbers List - CallNow</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../../assets/css/app-theme.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-<style>
-    :root{
-        --danger:#dc3545;
-        --muted:#6b7280;
-    }
-    body {
-        font-family: 'Inter', sans-serif;
-        background: linear-gradient(135deg, #fff5f5 0%, #ffeef0 100%);
-        min-height: 100vh;
-        margin: 0;
-    }
-    .header-dnd {
-        background: linear-gradient(135deg, var(--danger), #c82333);
-        color: white;
-        padding: 1.6rem 0.8rem;
-        text-align: center;
-        box-shadow: 0 8px 25px rgba(220, 53, 69, 0.16);
-    }
-    .table-container {
-        background: white;
-        border-radius: 0.75rem;
-        box-shadow: 0 10px 30px rgba(15,23,42,0.04);
-        overflow: hidden;
-        margin: 1.25rem auto;
-        max-width: 1100px;
-    }
-    .table thead th {
-        background: rgba(220,53,69,0.95);
-        color: #fff;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        border: 0;
-    }
-    .table td, .table th { vertical-align: middle; font-size: 0.94rem; padding: 0.6rem 0.8rem; }
-    .badge-mobile { background: var(--danger); color: #fff; padding: .45rem .6rem; border-radius: .55rem; font-weight:600; }
-    .small-muted { color: var(--muted); font-size: .89rem; }
-    .search-box { max-width: 720px; }
-    .pagination .page-link { color: var(--danger); padding: .3rem .6rem; border-radius: 6px; font-size: 0.85rem; }
-    .pagination .page-item.active .page-link { background: var(--danger); color: #fff; border-color: var(--danger); }
-    .pagination .page-item.disabled .page-link { color: #adb5bd; }
-    @media (max-width: 768px) {
-        .table-container { margin: 0.6rem; }
-        .table td, .table th { padding: .45rem .5rem; font-size: .82rem; }
-        .header-dnd h1 { font-size: 1.15rem; }
-    }
-</style>
-</head>
-<body>
-
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'DND Numbers List - CallNow'; include '../../php_scripts/header.php'; ?>
 
 <div class="header-dnd">
     <div class="container">
@@ -338,6 +276,4 @@ function buildQuery($overrides = []) {
 
 <?php include '../../php_scripts/footer.php'; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+

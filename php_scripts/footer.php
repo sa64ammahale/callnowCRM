@@ -1,13 +1,15 @@
-<footer class="text-center text-muted py-3 mt-5 border-top">
-  <div class="container">
-    <div class="mb-2">
-      <a href="#" class="text-reset me-3"><i class="bi bi-facebook fs-5"></i></a>
-      <a href="#" class="text-reset me-3"><i class="bi bi-twitter fs-5"></i></a>
-      <a href="#" class="text-reset"><i class="bi bi-instagram fs-5"></i></a>
-    </div>
-    <small>&copy; Sangam Mahale @ <?php echo date("Y"); ?> | <a href="#" class="text-decoration-none">CallNow V5.00</a></small>
-  </div>
-</footer>
+</main>
 
-<!-- Bootstrap Icons CDN for social icons -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" />
+<footer class="app-footer">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span>&copy; <?= date('Y') ?> CallNow CRM &middot; Sangam Mahale</span>
+        <span class="text-soft">v5.00</span>
+    </div>
+</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+<script>window.APP_BASE = <?= json_encode(APP_BASE) ?>;</script>
+<script>window.APP_CSRF = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;</script>
+<script src="<?= url('assets/js/theme.js') ?>"></script>
+<script src="<?= url('assets/js/sidebar.js') ?>"></script>

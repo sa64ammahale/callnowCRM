@@ -72,7 +72,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="<?= ($_SESSION['theme'] ?? 'light') === 'dark' ? 'dark' : 'light' ?>">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -82,233 +82,48 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
 		<link href="assets/css/app-theme.css" rel="stylesheet">
 		
-		<!-- Font Awesome Icons -->
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 		
-		<!-- Custom CSS -->
 		<style>
-			:root {
-				--primary-color: #4a6bff;
-				--secondary-color: #6c757d;
-				--accent-color: #00d4aa;
-				--light-bg: #f8f9fa;
-				--dark-bg: #1a1d29;
-			}
-			
-			body {
-				font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-				background: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 100%);
-				min-height: 100vh;
-				display: flex;
-				flex-direction: column;
-			}
-			
-			.login-container {
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				flex: 1;
-				padding: 2rem 1rem;
-			}
-			
-			.login-card {
-				background-color: white;
-				border-radius: 16px;
-				box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-				overflow: hidden;
-				width: 100%;
-				max-width: 420px;
-				border: none;
-			}
-			
-			.card-header {
-				background: linear-gradient(135deg, var(--primary-color), #3a56d9);
-				color: white;
-				padding: 1rem 1rem;
+			.login-header {
+				background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+				color: #fff;
+				padding: 1.25rem 1rem;
 				text-align: center;
-				border-bottom: none;
 			}
-			
-			.brand-logo {
-				font-size: 2.5rem;
-				margin-bottom: 0.5rem;
-				color: white;
+			.login-header h1 { color: #fff; font-size: 1.25rem; margin: 0.5rem 0 0; }
+			.login-header .logo-container {
+				max-height: 60px;
+				width: auto;
+				max-width: 200px;
+				object-fit: contain;
 			}
-			
-			.brand-title {
-				font-weight: 700;
-				font-size: 1.8rem;
-				letter-spacing: 0.5px;
-			}
-			
-			.brand-subtitle {
-				font-size: 0.9rem;
-				opacity: 0.9;
-				margin-top: 0.25rem;
-			}
-			
-			.card-body {
-				padding: 2rem 1.5rem;
-			}
-			
-			.form-label {
-				font-weight: 600;
-				color: #495057;
-				margin-bottom: 0.5rem;
-				font-size: 0.9rem;
-			}
-			
-			.input-group-text {
-				background-color: #f8f9fa;
-				border-right: none;
-			}
-			
-			.form-control {
-				border-left: none;
-				padding-left: 0;
-				transition: all 0.3s;
-			}
-			
-			.form-control:focus {
-				border-color: #ced4da;
-				box-shadow: 0 0 0 0.25rem rgba(74, 107, 255, 0.15);
-			}
-			
-			.input-group:focus-within .input-group-text {
-				border-color: #86b7fe;
-			}
-			
-			.btn-login {
-				background: linear-gradient(to right, var(--primary-color), #3a56d9);
-				border: none;
-				padding: 0.75rem;
-				font-weight: 600;
-				letter-spacing: 0.5px;
-				transition: all 0.3s;
-			}
-			
-			.btn-login:hover {
-				background: linear-gradient(to right, #3a56d9, #2a46c9);
-				transform: translateY(-2px);
-				box-shadow: 0 5px 15px rgba(74, 107, 255, 0.3);
-			}
-			
-			.links-section a {
-				color: var(--primary-color);
-				text-decoration: none;
-				font-weight: 500;
-				transition: color 0.2s;
-			}
-			
-			.links-section a:hover {
-				color: #2a46c9;
-				text-decoration: underline;
-			}
-			
-			.alert-danger {
-				background-color: rgba(220, 53, 69, 0.1);
-				border: none;
-				border-left: 4px solid #dc3545;
-				border-radius: 4px;
-				font-size: 0.9rem;
-			}
-			
-			.footer {
-				background-color: var(--dark-bg);
-				color: #adb5bd;
-				padding: 1.5rem 0;
-				margin-top: auto;
-			}
-			
-			.company-name {
-				color: var(--accent-color);
-				font-weight: 600;
-			}
-			
-			.password-toggle {
-				cursor: pointer;
-				color: var(--secondary-color);
-				transition: color 0.2s;
-			}
-			
-			.password-toggle:hover {
-				color: var(--primary-color);
-			}
-			
-			.form-check-input:checked {
-				background-color: var(--primary-color);
-				border-color: var(--primary-color);
-			}
-			
-			@media (max-width: 576px) {
-				.login-card {
-					box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-				}
-				
-				.card-header {
-					padding: 1.5rem 1rem;
-				}
-				
-				.card-body {
-					padding: 1.5rem 1rem;
-				}
-			}
-			
-			/* Add this to your existing CSS */
-.card-header {
-    padding: 1rem 1.25rem !important; /* From 2rem 1.5rem */
-}
-
-
-.brand-title {
-    font-size: 1.5rem !important; /* From 1.8rem */
-}
-
-.login-container {
-    padding: 1.5rem 1rem !important; /* Reduce container padding */
-}
-
-
-    /* Add this to your CSS */
-    .logo-only-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 5px 0;
-    }
-    
-    .full-logo {
-        max-height: 80px;
-        width: auto;
-        max-width: 250px;
-        object-fit: contain;
-    }
-			
+			.links-section a { font-weight: 500; transition: color 0.2s; }
+			.links-section a:hover { text-decoration: underline; }
+			.password-toggle { cursor: pointer; transition: color 0.2s; }
 		</style>
 	</head>
 	
 	<body>
-		<div class="login-container">
+		<div class="login-shell">
 			<div class="login-card">
 				<!-- Header -->
-				<div class="card-header compact-header">
-                    <div class="logo-only-container">
-                        <img src="/assets/iclauncher.png" alt="CallNow" class="full-logo">
-                    </div>
-					<h1 class="brand-title">CallNow V5.00</h1>
+				<div class="login-header">
+					<img src="/assets/iclauncher.png" alt="CallNow" class="logo-container">
+					<h1>CallNow V5.00</h1>
 				</div>
 				
 				<!-- Login Form -->
-				<div class="card-body">
+				<div class="p-4">
 					<form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
 						<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
 						<!-- Company Name -->
 						<div class="mb-3">
 							<label for="company" class="form-label">Company Name</label>
 							<div class="input-group">
-								<span class="input-group-text">
-									<i class="fas fa-building"></i>
-								</span>
+							<span class="input-group-text">
+								<i class="bi bi-building"></i>
+							</span>
 								<input 
 									type="text" 
 									id="company" 
@@ -325,9 +140,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 						<div class="mb-3">
 							<label for="username" class="form-label">Username / Email</label>
 							<div class="input-group">
-								<span class="input-group-text">
-									<i class="fas fa-user"></i>
-								</span>
+							<span class="input-group-text">
+								<i class="bi bi-person"></i>
+							</span>
 								<input 
 									type="text" 
 									id="username" 
@@ -344,9 +159,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 						<div class="mb-4">
 							<label for="password" class="form-label">Password</label>
 							<div class="input-group">
-								<span class="input-group-text">
-									<i class="fas fa-lock"></i>
-								</span>
+							<span class="input-group-text">
+								<i class="bi bi-lock"></i>
+							</span>
 								<input 
 									type="password" 
 									id="password" 
@@ -356,7 +171,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 									required
 								>
 								<span class="input-group-text password-toggle" id="togglePassword">
-									<i class="fas fa-eye"></i>
+									<i class="bi bi-eye"></i>
 								</span>
 							</div>
 							<div class="form-check mt-2">
@@ -370,7 +185,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 						<!-- Error Message -->
 						<?php if(isset($ErrorMessage)): ?>
 						<div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-							<i class="fas fa-exclamation-circle me-2"></i>
+							<i class="bi bi-exclamation-circle me-2"></i>
 							<?php echo $ErrorMessage; ?>
 							<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 						</div>
@@ -378,8 +193,8 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 						
 						<!-- Submit Button -->
 						<div class="d-grid mb-4">
-							<button type="submit" class="btn btn-login btn-lg text-white">
-								<i class="fas fa-sign-in-alt me-2"></i>Log In
+							<button type="submit" class="btn btn-primary btn-lg w-100">
+								<i class="bi bi-box-arrow-in-right me-2"></i>Log In
 							</button>
 						</div>
 						
@@ -387,13 +202,13 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 						<div class="links-section text-center">
 							<div class="mb-2">
 								<a href="forgot-password.php">
-									<i class="fas fa-key me-1"></i>Forgot Password?
+									<i class="bi bi-key me-1"></i>Forgot Password?
 								</a>
 							</div>
 							<div>
 								<p class="mb-1">Don't have an account?</p>
 								<a href="CallNowSignUp.php" class="fw-bold">
-									<i class="fas fa-user-plus me-1"></i>Sign Up Now
+									<i class="bi bi-person-plus me-1"></i>Sign Up Now
 								</a>
 							</div>
 						</div>
@@ -403,10 +218,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 		</div>
 		
 		<!-- Footer -->
-		<footer class="footer">
+		<footer class="app-footer">
 			<div class="container text-center">
 				<p class="mb-0">
-					Copyright &copy; <span class="company-name">Sangam Mahale</span> 
+					Copyright &copy; <span class="text-primary fw-semibold">Sangam Mahale</span> 
 					<script>document.write(new Date().getFullYear())</script>
 				</p>
 				<p class="mb-0 small mt-1">Callnow V5.00</p>
@@ -425,12 +240,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 				
 				if (this.checked) {
 					passwordField.type = 'text';
-					toggleIcon.classList.remove('fa-eye');
-					toggleIcon.classList.add('fa-eye-slash');
+					toggleIcon.classList.remove('bi-eye');
+					toggleIcon.classList.add('bi-eye-slash');
 				} else {
 					passwordField.type = 'password';
-					toggleIcon.classList.remove('fa-eye-slash');
-					toggleIcon.classList.add('fa-eye');
+					toggleIcon.classList.remove('bi-eye-slash');
+					toggleIcon.classList.add('bi-eye');
 				}
 			});
 			
@@ -442,13 +257,13 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 				
 				if (passwordField.type === 'password') {
 					passwordField.type = 'text';
-					toggleIcon.classList.remove('fa-eye');
-					toggleIcon.classList.add('fa-eye-slash');
+					toggleIcon.classList.remove('bi-eye');
+					toggleIcon.classList.add('bi-eye-slash');
 					showPasswordCheckbox.checked = true;
 				} else {
 					passwordField.type = 'password';
-					toggleIcon.classList.remove('fa-eye-slash');
-					toggleIcon.classList.add('fa-eye');
+					toggleIcon.classList.remove('bi-eye-slash');
+					toggleIcon.classList.add('bi-eye');
 					showPasswordCheckbox.checked = false;
 				}
 			});

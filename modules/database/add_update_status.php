@@ -182,67 +182,7 @@ if ($res = mysqli_query($link, $sampleSql)) {
     while ($r = mysqli_fetch_assoc($res)) $sampleRows[] = $r;
 }
 ?>
-<!doctype html>
-<html lang="en" data-bs-theme="light">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Temporary Database — Update</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../../assets/css/app-theme.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-<style>
-:root{
-    --bg1: #f0f7ff;
-    --card: #ffffff;
-    --accent1: #6f42c1;
-    --accent2: #0ea5a4;
-    --muted: #6b7280;
-}
-body{
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    background: linear-gradient(180deg, var(--bg1) 0%, #fff 100%);
-    margin: 0;
-    padding-bottom: 3rem;
-}
-.hero {
-    background: linear-gradient(90deg, rgba(111,66,193,0.95), rgba(14,165,164,0.95));
-    color: white;
-    padding: 2rem 1rem;
-    border-bottom-left-radius: 18px;
-    border-bottom-right-radius: 18px;
-    box-shadow: 0 12px 40px rgba(15,23,42,0.08);
-}
-.container-narrow { max-width: 1100px; margin: 0 auto; }
-.card-soft { background: var(--card); border-radius: 12px; box-shadow: 0 8px 26px rgba(15,23,42,0.04); }
-.form-section { padding: 1.25rem; }
-.legend-small { font-size: 0.85rem; color: var(--muted); }
-
-/* status pill classes */
-.status-pill { display:inline-block; padding:.28rem .55rem; border-radius:999px; font-weight:600; font-size:.78rem; color:white; }
-.status-not-called { background:#94a3b8; } /* gray */
-.status-dialed { background:#0ea5a4; } /* teal */
-.status-connected { background:#10b981; } /* green */
-.status-busy { background:#f59e0b; } /* amber */
-.status-no-answer { background:#f97316; } /* orange */
-.status-do-not-call { background:#ef4444; } /* red */
-.status-pending { background:#6b7280; } /* muted */
-
-.btn-gradient { background: linear-gradient(90deg,#6f42c1,#0ea5a4); color: white; border:0; border-radius: 999px; padding:.65rem 1.2rem; }
-.btn-gradient:hover{ filter:brightness(.98); transform:translateY(-2px); }
-
-@media (max-width:720px){
-    .hero { padding: 1rem; text-align:center; border-radius:0 0 12px 12px;}
-    .form-grid { gap:.6rem !important; }
-    .status-grid { gap:.4rem !important; }
-}
-</style>
-</head>
-<body>
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Temporary Database — Update'; include '../../php_scripts/header.php'; ?>
 
 <section class="hero">
     <div class="container-narrow">
@@ -401,6 +341,4 @@ body{
 
 <?php include '../../php_scripts/footer.php'; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+

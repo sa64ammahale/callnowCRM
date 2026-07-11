@@ -223,57 +223,7 @@ if ($res) {
 $totalPages = max(1, (int)ceil($total / $perPage));
 $baseQuery = $_GET;
 ?>
-<!doctype html>
-<html lang="en" data-bs-theme="light">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Activity Log Management</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../../assets/css/app-theme.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-
-<style>
-    :root{
-        --accent-1:#4f46e5;   /* indigo */
-        --accent-2:#06b6d4;   /* teal */
-        --muted:#6b7280;
-        --card:#ffffff;
-    }
-    body{ background: linear-gradient(180deg,#f7fbff 0%, #ffffff 100%); font-family: Inter,system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-    .topbar{ background: linear-gradient(90deg,var(--accent-1), #7c3aed); color: white; padding:12px 14px; border-radius:10px; box-shadow:0 6px 20px rgba(99,102,241,0.08); margin-bottom:14px; }
-    .topbar h1{ font-size:1.05rem; margin:0; font-weight:700; letter-spacing: -0.2px; }
-    .card-modern{ border:0; border-radius:10px; box-shadow:0 8px 26px rgba(15,23,42,0.04); }
-    .table thead th{ background: linear-gradient(90deg,#f0f6ff,#fafcff); border-bottom:0; font-size:0.86rem; }
-    .small-muted{ color:var(--muted); font-size:0.85rem; }
-    .role-badge.Admin{ background:#0ea5a4; color:white; }
-    .role-badge.Manager{ background:#f97316; color:white; }
-    .role-badge.Supervisor{ background:#3b82f6; color:white; }
-    .role-badge.Officer{ background:#10b981; color:white; }
-    .action-badge.INSERT{ background:#06b6d4; color:white; }
-    .action-badge.UPDATE{ background:#f59e0b; color:white; }
-    .action-badge.DELETE{ background:#ef4444; color:white; }
-    .action-badge.OTHER{ background:#6b7280; color:white; }
-    .search-box { box-shadow: 0 6px 18px rgba(15,23,42,0.04); border-radius:8px; overflow:hidden; }
-    .table td, .table th { vertical-align: middle; padding:8px 10px; font-size:0.88rem; }
-    .text-truncate-200{ max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .btn-gradient { background: linear-gradient(90deg,var(--accent-1), #7c3aed); color:white; border:0; }
-    /* compact mobile adjustments */
-    @media (max-width:767px){
-        .topbar{ padding:10px; }
-        .topbar h1{ font-size:1rem; }
-        .table td, .table th { padding:6px 6px; font-size:0.82rem; }
-        .text-truncate-200{ max-width:160px; }
-        .role-badge, .action-badge { font-size:0.72rem; padding:.18rem .4rem; }
-        .btn-sm { padding:.28rem .5rem; font-size:0.78rem; }
-        .search-box input { font-size:0.86rem; }
-        .card-modern { border-radius:8px; }
-    }
-</style>
-</head>
-<body>
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Activity Log Management'; include '../../php_scripts/header.php'; ?>
 
 <div class="container py-3">
 
@@ -492,7 +442,6 @@ $baseQuery = $_GET;
 
 <?php include '../../php_scripts/footer.php'; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // guard DOM queries
     (function(){
@@ -541,5 +490,3 @@ $baseQuery = $_GET;
         }
     })();
 </script>
-</body>
-</html>

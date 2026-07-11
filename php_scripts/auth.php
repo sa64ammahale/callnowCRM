@@ -40,6 +40,7 @@ if (!defined('CURRENT_USER')) define('CURRENT_USER', $user);
 if (!defined('USER_ROLE')) define('USER_ROLE', $user['ROLE']);
 if (!defined('USER_ID'))   define('USER_ID',   (int)$user['ID']);
 if (!defined('USER_TEAM_ID')) define('USER_TEAM_ID', $user['TEAM_ID']);
+if (!defined('THEME')) define('THEME', ($_SESSION['theme'] ?? 'light') === 'dark' ? 'dark' : 'light');
 
 
 // Helpers

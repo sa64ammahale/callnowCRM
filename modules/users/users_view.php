@@ -109,130 +109,7 @@ $packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM U
 mysqli_close($link);
 ?>
 
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>App Users - CallNow Admin</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="../../assets/css/app-theme.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/table2excel@1.0.4/dist/table2excel.min.js"></script>
-
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
-            min-height: 100vh;
-        }
-
-        .page-wrapper {
-            padding-top: 0.75rem;
-            padding-bottom: 1.5rem;
-        }
-
-        /* Compact header bar */
-        .page-header-bar {
-            background: #ffffff;
-            border-radius: 0.9rem;
-            padding: 0.75rem 1.1rem;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            margin-bottom: 0.9rem;
-        }
-        .page-header-title {
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        .page-header-desc {
-            font-size: 0.78rem;
-            color: #6b7280;
-            margin: 0.15rem 0 0;
-        }
-        .page-header-actions .btn {
-            font-size: 0.78rem;
-            padding: 0.25rem 0.7rem;
-            border-radius: 999px;
-        }
-
-        /* Filters card */
-        .filter-card {
-            background: #ffffff;
-            border-radius: 0.9rem;
-            box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
-            padding: 0.9rem 0.95rem;
-            margin-bottom: 0.9rem;
-        }
-        .form-control-sm, .form-select-sm {
-            font-size: 0.8rem;
-        }
-        .filter-label {
-            font-size: 0.75rem;
-            color: #6b7280;
-            margin-bottom: 0.15rem;
-        }
-
-        /* Table cards */
-        .table-card {
-            background: #ffffff;
-            border-radius: 0.9rem;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-            margin-bottom: 0.8rem;
-        }
-        .table-card-header {
-            padding: 0.55rem 0.9rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .table-card-body {
-            padding: 0.6rem 0.9rem 0.7rem;
-        }
-
-        .table-sm th,
-        .table-sm td {
-            padding: 0.3rem 0.6rem;
-            font-size: 0.78rem;
-            vertical-align: middle;
-        }
-
-        .table-striped > tbody > tr:nth-of-type(odd) > * {
-            background-color: #f9fafb;
-        }
-
-        .status-badge {
-            font-size: 0.75rem;
-            padding: 0.2em 0.6em;
-            border-radius: 999px;
-        }
-
-        .badge-team {
-            background: #231b5e;
-            color: #4338ca;
-            font-weight: 600;
-            font-size: 0.75rem;
-        }
-
-        .status-row-active {
-            background-color: #f0fdf4;
-        }
-
-        @media (max-width: 576px) {
-            .page-header-bar {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-        }
-    </style>
-</head>
-<body>
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'App Users - CallNow Admin'; include '../../php_scripts/header.php'; ?>
 
 <div class="container page-wrapper">
 
@@ -526,6 +403,7 @@ mysqli_close($link);
 
 <?php include '../../php_scripts/footer.php'; ?>
 
+<script src="https://cdn.jsdelivr.net/npm/table2excel@1.0.4/dist/table2excel.min.js"></script>
 <script>
 document.getElementById("exportBtn").addEventListener("click", function(){
     // Export only the Active Users table (id="usersTable") – logic same library, new UI
@@ -535,6 +413,3 @@ document.getElementById("exportBtn").addEventListener("click", function(){
     });
 });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>

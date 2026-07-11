@@ -1,11 +1,13 @@
 <?php
 require_once "php_scripts/auth.php";
 
+$pageTitle = 'Dashboard';
+include 'php_scripts/header.php';
+
 // === ALL DATA WITH NULL-SAFE FALLBACKS ===
 $today_calls = $today_connected = $connect_rate = 0;
 $total_leads = $total_numbers = $unused_numbers = $active_users_today = 0;
 
-// Helper: Safe number formatting (never passes null)
 function fmt($num) {
     return number_format((int)$num);
 }
@@ -46,158 +48,110 @@ $unused_numbers = (int)($row5['unused'] ?? 0);
 mysqli_close($link);
 ?>
 
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Dashboard • CallNow</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/app-theme.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #333; }
-        .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); border-radius: 1.8rem; box-shadow: 0 25px 50px rgba(0,0,0,0.15); transition: all 0.4s ease; }
-        .glass-card:hover { transform: translateY(-12px); box-shadow: 0 35px 70px rgba(102,126,234,0.3); }
-        .stat-card { height: 160px; display: flex; align-items: center; padding: 1.8rem; position: relative; }
-        .icon-circle { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .hero-welcome { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 2rem; box-shadow: 0 20px 60px rgba(102,126,234,0.4); }
-        .btn-modern { border-radius: 50px; padding: 0.9rem 2.2rem; font-weight: 600; font-size: 1.1rem; }
-        .progress { height: 10px; border-radius: 10px; background: rgba(0,0,0,0.1); }
-        .badge-alert { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-    </style>
-</head>
-<body>
-<?php include 'php_scripts/header.php'; ?>
-
-<div class="container py-5 mt-4">
-    <!-- Hero -->
-    <div class="hero-welcome p-5 mb-5 text-center text-lg-start">
+<div class="container py-4">
+    <!-- Welcome -->
+    <div class="welcome-card mb-4">
         <div class="row align-items-center">
             <div class="col-lg-8">
-                <h1 class="display-4 fw-bold mb-3">
-                    Good <?= ($h = date('H')) < 12 ? 'Morning' : ($h < 17 ? 'Afternoon' : 'Evening') ?>,
-                    <span class="text-warning"><?= htmlspecialchars($_SESSION['name'] ?? 'Team') ?>!</span>
-                </h1>
-                <p class="lead mb-4 opacity-90">Your telecalling engine is running at full power today.</p>
-                <div class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start">
-                    <a href="modules/logs/Reports.php?type=daily" class="btn btn-light btn-modern shadow-lg">Today's Report</a>
-                    <a href="modules/database/data_management_temporary.php" class="btn btn-outline-light btn-modern">View Database</a>
-                    <a href="modules/database/maindatabase_ajax/download_bach.php" class="btn btn-outline-light btn-modern">Export Full DB</a>
+                <h1>Good <?= ($h = date('H')) < 12 ? 'Morning' : ($h < 17 ? 'Afternoon' : 'Evening') ?>, <?= htmlspecialchars($_SESSION['name'] ?? 'Team') ?></h1>
+                <p>Your telecalling engine is running at full power today.</p>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <a href="modules/logs/Reports.php?type=daily" class="btn btn-light btn-sm">Today's Report</a>
+                    <a href="modules/database/data_management_temporary.php" class="btn btn-outline-light btn-sm">View Database</a>
+                    <a href="modules/database/maindatabase_ajax/download_bach.php" class="btn btn-outline-light btn-sm">Export Full DB</a>
                 </div>
             </div>
-            <div class="col-lg-4 text-center">
-                <i class="bi bi-headset display-1 opacity-80"></i>
+            <div class="col-lg-4 text-center d-none d-lg-block">
+                <i class="bi bi-headset" style="font-size:4rem;opacity:0.5"></i>
             </div>
         </div>
     </div>
 
     <!-- Stats Cards -->
-    <div class="row g-4">
+    <div class="row g-3 mb-4">
         <div class="col-lg-4 col-md-6">
-            <div class="glass-card stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                <div class="icon-circle me-4" style="background: rgba(255,255,255,0.25);">
-                    <i class="bi bi-telephone-outbound"></i>
-                </div>
-                <div>
-                    <h2 class="fw-bold mb-1"><?= fmt($today_calls) ?></h2>
-                    <p class="mb-0 opacity-90 fw-medium">Calls Made Today</p>
+            <div class="metric-card">
+                <div class="metric-card-icon"><i class="bi bi-telephone-outbound"></i></div>
+                <div class="metric-card-body">
+                    <div class="metric-card-label">Calls Made Today</div>
+                    <div class="metric-card-value"><?= fmt($today_calls) ?></div>
                 </div>
             </div>
         </div>
-
         <div class="col-lg-4 col-md-6">
-            <div class="glass-card stat-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">
-                <div class="icon-circle me-4" style="background: rgba(255,255,255,0.25);">
-                    <i class="bi bi-check2-circle"></i>
-                </div>
-                <div>
-                    <h2 class="fw-bold mb-1"><?= fmt($today_connected) ?></h2>
-                    <p class="mb-0 opacity-90 fw-medium">Connected Calls</p>
+            <div class="metric-card">
+                <div class="metric-card-icon success"><i class="bi bi-check2-circle"></i></div>
+                <div class="metric-card-body">
+                    <div class="metric-card-label">Connected Calls</div>
+                    <div class="metric-card-value"><?= fmt($today_connected) ?></div>
                 </div>
             </div>
         </div>
-
         <div class="col-lg-4 col-md-6">
-            <div class="glass-card stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
-                <div class="icon-circle me-4" style="background: rgba(255,255,255,0.25);">
-                    <i class="bi bi-graph-up-arrow"></i>
-                </div>
-                <div>
-                    <h2 class="fw-bold mb-1"><?= $connect_rate ?>%</h2>
-                    <p class="mb-0 opacity-90 fw-medium">Connect Rate Today</p>
-                    <div class="progress mt-2">
-                        <div class="progress-bar" style="width: <?= $connect_rate ?>%; background: rgba(255,255,255,0.4);"></div>
+            <div class="metric-card">
+                <div class="metric-card-icon info"><i class="bi bi-graph-up-arrow"></i></div>
+                <div class="metric-card-body">
+                    <div class="metric-card-label">Connect Rate Today</div>
+                    <div class="metric-card-value"><?= $connect_rate ?>%</div>
+                    <div class="progress mt-2" style="height:4px">
+                        <div class="progress-bar" style="width:<?= $connect_rate ?>%"></div>
                     </div>
                 </div>
             </div>
         </div>
-
         <div class="col-lg-4 col-md-6">
-            <div class="glass-card stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
-                <div class="icon-circle me-4" style="background: rgba(255,255,255,0.25);">
-                    <i class="bi bi-trophy-fill"></i>
-                </div>
-                <div>
-                    <h2 class="fw-bold mb-1"><?= fmt($total_leads) ?></h2>
-                    <p class="mb-0 opacity-90 fw-medium">Hot Leads / Sales</p>
+            <div class="metric-card">
+                <div class="metric-card-icon warning"><i class="bi bi-trophy-fill"></i></div>
+                <div class="metric-card-body">
+                    <div class="metric-card-label">Hot Leads / Sales</div>
+                    <div class="metric-card-value"><?= fmt($total_leads) ?></div>
                 </div>
             </div>
         </div>
-
         <div class="col-lg-4 col-md-6">
-            <div class="glass-card stat-card position-relative" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); color: white;">
-                <div class="icon-circle me-4" style="background: rgba(255,255,255,0.25);">
-                    <i class="bi bi-phone-x"></i>
-                </div>
-                <div>
-                    <h2 class="fw-bold mb-1"><?= fmt($unused_numbers) ?></h2>
-                    <p class="mb-0 opacity-90 fw-medium">Fresh Numbers</p>
+            <div class="metric-card">
+                <div class="metric-card-icon danger"><i class="bi bi-phone-x"></i></div>
+                <div class="metric-card-body">
+                    <div class="metric-card-label">Fresh Numbers</div>
+                    <div class="metric-card-value"><?= fmt($unused_numbers) ?></div>
                     <?php if($total_numbers > 0): ?>
-                        <small class="badge bg-white text-danger fw-bold mt-2 d-inline-block badge-alert">
-                            <?= round(($unused_numbers / $total_numbers) * 100, 1) ?>% pending
-                        </small>
+                        <div class="metric-card-trend down"><?= round(($unused_numbers / $total_numbers) * 100, 1) ?>% pending</div>
                     <?php endif; ?>
                 </div>
-                <span class="position-absolute top-0 end-0 m-3 badge rounded-pill bg-white text-danger fw-bold badge-alert">Fresh</span>
             </div>
         </div>
-
         <div class="col-lg-4 col-md-6">
-            <div class="glass-card stat-card" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333;">
-                <div class="icon-circle me-4" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
-                    <i class="bi bi-database-fill"></i>
-                </div>
-                <div>
-                    <h2 class="fw-bold mb-1"><?= fmt($total_numbers) ?></h2>
-                    <p class="mb-0 fw-bold opacity-90">Total Main Database</p>
+            <div class="metric-card">
+                <div class="metric-card-icon"><i class="bi bi-database-fill"></i></div>
+                <div class="metric-card-body">
+                    <div class="metric-card-label">Total Main Database</div>
+                    <div class="metric-card-value"><?= fmt($total_numbers) ?></div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Bottom Row -->
-    <div class="row g-4 mt-4">
+    <div class="row g-3">
         <div class="col-lg-6">
-            <div class="glass-card text-center p-5" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                <i class="bi bi-people-fill display-3 mb-3"></i>
-                <h1 class="display-5 fw-bold"><?= $active_users_today ?></h1>
-                <p class="fs-5 mb-0 opacity-90">Active Callers Today</p>
+            <div class="card text-center p-4">
+                <div class="card-body">
+                    <i class="bi bi-people-fill text-primary" style="font-size:2.5rem"></i>
+                    <div class="metric-card-value mt-2"><?= $active_users_today ?></div>
+                    <div class="metric-card-label">Active Callers Today</div>
+                </div>
             </div>
         </div>
         <div class="col-lg-6">
-            <div class="glass-card text-center p-5" style="background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: white;">
-                <i class="bi bi-broadcast display-3 mb-3"></i>
-                <h4 class="fw-bold mb-2">System Live & Running</h4>
-                <p class="mb-0 opacity-90">Real-time sync • All agents connected</p>
+            <div class="card text-center p-4">
+                <div class="card-body">
+                    <i class="bi bi-broadcast text-success" style="font-size:2.5rem"></i>
+                    <h5 class="mt-2 mb-1">System Live & Running</h5>
+                    <p class="text-muted mb-0 small">Real-time sync &bull; All agents connected</p>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <?php include 'php_scripts/footer.php'; ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>

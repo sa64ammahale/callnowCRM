@@ -214,91 +214,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Add New Lead - CallNow</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="../../assets/css/app-theme.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f0f7ff 0%, #e0f2fe 100%);
-            min-height: 100vh;
-        }
-        .page-wrapper {
-            padding-top: 0.75rem;
-            padding-bottom: 1.5rem;
-        }
-        .page-header-bar {
-            background: #ffffff;
-            border-radius: 0.9rem;
-            padding: 0.75rem 1.1rem;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            margin-bottom: 0.9rem;
-            flex-wrap: wrap;
-        }
-        .page-header-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        .page-header-desc {
-            font-size: 0.78rem;
-            color: #6b7280;
-            margin: 0.1rem 0 0;
-        }
-        .page-header-actions .btn {
-            font-size: 0.78rem;
-            padding: 0.25rem 0.7rem;
-            border-radius: 999px;
-        }
-        .form-card {
-            background: #ffffff;
-            border-radius: 1rem;
-            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.09);
-            padding: 1.15rem;
-        }
-        .section-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 0.9rem;
-            padding: 1rem;
-            background: #f8fbff;
-            height: 100%;
-        }
-        .section-title {
-            font-size: 0.88rem;
-            font-weight: 700;
-            color: #1e3a8a;
-            margin-bottom: 0.8rem;
-        }
-        .form-label {
-            font-size: 0.78rem;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-        .form-control-sm,
-        .form-select-sm {
-            font-size: 0.8rem;
-            border-radius: 0.7rem;
-        }
-        .submit-btn {
-            border-radius: 999px;
-            padding-inline: 1.4rem;
-        }
-    </style>
-</head>
-<body>
-<?php include __DIR__ . '/../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Add New Lead - CallNow'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <datalist id="loanTypeOptions">
     <?php foreach ($loanTypeOptions as $loanType): ?>
@@ -520,6 +436,3 @@ document.getElementById('mobile').addEventListener('blur', function () {
 </script>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>

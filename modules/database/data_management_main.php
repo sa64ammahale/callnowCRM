@@ -14,59 +14,7 @@ while ($u = mysqli_fetch_assoc($users_result)) {
 }
 ?>
 
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Main Database • CallNow</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="../../assets/css/app-theme.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- DataTables + Buttons -->
-    <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.bootstrap5.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.2/css/responsive.bootstrap5.min.css">
-
-    <style>
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); border-radius: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
-        .table { font-size: 0.87rem; }
-        .dataTables_wrapper .dataTables_length select,
-        .dataTables_wrapper .dataTables_filter input { border-radius: 50px; padding: 0.4rem 1rem; }
-        .dt-buttons { margin-bottom: 1rem; }
-        .dt-button { border-radius: 50px !important; padding: 0.4rem 1.2rem !important; font-size: 0.85rem !important; }
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
-        .badge-status { font-size: 0.7rem; padding: 0.35rem 0.6rem; border-radius: 50px; }
-        @media (max-width: 768px) {
-            .dt-buttons { flex-wrap: wrap; gap: 0.5rem; }
-            .dataTables_filter { margin-top: 1rem; }
-        }
-        
-        /* Premium Pagination & Length Menu */
-.dataTables_paginate .paginate_button {
-    border-radius: 50px !important;
-    margin: 0 3px !important;
-    padding: 0.4rem 0.9rem !important;
-    font-weight: 600;
-}
-.dataTables_paginate .paginate_button.current {
-    background: linear-gradient(135deg, #667eea, #764ba2) !important;
-    border: none !important;
-    color: white !important;
-}
-.dataTables_length select {
-    border-radius: 50px !important;
-    padding: 0.5rem 1rem !important;
-    border: 2px solid #667eea;
-}
-        
-    </style>
-</head>
-<body>
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Main Database • CallNow'; include '../../php_scripts/header.php'; ?>
 
 <div class="container py-2">
     <!-- Header Stats -->
@@ -135,7 +83,6 @@ while ($u = mysqli_fetch_assoc($users_result)) {
 
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
@@ -291,5 +238,3 @@ $(document).ready(function() {
     };
 });
 </script>
-</body>
-</html>

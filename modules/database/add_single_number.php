@@ -241,58 +241,7 @@ if (isset($_POST['submit'])) {
 }
 ?>
 
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><?php echo $isEdit ? 'Edit' : 'Add'; ?> Customer - CallNow</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="../../assets/css/app-theme.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .main-content {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            padding: 2rem 0;
-        }
-        .form-card {
-            background: white;
-            border-radius: 1.2rem;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 600px;
-        }
-        .card-header {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border-radius: 1.2rem 1.2rem 0 0 !important;
-            padding: 1.2rem;
-            text-align: center;
-        }
-        .btn-gradient {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border: none;
-            padding: 0.65rem 2rem;
-            border-radius: 50px;
-            font-weight: 600;
-        }
-    </style>
-</head>
-<body>
-
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = ($isEdit ? 'Edit' : 'Add') . ' Customer - CallNow'; include '../../php_scripts/header.php'; ?>
 
 <div class="main-content">
     <div class="container">
@@ -381,6 +330,4 @@ if (isset($_POST['submit'])) {
 
 <?php include '../../php_scripts/footer.php'; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+

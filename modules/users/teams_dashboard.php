@@ -185,175 +185,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
 }
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Manage Teams • CallNow</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="../../assets/css/app-theme.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #2563EB;
-            --primary-soft: #EFF6FF;
-            --primary-border: #BFDBFE;
-            --accent: #0F766E;
-            --danger: #DC2626;
-            --bg-page: #F3F4F6;
-            --card-bg: #FFFFFF;
-            --text-main: #111827;
-            --text-muted: #6B7280;
-        }
-
-        body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: var(--bg-page);
-            color: var(--text-main);
-            min-height: 100vh;
-        }
-
-        /* Compact header bar */
-        .page-header-bar {
-            background: #FFFFFF;
-            border-bottom: 1px solid #E5E7EB;
-            padding: 0.7rem 0;
-            box-shadow: 0 4px 10px rgba(15,23,42,0.04);
-        }
-        .page-header-title {
-            font-size: 1rem;
-            font-weight: 600;
-            color: #111827;
-            margin-bottom: 0;
-        }
-        .page-header-subtitle {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-bottom: 0;
-        }
-
-        .card-main,
-        .card-main-light {
-            background: var(--card-bg);
-            border-radius: 0.75rem;
-            border: 1px solid #E5E7EB;
-            box-shadow: 0 10px 25px rgba(15,23,42,0.06);
-        }
-
-        .card-main h6,
-        .card-main-light h6 {
-            letter-spacing: 0.02em;
-            font-size: 0.9rem;
-        }
-
-        .form-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-        .form-control,
-        .form-select {
-            font-size: 0.85rem;
-            border-radius: 0.4rem;
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            border-color: var(--primary);
-            font-size: 0.85rem;
-        }
-        .btn-primary:hover {
-            background: #1D4ED8;
-            border-color: #1D4ED8;
-        }
-
-        .btn-outline-secondary {
-            font-size: 0.8rem;
-        }
-
-        .btn-icon {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .table-sm td,
-        .table-sm th {
-            padding: 0.4rem 0.5rem;
-            font-size: 0.78rem;
-        }
-
-        .table thead th {
-            background: #F1F5F9;
-            color: #374151;
-            border-bottom: 1px solid #E5E7EB;
-            text-transform: uppercase;
-            font-size: 0.72rem;
-        }
-
-        .table-striped > tbody > tr:nth-of-type(odd) {
-            --bs-table-accent-bg: #F9FAFB;
-        }
-
-        .badge-count {
-            background: var(--primary-soft);
-            color: #1D4ED8;
-            font-size: 0.78rem;
-            border-radius: 999px;
-        }
-
-        .badge-role {
-            background: #E0F2FE;
-            color: #0369A1;
-            font-size: 0.72rem;
-            border-radius: 999px;
-        }
-
-        .text-muted-soft {
-            color: var(--text-muted);
-        }
-
-        .chip-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.2rem;
-            padding: 0.15rem 0.5rem;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            background: #F3F4F6;
-            border: 1px solid #E5E7EB;
-            color: #4B5563;
-        }
-
-        /* Modal styling */
-        .modal-content {
-            background: #FFFFFF;
-            border-radius: 0.75rem;
-            border: 1px solid #E5E7EB;
-        }
-        .modal-header {
-            border-bottom-color: #E5E7EB;
-            background: #F9FAFB;
-        }
-        .modal-title {
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-
-        .table-members thead th {
-            background: #F9FAFB;
-            border-bottom: 1px solid #E5E7EB;
-            font-size: 0.72rem;
-        }
-        .table-members tbody td {
-            border-color: #E5E7EB;
-            font-size: 0.78rem;
-        }
-    </style>
-</head>
-<body>
-
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Manage Teams - CallNow'; include '../../php_scripts/header.php'; ?>
 
 <!-- Compact header bar -->
 <div class="page-header-bar">
@@ -669,7 +501,6 @@ while ($m = mysqli_fetch_assoc($members_res)) {
 </div>
 
 <?php include '../../php_scripts/footer.php'; ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const modalEl = document.getElementById('teamDetailsModal');
@@ -771,7 +602,5 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
-</body>
-</html>
 
 <?php mysqli_close($link); ?>

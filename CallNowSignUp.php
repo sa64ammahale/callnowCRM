@@ -162,178 +162,40 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
     
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
-    <!-- Custom CSS -->
     <style>
-        :root {
-            --primary-color: #4a6bff;
-            --secondary-color: #6c757d;
-            --accent-color: #00d4aa;
-            --light-bg: #f8f9fa;
-            --dark-bg: #1a1d29;
-            --success-color: #28a745;
-            --danger-color: #dc3545;
-            --warning-color: #ffc107;
-            --info-color: #17a2b8;
-        }
-        
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .signup-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex: 1;
-            padding: 2rem 1rem;
-        }
-        
-        .signup-card {
-            background-color: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            overflow: hidden;
-            width: 100%;
-            max-width: 550px;
-            border: none;
-        }
-        
-        .card-header {
-            background: linear-gradient(135deg, var(--primary-color), #3a56d9);
-            color: white;
+        .signup-card { max-width: 550px; }
+        .signup-header {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: #fff;
             padding: 1.5rem 1.5rem;
             text-align: center;
-            border-bottom: none;
         }
-        
-        .brand-logo {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            color: white;
+        .signup-header h1 { color: #fff; font-size: 1.25rem; margin: 0.5rem 0 0.25rem; }
+        .signup-header .bi { font-size: 2rem; }
+        .signup-header p { opacity: 0.9; font-size: 0.8rem; margin: 0; }
+        .form-label { font-size: 0.8rem; text-transform: none; letter-spacing: 0; font-weight: 600; }
+        .form-label-flex { display: flex; justify-content: space-between; align-items: center; }
+        .required-field::after { content: " *"; color: var(--danger); }
+        .validation-info { font-size: 0.75rem; color: var(--ink-muted); font-weight: normal; text-transform: none; letter-spacing: 0; }
+        .instructions {
+            background-color: var(--surface-2);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--accent);
         }
-        
-        .brand-title {
-            font-weight: 700;
-            font-size: 1.6rem;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.25rem;
-        }
-        
-        .brand-subtitle {
-            font-size: 0.85rem;
-            opacity: 0.9;
-            margin-top: 0;
-            line-height: 1.2;
-        }
-        
-        .card-body {
-            padding: 2rem 1.5rem;
-        }
-        
-        .form-label {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .required-field::after {
-            content: " *";
-            color: #dc3545;
-        }
-        
-        .validation-info {
-            font-size: 0.8rem;
-            color: #6c757d;
-            font-weight: normal;
-        }
-        
-        .input-group-text {
-            background-color: #f8f9fa;
-            border-right: none;
-        }
-        
-        .form-control {
-            border-left: none;
-            padding-left: 0;
-            transition: all 0.3s;
-        }
-        
-        .form-control:focus {
-            border-color: #ced4da;
-            box-shadow: 0 0 0 0.25rem rgba(74, 107, 255, 0.15);
-        }
-        
-        .input-group:focus-within .input-group-text {
-            border-color: #86b7fe;
-        }
-        
-        .is-valid {
-            border-color: #28a745 !important;
-        }
-        
-        .is-invalid {
-            border-color: #dc3545 !important;
-        }
-        
-        .btn-signup {
-            background: linear-gradient(to right, var(--accent-color), #00b894);
-            border: none;
-            padding: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            transition: all 0.3s;
-            width: 100%;
-        }
-        
-        .btn-signup:hover {
-            background: linear-gradient(to right, #00b894, #00a085);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 212, 170, 0.3);
-        }
-        
-        .btn-login {
-            background-color: var(--primary-color);
-            border: none;
-            padding: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            transition: all 0.3s;
-            width: 100%;
-            margin-top: 10px;
-        }
-        
-        .btn-login:hover {
-            background-color: #3a56d9;
-            transform: translateY(-2px);
-        }
-        
-        .btn-reset {
-            background-color: #6c757d;
-            border: none;
-            padding: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            transition: all 0.3s;
-            width: 100%;
-            margin-top: 10px;
-        }
-        
-        .btn-reset:hover {
-            background-color: #5a6268;
-            transform: translateY(-2px);
-        }
-        
+        .instructions h6 { color: var(--accent); font-weight: 600; margin-bottom: 0.5rem; }
+        .instructions ul { margin-bottom: 0; padding-left: 1rem; }
+        .instructions li { font-size: 0.85rem; margin-bottom: 0.25rem; }
+        .password-strength { height: 4px; border-radius: 2px; margin-top: 5px; background-color: var(--border); overflow: hidden; }
+        .password-strength-bar { height: 100%; width: 0%; transition: width 0.3s ease; }
+        .form-text { font-size: 0.75rem; color: var(--ink-muted); }
+        .error-message { color: var(--danger); font-size: 0.8rem; margin-top: 0.25rem; display: flex; align-items: center; gap: 5px; }
+        .success-message { color: var(--success); font-size: 0.8rem; margin-top: 0.25rem; display: flex; align-items: center; gap: 5px; }
+        .password-toggle { cursor: pointer; transition: color 0.2s; border-left: 1px solid var(--border) !important; }
+        .password-toggle:hover { color: var(--accent); }
         .alert-custom {
             border: none;
             border-left: 4px solid;
@@ -341,204 +203,42 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
             padding: 1rem;
             font-size: 0.95rem;
         }
-        
         .alert-success-custom {
-            background-color: rgba(40, 167, 69, 0.1);
-            border-left-color: var(--success-color);
-            color: #155724;
+            background-color: var(--success-soft);
+            border-left-color: var(--success);
+            color: var(--success);
         }
-        
         .alert-danger-custom {
-            background-color: rgba(220, 53, 69, 0.1);
-            border-left-color: var(--danger-color);
-            color: #721c24;
+            background-color: var(--danger-soft);
+            border-left-color: var(--danger);
+            color: var(--danger);
         }
-        
-        .alert-warning-custom {
-            background-color: rgba(255, 193, 7, 0.1);
-            border-left-color: var(--warning-color);
-            color: #856404;
-        }
-        
-        .alert-info-custom {
-            background-color: rgba(23, 162, 184, 0.1);
-            border-left-color: var(--info-color);
-            color: #0c5460;
-        }
-        
-        .instructions {
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid var(--accent-color);
-        }
-        
-        .instructions h6 {
-            color: var(--accent-color);
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        .instructions ul {
-            margin-bottom: 0;
-            padding-left: 1rem;
-        }
-        
-        .instructions li {
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
-        }
-        
-        .password-strength {
-            height: 4px;
-            border-radius: 2px;
-            margin-top: 5px;
-            background-color: #e9ecef;
-            overflow: hidden;
-        }
-        
-        .password-strength-bar {
-            height: 100%;
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        
-        .form-text {
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-        
-        .footer {
-            background-color: var(--dark-bg);
-            color: #adb5bd;
-            padding: 1.5rem 0;
-            margin-top: auto;
-        }
-        
-        .company-name {
-            color: var(--accent-color);
-            font-weight: 600;
-        }
-        
-        .error-message {
-            color: #dc3545;
-            font-size: 0.85rem;
-            margin-top: 0.25rem;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .success-message {
-            color: #28a745;
-            font-size: 0.85rem;
-            margin-top: 0.25rem;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .input-group {
-            position: relative;
-        }
-        
-        @media (max-width: 576px) {
-            .signup-card {
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            }
-            
-            .card-header {
-                padding: 1.25rem 1rem;
-            }
-            
-            .brand-logo {
-                font-size: 1.75rem;
-            }
-            
-            .brand-title {
-                font-size: 1.4rem;
-            }
-            
-            .card-body {
-                padding: 1.5rem 1rem;
-            }
-        }
-        
-        /* Animation for form elements */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .fade-in-up {
-            animation: fadeInUp 0.5s ease-out;
-        }
-        
-        /* Password toggle eye */
-        .password-toggle {
-            cursor: pointer;
-            color: var(--secondary-color);
-            transition: color 0.2s;
-            border-left: 1px solid #ced4da !important;
-        }
-        
-        .password-toggle:hover {
-            color: var(--primary-color);
-        }
-        
-        /* Loading spinner for AJAX checks */
-        .spinner-border-sm {
-            width: 1rem;
-            height: 1rem;
-        }
-        
-        /* Validation icons */
-        .validation-icon {
-            position: absolute;
-            right: 45px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 5;
-            display: none;
-        }
-        
-        .valid-icon {
-            color: #28a745;
-        }
-        
-        .invalid-icon {
-            color: #dc3545;
-        }
+        .validation-icon { position: absolute; right: 45px; top: 50%; transform: translateY(-50%); z-index: 5; display: none; }
+        .valid-icon { color: var(--success); }
+        .invalid-icon { color: var(--danger); }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
 
 <body>
-    <div class="signup-container">
-        <div class="signup-card">
+    <div class="login-shell">
+        <div class="login-card signup-card">
             <!-- Header -->
-            <div class="card-header">
-                <div class="brand-logo">
-                    <i class="fas fa-user-plus"></i>
-                </div>
-                <h1 class="brand-title">Create Account</h1>
-                <p class="brand-subtitle">Join CallNow Professional Communication Platform</p>
+            <div class="signup-header">
+                <i class="bi bi-person-plus"></i>
+                <h1>Create Account</h1>
+                <p>Join CallNow Professional Communication Platform</p>
             </div>
             
             <!-- Sign Up Form -->
-            <div class="card-body">
+            <div class="p-4">
                 <!-- Success/Error Messages from PHP -->
                 <?php if(isset($success_message) && $success): ?>
                     <div class="alert alert-success-custom alert-custom fade-in-up mb-4" role="alert">
                         <div class="d-flex">
                             <div class="me-3">
-                                <i class="fas fa-check-circle" style="font-size: 1.5rem; color: var(--success-color);"></i>
+                                <i class="bi bi-check-circle" style="font-size: 1.5rem;"></i>
                             </div>
                             <div>
                                 <h5 class="alert-heading mb-2">Account Created Successfully!</h5>
@@ -555,7 +255,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                     <div class="alert alert-danger-custom alert-custom fade-in-up mb-4" role="alert">
                         <div class="d-flex">
                             <div class="me-3">
-                                <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: var(--danger-color);"></i>
+                                <i class="bi bi-exclamation-triangle" style="font-size: 1.5rem;"></i>
                             </div>
                             <div>
                                 <h5 class="alert-heading mb-2">Registration Failed</h5>
@@ -567,7 +267,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                 
                 <!-- Instructions -->
                 <div class="instructions mb-4">
-                    <h6><i class="fas fa-info-circle me-2"></i>Account Creation Information</h6>
+                    <h6><i class="bi bi-info-circle me-2"></i>Account Creation Information</h6>
                     <ul>
                         <li>All fields marked with * are required</li>
                         <li>Your account will be set to "Inactive" initially</li>
@@ -586,7 +286,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
-                                <i class="fas fa-building"></i>
+                                <i class="bi bi-building"></i>
                             </span>
                             <input 
                                 type="text" 
@@ -602,7 +302,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </div>
                         <?php if(!empty($company_err)): ?>
                             <div class="error-message">
-                                <i class="fas fa-exclamation-circle"></i><?php echo $company_err; ?>
+                                <i class="bi bi-exclamation-circle"></i><?php echo $company_err; ?>
                             </div>
                         <?php endif; ?>
                         <div class="form-text">Enter your registered company name (2-200 characters)</div>
@@ -616,7 +316,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
-                                <i class="fas fa-user"></i>
+                                <i class="bi bi-person"></i>
                             </span>
                             <input 
                                 type="text" 
@@ -634,7 +334,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </div>
                         <?php if(!empty($name_err)): ?>
                             <div class="error-message">
-                                <i class="fas fa-exclamation-circle"></i><?php echo $name_err; ?>
+                                <i class="bi bi-exclamation-circle"></i><?php echo $name_err; ?>
                             </div>
                         <?php endif; ?>
                         <div class="form-text">Only letters, spaces, and basic punctuation (., '-) allowed (2-50 characters)</div>
@@ -648,7 +348,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
-                                <i class="fas fa-mobile-alt"></i>
+                                <i class="bi bi-phone"></i>
                             </span>
                             <input 
                                 type="tel" 
@@ -664,14 +364,14 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </div>
                         <?php if(!empty($mobile_err)): ?>
                             <div class="error-message">
-                                <i class="fas fa-exclamation-circle"></i><?php echo $mobile_err; ?>
+                                <i class="bi bi-exclamation-circle"></i><?php echo $mobile_err; ?>
                             </div>
                         <?php endif; ?>
                         <div class="success-message" id="mobileAvailable" style="display: none;">
-                            <i class="fas fa-check-circle"></i>Mobile number is available
+                            <i class="bi bi-check-circle"></i>Mobile number is available
                         </div>
                         <div class="error-message" id="mobileDuplicate" style="display: none;">
-                            <i class="fas fa-times-circle"></i>Mobile number already registered
+                            <i class="bi bi-x-circle"></i>Mobile number already registered
                         </div>
                         <div class="form-text">Must be exactly 10 digits (no country code)</div>
                     </div>
@@ -684,7 +384,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
-                                <i class="fas fa-envelope"></i>
+                                <i class="bi bi-envelope"></i>
                             </span>
                             <input 
                                 type="email" 
@@ -698,14 +398,14 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </div>
                         <?php if(!empty($login_id_err)): ?>
                             <div class="error-message">
-                                <i class="fas fa-exclamation-circle"></i><?php echo $login_id_err; ?>
+                                <i class="bi bi-exclamation-circle"></i><?php echo $login_id_err; ?>
                             </div>
                         <?php endif; ?>
                         <div class="success-message" id="emailAvailable" style="display: none;">
-                            <i class="fas fa-check-circle"></i>Email is available
+                            <i class="bi bi-check-circle"></i>Email is available
                         </div>
                         <div class="error-message" id="emailDuplicate" style="display: none;">
-                            <i class="fas fa-times-circle"></i>Email already registered
+                            <i class="bi bi-x-circle"></i>Email already registered
                         </div>
                         <div class="form-text">This will be your username for login</div>
                     </div>
@@ -718,7 +418,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
-                                <i class="fas fa-lock"></i>
+                                <i class="bi bi-lock"></i>
                             </span>
                             <input 
                                 type="password" 
@@ -730,7 +430,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                                 minlength="6"
                             >
                             <span class="input-group-text password-toggle" id="togglePassword">
-                                <i class="fas fa-eye"></i>
+                                <i class="bi bi-eye"></i>
                             </span>
                         </div>
                         <div class="password-strength">
@@ -741,7 +441,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </div>
                         <?php if(!empty($password_err)): ?>
                             <div class="error-message">
-                                <i class="fas fa-exclamation-circle"></i><?php echo $password_err; ?>
+                                <i class="bi bi-exclamation-circle"></i><?php echo $password_err; ?>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -754,7 +454,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                         </label>
                         <div class="input-group">
                             <span class="input-group-text">
-                                <i class="fas fa-lock"></i>
+                                <i class="bi bi-lock"></i>
                             </span>
                             <input 
                                 type="password" 
@@ -765,19 +465,19 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                                 required
                             >
                             <span class="input-group-text password-toggle" id="toggleConfirmPassword">
-                                <i class="fas fa-eye"></i>
+                                <i class="bi bi-eye"></i>
                             </span>
                         </div>
                         <?php if(!empty($confirm_password_err)): ?>
                             <div class="error-message">
-                                <i class="fas fa-exclamation-circle"></i><?php echo $confirm_password_err; ?>
+                                <i class="bi bi-exclamation-circle"></i><?php echo $confirm_password_err; ?>
                             </div>
                         <?php endif; ?>
                         <div class="success-message" id="passwordMatch" style="display: none;">
-                            <i class="fas fa-check-circle"></i>Passwords match
+                            <i class="bi bi-check-circle"></i>Passwords match
                         </div>
                         <div class="error-message" id="passwordMismatch" style="display: none;">
-                            <i class="fas fa-times-circle"></i>Passwords don't match
+                            <i class="bi bi-x-circle"></i>Passwords don't match
                         </div>
                     </div>
                     
@@ -789,29 +489,29 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                                 I agree to the <a href="#" class="text-decoration-none">Terms of Service</a> and <a href="#" class="text-decoration-none">Privacy Policy</a>
                             </label>
                             <div class="error-message" id="termsError" style="display: none;">
-                                <i class="fas fa-exclamation-circle"></i>You must accept the terms and conditions
+                                <i class="bi bi-exclamation-circle"></i>You must accept the terms and conditions
                             </div>
                         </div>
                     </div>
                     
                     <!-- Submit Button -->
                     <div class="d-grid mb-3">
-                        <button type="submit" class="btn btn-signup btn-lg" id="submitBtn">
-                            <i class="fas fa-user-plus me-2"></i>Create Account
+                        <button type="submit" class="btn btn-success btn-lg w-100" id="submitBtn">
+                            <i class="bi bi-person-plus me-2"></i>Create Account
                         </button>
                     </div>
                     
                     <!-- Reset Form -->
                     <div class="d-grid mb-3">
-                        <button type="button" class="btn btn-reset" id="resetForm">
-                            <i class="fas fa-redo me-2"></i>Reset Form
+                        <button type="button" class="btn btn-secondary w-100" id="resetForm">
+                            <i class="bi bi-arrow-counterclockwise me-2"></i>Reset Form
                         </button>
                     </div>
                     
                     <!-- Back to Login -->
                     <div class="d-grid">
-                        <a href="index.php" class="btn btn-login">
-                            <i class="fas fa-sign-in-alt me-2"></i>Back to Login
+                        <a href="index.php" class="btn btn-primary w-100">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
                         </a>
                     </div>
                 </form>
@@ -820,10 +520,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     </div>
     
     <!-- Footer -->
-    <footer class="footer">
+    <footer class="app-footer">
         <div class="container text-center">
             <p class="mb-0">
-                Copyright &copy; <span class="company-name">Sangam Mahale</span> 
+                Copyright &copy; <span class="text-primary fw-semibold">Sangam Mahale</span> 
                 <script>document.write(new Date().getFullYear())</script>
             </p>
             <p class="mb-0 small mt-1">CallNow V5.00</p>
@@ -856,12 +556,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                 const icon = this.querySelector('i');
                 if (passwordField.type === 'password') {
                     passwordField.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
                 } else {
                     passwordField.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
                 }
             });
             
@@ -869,12 +569,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                 const icon = this.querySelector('i');
                 if (confirmPasswordField.type === 'password') {
                     confirmPasswordField.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
                 } else {
                     confirmPasswordField.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
                 }
             });
             
@@ -1094,7 +794,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                 } else {
                     // Disable submit button to prevent double submission
                     submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating Account...';
+                    submitBtn.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Creating Account...';
                     
                     // Allow form to submit normally
                     return true;
@@ -1128,7 +828,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                 
                 // Reset submit button
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-user-plus me-2"></i>Create Account';
+                submitBtn.innerHTML = '<i class="bi bi-person-plus me-2"></i>Create Account';
                 
                 // Focus on first field
                 document.getElementById('company').focus();

@@ -251,35 +251,7 @@ if ($selected_user_id !== null) {
 
 mysqli_close($link);
 ?>
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Call Report • CallNow</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="../../assets/css/app-theme.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; margin:0; }
-        .header-bar { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 1rem 0; }
-        .filter-bar { background: rgba(255,255,255,0.08); border-radius: 1rem; padding: 1rem; margin-bottom: 1.5rem; }
-        .team-box { background: rgba(255,255,255,0.06); border-radius: 1rem; overflow: hidden; margin-bottom: 1.2rem; border: 1px solid rgba(255,255,255,0.1); }
-        .team-head { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 0.8rem 1.2rem; font-size: 0.95rem; }
-        .user-item { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.9rem; }
-        .user-item:last-child { border-bottom: none; }
-        .avatar { width: 36px; height: 36px; background: #6366f1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
-        .badge-rate { font-size: 1.1rem; padding: 0.5rem 1rem; border-radius: 50px; }
-        .no-data { text-align: center; padding: 4rem 0; color: #94a3b8; }
-        .stat-pill { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.4); margin-right: 0.25rem; white-space: nowrap; }
-        .rate-good { color: #22c55e; }
-        .rate-poor { color: #ef4444; }
-        .detail-card { background: rgba(15,23,42,0.9); border-radius: 1rem; border: 1px solid rgba(148,163,184,0.3); padding: 1rem; }
-        .table-sm td, .table-sm th { padding: 0.3rem 0.5rem; }
-    </style>
-</head>
-<body>
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Call Report - CallNow'; include '../../php_scripts/header.php'; ?>
 
 <!-- Header -->
 <div class="header-bar text-white">
@@ -562,7 +534,8 @@ setInterval(() => {
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+<?php include '../../php_scripts/footer.php'; ?>
+
 <script src="https://cdn.jsdelivr.net/npm/table2excel@1.0.4/dist/table2excel.min.js"></script>
 <script>
 // Auto-refresh every 60 seconds
@@ -578,5 +551,3 @@ document.getElementById('btnExport')?.addEventListener('click', () => {
     });
 });
 </script>
-</body>
-</html>

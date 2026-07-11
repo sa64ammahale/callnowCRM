@@ -354,31 +354,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
     }
 }
 ?>
-<!doctype html>
-<html lang="en" data-bs-theme="light">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Upload Customer Database</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="../../assets/css/app-theme.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
-  <style>
-    /* Minimal CSS — mostly using Bootstrap */
-    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; background:#f8fafc; min-height:100vh; }
-    .file-zone { border:2px dashed #0d6efd; border-radius:.5rem; padding:1rem; text-align:center; background:#ffffff; cursor:pointer; min-height:110px; display:flex; align-items:center; justify-content:center; flex-direction:column; }
-    .file-zone.dragover { background:#e7f1ff; border-color:#0b5ed7; }
-    .invalid-mobile { background:#fff1f2 !important; }
-    .small-muted { color:#6c757d; }
-    /* badges for log severity detection */
-    .log-badge-info { background:#cff4fc; color:#055160; }
-    .log-badge-success { background:#d1e7dd; color:#0f5132; }
-    .log-badge-warn { background:#fff3cd; color:#664d03; }
-    .log-badge-danger { background:#f8d7da; color:#842029; }
-  </style>
-</head>
-<body>
-<?php include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Upload Customer Database'; include '../../php_scripts/header.php'; ?>
 
 <div class="container py-3">
   <div class="row mb-3 align-items-center">
@@ -890,6 +866,4 @@ downloadExampleBtn.addEventListener('click', function(e){
 });
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+
