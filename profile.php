@@ -4,6 +4,10 @@ require_once "php_scripts/auth.php";
 $Message = $type = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $Message = "Error: Invalid session token. Please try again.";
+        $type = "danger";
+    } else {
     $name     = trim($_POST['name'] ?? '');
     $mobile   = trim($_POST['mobile'] ?? '');
     $login_id = trim($_POST['login_id'] ?? '');
@@ -26,37 +30,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         $Message = "Passwords do not match.";
         $type = "danger";
     } else {
-        $updateFields = ["NAME = ?", "MOBILE = ?", "LOGIN_ID = ?"];
-        $params = [$name, $mobile, $login_id];
-        $types  = "sss";
-
-        if ($password !== '') {
-            $updateFields[] = "PASSWORD = ?";
-            $params[] = password_hash($password, PASSWORD_DEFAULT);
-            $types  .= "s";
-        }
-
-        $params[] = USER_ID;
-        $types    .= "i";
-
-        $sql = "UPDATE USERS SET " . implode(", ", $updateFields) . " WHERE ID = ?";
-        $stmt = mysqli_prepare($link, $sql);
-        mysqli_stmt_bind_param($stmt, $types, ...$params);
-
-        if (mysqli_stmt_execute($stmt)) {
-            $_SESSION['name']     = $name;
-            $_SESSION['mobile']   = $mobile;
-            $_SESSION['login_id'] = $login_id;
-            $Message = "Profile updated successfully!";
-            $type = "success";
-            logActivity($link, USER_ID, "UPDATE", "Updated own profile", (string)USER_ID, "USERS");
-        } else {
+        $duplicateSql = "SELECT ID FROM USERS WHERE (LOGIN_ID = ? OR MOBILE = ?) AND ID <> ? LIMIT 1";
+        $duplicateStmt = mysqli_prepare($link, $duplicateSql);
+        if (!$duplicateStmt) {
             $Message = "Database error: " . mysqli_error($link);
             $type = "danger";
+        } else {
+            mysqli_stmt_bind_param($duplicateStmt, "ssi", $login_id, $mobile, USER_ID);
+            mysqli_stmt_execute($duplicateStmt);
+            mysqli_stmt_store_result($duplicateStmt);
+
+            if (mysqli_stmt_num_rows($duplicateStmt) > 0) {
+                $Message = "That email or mobile number is already in use by another account.";
+                $type = "danger";
+                mysqli_stmt_close($duplicateStmt);
+            } else {
+                mysqli_stmt_close($duplicateStmt);
+
+                $updateFields = ["NAME = ?", "MOBILE = ?", "LOGIN_ID = ?"];
+                $params = [$name, $mobile, $login_id];
+                $types  = "sss";
+
+                if ($password !== '') {
+                    $updateFields[] = "PASSWORD = ?";
+                    $params[] = password_hash($password, PASSWORD_DEFAULT);
+                    $types  .= "s";
+                }
+
+                $params[] = USER_ID;
+                $types    .= "i";
+
+                $sql = "UPDATE USERS SET " . implode(", ", $updateFields) . " WHERE ID = ?";
+                $stmt = mysqli_prepare($link, $sql);
+                mysqli_stmt_bind_param($stmt, $types, ...$params);
+
+                if (mysqli_stmt_execute($stmt)) {
+                    $_SESSION['name']     = $name;
+                    $_SESSION['mobile']   = $mobile;
+                    $_SESSION['login_id'] = $login_id;
+                    $Message = "Profile updated successfully!";
+                    $type = "success";
+                    logActivity($link, USER_ID, "UPDATE", "Updated own profile", (string)USER_ID, "USERS");
+                } else {
+                    $Message = "Database error: " . mysqli_error($link);
+                    $type = "danger";
+                }
+                mysqli_stmt_close($stmt);
+            }
         }
-        mysqli_stmt_close($stmt);
     }
     mysqli_close($link);
+    }
 }
 
 $profile = [
@@ -72,12 +96,12 @@ $profile = [
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
-    <meta charset="UTF-8">
-    />
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>My Profile • CallNow</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="assets/css/app-theme.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
         :root {
@@ -445,6 +469,7 @@ $profile = [
                     <?php endif; ?>
 
                     <form method="POST" novalidate>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                         <div class="row g-3">
 
                             <div class="col-md-6">
@@ -552,7 +577,7 @@ $profile = [
 <?php include 'php_scripts/footer.php'; ?>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     document.querySelectorAll('.toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {

@@ -1,10 +1,14 @@
 <?php
 require_once "config.php";
+if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); } ensureCsrfToken();
 
 $ErrorMessage = $NewPassword = "";
 $success = false;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $ErrorMessage = "Error: Invalid session token. Please try again.";
+    } else {
     $CompanyName = trim($_POST["CompanyName"]);
     $username = trim($_POST["username"]);
     
@@ -32,7 +36,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     if ($company === $inputCompanyName && $status === 'Active') {
                         // Generate secure random password
                         $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
-                        $NewPassword = substr(str_shuffle($chars), 0, 12);
+                        $NewPassword = '';
+                        for ($i = 0; $i < 12; $i++) {
+                            $NewPassword .= $chars[random_int(0, strlen($chars) - 1)];
+                        }
                         
                         // Prepare email
                         $to = filter_var($login_id, FILTER_VALIDATE_EMAIL);
@@ -51,6 +58,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         
                         // Update password in database using prepared statement
                         $newHashedPassword = password_hash($NewPassword, PASSWORD_DEFAULT);
+                        $oldHashedPassword = $hashed_password;
                         $update_sql = "UPDATE USERS SET PASSWORD = ? WHERE LOGIN_ID = ?";
                         
                         if ($update_stmt = mysqli_prepare($link, $update_sql)) {
@@ -61,10 +69,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 $emailSent = mail($to, $subject, $message, $headers);
                                 if ($emailSent) {
                                     $ErrorMessage = "Success! Your new password has been sent to your email.";
+                                    $success = true;
                                 } else {
-                                    $ErrorMessage = "Password reset successful but email failed to send. Your new password is: " . htmlspecialchars($NewPassword) . " - Please save this password and contact support if needed.";
+                                    $revert_sql = "UPDATE USERS SET PASSWORD = ? WHERE LOGIN_ID = ?";
+                                    if ($revert_stmt = mysqli_prepare($link, $revert_sql)) {
+                                        mysqli_stmt_bind_param($revert_stmt, "ss", $oldHashedPassword, $username);
+                                        mysqli_stmt_execute($revert_stmt);
+                                        mysqli_stmt_close($revert_stmt);
+                                    }
+                                    $ErrorMessage = "Password reset could not be completed because the email could not be sent.";
+                                    $success = false;
                                 }
-                                $success = true;
                             } else {
                                 $ErrorMessage = "Failed to reset password. Please try again.";
                                 $success = false;
@@ -75,7 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $success = false;
                         }
                     } else {
-                        $ErrorMessage = "Sorry! You are not part of the entered company or your account is inactive";
+                        $ErrorMessage = "Unable to reset the password with the provided details.";
                         $success = false;
                     }
                 } else {
@@ -83,7 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $success = false;
                 }
             } else {
-                $ErrorMessage = "No account found with that email.";
+                $ErrorMessage = "Unable to reset the password with the provided details.";
                 $success = false;
             }
         } else {
@@ -96,6 +111,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $success = false;
     }
     mysqli_close($link);
+    }
 }
 ?>
 
@@ -107,7 +123,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>CallNow | Reset Password</title>
     
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/app-theme.css" rel="stylesheet">
     
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -389,6 +406,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     
                     <!-- Reset Form -->
                     <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                         <!-- Company Name -->
                         <div class="mb-4">
                             <label for="company" class="form-label">Company Name</label>
@@ -473,7 +491,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </footer>
     
     <!-- Bootstrap JS Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- Custom JS -->
     <script>

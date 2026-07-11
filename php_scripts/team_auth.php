@@ -44,7 +44,7 @@ function getTeamFilterSQL($table_alias = 'm') {
 function requireTeamAccess($required_roles = ['Admin','Manager','Supervisor']) {
     if (!in_array(USER_ROLE, $required_roles)) {
         $_SESSION['error'] = "Access Denied!";
-        header("location: dashboard.php"); exit;
+        header("Location: " . (defined('APP_BASE') ? APP_BASE . '/' : '') . "dashboard.php"); exit;
     }
 }
 ?>

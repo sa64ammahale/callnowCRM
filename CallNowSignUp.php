@@ -1,11 +1,16 @@
 <?php
-require_once "config.php"; 
+require_once "config.php";
+if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); } ensureCsrfToken();
 
 // Initialize variables
 $name = $mobile = $company = $login_id = $password = $confirm_password = "";
 $name_err = $mobile_err = $company_err = $login_id_err = $password_err = $confirm_password_err = "";
 
 if($_SERVER["REQUEST_METHOD"] == "POST"){
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error_message = "Error: Invalid session token. Please try again.";
+        $success = false;
+    } else {
     
     // Validate Company Name
     if(!empty(trim($_POST["company"]))){ 
@@ -142,6 +147,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
         mysqli_stmt_close($stmt);
     }
     mysqli_close($link);
+    }
 }
 ?>
 
@@ -153,7 +159,8 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     <title>CallNow | Sign Up</title>
     
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/app-theme.css" rel="stylesheet">
     
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -570,6 +577,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                 </div>
                 
                 <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post" id="signupForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                     <!-- Company Name -->
                     <div class="mb-3">
                         <label for="company" class="form-label required-field">
@@ -823,7 +831,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     </footer>
     
     <!-- Bootstrap JS Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- Custom JS with Enhanced Validations -->
     <script>

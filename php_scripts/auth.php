@@ -3,23 +3,30 @@ date_default_timezone_set('Asia/Kolkata');
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
-require_once __DIR__ . "/../config.php";
+require_once __DIR__ . '/../config.php';
+
+function appRedirect(string $path): void {
+    $base = defined('APP_BASE') ? APP_BASE : '';
+    header('Location: ' . rtrim($base, '/') . '/' . ltrim($path, '/'));
+    exit;
+}
 
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    header("location: index.php"); exit;
+    appRedirect('index.php');
 }
 
 if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 1800)) {
-    session_unset(); session_destroy(); 
-    header("location: index.php");
-    exit;
+    session_unset(); session_destroy();
+    appRedirect('index.php');
 }
 $_SESSION['LAST_ACTIVITY'] = time();
+
+ensureCsrfToken();
 
 
 
 $user_id = (int)($_SESSION['id'] ?? 0);
-if ($user_id <= 0) { header("Location: /index.php"); exit; }
+if ($user_id <= 0) { appRedirect('index.php'); }
 
 
 $stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM USERS WHERE ID = ?");
@@ -45,7 +52,7 @@ function isOfficer() { return USER_ROLE === 'Officer'; }
 function requireRole($roles) {
     $roles = is_array($roles) ? $roles : [$roles];
     if (!in_array(USER_ROLE, $roles)) {
-        header("location: dashboard.php"); exit;
+        appRedirect('dashboard.php');
     }
 }
 
@@ -71,8 +78,37 @@ function getManagerTeamIds(mysqli $link, int $managerId): array {
 }
 
 // ---- Activity logging helper ----
+function normalizeActivityType($actionType): string {
+    $normalized = strtoupper(trim((string)$actionType));
+    $normalized = str_replace([' ', '-'], '_', $normalized);
+
+    $allowed = [
+        'INSERT', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT',
+        'UPLOAD', 'TRANSFER', 'EXPORT', 'ASSIGN', 'STATUS_CHANGE',
+        'REMARK', 'BULK_DELETE', 'BULK_UPDATE', 'TEAM_CHANGE'
+    ];
+
+    if (in_array($normalized, $allowed, true)) {
+        return $normalized;
+    }
+
+    $aliases = [
+        'MANUAL_LEAD_CREATED' => 'INSERT',
+        'UPSERT' => 'UPDATE',
+        'UPDATE_ROW' => 'UPDATE',
+        'DELETE_ROW' => 'DELETE',
+        'DELETE_SELECTED' => 'BULK_DELETE',
+        'DELETE_ALL' => 'BULK_DELETE',
+        'TRANSFER_SELECTED' => 'TRANSFER',
+        'BULKUPDATE' => 'BULK_UPDATE',
+    ];
+
+    return $aliases[$normalized] ?? 'UPDATE';
+}
+
 function logActivity($link, $userId, $actionType, $actionDetails = null, $affectedIds = null, $targetTable = null) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    $actionType = normalizeActivityType($actionType);
     $stmt = mysqli_prepare($link, "INSERT INTO ACTIVITY_LOG(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
         VALUES (?, ?, ?, ?, ?, NOW(), ?)");
     mysqli_stmt_bind_param($stmt, "isssss", $userId, $actionType, $actionDetails, $affectedIds, $targetTable, $ip);

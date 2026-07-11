@@ -57,8 +57,9 @@ mysqli_close($link);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard • CallNow</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/app-theme.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #333; }
@@ -83,13 +84,13 @@ mysqli_close($link);
             <div class="col-lg-8">
                 <h1 class="display-4 fw-bold mb-3">
                     Good <?= ($h = date('H')) < 12 ? 'Morning' : ($h < 17 ? 'Afternoon' : 'Evening') ?>,
-                    <span class="text-warning"><?= htmlspecialchars($_SESSION['name'] ?? 'Team') ?>!
+                    <span class="text-warning"><?= htmlspecialchars($_SESSION['name'] ?? 'Team') ?>!</span>
                 </h1>
                 <p class="lead mb-4 opacity-90">Your telecalling engine is running at full power today.</p>
                 <div class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start">
-                    <a href="Reports.php?type=daily" class="btn btn-light btn-modern shadow-lg">Today's Report</a>
-                    <a href="data_management_temporary.php" class="btn btn-outline-light btn-modern">View Database</a>
-                    <a href="maindatabase_ajax/download_bach.php" class="btn btn-outline-light btn-modern">Export Full DB</a>
+                    <a href="modules/logs/Reports.php?type=daily" class="btn btn-light btn-modern shadow-lg">Today's Report</a>
+                    <a href="modules/database/data_management_temporary.php" class="btn btn-outline-light btn-modern">View Database</a>
+                    <a href="modules/database/maindatabase_ajax/download_bach.php" class="btn btn-outline-light btn-modern">Export Full DB</a>
                 </div>
             </div>
             <div class="col-lg-4 text-center">
@@ -202,6 +203,6 @@ mysqli_close($link);
 </div>
 
 <?php include 'php_scripts/footer.php'; ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

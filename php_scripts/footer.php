@@ -1,4 +1,4 @@
-<footer class="bg-light text-center text-muted py-3 mt-5 border-top">
+<footer class="text-center text-muted py-3 mt-5 border-top">
   <div class="container">
     <div class="mb-2">
       <a href="#" class="text-reset me-3"><i class="bi bi-facebook fs-5"></i></a>
@@ -10,4 +10,4 @@
 </footer>
 
 <!-- Bootstrap Icons CDN for social icons -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" />
