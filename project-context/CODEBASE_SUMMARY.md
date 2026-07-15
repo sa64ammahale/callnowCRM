@@ -183,3 +183,4 @@ Column mapping applied:
 - **Debug**: `display_errors` only on when `APP_DEBUG=1` env var set
 - **CSS architecture**: `header.php` includes Bootstrap CSS, Bootstrap Icons, and `app-theme.css` centrally. Module pages should NOT include their own `<link>` tags for these. Only add minimal page-specific `<style>` blocks when needed. Standalone pages (index.php, forgot-password.php, CallNowSignUp.php) keep their own `<head>` but should use theme classes.
 - **Page pattern**: Protected pages set `$pageTitle` then `include header.php` at top, `include footer.php` at bottom. No `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags in module pages.
+- **Sidebar**: Fixed left column with collapsible `data-sidebar` states (`expanded`, `collapsed`, `mobile-open`). Mobile uses overlay + backdrop via `sidebar.js`. Body scroll locked when mobile sidebar open.

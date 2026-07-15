@@ -15,7 +15,7 @@ if ($mobile === '') {
 $stmt = mysqli_prepare(
     $link,
     "SELECT ID, MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_OTHER_INFO
-     FROM MAIN_DATABASE
+     FROM main_database
      WHERE MAINDATABASE_MOBILE = ?
      LIMIT 1"
 );

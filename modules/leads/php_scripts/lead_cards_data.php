@@ -15,10 +15,7 @@ ensureLeadModuleSchema($link);
 mysqli_set_charset($link, 'utf8mb4');
 
 $page = max(1, (int)($_POST['page'] ?? 1));
-$perPage = (int)($_POST['perPage'] ?? 12);
-if (!in_array($perPage, [12, 24, 48], true)) {
-    $perPage = 12;
-}
+$perPage = max(1, min(100, (int)($_POST['perPage'] ?? 12)));
 $offset = ($page - 1) * $perPage;
 
 $search = trim((string)($_POST['search'] ?? ''));
@@ -37,8 +34,8 @@ $allowedLoginModes = loginModeOptions();
 
 $baseFrom = "
     FROM LEADS_TABLE l
-    LEFT JOIN MAIN_DATABASE m ON m.ID = l.cust_id
-    LEFT JOIN USERS u ON u.ID = l.assigned_to
+    LEFT JOIN main_database m ON m.ID = l.cust_id
+    LEFT JOIN users u ON u.ID = l.assigned_to
 ";
 
 $conditions = [];
@@ -143,9 +140,9 @@ $dataSql = "
         l.remarks,
         l.dsa_name,
         l.next_followup_at,
-        COALESCE(m.MAINDATABASE_NAME, '') AS customer_name,
-        COALESCE(m.MAINDATABASE_MOBILE, '') AS mobile,
-        COALESCE(m.MAINDATABASE_COMPANY, '') AS company_name,
+        COALESCE(NULLIF(m.MAINDATABASE_NAME, ''), NULLIF(l.NAME, ''), CONCAT('Lead #', l.lead_id)) AS customer_name,
+        COALESCE(NULLIF(m.MAINDATABASE_MOBILE, ''), NULLIF(l.MOBILE, ''), 'N/A') AS mobile,
+        COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') AS company_name,
         COALESCE(m.MAINDATABASE_OTHER_INFO, '') AS other_info,
         COALESCE(u.NAME, 'Unassigned') AS assigned_name
     {$baseFrom}
@@ -203,14 +200,17 @@ foreach ($rows as $row) {
     $addField($notes, 'Remark', (string)$row['remarks']);
     $addField($notes, 'Other Info', (string)$row['other_info']);
 
+    $nextFollowupDate = $row['next_followup_at'] ? date('Y-m-d', strtotime($row['next_followup_at'])) : '';
+
     $cards[] = [
         'lead_id' => (int)$row['lead_id'],
-        'customer_name' => $row['customer_name'] !== '' ? $row['customer_name'] : 'Unknown Customer',
+        'customer_name' => $row['customer_name'] ?: 'Unknown',
         'mobile' => $row['mobile'],
         'status' => $status,
         'status_label' => $meta['label'],
         'status_badge' => leadStatusBadgeClass($status),
         'status_icon' => $meta['icon'],
+        'next_followup_raw' => $nextFollowupDate,
         'timeline' => $timeline,
         'identity' => $identity,
         'financial' => $financial,

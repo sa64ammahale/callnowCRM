@@ -29,7 +29,7 @@ $user_id = (int)($_SESSION['id'] ?? 0);
 if ($user_id <= 0) { appRedirect('index.php'); }
 
 
-$stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM USERS WHERE ID = ?");
+$stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM users WHERE ID = ?");
 mysqli_stmt_bind_param($stmt, "i", $user_id);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
@@ -68,7 +68,7 @@ function getTeamFilter() {
 // Get teams current manager can control
 function getManagerTeamIds(mysqli $link, int $managerId): array {
     $ids = [];
-    $stmt = $link->prepare("SELECT ID FROM TEAMS WHERE MANAGER_ID = ?");
+    $stmt = $link->prepare("SELECT ID FROM teams WHERE MANAGER_ID = ?");
     $stmt->bind_param("i", $managerId);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -127,7 +127,7 @@ function getAccessibleUserIds($link) : array {
         if (empty($teamIds)) return [USER_ID]; // manager with no teams - only self
         // fetch users in those teams
         $in = implode(',', array_map('intval', $teamIds));
-        $sql = "SELECT ID FROM USERS WHERE TEAM_ID IN ($in)";
+        $sql = "SELECT ID FROM users WHERE TEAM_ID IN ($in)";
         $res = mysqli_query($link, $sql);
         $ids = [];
         while ($r = mysqli_fetch_assoc($res)) $ids[] = (int)$r['ID'];
@@ -136,7 +136,7 @@ function getAccessibleUserIds($link) : array {
     if (isSupervisor()) {
         // supervisor only sees users in their TEAM_ID
         if (USER_TEAM_ID === null) return [USER_ID];
-        $stmt = $link->prepare("SELECT ID FROM USERS WHERE TEAM_ID = ?");
+        $stmt = $link->prepare("SELECT ID FROM users WHERE TEAM_ID = ?");
         $stmt->bind_param("i", USER_TEAM_ID);
         $stmt->execute();
         $res = $stmt->get_result();

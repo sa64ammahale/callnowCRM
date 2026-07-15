@@ -23,7 +23,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 
 	if(!empty($username) && !empty($password) && !empty($CompanyName)){
 		
-        $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM USERS WHERE LOGIN_ID = ?";        
+        $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM users WHERE LOGIN_ID = ?";        
 			if($stmt = mysqli_prepare($link, $sql)){
 				mysqli_stmt_bind_param($stmt, "s", $param_username);
 				$param_username = $username;

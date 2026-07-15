@@ -51,8 +51,7 @@ $followupMonthResult = mysqli_query(
     $link,
     "SELECT DISTINCT DATE_FORMAT(l.next_followup_at, '%Y-%m') AS month_key
      FROM LEADS_TABLE l
-     {$baseWhere}
-     HAVING month_key IS NOT NULL AND month_key <> ''
+     {$baseWhere}" . ($baseWhere ? ' AND ' : ' WHERE ') . "l.next_followup_at IS NOT NULL
      ORDER BY month_key DESC"
 );
 while ($followupMonthResult && ($row = mysqli_fetch_assoc($followupMonthResult))) {
@@ -64,7 +63,7 @@ $assignedResult = mysqli_query(
     $link,
     "SELECT DISTINCT COALESCE(u.NAME, 'Unassigned') AS assigned_name
      FROM LEADS_TABLE l
-     LEFT JOIN USERS u ON u.ID = l.assigned_to
+     LEFT JOIN users u ON u.ID = l.assigned_to
      {$baseWhere}
      ORDER BY assigned_name"
 );
@@ -106,107 +105,542 @@ if ($prefillSearch !== '') {
 ?>
 <?php $pageTitle = 'Leads - CallNow'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
-<div class="container-fluid page-shell px-3 px-lg-4">
-    <section class="filter-shell">
-        <div class="search-bar">
-            <div class="search-input-wrap">
-                <i class="bi bi-search"></i>
-                <input id="universalSearch" class="search-input" type="text" placeholder="Search customer, mobile, company, app id, loan type, bank, DSA">
+<div class="ll-wrap">
+    <!-- Header -->
+    <div class="ll-header">
+        <div class="ll-header-left">
+            <div class="ll-header-icon"><i class="bi bi-grid-3x3-gap-fill"></i></div>
+            <div>
+                <h1 class="ll-title">Lead Register</h1>
+                <p class="ll-sub"><?= number_format($totalRecords) ?> total leads in your scope</p>
             </div>
-            <div class="top-stat">Visible Leads <b id="totalLeadsCount"><?= number_format($totalRecords) ?></b></div>
-            <select id="perPageSelect" class="form-select form-select-sm" style="min-height:50px;border-radius:999px;min-width:130px;">
-                <option value="12">12 / page</option>
-                <option value="24">24 / page</option>
-                <option value="48">48 / page</option>
+        </div>
+        <div class="ll-header-right">
+            <a href="<?= url('modules/leads/lead_insert.php') ?>" class="btn btn-accent-solid btn-sm"><i class="bi bi-plus-circle me-1"></i> Add Lead</a>
+            <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="btn btn-outline-accent btn-sm"><i class="bi bi-kanban me-1"></i> Pipeline</a>
+            <a href="<?= url('modules/leads/leads_dashboard.php') ?>" class="btn btn-outline-accent btn-sm"><i class="bi bi-speedometer2 me-1"></i> Dashboard</a>
+        </div>
+    </div>
+
+    <!-- Search + Filters -->
+    <div class="ll-toolbar">
+        <div class="ll-search">
+            <i class="bi bi-search"></i>
+            <input id="universalSearch" type="text" placeholder="Search by name, mobile, company, loan type, bank, app no…" value="<?= htmlspecialchars($prefillSearch) ?>">
+        </div>
+        <div class="ll-toolbar-right">
+            <span class="ll-result-count">Visible: <b id="totalLeadsCount"><?= number_format($totalRecords) ?></b></span>
+            <select id="perPageSelect" class="ll-perpage">
+                <option value="12">12/page</option>
+                <option value="24">24/page</option>
+                <option value="48">48/page</option>
             </select>
-            <button type="button" id="resetFilters" class="action-btn action-dark">
-                <i class="bi bi-arrow-counterclockwise"></i> Reset
-            </button>
+            <button type="button" id="resetFilters" class="ll-reset-btn" title="Reset filters"><i class="bi bi-arrow-counterclockwise"></i></button>
         </div>
+    </div>
 
-        <div class="filters-grid">
-            <div class="filter-card">
-                <label class="filter-label" for="quickStatusFilter">Status View</label>
-                <select id="quickStatusFilter" class="form-select form-select-sm">
-                    <option value="PIPELINE">Pipeline Cases</option>
-                    <option value="">All Status</option>
-                    <?php foreach (leadStatusOptions() as $status): ?>
-                        <option value="<?= htmlspecialchars($status) ?>"><?= htmlspecialchars($status) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="filter-card">
-                <label class="filter-label" for="loginMonthFilter">Login Month</label>
-                <select id="loginMonthFilter" class="form-select form-select-sm">
-                    <option value="current_previous">Current + Previous Month</option>
-                    <option value="">All Months</option>
-                    <option value="current">Current Month</option>
-                    <option value="previous">Previous Month</option>
-                    <?php foreach ($loginMonths as $monthValue => $monthLabel): ?>
-                        <option value="<?= htmlspecialchars($monthValue) ?>"><?= htmlspecialchars($monthLabel) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="filter-card">
-                <label class="filter-label" for="followupMonthFilter">Follow-up Month</label>
-                <select id="followupMonthFilter" class="form-select form-select-sm">
-                    <option value="">All Months</option>
-                    <option value="current">Current Month</option>
-                    <option value="previous">Previous Month</option>
-                    <option value="current_previous">Current + Previous Month</option>
-                    <?php foreach ($followupMonths as $monthValue => $monthLabel): ?>
-                        <option value="<?= htmlspecialchars($monthValue) ?>"><?= htmlspecialchars($monthLabel) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="filter-card">
-                <label class="filter-label" for="quickLoginModeFilter">Login Mode</label>
-                <select id="quickLoginModeFilter" class="form-select form-select-sm">
-                    <option value="">All Login Modes</option>
-                    <?php foreach (loginModeOptions() as $mode): ?>
-                        <option value="<?= htmlspecialchars($mode) ?>"><?= htmlspecialchars($mode) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="filter-card">
-                <label class="filter-label" for="quickAssignedFilter">Assigned To</label>
-                <select id="quickAssignedFilter" class="form-select form-select-sm">
-                    <option value="">All Assignees</option>
-                    <?php foreach ($assignedOptions as $assignedLabel): ?>
-                        <option value="<?= htmlspecialchars($assignedLabel) ?>"><?= htmlspecialchars($assignedLabel) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="filter-card">
-                <label class="filter-label" for="quickLoanTypeFilter">Loan Type</label>
-                <select id="quickLoanTypeFilter" class="form-select form-select-sm">
-                    <option value="">All Loan Types</option>
-                    <?php foreach ($loanTypeOptionsAvailable as $loanType): ?>
-                        <option value="<?= htmlspecialchars($loanType) ?>"><?= htmlspecialchars($loanType) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
+    <div class="ll-filters">
+        <div class="ll-filter-group">
+            <label><i class="bi bi-diagram-3"></i> Status</label>
+            <select id="quickStatusFilter" class="ll-select">
+                <option value="PIPELINE">Pipeline Cases</option>
+                <option value="">All Status</option>
+                <?php foreach (leadStatusOptions() as $status): ?>
+                    <option value="<?= htmlspecialchars($status) ?>"><?= htmlspecialchars($status) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
-    </section>
+        <div class="ll-filter-group">
+            <label><i class="bi bi-calendar2-check"></i> Login</label>
+            <select id="loginMonthFilter" class="ll-select">
+                <option value="current_previous">Curr + Prev Month</option>
+                <option value="">All</option>
+                <option value="current">Current</option>
+                <option value="previous">Previous</option>
+                <?php foreach ($loginMonths as $mv => $ml): ?>
+                    <option value="<?= htmlspecialchars($mv) ?>"><?= htmlspecialchars($ml) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="ll-filter-group">
+            <label><i class="bi bi-alarm"></i> Follow-up</label>
+            <select id="followupMonthFilter" class="ll-select">
+                <option value="">All</option>
+                <option value="current">Current</option>
+                <option value="previous">Previous</option>
+                <option value="current_previous">Curr + Prev</option>
+                <?php foreach ($followupMonths as $mv => $ml): ?>
+                    <option value="<?= htmlspecialchars($mv) ?>"><?= htmlspecialchars($ml) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="ll-filter-group">
+            <label><i class="bi bi-send-check"></i> Mode</label>
+            <select id="quickLoginModeFilter" class="ll-select">
+                <option value="">All Modes</option>
+                <?php foreach (loginModeOptions() as $mode): ?>
+                    <option value="<?= htmlspecialchars($mode) ?>"><?= htmlspecialchars($mode) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="ll-filter-group">
+            <label><i class="bi bi-person-badge"></i> Assigned</label>
+            <select id="quickAssignedFilter" class="ll-select">
+                <option value="">All</option>
+                <?php foreach ($assignedOptions as $al): ?>
+                    <option value="<?= htmlspecialchars($al) ?>"><?= htmlspecialchars($al) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="ll-filter-group">
+            <label><i class="bi bi-briefcase"></i> Loan</label>
+            <select id="quickLoanTypeFilter" class="ll-select">
+                <option value="">All Types</option>
+                <?php foreach ($loanTypeOptionsAvailable as $lt): ?>
+                    <option value="<?= htmlspecialchars($lt) ?>"><?= htmlspecialchars($lt) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+    </div>
 
-    <section class="cards-shell">
-        <div class="cards-toolbar">
-            <div class="cards-summary" id="cardsSummary">Loading leads...</div>
-            <div class="d-flex gap-2 flex-wrap">
-                <a href="lead_insert.php" class="action-btn action-primary">
-                    <i class="bi bi-plus-circle"></i> Add Lead
-                </a>
-                <a href="lead_pipeline.php" class="action-btn action-dark">
-                    <i class="bi bi-kanban"></i> Pipeline
-                </a>
-            </div>
-        </div>
-        <div id="leadCards" class="cards-grid"></div>
-        <div id="leadPagination" class="pagination-shell"></div>
-    </section>
+    <!-- Summary bar -->
+    <div class="ll-summary">
+        <span id="cardsSummary">Loading leads…</span>
+    </div>
+
+    <!-- Cards grid -->
+    <div id="leadCards" class="ll-grid"></div>
+
+    <!-- Pagination -->
+    <div id="leadPagination" class="ll-pagination"></div>
 </div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
+
+<style>
+/* ── Layout ── */
+.ll-wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.25rem 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* ── Header ── */
+.ll-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.ll-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+}
+.ll-header-icon {
+    width: 42px; height: 42px;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, #5e6ad2, #3b82f6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(94,106,210,0.3);
+}
+.ll-title {
+    font-size: 1.375rem; font-weight: 700; margin: 0 0 0.125rem;
+    color: var(--ink); letter-spacing: -0.02em;
+}
+.ll-sub {
+    font-size: 0.8125rem; color: var(--ink-muted); margin: 0;
+}
+.ll-header-right {
+    display: flex; gap: 0.5rem; flex-wrap: wrap;
+}
+.btn-accent-solid {
+    background: var(--accent); color: #fff; border: none; font-weight: 600;
+    border-radius: var(--radius-lg); padding: 0.375rem 0.875rem; font-size: 0.8125rem;
+    transition: background 0.15s ease; text-decoration: none;
+}
+.btn-accent-solid:hover { background: var(--accent-hover); color: #fff; }
+.btn-outline-accent {
+    border: 1px solid var(--border); color: var(--ink-soft); font-weight: 500;
+    border-radius: var(--radius-lg); padding: 0.375rem 0.875rem; font-size: 0.8125rem;
+    transition: all 0.15s ease; text-decoration: none;
+}
+.btn-outline-accent:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* ── Search + Toolbar ── */
+.ll-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.ll-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 200px;
+    max-width: 480px;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ll-search:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.ll-search i { color: var(--ink-muted); font-size: 0.875rem; flex-shrink: 0; }
+.ll-search input {
+    flex: 1; border: none; background: transparent; padding: 0.125rem 0;
+    font-size: 0.8125rem; color: var(--ink); outline: none; min-width: 0;
+}
+.ll-search input::placeholder { color: var(--ink-muted); }
+.ll-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+.ll-result-count {
+    font-size: 0.75rem; color: var(--ink-muted); white-space: nowrap;
+}
+.ll-result-count b { color: var(--ink-soft); font-weight: 600; }
+.ll-perpage {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 0.75rem;
+    cursor: pointer;
+    outline: none;
+}
+.ll-perpage:focus { border-color: var(--accent); }
+.ll-reset-btn {
+    width: 34px; height: 34px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    font-size: 0.875rem;
+}
+.ll-reset-btn:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+
+/* ── Filters ── */
+.ll-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.ll-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1875rem;
+    min-width: 140px;
+    flex: 1;
+}
+.ll-filter-group label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.ll-filter-group label i { font-size: 0.5625rem; }
+.ll-select {
+    padding: 0.4375rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.75rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.12s ease;
+    min-height: 34px;
+}
+.ll-select:focus { border-color: var(--accent); }
+.ll-select option { font-size: 0.75rem; }
+
+/* ── Summary ── */
+.ll-summary {
+    font-size: 0.75rem; color: var(--ink-muted); padding: 0.125rem 0;
+}
+
+/* ── Cards Grid ── */
+.ll-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+.ll-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+    overflow: hidden;
+    position: relative;
+}
+.ll-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 3px;
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    transition: width 0.15s ease;
+}
+.ll-card.status-LEAD::before { background: #5e6ad2; }
+.ll-card.status-FOLLOWUP::before { background: #0ea5e9; }
+.ll-card.status-LOGIN::before { background: #f59e0b; }
+.ll-card.status-UNDERWRTING::before { background: #8b8fa3; }
+.ll-card.status-SANCTIONED::before { background: #10b981; }
+.ll-card.status-DISBURSED::before { background: #059669; }
+.ll-card.status-REJECT::before { background: #ef4444; }
+.ll-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+    transform: translateY(-3px);
+}
+.ll-card:hover::before { width: 4px; }
+.ll-card-main {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+.ll-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+.ll-card-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 0.125rem;
+    line-height: 1.2;
+}
+.ll-card-name small {
+    font-weight: 400;
+    color: var(--ink-muted);
+    font-size: 0.6875rem;
+}
+.ll-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1875rem 0.5625rem;
+    border-radius: 999px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.ll-card-sub {
+    font-size: 0.6875rem;
+    color: var(--ink-muted);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+}
+.ll-card-sub i { font-size: 0.625rem; }
+.ll-card-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+.ll-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1875rem;
+    padding: 0.125rem 0.4375rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    font-size: 0.625rem;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    transition: all 0.12s ease;
+    white-space: nowrap;
+}
+a.ll-pill:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent-soft-strong);
+}
+.ll-pill.overdue { background: rgba(239,68,68,0.08); color: #ef4444; border-color: transparent; }
+.ll-pill.today { background: rgba(245,158,11,0.1); color: #f59e0b; border-color: transparent; }
+.ll-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+.ll-card-actions {
+    display: flex;
+    gap: 0.375rem;
+}
+.ll-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    padding: 0.3125rem 0.625rem;
+    border-radius: var(--radius-lg);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    text-decoration: none;
+}
+.ll-action-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent-soft-strong);
+}
+.ll-action-btn.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+.ll-action-btn.primary:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+.ll-card-extras {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+    background: var(--surface-2);
+    border-top: 1px solid transparent;
+}
+.ll-card.expanded .ll-card-extras {
+    max-height: 350px;
+    border-top-color: var(--border);
+}
+.ll-extras-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 0.75rem;
+    padding: 0.625rem 1rem;
+}
+.ll-ex-item {
+    display: flex;
+    flex-direction: column;
+}
+.ll-ex-label {
+    font-size: 0.5625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+}
+.ll-ex-value {
+    font-size: 0.6875rem;
+    color: var(--ink-soft);
+    font-weight: 500;
+}
+
+/* ── Empty State ── */
+.ll-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--ink-muted);
+}
+.ll-empty i {
+    display: block;
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    opacity: 0.4;
+}
+.ll-empty p {
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+/* ── Pagination ── */
+.ll-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0;
+}
+.ll-page-btn {
+    min-width: 34px;
+    height: 34px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    padding: 0 0.5rem;
+}
+.ll-page-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+.ll-page-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+.ll-page-btn.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .ll-wrap { padding: 0.75rem; gap: 0.75rem; }
+    .ll-header { flex-direction: column; align-items: flex-start; }
+    .ll-header-right { width: 100%; }
+    .ll-header-right .btn { flex: 1; text-align: center; }
+    .ll-toolbar { flex-direction: column; align-items: stretch; }
+    .ll-search { max-width: none; }
+    .ll-toolbar-right { justify-content: space-between; }
+    .ll-filters { flex-direction: column; }
+    .ll-filter-group { min-width: 0; }
+    .ll-grid { grid-template-columns: 1fr; }
+}
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const saveUrl = <?= json_encode(APP_BASE . '/modules/leads/php_scripts/lead_list_filter_state.php') ?>;
@@ -220,25 +654,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('universalSearch');
     const perPageSelect = document.getElementById('perPageSelect');
     const filterIds = [
-        'quickStatusFilter',
-        'loginMonthFilter',
-        'followupMonthFilter',
-        'quickLoginModeFilter',
-        'quickAssignedFilter',
-        'quickLoanTypeFilter'
+        'quickStatusFilter', 'loginMonthFilter', 'followupMonthFilter',
+        'quickLoginModeFilter', 'quickAssignedFilter', 'quickLoanTypeFilter'
     ];
 
     const defaultState = {
-        quickStatus: 'PIPELINE',
-        loginMonth: 'current_previous',
-        followupMonth: '',
-        quickLoginMode: '',
-        quickAssigned: '',
-        quickLoanType: '',
-        globalSearch: '',
-        perPage: 12,
-        page: 1,
-        columnFilters: {}
+        quickStatus: 'PIPELINE', loginMonth: 'current_previous', followupMonth: '',
+        quickLoginMode: '', quickAssigned: '', quickLoanType: '',
+        globalSearch: '', perPage: 12, page: 1, columnFilters: {}
     };
 
     let state = normalizeState(resolveInitialState());
@@ -256,235 +679,178 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resolveInitialState() {
-        if (serverState && Object.keys(serverState).length > 0) {
-            return serverState;
-        }
+        if (serverState && Object.keys(serverState).length > 0) return serverState;
         try {
             const local = JSON.parse(localStorage.getItem(localStorageKey) || 'null');
             return local && typeof local === 'object' ? local : defaultState;
-        } catch (error) {
-            return defaultState;
-        }
+        } catch (e) { return defaultState; }
     }
 
-    function cacheState() {
-        localStorage.setItem(localStorageKey, JSON.stringify(state));
-    }
+    function cacheState() { localStorage.setItem(localStorageKey, JSON.stringify(state)); }
 
     function persistState() {
         cacheState();
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
-            fetch(saveUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(state)
-            }).catch(() => {});
+            fetch(saveUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) }).catch(() => {});
         }, 250);
     }
 
     function syncInputsFromState() {
         searchInput.value = state.globalSearch || '';
         perPageSelect.value = String(state.perPage);
-        document.getElementById('quickStatusFilter').value = state.quickStatus;
-        document.getElementById('loginMonthFilter').value = state.loginMonth;
-        document.getElementById('followupMonthFilter').value = state.followupMonth;
-        document.getElementById('quickLoginModeFilter').value = state.quickLoginMode;
-        document.getElementById('quickAssignedFilter').value = state.quickAssigned;
-        document.getElementById('quickLoanTypeFilter').value = state.quickLoanType;
+        filterIds.forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.value = state[id.replace('Filter', '')] || '';
+        });
     }
 
     function escapeHtml(value) {
-        return String(value ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+        return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     }
 
-    function renderFieldGroup(title, fields) {
-        if (!fields || !fields.length) {
-            return '';
-        }
-        const rows = fields.map((field) => `
-            <div class="field-row">
-                <b>${escapeHtml(field.label)}:</b>
-                <span>${escapeHtml(field.value)}</span>
-            </div>
-        `).join('');
-        return `
-            <section class="card-section">
-                <div class="section-kicker">${escapeHtml(title)}</div>
-                <div class="field-list">${rows}</div>
-            </section>
-        `;
-    }
-
-    function renderNotes(notes) {
-        if (!notes || !notes.length) {
-            return '';
-        }
-        return `
-            <section class="card-section">
-                <div class="section-kicker">Notes</div>
-                <div class="note-chip-wrap">
-                    ${notes.map((note) => `
-                        <span class="note-chip">
-                            <strong>${escapeHtml(note.label)}:</strong>
-                            <span>${escapeHtml(note.value)}</span>
-                        </span>
-                    `).join('')}
-                </div>
-            </section>
-        `;
+    function statusBadgeClass(status) {
+        var cls = { 'LEAD': 'bg-primary', 'FOLLOWUP': 'bg-info', 'LOGIN': 'bg-warning text-dark',
+            'UNDERWRTING': 'bg-secondary', 'SANCTIONED': 'bg-success', 'DISBURSED': 'bg-dark', 'REJECT': 'bg-danger' };
+        return cls[status] || 'bg-secondary';
     }
 
     function renderCards(cards) {
-        if (!cards.length) {
-            leadCards.innerHTML = `
-                <div class="empty-state" style="width:100%;">
-                    <i class="bi bi-search-heart"></i>
-                    No leads match your current search and filters.
-                </div>
-            `;
+        if (!cards || !cards.length) {
+            leadCards.innerHTML = '<div class="ll-empty"><i class="bi bi-search-heart"></i><p>No leads match your current search and filters.</p></div>';
             return;
         }
+        leadCards.innerHTML = cards.map(function(card) {
+            var statusClass = statusBadgeClass(card.status);
+            var statusIcon = card.status_icon || 'bi-circle';
+            var hasExpander = (card.timeline && card.timeline.length) || (card.financial && card.financial.length) || (card.banking && card.banking.length) || (card.source && card.source.length) || (card.notes && card.notes.length);
 
-        leadCards.innerHTML = cards.map((card) => `
-            <article class="lead-card">
-                <div class="lead-head">
-                    <div class="lead-head-top">
-                        <div>
-                            <h2 class="lead-title">${escapeHtml(card.customer_name)}</h2>
-                            ${(card.identity || []).find((field) => field.label === 'Company')?.value ? `
-                                <div class="lead-company">${escapeHtml((card.identity || []).find((field) => field.label === 'Company').value)}</div>
-                            ` : ''}
-                        </div>
-                        <span class="lead-status ${escapeHtml(card.status_badge)}">
-                            <i class="bi ${escapeHtml(card.status_icon)}"></i>
-                            ${escapeHtml(card.status_label)}
-                        </span>
-                    </div>
-                    ${card.mobile ? `
-                        <a href="tel:${escapeHtml(card.mobile)}" class="lead-mobile">
-                            <i class="bi bi-telephone-fill"></i> ${escapeHtml(card.mobile)}
-                        </a>
-                    ` : ''}
-                    <span class="lead-id">Lead #${escapeHtml(card.lead_id)}</span>
-                </div>
-                ${renderFieldGroup('Timeline', card.timeline)}
-                ${renderFieldGroup('Loan Snapshot', [
-                    ...(card.identity || []).filter((field) => field.label !== 'Company'),
-                    ...(card.source || []).filter((field) => field.label === 'Promo Code' || field.label === 'Login Mode')
-                ])}
-                ${renderFieldGroup('Financials', card.financial)}
-                ${renderFieldGroup('Banking', card.banking)}
-                <div>
-                    ${renderFieldGroup('Owner & Source', [
-                        ...(card.source || []).filter((field) => field.label !== 'Promo Code' && field.label !== 'Login Mode'),
-                        ...(card.notes || [])
-                    ])}
-                    <a href="lead_view.php?id=${encodeURIComponent(card.lead_id)}" class="manage-btn">
-                        <i class="bi bi-pencil-square"></i> Manage Lead
-                    </a>
-                </div>
-            </article>
-        `).join('');
+            function fieldList(arr) {
+                if (!arr || !arr.length) return '';
+                return arr.map(function(f) { return '<div class="ll-ex-item"><span class="ll-ex-label">' + escapeHtml(f.label) + '</span><span class="ll-ex-value">' + escapeHtml(f.value) + '</span></div>'; }).join('');
+            }
+
+            var extras = '';
+            if (hasExpander) {
+                extras += '<div class="ll-card-extras"><div class="ll-extras-grid">';
+                extras += fieldList(card.timeline);
+                extras += fieldList(card.financial);
+                extras += fieldList(card.banking);
+                extras += fieldList(card.source);
+                extras += fieldList(card.notes);
+                extras += '</div></div>';
+            }
+
+            var followupDate = '';
+            var followupClass = '';
+            if (card.timeline) {
+                var f = card.timeline.find(function(t) { return t.label === 'Next Follow-up'; });
+                if (f) {
+                    followupDate = f.value;
+                    if (card.next_followup_raw) {
+                        var todayStr = new Date().toISOString().slice(0,10);
+                        if (card.next_followup_raw < todayStr) followupClass = 'overdue';
+                        else if (card.next_followup_raw === todayStr) followupClass = 'today';
+                    }
+                }
+            }
+
+            return '<div class="ll-card status-' + card.status + '" data-id="' + card.lead_id + '">'
+                + '<div class="ll-card-main">'
+                + '<div class="ll-card-top">'
+                + '<div>'
+                + '<div class="ll-card-name">' + escapeHtml(card.customer_name) + ' <small>#' + card.lead_id + '</small></div>'
+                + '<div class="ll-card-sub"><i class="bi bi-person-badge"></i> '
+                + escapeHtml((card.source || []).find(function(s) { return s.label === 'Assigned To'; })?.value || 'Unassigned')
+                + (card.identity ? (card.identity.find(function(i) { return i.label === 'Company'; })?.value ? ' &middot; ' + escapeHtml(card.identity.find(function(i) { return i.label === 'Company'; }).value) : '') : '')
+                + '</div>'
+                + '</div>'
+                + '<span class="ll-card-badge ' + statusClass + '"><i class="bi ' + statusIcon + ' me-1"></i>' + escapeHtml(card.status_label) + '</span>'
+                + '</div>'
+                + '<div class="ll-card-pills">'
+                + (card.mobile && card.mobile !== 'N/A' ? '<a href="tel:' + escapeHtml(card.mobile) + '" class="ll-pill text-decoration-none"><i class="bi bi-telephone-fill"></i> ' + escapeHtml(card.mobile) + '</a>' : '')
+                + (card.identity ? card.identity.filter(function(i) { return i.label === 'Loan Type'; }).map(function(i) { return '<span class="ll-pill"><i class="bi bi-briefcase"></i> ' + escapeHtml(i.value) + '</span>'; }).join('') : '')
+                + (card.identity ? card.identity.filter(function(i) { return i.label === 'Application'; }).map(function(i) { return '<span class="ll-pill"><i class="bi bi-hash"></i> ' + escapeHtml(i.value) + '</span>'; }).join('') : '')
+                + (followupDate ? '<span class="ll-pill' + (followupClass ? ' ' + followupClass : '') + '"><i class="bi bi-alarm"></i> ' + escapeHtml(followupDate) + '</span>' : '')
+                + '</div>'
+                + '<div class="ll-card-footer">'
+                + '<div class="ll-card-actions">'
+                + '<a href="' + APP_BASE + '/modules/leads/lead_view.php?id=' + card.lead_id + '" class="ll-action-btn primary"><i class="bi bi-pencil-square"></i> Manage</a>'
+                + (hasExpander ? '<button type="button" class="ll-action-btn ll-expand-btn"><i class="bi bi-chevron-down"></i> Details</button>' : '')
+                + '</div>'
+                + '</div>'
+                + '</div>'
+                + extras
+                + '</div>';
+        }).join('');
+
+        // Wire expand buttons
+        leadCards.querySelectorAll('.ll-expand-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                this.closest('.ll-card').classList.toggle('expanded');
+                var icon = this.querySelector('i');
+                if (icon) icon.className = icon.className.indexOf('chevron-down') !== -1 ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+            });
+        });
     }
 
-    function buildPageButton(label, page, isActive = false, isDisabled = false) {
-        const activeClass = isActive ? ' active' : '';
-        const disabledClass = isDisabled ? ' disabled' : '';
-        return `<button type="button" class="page-btn${activeClass}${disabledClass}" data-page="${page}">${label}</button>`;
+    function buildPageButton(label, page, isActive, isDisabled) {
+        return '<button type="button" class="ll-page-btn' + (isActive ? ' active' : '') + (isDisabled ? ' disabled' : '') + '" data-page="' + page + '">' + label + '</button>';
     }
 
-    function renderPagination(pagination) {
-        if (!pagination || pagination.totalPages <= 1) {
-            leadPagination.innerHTML = '';
-            return;
+    function renderPagination(p) {
+        if (!p || p.totalPages <= 1) { leadPagination.innerHTML = ''; return; }
+        var buttons = [];
+        buttons.push(buildPageButton('<i class="bi bi-chevron-left"></i>', p.page - 1, false, p.page <= 1));
+        var start = Math.max(1, p.page - 2);
+        var end = Math.min(p.totalPages, p.page + 2);
+        if (start > 1) {
+            buttons.push(buildPageButton('1', 1, p.page === 1));
+            if (start > 2) buttons.push('<span class="ll-page-btn disabled">…</span>');
         }
-
-        const buttons = [];
-        buttons.push(buildPageButton('<i class="bi bi-chevron-left"></i>', pagination.page - 1, false, pagination.page <= 1));
-
-        const startPage = Math.max(1, pagination.page - 2);
-        const endPage = Math.min(pagination.totalPages, pagination.page + 2);
-
-        if (startPage > 1) {
-            buttons.push(buildPageButton('1', 1, pagination.page === 1));
-            if (startPage > 2) {
-                buttons.push('<span class="page-btn disabled">...</span>');
-            }
+        for (var i = start; i <= end; i++) buttons.push(buildPageButton(String(i), i, i === p.page));
+        if (end < p.totalPages) {
+            if (end < p.totalPages - 1) buttons.push('<span class="ll-page-btn disabled">…</span>');
+            buttons.push(buildPageButton(String(p.totalPages), p.totalPages, p.page === p.totalPages));
         }
-
-        for (let p = startPage; p <= endPage; p++) {
-            buttons.push(buildPageButton(String(p), p, p === pagination.page));
-        }
-
-        if (endPage < pagination.totalPages) {
-            if (endPage < pagination.totalPages - 1) {
-                buttons.push('<span class="page-btn disabled">...</span>');
-            }
-            buttons.push(buildPageButton(String(pagination.totalPages), pagination.totalPages, pagination.page === pagination.totalPages));
-        }
-
-        buttons.push(buildPageButton('<i class="bi bi-chevron-right"></i>', pagination.page + 1, false, pagination.page >= pagination.totalPages));
+        buttons.push(buildPageButton('<i class="bi bi-chevron-right"></i>', p.page + 1, false, p.page >= p.totalPages));
         leadPagination.innerHTML = buttons.join('');
     }
 
-    function updateSummary(pagination) {
-        totalLeadsCount.textContent = new Intl.NumberFormat().format(pagination.totalRecords || 0);
-        cardsSummary.textContent = pagination.totalRecords
-            ? `Showing ${pagination.from} to ${pagination.to} of ${pagination.totalRecords} leads`
+    function updateSummary(p) {
+        totalLeadsCount.textContent = new Intl.NumberFormat().format(p.totalRecords || 0);
+        cardsSummary.textContent = p.totalRecords
+            ? 'Showing ' + p.from + ' to ' + p.to + ' of ' + p.totalRecords + ' leads'
             : 'No leads found for the selected filters';
     }
 
     function fetchCards() {
-        cardsSummary.textContent = 'Loading leads...';
-        const body = new URLSearchParams({
-            page: String(state.page),
-            perPage: String(state.perPage),
-            search: state.globalSearch,
-            quickStatus: state.quickStatus,
-            loginMonth: state.loginMonth,
-            followupMonth: state.followupMonth,
-            quickLoginMode: state.quickLoginMode,
-            quickAssigned: state.quickAssigned,
+        cardsSummary.textContent = 'Loading leads…';
+        var body = new URLSearchParams({
+            page: String(state.page), perPage: String(state.perPage),
+            search: state.globalSearch, quickStatus: state.quickStatus,
+            loginMonth: state.loginMonth, followupMonth: state.followupMonth,
+            quickLoginMode: state.quickLoginMode, quickAssigned: state.quickAssigned,
             quickLoanType: state.quickLoanType
         });
-
-        fetch(dataUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            body
-        })
-            .then((response) => response.json())
-            .then((payload) => {
-                if (!payload || payload.ok === false) {
-                    throw new Error(payload && payload.message ? payload.message : 'Unable to load leads.');
-                }
+        fetch(dataUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: body })
+            .then(function(r) { return r.json(); })
+            .then(function(payload) {
+                if (!payload || payload.ok === false) throw new Error(payload && payload.message ? payload.message : 'Unable to load leads.');
                 renderCards(payload.cards || []);
                 renderPagination(payload.pagination || {});
                 updateSummary(payload.pagination || {});
                 persistState();
             })
-            .catch((error) => {
-                leadCards.innerHTML = `
-                    <div class="empty-state" style="grid-column:1 / -1;">
-                        <i class="bi bi-exclamation-circle"></i>
-                        ${escapeHtml(error.message || 'Unable to load leads right now.')}
-                    </div>
-                `;
+            .catch(function(error) {
+                leadCards.innerHTML = '<div class="ll-empty"><i class="bi bi-exclamation-circle"></i><p>' + escapeHtml(error.message || 'Unable to load leads.') + '</p></div>';
                 leadPagination.innerHTML = '';
                 cardsSummary.textContent = 'Unable to load leads.';
             });
     }
 
-    function queueFetch(resetPage = false) {
-        if (resetPage) {
-            state.page = 1;
-        }
+    function queueFetch(resetPage) {
+        if (resetPage) state.page = 1;
         clearTimeout(fetchTimer);
         fetchTimer = setTimeout(fetchCards, 220);
     }
@@ -492,46 +858,28 @@ document.addEventListener('DOMContentLoaded', () => {
     syncInputsFromState();
     fetchCards();
 
-    searchInput.addEventListener('input', () => {
-        state.globalSearch = searchInput.value.trim();
-        queueFetch(true);
-    });
-
-    perPageSelect.addEventListener('change', () => {
-        state.perPage = Number(perPageSelect.value) || 12;
-        queueFetch(true);
-    });
-
-    filterIds.forEach((id) => {
-        const element = document.getElementById(id);
-        element.addEventListener('change', () => {
-            if (id === 'quickStatusFilter') state.quickStatus = element.value;
-            if (id === 'loginMonthFilter') state.loginMonth = element.value;
-            if (id === 'followupMonthFilter') state.followupMonth = element.value;
-            if (id === 'quickLoginModeFilter') state.quickLoginMode = element.value;
-            if (id === 'quickAssignedFilter') state.quickAssigned = element.value;
-            if (id === 'quickLoanTypeFilter') state.quickLoanType = element.value;
+    searchInput.addEventListener('input', function() { state.globalSearch = searchInput.value.trim(); queueFetch(true); });
+    perPageSelect.addEventListener('change', function() { state.perPage = Number(perPageSelect.value) || 12; queueFetch(true); });
+    filterIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        el.addEventListener('change', function() {
+            var key = id.replace('Filter', '');
+            state[key] = el.value;
             queueFetch(true);
         });
     });
-
-    document.getElementById('resetFilters').addEventListener('click', () => {
-        state = { ...defaultState };
+    document.getElementById('resetFilters').addEventListener('click', function() {
+        state = Object.assign({}, defaultState);
         syncInputsFromState();
         fetchCards();
         persistState();
     });
-
-    leadPagination.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-page]');
-        if (!button || button.classList.contains('disabled')) {
-            return;
-        }
-        const nextPage = Number(button.getAttribute('data-page'));
-        if (!nextPage || nextPage === state.page) {
-            return;
-        }
-        state.page = nextPage;
+    leadPagination.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-page]');
+        if (!btn || btn.classList.contains('disabled')) return;
+        var np = Number(btn.getAttribute('data-page'));
+        if (!np || np === state.page) return;
+        state.page = np;
         fetchCards();
     });
 });

@@ -5,8 +5,8 @@ require_once __DIR__ . "/../config.php";
 
 $user_id = $_SESSION["id"];
 $stmt = $link->prepare("SELECT u.*, t.NAME as TEAM_NAME, t.SUPERVISOR_ID 
-                        FROM USERS u 
-                        LEFT JOIN TEAMS t ON u.TEAM_ID = t.ID 
+                        FROM users u 
+                        LEFT JOIN teams t ON u.TEAM_ID = t.ID 
                         WHERE u.ID = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -32,7 +32,7 @@ function getTeamFilterSQL($table_alias = 'm') {
     if (canViewAllTeams()) return "";
     
     if (USER_ROLE == 'Supervisor') {
-        return " AND {$table_alias}.CALL_BY IN (SELECT ID FROM USERS WHERE TEAM_ID = " . USER_TEAM_ID . ")";
+        return " AND {$table_alias}.CALL_BY IN (SELECT ID FROM users WHERE TEAM_ID = " . USER_TEAM_ID . ")";
     }
     
     if (USER_ROLE == 'Officer') {

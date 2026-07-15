@@ -97,6 +97,10 @@ html, body {
     line-height: 1.5;
 }
 
+body {
+    min-height: 100vh;
+}
+
 h1, h2, h3, h4, h5, h6,
 .h1, .h2, .h3, .h4, .h5, .h6 {
     font-family: 'Inter', system-ui, sans-serif;
@@ -177,8 +181,31 @@ body[data-sidebar="collapsed"] .app-sidebar {
 }
 
 @media (max-width: 991.98px) {
-    .app-sidebar { transform: translateX(-100%); }
-    body[data-sidebar="mobile-open"] .app-sidebar { transform: translateX(0); }
+    .app-sidebar {
+        transform: translateX(-100%);
+        box-shadow: none;
+    }
+    body[data-sidebar="mobile-open"] .app-sidebar {
+        transform: translateX(0);
+        box-shadow: 0 0 48px rgba(0, 0, 0, 0.2);
+    }
+    .sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1025;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(2px);
+        animation: fadeIn 0.15s ease;
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+body[data-sidebar="mobile-open"] {
+    overflow: hidden;
 }
 
 .app-sidebar-brand {
@@ -225,6 +252,7 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
 .app-sidebar-nav {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 0.75rem 0.5rem;
     display: flex;
     flex-direction: column;
@@ -309,8 +337,7 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     align-items: center;
     padding: 0 1.25rem;
     gap: 0.75rem;
-    backdrop-filter: saturate(180%) blur(8px);
-    -webkit-backdrop-filter: saturate(180%) blur(8px);
+    flex-shrink: 0;
 }
 
 .app-topbar-toggle {

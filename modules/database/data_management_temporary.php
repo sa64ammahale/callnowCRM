@@ -1,14 +1,14 @@
 <?php
-// temporary_manage.php
-require_once '../../php_scripts/auth.php';   // must create $link (mysqli) and session/auth
-require_once '../../php_scripts/team_auth.php'; // optional
+// temporary_manage.php - TEMPORARY DATABASE MANAGER (REWRITTEN WITH DATATABLES)
+require_once __DIR__ . '/../../php_scripts/auth.php';      // creates $link, user auth, session
+require_once __DIR__ . '/../../config.php';     // CRITICAL: establishes database connection ($link)
 
 /*
- Compact temporary DB manager
- - Keyset pagination (fast)
+ Temporary Database Manager
+ - DataTables server-side processing (like main database)
  - Per page default 1000
  - Actions: fetch, view, update, delete, delete_selected, delete_all, transfer_selected, export_csv, fetch_activity
- - Activity logging into ACTIVITY_LOG (existing schema)
+ - Activity logging into activity_log (existing schema)
 */
 
 // ---------- CONFIG ----------
@@ -30,24 +30,6 @@ if (defined('USER_ID')) $current_user_id = USER_ID;
 elseif (!empty($_SESSION['user_id'])) $current_user_id = intval($_SESSION['user_id']);
 elseif (!empty($GLOBALS['USER_ID'])) $current_user_id = intval($GLOBALS['USER_ID']);
 
-// activity logger using your ACTIVITY_LOG table
-function activity_log($link, $user_id, $action_type, $details = '', $affected_ids = '', $target_table = 'TEMPORARY_DATABASE') {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
-    $action_type = normalizeActivityType($action_type);
-    $sql = "INSERT INTO ACTIVITY_LOG (USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, IP_ADDRESS)
-            VALUES (?, ?, ?, ?, ?, ?)";
-    $stmt = mysqli_prepare($link, $sql);
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, "isssss", $user_id, $action_type, $details, $affected_ids, $target_table, $ip);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        return true;
-    } else {
-        // logging failed; don't break the flow
-        return false;
-    }
-}
-
 /* validate simple date */
 function valid_date($d) { return preg_match('/^\d{4}-\d{2}-\d{2}$/', $d); }
 
@@ -58,131 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     $action = $_POST['action'];
 
-    // ---------------- FETCH (keyset pagination)
-// ---------------- FETCH (keyset pagination – safe version)
-// ---------------- FETCH (robust, defensive)
-if ($action === 'fetch') {
-    
-    mysqli_set_charset($link, 'utf8mb4');
-mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
-    
-    // sanitize per-page
-    $per_page = isset($_POST['per_page']) ? (int)$_POST['per_page'] : $DEFAULT_PER_PAGE;
-    if ($per_page < 1) $per_page = $DEFAULT_PER_PAGE;
-    if ($per_page > $MAX_PER_PAGE) $per_page = $MAX_PER_PAGE;
-
-    $last_dt = $_POST['last_dt'] ?? null;
-    $last_id = isset($_POST['last_id']) ? (int)$_POST['last_id'] : null;
-
-    $q = trim((string)($_POST['q'] ?? ''));
-    $status = trim((string)($_POST['status'] ?? ''));
-    $telecaller = isset($_POST['telecaller']) && $_POST['telecaller'] !== '' ? (int)$_POST['telecaller'] : null;
-    $from = $_POST['from'] ?? null;
-    $to   = $_POST['to'] ?? null;
-
-    $where_parts = [];
-    $types = '';
-    $params = [];
-
-    if ($q !== '') {
-        // use only 3 fields for export & faster search (you can expand to 5 if needed)
-            $where_parts[] = "(
-        CUST_NAME COLLATE utf8mb4_general_ci LIKE CONCAT('%',?,'%') COLLATE utf8mb4_general_ci
-        OR CUST_MOBILE COLLATE utf8mb4_general_ci LIKE CONCAT('%',?,'%') COLLATE utf8mb4_general_ci
-        OR CUST_COMPANY COLLATE utf8mb4_general_ci LIKE CONCAT('%',?,'%') COLLATE utf8mb4_general_ci
-        OR CUST_PACKAGE COLLATE utf8mb4_general_ci LIKE CONCAT('%',?,'%') COLLATE utf8mb4_general_ci
-        OR CUST_OTHER_INFO COLLATE utf8mb4_general_ci LIKE CONCAT('%',?,'%') COLLATE utf8mb4_general_ci
-        )";
-        $types .= str_repeat('s', 5);
-        $params = array_merge($params, [$q, $q, $q, $q, $q]);
-    }
-
-    if ($status !== '') {
-        $where_parts[] = "CALL_DIALED_STATUS = ?";
-        $types .= 's';
-        $params[] = $status;
-    }
-
-    if ($telecaller !== null) {
-        $where_parts[] = "CALL_DIALED_TELECALLER = ?";
-        $types .= 'i';
-        $params[] = $telecaller;
-    }
-
-    if (!empty($from) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
-        $where_parts[] = "DATE(TEMP_UPLOAD_DATETIME) >= ?";
-        $types .= 's';
-        $params[] = $from;
-    }
-    if (!empty($to) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
-        $where_parts[] = "DATE(TEMP_UPLOAD_DATETIME) <= ?";
-        $types .= 's';
-        $params[] = $to;
-    }
-
-    if ($last_dt && $last_id) {
-        $where_parts[] = "(TEMP_UPLOAD_DATETIME < ? OR (TEMP_UPLOAD_DATETIME = ? AND ID < ?))";
-        $types .= 'ssi';
-        $params[] = $last_dt;
-        $params[] = $last_dt;
-        $params[] = $last_id;
-    }
-
-    // final WHERE
-    $where_sql = $where_parts ? 'WHERE ' . implode(' AND ', $where_parts) : '';
-
-    $sql = "SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE,
-                   CUST_OTHER_INFO, TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS,
-                   CALL_DIALED_TELECALLER, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD
-            FROM TEMPORARY_DATABASE
-            $where_sql
-            ORDER BY TEMP_UPLOAD_DATETIME DESC, ID DESC
-            LIMIT ?";
-
-    // add limit param
-    $types_full = $types . 'i';
-    $params[] = $per_page;
-
-    $stmt = mysqli_prepare($link, $sql);
-    if (!$stmt) {
-        respond_json(['error' => 'DB prepare failed', 'debug' => mysqli_error($link)]);
-    }
-
-    // helper to bind dynamically and safely (creates references required by bind_param)
-    $bind_params = array_merge([$types_full], $params);
-    $refs = [];
-    foreach ($bind_params as $k => $v) $refs[$k] = &$bind_params[$k];
-
-    if (!call_user_func_array([$stmt, 'bind_param'], $refs)) {
-        // binding failed
-        respond_json(['error' => 'Bind failed', 'debug' => mysqli_stmt_error($stmt)]);
-    }
-
-    if (!mysqli_stmt_execute($stmt)) {
-        respond_json(['error' => 'Execute failed', 'debug' => mysqli_stmt_error($stmt)]);
-    }
-
-    $res = mysqli_stmt_get_result($stmt);
-    $rows = [];
-    while ($r = mysqli_fetch_assoc($res)) $rows[] = $r;
-    mysqli_stmt_close($stmt);
-
-    $next_dt = null; $next_id = null;
-    if (!empty($rows)) {
-        $lastrow = end($rows);
-        $next_dt = $lastrow['TEMP_UPLOAD_DATETIME'];
-        $next_id = (int)$lastrow['ID'];
-    }
-
-    respond_json(['data' => $rows, 'next_last_dt' => $next_dt, 'next_last_id' => $next_id, 'per_page' => $per_page]);
-}
-
-
-
     // ---------------- VIEW
     if ($action === 'view' && !empty($_POST['id'])) {
         $id = intval($_POST['id']);
-        $stmt = mysqli_prepare($link, "SELECT * FROM TEMPORARY_DATABASE WHERE ID = ? LIMIT 1");
+        $stmt = mysqli_prepare($link, "SELECT * FROM temporary_database WHERE ID = ? LIMIT 1");
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
@@ -212,12 +73,12 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
         }
         $mobile = substr($mobile, -10);
 
-        $sql = "UPDATE TEMPORARY_DATABASE SET CUST_NAME = ?, CUST_MOBILE = ?, CUST_COMPANY = ?, CUST_PACKAGE = ?, CUST_OTHER_INFO = ?, CALL_DIALED_STATUS = ?, CALL_DIALED_TELECALLER = ?, LAST_DIALED_DATE_TIME = ?, LAST_CONNECTED_PERIOD = ? WHERE ID = ?";
+        $sql = "UPDATE temporary_database SET CUST_NAME = ?, CUST_MOBILE = ?, CUST_COMPANY = ?, CUST_PACKAGE = ?, CUST_OTHER_INFO = ?, CALL_DIALED_STATUS = ?, CALL_DIALED_TELECALLER = ?, LAST_DIALED_DATE_TIME = ?, LAST_CONNECTED_PERIOD = ? WHERE ID = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "ssssssissi", $name, $mobile, $company, $package, $other, $status, $tele, $last_dialed, $last_conn, $id);
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
-    activity_log($link, $current_user_id, 'UPDATE', "Updated row $id", (string)$id, 'TEMPORARY_DATABASE');
+            activity_log($link, $current_user_id, 'UPDATE', "Updated row $id", (string)$id, 'temporary_database');
             respond_json(['success' => true, 'message' => 'Row updated']);
         } else {
             respond_json(['error' => 'Update failed: ' . mysqli_stmt_error($stmt)]);
@@ -230,11 +91,11 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
             respond_json(['error' => 'Admin or Manager access required']);
         }
         $id = intval($_POST['id']);
-        $stmt = mysqli_prepare($link, "DELETE FROM TEMPORARY_DATABASE WHERE ID = ?");
+        $stmt = mysqli_prepare($link, "DELETE FROM temporary_database WHERE ID = ?");
         mysqli_stmt_bind_param($stmt, "i", $id);
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
-    activity_log($link, $current_user_id, 'DELETE', "Deleted row $id", (string)$id, 'TEMPORARY_DATABASE');
+            activity_log($link, $current_user_id, 'DELETE', "Deleted row $id", (string)$id, 'temporary_database');
             respond_json(['success' => true]);
         } else {
             respond_json(['error' => 'Delete failed: ' . mysqli_stmt_error($stmt)]);
@@ -250,7 +111,7 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
         if (!count($ids)) respond_json(['error' => 'No IDs provided']);
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $types = str_repeat('i', count($ids));
-        $sql = "DELETE FROM TEMPORARY_DATABASE WHERE ID IN ($placeholders)";
+        $sql = "DELETE FROM temporary_database WHERE ID IN ($placeholders)";
         $stmt = mysqli_prepare($link, $sql);
         $bind_names = array_merge([$types], $ids);
         $refs = [];
@@ -258,7 +119,7 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
         call_user_func_array([$stmt, 'bind_param'], $refs);
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
-    activity_log($link, $current_user_id, 'BULK_DELETE', 'Deleted selected rows', implode(',', $ids), 'TEMPORARY_DATABASE');
+            activity_log($link, $current_user_id, 'BULK_DELETE', 'Deleted selected rows', implode(',', $ids), 'temporary_database');
             respond_json(['success' => true, 'affected' => mysqli_stmt_affected_rows($stmt)]);
         } else {
             respond_json(['error' => 'Delete selected failed: ' . mysqli_stmt_error($stmt)]);
@@ -272,9 +133,9 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
         }
         $confirm = $_POST['confirm'] ?? '';
         if ($confirm !== 'YES_DELETE_ALL') respond_json(['error' => 'Operation not confirmed.']);
-        $ok = mysqli_query($link, "TRUNCATE TABLE TEMPORARY_DATABASE");
+        $ok = mysqli_query($link, "TRUNCATE TABLE temporary_database");
         if ($ok) {
-    activity_log($link, $current_user_id, 'BULK_DELETE', 'Truncated TEMPORARY_DATABASE', 'ALL', 'TEMPORARY_DATABASE');
+            activity_log($link, $current_user_id, 'BULK_DELETE', 'Truncated temporary_database', 'ALL', 'temporary_database');
             respond_json(['success' => true]);
         } else respond_json(['error' => 'Truncate failed: ' . mysqli_error($link)]);
     }
@@ -287,9 +148,9 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
         $ids = array_map('intval', $_POST['ids']);
         if (!count($ids)) respond_json(['error' => 'No IDs provided']);
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $sql = "INSERT INTO MAIN_DATABASE (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, MAINDATABASE_UPLOAD_DATETIME)
+        $sql = "INSERT INTO main_database (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, MAINDATABASE_UPLOAD_DATETIME)
                 SELECT CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, NOW()
-                FROM TEMPORARY_DATABASE WHERE ID IN ($placeholders)
+                FROM temporary_database WHERE ID IN ($placeholders)
                 ON DUPLICATE KEY UPDATE ID = ID";
         $stmt = mysqli_prepare($link, $sql);
         if (!$stmt) respond_json(['error' => 'Prepare failed: ' . mysqli_error($link)]);
@@ -301,7 +162,7 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
             $affected = mysqli_stmt_affected_rows($stmt);
-    activity_log($link, $current_user_id, 'TRANSFER', 'Transferred to MAIN_DATABASE', implode(',', $ids), 'TEMPORARY_DATABASE');
+            activity_log($link, $current_user_id, 'TRANSFER', 'Transferred to MAIN_DATABASE', implode(',', $ids), 'temporary_database');
             respond_json(['success' => true, 'affected' => $affected]);
         } else {
             respond_json(['error' => 'Transfer failed: ' . mysqli_stmt_error($stmt)]);
@@ -310,7 +171,6 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 
     // ---------------- EXPORT CSV
     if ($action === 'export_csv') {
-        // reuse filters from fetch but return CSV stream
         $limit = min(intval($_POST['limit'] ?? $EXPORT_MAX), $EXPORT_MAX);
 
         $where = [];
@@ -330,7 +190,7 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 
         $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
         $sql = "SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS, CALL_DIALED_TELECALLER, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD
-                FROM TEMPORARY_DATABASE $where_sql ORDER BY TEMP_UPLOAD_DATETIME DESC LIMIT ?";
+                FROM temporary_database $where_sql ORDER BY TEMP_UPLOAD_DATETIME DESC LIMIT ?";
 
         $stmt = mysqli_prepare($link, $sql);
         if (!$stmt) respond_json(['error' => 'Prepare failed: ' . mysqli_error($link)]);
@@ -383,9 +243,9 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 }
 
 /* ---------- Render UI ---------- */
+$pageTitle = 'Temporary Database';
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
-<?php $pageTitle = 'Temporary Database'; ?>
-<?php include '../../php_scripts/header.php'; ?>
 
 <div class="container py-3" style="max-width:1200px">
 
@@ -405,9 +265,9 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
   <!-- ROW 1: ACTION BUTTONS -->
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
     <div class="btn-group" role="group">
-    <a href="add_single_number.php" class="btn btn-success btn-sm" disabled>
-        <i class="bi bi-upload"></i> Upload Single Data
-    </a>
+      <a href="add_single_number.php" class="btn btn-success btn-sm" disabled>
+          <i class="bi bi-upload"></i> Upload Single Data
+      </a>
       <button id="deleteSelected" class="btn btn-danger btn-sm" disabled>
         <i class="bi bi-trash"></i> Delete Selected
       </button>
@@ -459,39 +319,23 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 </div>
 <!-- ====== END OF 2-ROW BLOCK ====== -->
 
-
-
-  <!-- table -->
+  <!-- DataTable -->
   <div class="card">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <div class="small text-muted" id="infoText">Loading…</div>
-      <div><button id="loadMore" class="btn btn-sm btn-outline-secondary">Load more</button></div>
-    </div>
-
-    <div class="table-wrapper">
-      <table class="table table-sm table-compact mb-0">
-        <thead>
-          <tr>
-            <th style="width:36px"><input type="checkbox" id="selectAll"></th>
-            <th style="width:60px">ID</th>
-            <th>Name</th>
-            <th style="width:120px">Mobile</th>
-            <th>Company</th>
-            <th style="width:100px">Package</th>
-            <th>Other</th>
-            <th style="width:120px">Status</th>
-            <th style="width:160px">Upload Time</th>
-            <th style="width:110px">Actions</th>
-          </tr>
+    <table id="tempTable" class="table table-hover table-striped table-sm" style="width:100%">
+        <thead class="table-dark">
+            <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th>ID</th>
+                <th>Mobile</th>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Package</th>
+                <th>Status</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+            </tr>
         </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
-    </div>
-
-    <div class="d-flex justify-content-between align-items-center mt-2">
-      <div class="small text-muted" id="pagerSummary"></div>
-      <div class="small text-muted">Showing <span id="rowsShown">0</span> rows</div>
-    </div>
+    </table>
   </div>
 </div>
 
@@ -529,242 +373,287 @@ mysqli_query($link, "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
   </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/3.0.2/js/responsive.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
 
 <script>
-const CSRF_TOKEN = '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>';
-$(function(){
-  const perPageDefault = parseInt($('#perPage').val());
-  let perPage = perPageDefault;
-  let next_last_dt = null, next_last_id = null;
-  let rowsShown = 0;
-  let selected = new Set();
-  let loading = false;
-  let qTimer = null;
+const TEMP_URL = (window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/datatable.php';
+const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 
-  function setLoading(state) {
-    loading = state;
-    $('#refreshBtn').prop('disabled', state);
-    $('#loadMore').prop('disabled', state);
-    if (state) $('#infoText').html('<span class="spinner-inline"></span> Loading...');
-    else $('#infoText').text('Loaded');
-  }
+$(document).ready(function() {
+    
+    const table = $('#tempTable').DataTable({
+        processing: true,
+        serverSide: true,
+        responsive: true,
+        ajax: {
+            url: TEMP_URL,
+            type: 'GET'
+        },
+        pageLength: 2500,
+        lengthMenu: [ 2500, 5000, 10000, 15000, 20000, [10000, -1], [10000, 'All'] ],
+        order: [[6, 'desc']],
+        dom: '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4 text-center"B><"col-sm-12 col-md-4"f>>rtip',
+        buttons: [
+            { extend: 'copy', text: '<i class="bi bi-copy"></i> Copy', className: 'btn btn-outline-secondary btn-sm text-white' },
+            { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet"></i> CSV', className: 'btn btn-success btn-sm', title: 'TemporaryDatabase_Export_' + new Date().toISOString().slice(0,10) },
+            { extend: 'excel', text: '<i class="bi bi-file-excel"></i> Excel', className: 'btn btn-info btn-sm' },
+            { text: '<i class="bi bi-trash3"></i> Delete Selected', className: 'btn btn-danger btn-sm', action: function() { bulkDelete(); }},
+            {
+                text: '<i class="bi bi-cloud-download"></i> Export Full DB (in Parts)',
+                className: 'btn btn-primary btn-sm shadow-sm fw-bold',
+                action: function () {
+                    $.get((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/get_total_count.php', function (total) {
+                        total = parseInt(total);
+                        if (total === 0) return showToast('Empty', 'No data found', 'info');
+        
+                        if (total > 100000 && !confirm(`Warning: ${total.toLocaleString()} records!\n\nThis will download in multiple large CSV files.\n\nContinue?`)) {
+                            return;
+                        }
+        
+                        const win = window.open((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/download_bach.php', '_blank');
+                        if (win) {
+                            showToast('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
+                        } else {
+                            showToast('Popup Blocked!', 'Please allow popups', 'danger');
+                        }
+                    });
+                }
+            }
+        ],
+columnDefs: [
+            { orderable: false, targets: 0 },
+            { visible: false, targets: 8 },
+            { width: '100px', targets: 1 },
+            {
+                targets: 5,
+                render: function(data) {
+                    const badge = {
+                        'Not Called': 'bg-secondary',
+                        'Dialed': 'bg-info',
+                        'Connected': 'bg-success',
+                        'Busy': 'bg-warning',
+                        'No Answer': 'bg-orange',
+                        'Do Not Call': 'bg-danger',
+                        'Pending': 'bg-primary'
+                    }[data] || 'bg-dark';
+                    return `<span class="badge ${badge} badge-status">${data || 'Not Called'}</span>`;
+                }
+            }
+        ],
+        language: {
+            processing: "<div class='spinner-border text-primary' role='status'><span class='visually-hidden'>Loading...</span></div>",
+            lengthMenu: "Show _MENU_ records",
+            info: "Showing _START_ to _END_ of _TOTAL_ leads",
+            paginate: {
+                next: '<i class="bi bi-chevron-right"></i>',
+                previous: '<i class="bi bi-chevron-left"></i>'
+            }
+        }
+    });
 
-  function renderRow(r) {
-    const statusClass = 'status-' + (r.CALL_DIALED_STATUS ? r.CALL_DIALED_STATUS.replaceAll(' ','') : 'NotCalled');
-    return `<tr data-id="${r.ID}" class="${statusClass}">
-      <td><input type="checkbox" class="rowChk" data-id="${r.ID}"></td>
-      <td>${r.ID}</td>
-      <td>${escapeHtml(r.CUST_NAME)}</td>
-      <td>${escapeHtml(r.CUST_MOBILE)}</td>
-      <td>${escapeHtml(r.CUST_COMPANY)}</td>
-      <td>${escapeHtml(r.CUST_PACKAGE)}</td>
-      <td>${escapeHtml(r.CUST_OTHER_INFO)}</td>
-      <td>${escapeHtml(r.CALL_DIALED_STATUS)}</td>
-      <td>${escapeHtml(r.TEMP_UPLOAD_DATETIME)}</td>
-      <td>
-        <div class="btn-group">
-          <button class="btn btn-sm btn-outline-primary btn-edit" data-id="${r.ID}"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger btn-del" data-id="${r.ID}"><i class="bi bi-trash"></i></button>
-        </div>
-      </td>
-    </tr>`;
-  }
+    // Select All
+    $('#selectAll').on('click', function() {
+        const checked = this.checked;
+        table.rows({ page: 'current' }).nodes().to$().find('input[type="checkbox"]').prop('checked', checked);
+        updateSelectedCount();
+    });
 
-  function escapeHtml(s){ if(s===null||s===undefined) return ''; return $('<div>').text(s).html(); }
+    $('#tempTable tbody').on('change', 'input[type="checkbox"]', updateSelectedCount);
 
-  function resetTable() {
-    $('#tableBody').empty();
-    next_last_dt = null; next_last_id = null;
-    rowsShown = 0;
-    selected.clear();
-    $('#rowsShown').text('0');
-    $('#selectAll').prop('checked', false);
-    $('#deleteSelected, #transferSelected').prop('disabled', true);
-  }
-
-  function loadMore() {
-    if (loading) return;
-    setLoading(true);
-    perPage = parseInt($('#perPage').val());
-    const data = {
-      action: 'fetch',
-      per_page: perPage,
-      q: $('#searchQ').val().trim(),
-      status: $('#status').val(),
-      from: $('#from').val(),
-      to: $('#to').val()
-    };
-    if (next_last_dt && next_last_id) {
-      data.last_dt = next_last_dt;
-      data.last_id = next_last_id;
+    function updateSelectedCount() {
+        const count = $('#tempTable input[type="checkbox"]:checked').length - ($('#selectAll').is(':checked') ? 1 : 0);
+        $('#selectedCount').text(count);
     }
-    data.csrf_token = CSRF_TOKEN;
-    $.post(location.href, data, function(resp){
-      if (resp.error) { alert(resp.error); setLoading(false); return; }
-      const rows = resp.data || [];
-      for (const r of rows) $('#tableBody').append(renderRow(r));
-      rowsShown += rows.length;
-      $('#rowsShown').text(rowsShown);
-      // update next cursor
-      next_last_dt = resp.next_last_dt;
-      next_last_id = resp.next_last_id;
-      // if returned rows less than per_page => no more pages
-      if (!rows.length || rows.length < perPage) { $('#loadMore').prop('disabled', true); $('#pagerSummary').text('All loaded or fewer rows than per page'); }
-      else { $('#loadMore').prop('disabled', false); $('#pagerSummary').text('More pages available'); }
-      setLoading(false);
-      updateSelectState();
-    }, 'json').fail(function(){ alert('Server error'); setLoading(false); });
-  }
 
-  // initial load
-  resetTable();
-  loadMore();
-
-  // refresh button
-  $('#refreshBtn').on('click', function(){ resetTable(); loadMore(); });
-
-  // debounced search
-  $('#searchQ').on('input', function(){
-    clearTimeout(qTimer);
-    qTimer = setTimeout(function(){ resetTable(); loadMore(); }, 300);
-  });
-  $('#status, #from, #to').on('change', function(){ resetTable(); loadMore(); });
-
-  // per page change
-  $('#perPage').on('change', function(){ resetTable(); loadMore(); });
-
-  // load more click
-  $('#loadMore').on('click', function(){ loadMore(); });
-
-  // select row
-  $(document).on('change', '.rowChk', function(){
-    const id = $(this).data('id');
-    if ($(this).is(':checked')) selected.add(id); else selected.delete(id);
-    updateSelectState();
-  });
-
-  // select all visible
-  $('#selectAll').on('change', function(){
-    const checked = $(this).is(':checked');
-    $('.rowChk').prop('checked', checked).trigger('change');
-  });
-
-  function updateSelectState() {
-    const count = selected.size;
-    $('#deleteSelected, #transferSelected').prop('disabled', count === 0);
-    $('#infoText').text(count ? (count + ' selected') : ''); // simple indicator
-  }
-
-  // delete single
-  $(document).on('click', '.btn-del', function(){
-    const id = $(this).data('id');
-    if (!confirm('Delete row ' + id + '?')) return;
-    $.post(location.href, { action:'delete', id: id, csrf_token: CSRF_TOKEN }, function(resp){
-      if (resp.success) { resetTable(); loadMore(); alert('Deleted'); }
-      else alert('Error: ' + (resp.error || 'unknown'));
-    }, 'json');
-  });
-
-  // edit flow
-  $(document).on('click', '.btn-edit', function(){
-    const id = $(this).data('id');
-    $.post(location.href, { action:'view', id: id, csrf_token: CSRF_TOKEN }, function(resp){
-      if (!resp.row) return alert('Row not found');
-      const r = resp.row;
-      $('#editId').val(r.ID);
-      $('#editName').val(r.CUST_NAME);
-      $('#editMobile').val(r.CUST_MOBILE);
-      $('#editCompany').val(r.CUST_COMPANY);
-      $('#editPackage').val(r.CUST_PACKAGE);
-      $('#editOther').val(r.CUST_OTHER_INFO);
-      $('#editStatus').val(r.CALL_DIALED_STATUS);
-      $('#editTelecaller').val(r.CALL_DIALED_TELECALLER);
-      $('#editError').hide().text('');
-      new bootstrap.Modal(document.getElementById('editModal')).show();
-    }, 'json');
-  });
-
-  $('#editForm').on('submit', function(e){
-    e.preventDefault();
-    const data = $(this).serializeArray();
-    data.push({ name: 'action', value: 'update' });
-    data.push({ name: 'csrf_token', value: CSRF_TOKEN });
-    $.post(location.href, data, function(resp){
-      if (resp.success) {
-        bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
-        resetTable(); loadMore();
-      } else {
-        $('#editError').show().text(resp.error || 'Update failed');
-      }
-    }, 'json').fail(function(){ $('#editError').show().text('Server error'); });
-  });
-
-  // delete selected
-  $('#deleteSelected').on('click', function(){
-    if (!selected.size) return;
-    if (!confirm('Delete ' + selected.size + ' selected rows?')) return;
-    $.post(location.href, { action:'delete_selected', ids: Array.from(selected), csrf_token: CSRF_TOKEN }, function(resp){
-      if (resp.success) { alert('Deleted ' + (resp.affected || selected.size)); resetTable(); loadMore(); }
-      else alert('Error: ' + (resp.error || 'unknown'));
-    }, 'json');
-  });
-
-  // transfer selected
-  $('#transferSelected').on('click', function(){
-    if (!selected.size) return;
-    if (!confirm('Transfer ' + selected.size + ' selected rows to MAIN_DATABASE?')) return;
-    $.post(location.href, { action:'transfer_selected', ids: Array.from(selected), csrf_token: CSRF_TOKEN }, function(resp){
-      if (resp.success) { alert('Transferred (affected: ' + (resp.affected || 'unknown') + ')'); resetTable(); loadMore(); }
-      else alert('Error: ' + (resp.error || 'unknown'));
-    }, 'json');
-  });
-
-  // delete all
-  $('#deleteAllBtn').on('click', function(){
-    if (!confirm('This will DELETE ALL rows in TEMPORARY_DATABASE - are you sure?')) return;
-    const token = prompt('Type YES_DELETE_ALL to confirm');
-    if (token !== 'YES_DELETE_ALL') return alert('Not confirmed');
-    $.post(location.href, { action:'delete_all', confirm: token, csrf_token: CSRF_TOKEN }, function(resp){
-      if (resp.success) { alert('All deleted'); resetTable(); loadMore(); }
-      else alert('Error: ' + (resp.error || 'unknown'));
-    }, 'json');
-  });
-
-  // export csv (server-side)
-  $('#exportBtn').on('click', function(){
-    const form = $('<form method="post" action="' + location.href + '"></form>');
-    form.append('<input type="hidden" name="action" value="export_csv">');
-    form.append('<input type="hidden" name="q" value="' + encodeURIComponent($('#searchQ').val().trim()) + '">');
-    form.append('<input type="hidden" name="status" value="' + encodeURIComponent($('#status').val()) + '">');
-    form.append('<input type="hidden" name="from" value="' + encodeURIComponent($('#from').val()) + '">');
-    form.append('<input type="hidden" name="to" value="' + encodeURIComponent($('#to').val()) + '">');
-    form.append('<input type="hidden" name="limit" value="20000">');
-    form.append('<input type="hidden" name="csrf_token" value="' + CSRF_TOKEN + '">');
-    form.appendTo('body').submit().remove();
-  });
-
-  // activity modal load
-  $('#activityModal').on('show.bs.modal', function(){
-    $('#activityList').html('<div class="small text-muted">Loading…</div>');
-    $.post(location.href, { action:'fetch_activity', csrf_token: CSRF_TOKEN }, function(resp){
-      if (resp.error) { $('#activityList').html('<div class="text-danger small">' + resp.error + '</div>'); return; }
-      let out = '<div class="list-group">';
-      for (const a of resp.activities || []) {
-        out += `<div class="list-group-item small">
-          <div><strong>${escapeHtml(a.ACTION_TYPE)}</strong> — <span class="text-muted">${escapeHtml(a.LOG_TIME)}</span></div>
-          <div class="text-muted small">User: ${escapeHtml(a.USER_ID)} | IP: ${escapeHtml(a.IP_ADDRESS)} | Target: ${escapeHtml(a.TARGET_TABLE)}</div>
-          <div class="mt-1">${escapeHtml(a.ACTION_DETAILS)} <span class="text-muted">[IDs: ${escapeHtml(a.AFFECTED_IDS||'')}]</span></div>
+    // Toast Function
+    function showToast(title, message, type = 'success') {
+        const toast = `
+        <div class="toast align-items-center text-white bg-${type} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <strong>${title}</strong><br><small>${message}</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
         </div>`;
-      }
-      out += '</div>';
-      $('#activityList').html(out);
-    }, 'json');
-  });
+        $('.toast-container').append(toast);
+        $('.toast').last()[0].show();
+        setTimeout(() => $('.toast').last().remove(), 5000);
+    }
+
+    // Bulk Assign
+    $('#doAssign').on('click', function() {
+        const userId = $('#assignUser').val();
+        if (!userId) return showToast('Error', 'Please select a user', 'danger');
+
+        const ids = [];
+        $('#tempTable input[type="checkbox"]:checked').each(function() {
+            if (!$(this).is('#selectAll')) {
+                const row = table.row($(this).closest('tr')).data();
+                ids.push(row[0]);
+            }
+        });
+
+        if (ids.length === 0) return showToast('Warning', 'No records selected', 'warning');
+
+        $.post((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId }, function(res) {
+            if (res.success) {
+                table.ajax.reload();
+                showToast('Success!', `${ids.length} records assigned successfully`, 'success');
+            } else {
+                showToast('Error', res.message || 'Failed', 'danger');
+            }
+        }, 'json');
+    });
+
+    // Bulk Delete
+    window.bulkDelete = function() {
+        const ids = [];
+        $('#tempTable input[type="checkbox"]:checked').each(function() {
+            if (!$(this).is('#selectAll')) {
+                const row = table.row($(this).closest('tr')).data();
+                ids.push(row[0]);
+            }
+        });
+        if (!confirm('Delete selected records permanently?')) return;
+        $.post((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/bulk_delete.php', { ids: ids }, function(res) {
+            if (res.success) {
+                table.ajax.reload();
+                showToast('Deleted!', `${ids.length} records removed`, 'danger');
+            }
+        }, 'json');
+    };
+
+    // Edit flow
+    $(document).on('click', '.btn-edit', function(){
+        const id = $(this).data('id');
+        $.post(location.href, { action:'view', id: id, csrf_token: CSRF_TOKEN }, function(resp){
+            if (!resp.row) return alert('Row not found');
+            const r = resp.row;
+            $('#editId').val(r.ID);
+            $('#editName').val(r.CUST_NAME);
+            $('#editMobile').val(r.CUST_MOBILE);
+            $('#editCompany').val(r.CUST_COMPANY);
+            $('#editPackage').val(r.CUST_PACKAGE);
+            $('#editOther').val(r.CUST_OTHER_INFO);
+            $('#editStatus').val(r.CALL_DIALED_STATUS);
+            $('#editTelecaller').val(r.CALL_DIALED_TELECALLER);
+            $('#editError').hide().text('');
+            new bootstrap.Modal(document.getElementById('editModal')).show();
+        }, 'json');
+    });
+
+    $('#editForm').on('submit', function(e){
+        e.preventDefault();
+        const data = $(this).serializeArray();
+        data.push({ name: 'action', value: 'update' });
+        data.push({ name: 'csrf_token', value: CSRF_TOKEN });
+        $.post(location.href, data, function(resp){
+            if (resp.success) {
+                bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+                table.ajax.reload();
+            } else {
+                $('#editError').show().text(resp.error || 'Update failed');
+            }
+        }, 'json').fail(function(){ $('#editError').show().text('Server error'); });
+    });
+
+    // Delete single
+    $(document).on('click', '.btn-del', function(){
+        const id = $(this).data('id');
+        if (!confirm('Delete row ' + id + '?')) return;
+        $.post(location.href, { action:'delete', id: id, csrf_token: CSRF_TOKEN }, function(resp){
+            if (resp.success) { table.ajax.reload(); alert('Deleted'); }
+            else alert('Error: ' + (resp.error || 'unknown'));
+        }, 'json');
+    });
+
+    // Delete selected
+    $('#deleteSelected').on('click', function(){
+        if (!confirm('Delete ' + selected.size + ' selected rows?')) return;
+        $.post(location.href, { action:'delete_selected', ids: Array.from(selected), csrf_token: CSRF_TOKEN }, function(resp){
+            if (resp.success) { alert('Deleted ' + (resp.affected || selected.size)); table.ajax.reload(); }
+            else alert('Error: ' + (resp.error || 'unknown'));
+        }, 'json');
+    });
+
+    // Transfer selected
+    $('#transferSelected').on('click', function(){
+        if (!confirm('Transfer ' + selected.size + ' selected rows to MAIN_DATABASE?')) return;
+        $.post(location.href, { action:'transfer_selected', ids: Array.from(selected), csrf_token: CSRF_TOKEN }, function(resp){
+            if (resp.success) { alert('Transferred (affected: ' + (resp.affected || 'unknown') + ')'); table.ajax.reload(); }
+            else alert('Error: ' + (resp.error || 'unknown'));
+        }, 'json');
+    });
+
+    // Delete all
+    $('#deleteAllBtn').on('click', function(){
+        if (!confirm('This will DELETE ALL rows in TEMPORARY_DATABASE - are you sure?')) return;
+        const token = prompt('Type YES_DELETE_ALL to confirm');
+        if (token !== 'YES_DELETE_ALL') return alert('Not confirmed');
+        $.post(location.href, { action:'delete_all', confirm: token, csrf_token: CSRF_TOKEN }, function(resp){
+            if (resp.success) { alert('All deleted'); table.ajax.reload(); }
+            else alert('Error: ' + (resp.error || 'unknown'));
+        }, 'json');
+    });
+
+    // Export CSV
+    $('#exportBtn').on('click', function(){
+        const form = $('<form method="post" action="' + location.href + '"></form>');
+        form.append('<input type="hidden" name="action" value="export_csv">');
+        form.append('<input type="hidden" name="q" value="' + encodeURIComponent($('#searchQ').val().trim()) + '">');
+        form.append('<input type="hidden" name="status" value="' + encodeURIComponent($('#status').val()) + '">');
+        form.append('<input type="hidden" name="from" value="' + encodeURIComponent($('#from').val()) + '">');
+        form.append('<input type="hidden" name="to" value="' + encodeURIComponent($('#to').val()) + '">');
+        form.append('<input type="hidden" name="limit" value="20000">');
+        form.append('<input type="hidden" name="csrf_token" value="' + CSRF_TOKEN + '">');
+        form.appendTo('body').submit().remove();
+    });
+
+    // Activity modal load
+    $('#activityModal').on('show.bs.modal', function(){
+        $('#activityList').html('<div class="small text-muted">Loading…</div>');
+        $.post(location.href, { action:'fetch_activity', csrf_token: CSRF_TOKEN }, function(resp){
+            if (resp.error) { $('#activityList').html('<div class="text-danger small">' + resp.error + '</div>'); return; }
+            let out = '<div class="list-group">';
+            for (const a of resp.activities || []) {
+                out += `<div class="list-group-item small">
+                  <div><strong>${escapeHtml(a.ACTION_TYPE)}</strong> — <span class="text-muted">${escapeHtml(a.LOG_TIME)}</span></div>
+                  <div class="text-muted small">User: ${escapeHtml(a.USER_ID)} | IP: ${escapeHtml(a.IP_ADDRESS)} | Target: ${escapeHtml(a.TARGET_TABLE)}</div>
+                  <div class="mt-1">${escapeHtml(a.ACTION_DETAILS)} <span class="text-muted">[IDs: ${escapeHtml(a.AFFECTED_IDS||'')}]</span></div>
+                </div>`;
+            }
+            out += '</div>';
+            $('#activityList').html(out);
+        }, 'json');
+    });
+
+    // Helper
+    function escapeHtml(s){ if(s===null||s===undefined) return ''; return $('<div>').text(s).html(); }
+
+    // Debounced search
+    let qTimer = null;
+    $('#searchQ').on('input', function(){
+        clearTimeout(qTimer);
+        qTimer = setTimeout(function(){ table.ajax.reload(); }, 300);
+    });
+    $('#status, #from, #to').on('change', function(){ table.ajax.reload(); });
+    $('#perPage').on('change', function(){ table.page.len(parseInt($(this).val())).draw(); });
 
 });
 </script>
+
 </body>
 </html>

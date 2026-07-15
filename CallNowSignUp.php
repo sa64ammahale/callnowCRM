@@ -43,7 +43,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
             $mobile_err = "Mobile number must be exactly 10 digits.";
         } else {
             // Check if mobile number already exists in database
-            $sql = "SELECT ID FROM USERS WHERE MOBILE = ?";
+            $sql = "SELECT ID FROM users WHERE MOBILE = ?";
             if($stmt = mysqli_prepare($link, $sql)){ 
                 mysqli_stmt_bind_param($stmt, "s", $param_mobile);
                 $param_mobile = $mobile;
@@ -72,7 +72,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
             $login_id_err = "Please enter a valid email address.";
         } else {
             // Check if email already exists in database
-            $sql = "SELECT ID FROM USERS WHERE LOGIN_ID = ?";
+            $sql = "SELECT ID FROM users WHERE LOGIN_ID = ?";
             if($stmt = mysqli_prepare($link, $sql)){ 
                 mysqli_stmt_bind_param($stmt, "s", $param_login_id);
                 $param_login_id = $login_id;
@@ -121,7 +121,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     if(empty($company_err) && empty($name_err) && empty($mobile_err) && 
        empty($login_id_err) && empty($password_err) && empty($confirm_password_err)) {
         
-        $sql = "INSERT INTO USERS (NAME, MOBILE, COMPANY, LOGIN_ID, PASSWORD, STATUS, JOIN_DATE, ROLE, PACKAGE, DEVICE_ID, TEAM_ID) 
+        $sql = "INSERT INTO users (NAME, MOBILE, COMPANY, LOGIN_ID, PASSWORD, STATUS, JOIN_DATE, ROLE, PACKAGE, DEVICE_ID, TEAM_ID) 
                 VALUES (?, ?, ?, ?, ?, 'Inactive', CURDATE(), 'Officer', NULL, NULL, NULL)";
          
         if($stmt = mysqli_prepare($link, $sql)){

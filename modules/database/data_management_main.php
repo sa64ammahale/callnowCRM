@@ -1,13 +1,13 @@
 <?php
-require_once "../../php_scripts/auth.php";
-// assuming you have $link here or we'll use PDO
+require_once __DIR__ . '/../../php_scripts/auth.php';      // creates $link, user auth, session
+require_once __DIR__ . '/../../config.php';     // CRITICAL: establishes database connection ($link)
 
 // Get total count for header
-$total_records = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as total FROM MAIN_DATABASE"))['total'] ?? 0;
-$unused = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as c FROM MAIN_DATABASE WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called'"))['c'] ?? 0;
+$total_records = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as total FROM main_database"))['total'] ?? 0;
+$unused = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as c FROM main_database WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called'"))['c'] ?? 0;
 
 // Get all active assignees for assign dropdown
-$users_result = mysqli_query($link, "SELECT ID, NAME FROM USERS WHERE STATUS = 'Active' ORDER BY NAME");
+$users_result = mysqli_query($link, "SELECT ID, NAME FROM users WHERE STATUS = 'Active' ORDER BY NAME");
 $telecallers = [];
 while ($u = mysqli_fetch_assoc($users_result)) {
     $telecallers[$u['ID']] = $u['NAME'];
@@ -42,7 +42,7 @@ while ($u = mysqli_fetch_assoc($users_result)) {
                     <th>Status</th>
                     <th>Assigned To</th>
                     <th>Uploaded</th>
-                    <th>Actions</th>
+                    <th>ID</th>
                 </tr>
             </thead>
         </table>
@@ -79,10 +79,7 @@ while ($u = mysqli_fetch_assoc($users_result)) {
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
-
 <!-- Scripts -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
@@ -107,9 +104,13 @@ function showToast(title, message, type = 'success') {
         </div>
     </div>`;
     $('.toast-container').append(toast);
-    $('.toast').last()[0].show();
-    setTimeout(() => $('.toast').last().remove(), 5000);
+    const toastEl = $('.toast').last()[0];
+    const bsToast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
 }
+
+const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 
 $(document).ready(function() {
     
@@ -117,9 +118,12 @@ $(document).ready(function() {
         processing: true,
         serverSide: true,
         responsive: true,
-        ajax: '../database/maindatabase_ajax/datatable.php',
+        ajax: {
+            url: (window.APP_BASE || '') + '/modules/database/maindatabase_ajax/datatable.php',
+            type: 'GET'
+        },
         pageLength: 2500,
-        lengthMenu: [ 2500, 5000, 10000, 15000,20000, [10000, -1], [10000, 'All'] ],
+        lengthMenu: [[2500, 5000, 10000, 15000, 20000, -1], [2500, 5000, 10000, 15000, 20000, 'All']],
         order: [[7, 'desc']],
         dom: '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4 text-center"B><"col-sm-12 col-md-4"f>>rtip',
         buttons: [
@@ -131,7 +135,7 @@ $(document).ready(function() {
                 text: '<i class="bi bi-cloud-download"></i> Export Full DB (in Parts)',
                 className: 'btn btn-primary btn-sm shadow-sm fw-bold',
                 action: function () {
-                    $.get('../database/maindatabase_ajax/get_total_count.php', function (total) {
+                    $.get((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/get_total_count.php', function (total) {
                         total = parseInt(total);
                         if (total === 0) return showToast('Empty', 'No data found', 'info');
             
@@ -139,7 +143,7 @@ $(document).ready(function() {
                             return;
                         }
             
-                        const win = window.open('../database/maindatabase_ajax/download_bach.php', '_blank');
+                        const win = window.open((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/download_bach.php', '_blank');
                         if (win) {
                             showToast('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
                         } else {
@@ -151,6 +155,7 @@ $(document).ready(function() {
         ],
         columnDefs: [
             { orderable: false, targets: 0 },
+            { visible: false, targets: 8 },
             { width: '100px', targets: 1 },
             {
                 targets: 5,
@@ -202,13 +207,13 @@ $(document).ready(function() {
         $('#mainTable input[type="checkbox"]:checked').each(function() {
             if (!$(this).is('#selectAll')) {
                 const row = table.row($(this).closest('tr')).data();
-                ids.push(row[0]); // ID is first column (hidden)
+                ids.push(row[8]); // ID is last data index (hidden column)
             }
         });
 
         if (ids.length === 0) return showToast('Warning', 'No records selected', 'warning');
 
-        $.post('../database/maindatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId }, function(res) {
+        $.post((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 $('#assignModal').modal('hide');
@@ -226,10 +231,10 @@ $(document).ready(function() {
         $('#mainTable input[type="checkbox"]:checked').each(function() {
             if (!$(this).is('#selectAll')) {
                 const row = table.row($(this).closest('tr')).data();
-                ids.push(row[0]);
+                ids.push(row[8]);
             }
         });
-        $.post('../database/maindatabase_ajax/bulk_delete.php', { ids: ids }, function(res) {
+        $.post((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showToast('Deleted!', `${ids.length} records removed`, 'danger');
@@ -238,3 +243,5 @@ $(document).ready(function() {
     };
 });
 </script>
+
+<?php include '../../php_scripts/footer.php'; ?>

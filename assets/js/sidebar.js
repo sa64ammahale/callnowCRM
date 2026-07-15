@@ -5,6 +5,23 @@
     var MQ_MOBILE = '(max-width: 991.98px)';
     var STATES = { EXPANDED: 'expanded', COLLAPSED: 'collapsed', MOBILE: 'mobile-open' };
 
+    var backdrop = null;
+
+    function createBackdrop() {
+        if (backdrop) return;
+        backdrop = document.createElement('div');
+        backdrop.className = 'sidebar-backdrop';
+        backdrop.addEventListener('click', closeMobile);
+        document.body.appendChild(backdrop);
+    }
+
+    function removeBackdrop() {
+        if (backdrop) {
+            backdrop.remove();
+            backdrop = null;
+        }
+    }
+
     function isMobile() {
         return window.matchMedia && window.matchMedia(MQ_MOBILE).matches;
     }
@@ -19,16 +36,32 @@
 
     function apply(state) {
         document.body.setAttribute('data-sidebar', state);
+        if (isMobile()) {
+            if (state === STATES.MOBILE) {
+                createBackdrop();
+                document.body.style.overflow = 'hidden';
+            } else {
+                removeBackdrop();
+                document.body.style.overflow = '';
+            }
+        } else {
+            removeBackdrop();
+            document.body.style.overflow = '';
+        }
+    }
+
+    function closeMobile() {
+        if (isMobile()) {
+            apply(STATES.EXPANDED);
+        }
     }
 
     function init() {
-        var stored = getStored();
         if (isMobile()) {
-            apply(STATES.MOBILE);
-        } else if (stored === STATES.COLLAPSED) {
-            apply(STATES.COLLAPSED);
-        } else {
             apply(STATES.EXPANDED);
+        } else {
+            var stored = getStored();
+            apply(stored === STATES.COLLAPSED ? STATES.COLLAPSED : STATES.EXPANDED);
         }
 
         var btn = document.getElementById('sidebarToggle');
@@ -46,20 +79,12 @@
             });
         }
 
-        document.addEventListener('click', function (e) {
-            if (!isMobile()) return;
-            if (document.body.getAttribute('data-sidebar') !== STATES.MOBILE) return;
-            var sidebar = document.getElementById('appSidebar');
-            var toggle = document.getElementById('sidebarToggle');
-            if (!sidebar) return;
-            if (sidebar.contains(e.target) || (toggle && toggle.contains(e.target))) return;
-            apply(STATES.EXPANDED);
-        });
-
         if (window.matchMedia) {
             var mq = window.matchMedia(MQ_MOBILE);
             var onChange = function () {
                 if (isMobile()) {
+                    removeBackdrop();
+                    document.body.style.overflow = '';
                     apply(STATES.EXPANDED);
                 } else {
                     var storedNow = getStored();

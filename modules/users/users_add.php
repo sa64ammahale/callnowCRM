@@ -9,7 +9,7 @@ $userID = $isEdit ? intval($_GET['ID']) : 0;
 // Supervisors can only edit their own team members
 if (USER_ROLE === 'Supervisor') {
     if ($isEdit) {
-        $check = mysqli_prepare($link, "SELECT TEAM_ID FROM USERS WHERE ID = ?");
+        $check = mysqli_prepare($link, "SELECT TEAM_ID FROM users WHERE ID = ?");
         mysqli_stmt_bind_param($check, "i", $userID);
         mysqli_stmt_execute($check);
         $res = mysqli_stmt_get_result($check);
@@ -27,16 +27,16 @@ $Message = ""; $type = "";
 
 // Fetch all teams (Admin sees all, Supervisor sees only own)
 if (USER_ROLE === 'Admin') {
-    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM TEAMS ORDER BY NAME");
+    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME");
 } else {
-    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM TEAMS WHERE ID = " . USER_TEAM_ID);
+    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams WHERE ID = " . USER_TEAM_ID);
 }
 $teams = mysqli_fetch_all($teams_result, MYSQLI_ASSOC);
 
 // Edit mode: fetch user
 $editUser = null;
 if ($isEdit) {
-    $stmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM USERS u LEFT JOIN TEAMS t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
+    $stmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM users u LEFT JOIN teams t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
     mysqli_stmt_bind_param($stmt, "i", $userID);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     elseif (empty($role) || empty($team_id) || empty($package)) $Message = "All fields are required";
     else {
         // Check duplicate mobile/email
-        $checkSql = "SELECT ID FROM USERS WHERE (MOBILE = ? OR LOGIN_ID = ?) AND ID != ?";
+        $checkSql = "SELECT ID FROM users WHERE (MOBILE = ? OR LOGIN_ID = ?) AND ID != ?";
         $stmt = mysqli_prepare($link, $checkSql);
         mysqli_stmt_bind_param($stmt, "ssi", $mobile, $login_id, $userID);
         mysqli_stmt_execute($stmt);
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             $type = "warning";
         } else {
             if ($isEdit) {
-                $sql = "UPDATE USERS SET NAME=?, MOBILE=?, LOGIN_ID=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
+                $sql = "UPDATE users SET NAME=?, MOBILE=?, LOGIN_ID=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
                 $params = [$name, $mobile, $login_id, $role, $team_id, $package, $status, $company];
                 $types = "ssssisss";
 
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 $types .= "i";
             } else {
                 $hashed = password_hash($password, PASSWORD_DEFAULT);
-                $sql = "INSERT INTO USERS (NAME, MOBILE, LOGIN_ID, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
+                $sql = "INSERT INTO users (NAME, MOBILE, LOGIN_ID, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                 $params = [$name, $mobile, $login_id, $hashed, $role, $team_id, $package, $status, $company];
                 $types = "ssssissss";

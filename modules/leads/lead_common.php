@@ -257,7 +257,7 @@ function getLeadAssignableUsers(mysqli $link): array
         $whereParts[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     }
 
-    $sql = "SELECT ID, NAME, ROLE, TEAM_ID FROM USERS WHERE " . implode(' AND ', $whereParts) . " ORDER BY NAME";
+    $sql = "SELECT ID, NAME, ROLE, TEAM_ID FROM users WHERE " . implode(' AND ', $whereParts) . " ORDER BY NAME";
     $result = mysqli_query($link, $sql);
 
     return $result ? mysqli_fetch_all($result, MYSQLI_ASSOC) : [];

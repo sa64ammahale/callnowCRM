@@ -60,7 +60,7 @@ if (($_POST['action'] ?? '') === 'assign_member') {
         $msg_type = "danger";
     } else {
         // Fetch current team of user
-        $stmt = $link->prepare("SELECT TEAM_ID FROM USERS WHERE ID = ?");
+        $stmt = $link->prepare("SELECT TEAM_ID FROM users WHERE ID = ?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -88,10 +88,10 @@ if (($_POST['action'] ?? '') === 'assign_member') {
 
             if (empty($msg)) {
                 if ($team_id === null) {
-                    $upd = $link->prepare("UPDATE USERS SET TEAM_ID = NULL WHERE ID = ?");
+                    $upd = $link->prepare("UPDATE users SET TEAM_ID = NULL WHERE ID = ?");
                     $upd->bind_param("i", $user_id);
                 } else {
-                    $upd = $link->prepare("UPDATE USERS SET TEAM_ID = ? WHERE ID = ?");
+                    $upd = $link->prepare("UPDATE users SET TEAM_ID = ? WHERE ID = ?");
                     $upd->bind_param("ii", $team_id, $user_id);
                 }
 
@@ -132,7 +132,7 @@ if (($_POST['action'] ?? '') === 'change_supervisor') {
                 // Validate supervisor user (role+status)
                 $check = $link->prepare("
                     SELECT ID, ROLE, STATUS
-                    FROM USERS
+                    FROM users
                     WHERE ID = ?
                       AND ROLE IN ('Supervisor','Manager')
                       AND STATUS = 'Active'
@@ -149,7 +149,7 @@ if (($_POST['action'] ?? '') === 'change_supervisor') {
                 if (empty($msg)) {
                     $checkTeam = $link->prepare("
                         SELECT ID, NAME 
-                        FROM TEAMS 
+                        FROM teams 
                         WHERE SUPERVISOR_ID = ? AND ID != ?
                         LIMIT 1
                     ");
@@ -167,16 +167,16 @@ if (($_POST['action'] ?? '') === 'change_supervisor') {
             }
 
             if (empty($msg)) {
-                // Update TEAMS supervisor (ensures one supervisor per team)
+                // Update teams supervisor (ensures one supervisor per team)
                 if ($supervisor_id === null) {
-                    $sql = "UPDATE TEAMS SET SUPERVISOR_ID = NULL WHERE ID = ?";
+                    $sql = "UPDATE teams SET SUPERVISOR_ID = NULL WHERE ID = ?";
                     if (isManager()) {
                         $sql .= " AND ID IN (" . implode(',', array_map('intval', $managerTeamIds)) . ")";
                     }
                     $stmt = $link->prepare($sql);
                     $stmt->bind_param("i", $team_id);
                 } else {
-                    $sql = "UPDATE TEAMS SET SUPERVISOR_ID = ? WHERE ID = ?";
+                    $sql = "UPDATE teams SET SUPERVISOR_ID = ? WHERE ID = ?";
                     if (isManager()) {
                         $sql .= " AND ID IN (" . implode(',', array_map('intval', $managerTeamIds)) . ")";
                     }
@@ -187,7 +187,7 @@ if (($_POST['action'] ?? '') === 'change_supervisor') {
                 if ($stmt->execute() && $stmt->affected_rows >= 0) {
                     // Optional: ensure supervisor is also assigned to that team as MEMBER
                     if ($supervisor_id !== null) {
-                        $upd = $link->prepare("UPDATE USERS SET TEAM_ID = ? WHERE ID = ?");
+                        $upd = $link->prepare("UPDATE users SET TEAM_ID = ? WHERE ID = ?");
                         $upd->bind_param("ii", $team_id, $supervisor_id);
                         $upd->execute();
                     }
@@ -204,7 +204,7 @@ if (($_POST['action'] ?? '') === 'change_supervisor') {
     }
 }
 
-// ==================== FETCH TEAMS (FOR DROPDOWNS & SUPERVISOR TABLE) ======
+// ==================== FETCH teams (FOR DROPDOWNS & SUPERVISOR TABLE) ======
 if (isAdmin()) {
     $teams_sql = "
         SELECT 
@@ -213,9 +213,9 @@ if (isAdmin()) {
             t.SUPERVISOR_ID,
             sup.NAME AS SUP_NAME,
             mgr.NAME AS MANAGER_NAME
-        FROM TEAMS t
-        LEFT JOIN USERS sup ON t.SUPERVISOR_ID = sup.ID
-        LEFT JOIN USERS mgr ON t.MANAGER_ID = mgr.ID
+        FROM teams t
+        LEFT JOIN users sup ON t.SUPERVISOR_ID = sup.ID
+        LEFT JOIN users mgr ON t.MANAGER_ID = mgr.ID
         ORDER BY t.NAME
     ";
 } else {
@@ -227,9 +227,9 @@ if (isAdmin()) {
             t.SUPERVISOR_ID,
             sup.NAME AS SUP_NAME,
             mgr.NAME AS MANAGER_NAME
-        FROM TEAMS t
-        LEFT JOIN USERS sup ON t.SUPERVISOR_ID = sup.ID
-        LEFT JOIN USERS mgr ON t.MANAGER_ID = mgr.ID
+        FROM teams t
+        LEFT JOIN users sup ON t.SUPERVISOR_ID = sup.ID
+        LEFT JOIN users mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID IN ($ids_str)
         ORDER BY t.NAME
     ";
@@ -243,7 +243,7 @@ while ($row = mysqli_fetch_assoc($teams_res)) {
 // ==================== FETCH SUPERVISORS LIST =============================
 $supervisors_res = mysqli_query($link, "
     SELECT ID, NAME
-    FROM USERS
+    FROM users
     WHERE ROLE IN ('Supervisor','Manager')
       AND STATUS = 'Active'
     ORDER BY NAME
@@ -253,7 +253,7 @@ while ($row = mysqli_fetch_assoc($supervisors_res)) {
     $supervisors[] = $row;
 }
 
-// ==================== FETCH MEMBERS (USERS) WITH FILTERS ==================
+// ==================== FETCH MEMBERS (users) WITH FILTERS ==================
 // Use prepared statement for search filters
 
 if (isAdmin()) {
@@ -266,8 +266,8 @@ if (isAdmin()) {
             u.STATUS,
             u.TEAM_ID,
             t.NAME AS TEAM_NAME
-        FROM USERS u
-        LEFT JOIN TEAMS t ON u.TEAM_ID = t.ID
+        FROM users u
+        LEFT JOIN teams t ON u.TEAM_ID = t.ID
         WHERE 1=1
     ";
     $types = '';
@@ -317,8 +317,8 @@ if (isAdmin()) {
             u.STATUS,
             u.TEAM_ID,
             t.NAME AS TEAM_NAME
-        FROM USERS u
-        LEFT JOIN TEAMS t ON u.TEAM_ID = t.ID
+        FROM users u
+        LEFT JOIN teams t ON u.TEAM_ID = t.ID
         WHERE (u.TEAM_ID IS NULL OR u.TEAM_ID IN ($ids_str))
     ";
 
@@ -396,7 +396,7 @@ if (isAdmin()) {
     <div class="row g-3">
         <!-- LEFT: Team Supervisors -->
         <div class="col-lg-4">
-            <div class="card-main p-3">
+            <div class="card-main p-3 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0 fw-semibold text-primary">
                         <i class="bi bi-person-badge me-1"></i> Team Supervisors
@@ -466,17 +466,16 @@ if (isAdmin()) {
 
         <!-- RIGHT: Members & Assignment -->
         <div class="col-lg-8">
-            <div class="card-main-light p-3">
+            <div class="card-main-light p-3 h-100">
                 <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
                     <div>
                         <h6 class="mb-0 fw-semibold">
                             <i class="bi bi-people me-1 text-primary"></i> Members & Team Assignment
                         </h6>
                         <small class="text-muted-soft">
-                            Assign or transfer members between teams. Unassigned members will show with “No Team”.
+                            Assign or transfer members between teams. Unassigned members will show with "No Team".
                         </small>
                     </div>
-                    <!-- FILTER FORM -->
                     <!-- FILTER FORM - COMPACT -->
                     <form method="GET" class="filter-toolbar d-flex align-items-center gap-2">
                         <!-- Small search box always visible -->
@@ -490,7 +489,7 @@ if (isAdmin()) {
                                    placeholder="Search name..."
                                    value="<?= htmlspecialchars($search_name) ?>">
                         </div>
-                    
+                     
                         <!-- Quick team filter (optional, still inline) -->
                         <select name="team_id" class="form-select form-select-sm filter-team">
                             <option value="0">All Teams</option>
@@ -501,7 +500,7 @@ if (isAdmin()) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                    
+                     
                         <!-- Dropdown for advanced filters: Role + Status -->
                         <div class="dropdown ms-auto">
                             <button type="button"
@@ -524,7 +523,7 @@ if (isAdmin()) {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                    
+                     
                                 <div class="mb-2">
                                     <label class="form-label mb-1">Status</label>
                                     <select name="status" class="form-select form-select-sm">
@@ -537,7 +536,7 @@ if (isAdmin()) {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                    
+                     
                                 <div class="d-flex gap-1 mt-2">
                                     <button type="submit" class="btn btn-primary btn-sm w-100">
                                         Apply

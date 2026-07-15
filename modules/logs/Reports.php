@@ -22,7 +22,7 @@ $selected_user_id = isset($_GET['user']) && is_numeric($_GET['user'])
 $paramsBase = [];
 $typesBase  = "";
 
-// Common WHERE parts applied on unified m + joined USERS/TEAMS
+// Common WHERE parts applied on unified m + joined users/teams
 $whereParts = [];
 
 // We only care about records that have a telecaller and a call time
@@ -70,7 +70,7 @@ $whereSql = $whereParts
     : "";
 
 /**
- * Unified call log: TEMPORARY_DATABASE + MAIN_DATABASE
+ * Unified call log: temporary_database + main_database
  * Alias fields to a common structure.
  */
 $unionSubquery = "
@@ -83,7 +83,7 @@ $unionSubquery = "
         CUST_MOBILE            AS cust_mobile,
         CUST_COMPANY           AS cust_company,
         'TEMP'                 AS source
-    FROM TEMPORARY_DATABASE
+    FROM temporary_database
 
     UNION ALL
 
@@ -96,7 +96,7 @@ $unionSubquery = "
         MAINDATABASE_MOBILE  AS cust_mobile,
         MAINDATABASE_COMPANY AS cust_company,
         'MAIN'               AS source
-    FROM MAIN_DATABASE
+    FROM main_database
 ";
 
 /**
@@ -121,9 +121,9 @@ $sqlSummary = "
     FROM (
         $unionSubquery
     ) AS m
-    JOIN USERS u ON m.user_id = u.ID
-    LEFT JOIN TEAMS t ON u.TEAM_ID = t.ID
-    LEFT JOIN USERS s ON t.SUPERVISOR_ID = s.ID
+    JOIN users u ON m.user_id = u.ID
+    LEFT JOIN teams t ON u.TEAM_ID = t.ID
+    LEFT JOIN users s ON t.SUPERVISOR_ID = s.ID
     $whereSql
     GROUP BY u.ID, t.ID
     ORDER BY t.NAME, u.NAME
@@ -185,7 +185,7 @@ $grand_rate = $grand_total ? round($grand_connected / $grand_total * 100, 1) : 0
 
 // Teams for filter dropdown
 $teams = in_array(USER_ROLE, ['Admin','Manager'])
-    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TEAMS ORDER BY NAME"), MYSQLI_ASSOC)
+    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME"), MYSQLI_ASSOC)
     : [];
 
 /**
@@ -199,7 +199,7 @@ if ($selected_user_id !== null) {
 
     // If selected user is not in summary (because of filters), we still try to fetch their name
     if ($selected_user_name === null) {
-        $resUser = mysqli_query($link, "SELECT NAME FROM USERS WHERE ID = " . (int)$selected_user_id);
+        $resUser = mysqli_query($link, "SELECT NAME FROM users WHERE ID = " . (int)$selected_user_id);
         if ($resUser && mysqli_num_rows($resUser) === 1) {
             $selected_user_name = mysqli_fetch_assoc($resUser)['NAME'];
         }
@@ -226,8 +226,8 @@ if ($selected_user_id !== null) {
         FROM (
             $unionSubquery
         ) AS m
-        JOIN USERS u ON m.user_id = u.ID
-        LEFT JOIN TEAMS t ON u.TEAM_ID = t.ID
+        JOIN users u ON m.user_id = u.ID
+        LEFT JOIN teams t ON u.TEAM_ID = t.ID
         $whereDetailSql
         ORDER BY m.call_time DESC
     ";

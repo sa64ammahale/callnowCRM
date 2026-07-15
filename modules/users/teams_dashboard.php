@@ -21,7 +21,7 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
         $msg_type = "warning";
     } else {
         // Check both teams exist
-        $check = $link->prepare("SELECT COUNT(*) FROM TEAMS WHERE ID IN (?, ?)");
+        $check = $link->prepare("SELECT COUNT(*) FROM teams WHERE ID IN (?, ?)");
         $check->bind_param("ii", $from_team_id, $to_team_id);
         $check->execute();
         $count = $check->get_result()->fetch_row()[0] ?? 0;
@@ -31,7 +31,7 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
             $msg_type = "danger";
         } else {
             // Move all users from from_team_id to to_team_id
-            $stmt = $link->prepare("UPDATE USERS SET TEAM_ID = ? WHERE TEAM_ID = ?");
+            $stmt = $link->prepare("UPDATE users SET TEAM_ID = ? WHERE TEAM_ID = ?");
             $stmt->bind_param("ii", $to_team_id, $from_team_id);
             $stmt->execute();
             $affected = $stmt->affected_rows;
@@ -62,14 +62,14 @@ if (($_POST['action'] ?? '') === 'add') {
         $msg = "Team name is required!"; 
         $msg_type = "danger";
     } else {
-        $check = $link->prepare("SELECT ID FROM TEAMS WHERE NAME = ?");
+        $check = $link->prepare("SELECT ID FROM teams WHERE NAME = ?");
         $check->bind_param("s", $team_name);
         $check->execute();
         if ($check->get_result()->num_rows > 0) {
             $msg = "Team name already exists!"; 
             $msg_type = "warning";
         } else {
-            $stmt = $link->prepare("INSERT INTO TEAMS (NAME, SUPERVISOR_ID, MANAGER_ID) VALUES (?, ?, ?)");
+            $stmt = $link->prepare("INSERT INTO teams (NAME, SUPERVISOR_ID, MANAGER_ID) VALUES (?, ?, ?)");
             $stmt->bind_param("sii", $team_name, $supervisor_id, $manager_id);
             if ($stmt->execute()) {
                 $msg = "Team created successfully!"; 
@@ -94,7 +94,7 @@ if (($_POST['action'] ?? '') === 'edit') {
     $supervisor_id = $_POST['supervisor_id'] ?: null;
     $manager_id    = $_POST['manager_id'] ?: null;
 
-    $stmt = $link->prepare("UPDATE TEAMS SET NAME = ?, SUPERVISOR_ID = ?, MANAGER_ID = ? WHERE ID = ?");
+    $stmt = $link->prepare("UPDATE teams SET NAME = ?, SUPERVISOR_ID = ?, MANAGER_ID = ? WHERE ID = ?");
     $stmt->bind_param("siii", $team_name, $supervisor_id, $manager_id, $id);
     if ($stmt->execute()) {
         $msg = "Team updated!"; 
@@ -111,10 +111,10 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
 
     // Remove team assignment from users first
-    $link->query("UPDATE USERS SET TEAM_ID = NULL WHERE TEAM_ID = $id");
+    $link->query("UPDATE users SET TEAM_ID = NULL WHERE TEAM_ID = $id");
 
     // Delete team
-    if ($link->query("DELETE FROM TEAMS WHERE ID = $id")) {
+    if ($link->query("DELETE FROM teams WHERE ID = $id")) {
         $msg = "Team deleted!"; 
         $msg_type = "success";
     } else {
@@ -135,10 +135,10 @@ $teams_query = "
         t.MANAGER_ID,
         sup.NAME as SUP_NAME,
         mgr.NAME as MANAGER_NAME,
-        (SELECT COUNT(*) FROM USERS WHERE TEAM_ID = t.ID) as MEMBER_COUNT
-    FROM TEAMS t
-    LEFT JOIN USERS sup ON t.SUPERVISOR_ID = sup.ID
-    LEFT JOIN USERS mgr ON t.MANAGER_ID = mgr.ID
+        (SELECT COUNT(*) FROM users WHERE TEAM_ID = t.ID) as MEMBER_COUNT
+    FROM teams t
+    LEFT JOIN users sup ON t.SUPERVISOR_ID = sup.ID
+    LEFT JOIN users mgr ON t.MANAGER_ID = mgr.ID
     ORDER BY t.NAME
 ";
 $teams_result = mysqli_query($link, $teams_query);
@@ -147,7 +147,7 @@ $total_teams  = mysqli_num_rows($teams_result);
 // Get supervisors for dropdown
 $supervisors = mysqli_query($link, "
     SELECT ID, NAME 
-    FROM USERS 
+    FROM users 
     WHERE ROLE IN ('Supervisor','Manager') 
     ORDER BY NAME
 ");
@@ -155,13 +155,13 @@ $supervisors = mysqli_query($link, "
 // Get managers for dropdown
 $managers_res = mysqli_query($link, "
     SELECT ID, NAME 
-    FROM USERS 
+    FROM users 
     WHERE ROLE = 'Manager' 
     ORDER BY NAME
 ");
 
 // Get ALL teams list (for reassign dropdown)
-$all_teams_res = mysqli_query($link, "SELECT ID, NAME FROM TEAMS ORDER BY NAME");
+$all_teams_res = mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME");
 $all_teams = [];
 while ($r = mysqli_fetch_assoc($all_teams_res)) {
     $all_teams[] = $r;
@@ -176,7 +176,7 @@ $members_res = mysqli_query($link, "
         u.MOBILE,
         u.ROLE,
         u.TEAM_ID
-    FROM USERS u
+    FROM users u
     WHERE u.TEAM_ID IS NOT NULL
     ORDER BY u.TEAM_ID, u.NAME
 ");
@@ -199,10 +199,10 @@ while ($m = mysqli_fetch_assoc($members_res)) {
             </p>
         </div>
         <div class="d-flex gap-2">
-                <a href="team_members.php" class="btn btn-outline-secondary btn-sm btn-icon">
-                    <i class="bi bi-people"></i>
-                    <span>Members</span>
-                </a>
+            <a href="team_members.php" class="btn btn-outline-secondary btn-sm btn-icon">
+                <i class="bi bi-people"></i>
+                <span>Members</span>
+            </a>
             <a href="../../dashboard.php" class="btn btn-outline-secondary btn-sm btn-icon">
                 <i class="bi bi-speedometer2"></i>
                 <span>Dashboard</span>
@@ -228,7 +228,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                 $edit_team = null;
                 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
                     $edit_id = (int)$_GET['edit'];
-                    $res = mysqli_query($link, "SELECT * FROM TEAMS WHERE ID = $edit_id");
+                    $res = mysqli_query($link, "SELECT * FROM teams WHERE ID = $edit_id");
                     $edit_team = mysqli_fetch_assoc($res);
                     $edit_mode = true;
                 }
@@ -596,7 +596,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<': '&lt;',
                 '>': '&gt;',
                 '"': '&quot;',
-                "'": '&#39;'
+                "'": '&#039;'
             })[m];
         });
     }

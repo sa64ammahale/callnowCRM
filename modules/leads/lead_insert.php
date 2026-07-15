@@ -75,7 +75,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         mysqli_begin_transaction($link);
 
         try {
-            $stmtDup = mysqli_prepare($link, "SELECT ID FROM MAIN_DATABASE WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
+            $stmtDup = mysqli_prepare($link, "SELECT ID FROM main_database WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
             mysqli_stmt_bind_param($stmtDup, "s", $form['mobile']);
             mysqli_stmt_execute($stmtDup);
             $resDup = mysqli_stmt_get_result($stmtDup);
@@ -86,7 +86,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $custId = (int)$existingMain['ID'];
                 $stmt = mysqli_prepare(
                     $link,
-                    "UPDATE MAIN_DATABASE
+                    "UPDATE main_database
                      SET MAINDATABASE_NAME = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_OTHER_INFO = ?
                      WHERE ID = ?"
                 );
@@ -99,7 +99,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             } else {
                 $stmt = mysqli_prepare(
                     $link,
-                    "INSERT INTO MAIN_DATABASE
+                    "INSERT INTO main_database
                      (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_OTHER_INFO, MAINDATABASE_UPLOAD_DATETIME)
                      VALUES (?, ?, ?, ?, NOW())"
                 );
@@ -218,12 +218,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
 <datalist id="loanTypeOptions">
     <?php foreach ($loanTypeOptions as $loanType): ?>
-        <option value="<?= htmlspecialchars($loanType) ?>">
+        <option value="<?= htmlspecialchars($loanType) ?>"></option>
     <?php endforeach; ?>
 </datalist>
 <datalist id="bankOptions">
     <?php foreach ($bankOptions as $bank): ?>
-        <option value="<?= htmlspecialchars($bank) ?>">
+        <option value="<?= htmlspecialchars($bank) ?>"></option>
     <?php endforeach; ?>
 </datalist>
 

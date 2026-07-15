@@ -57,6 +57,10 @@ function navActive($patterns) {
                 <i class="bi bi-slash-circle"></i>
                 <span class="link-text">DND Numbers</span>
             </a>
+            <a class="app-sidebar-link <?= navActive(['download_bach.php']) ? 'active' : '' ?>" href="<?= url('modules/database/maindatabase_ajax/download_bach.php') ?>">
+                <i class="bi bi-cloud-download"></i>
+                <span class="link-text">Export Full DB</span>
+            </a>
         </div>
         <?php endif; ?>
 

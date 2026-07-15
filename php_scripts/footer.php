@@ -7,9 +7,12 @@
     </div>
 </footer>
 </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 <script>window.APP_BASE = <?= json_encode(APP_BASE) ?>;</script>
 <script>window.APP_CSRF = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;</script>
 <script src="<?= url('assets/js/theme.js') ?>"></script>
 <script src="<?= url('assets/js/sidebar.js') ?>"></script>
+</body>
+</html>

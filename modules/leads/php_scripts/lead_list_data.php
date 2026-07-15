@@ -48,8 +48,8 @@ $allowedLoginModes = loginModeOptions();
 
 $baseFrom = "
     FROM LEADS_TABLE l
-    LEFT JOIN MAIN_DATABASE m ON m.ID = l.cust_id
-    LEFT JOIN USERS u ON u.ID = l.assigned_to
+    LEFT JOIN main_database m ON m.ID = l.cust_id
+    LEFT JOIN users u ON u.ID = l.assigned_to
 ";
 
 $conditions = [];

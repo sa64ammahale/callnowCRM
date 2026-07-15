@@ -54,7 +54,7 @@ if ($package) {
 }
 
 // Count total records
-$countSql = "SELECT COUNT(*) FROM USERS u $where";
+$countSql = "SELECT COUNT(*) FROM users u $where";
 $stmt = mysqli_prepare($link, $countSql);
 if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
 mysqli_stmt_execute($stmt);
@@ -66,8 +66,8 @@ $sql = "
     SELECT 
         u.*, 
         t.NAME as TEAM_NAME
-    FROM USERS u
-    LEFT JOIN TEAMS t ON u.TEAM_ID = t.ID
+    FROM users u
+    LEFT JOIN teams t ON u.TEAM_ID = t.ID
     $where
     ORDER BY 
         CASE WHEN u.STATUS = 'Active' THEN 0 ELSE 1 END,
@@ -102,9 +102,9 @@ foreach ($users as $u) {
 }
 
 // Get filter options
-$roles    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM USERS WHERE ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
-$teams    = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TEAMS ORDER BY NAME"), MYSQLI_ASSOC);
-$packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM USERS WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
+$roles    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM users WHERE ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
+$teams    = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME"), MYSQLI_ASSOC);
+$packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM users WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
 
 mysqli_close($link);
 ?>

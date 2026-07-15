@@ -29,7 +29,7 @@ $action = trim((string)($_POST['action'] ?? 'save_lead'));
 $leadSql = "
     SELECT l.lead_id, l.cust_id, l.assigned_to, m.MAINDATABASE_MOBILE
     FROM LEADS_TABLE l
-    LEFT JOIN MAIN_DATABASE m ON m.ID = l.cust_id
+    LEFT JOIN main_database m ON m.ID = l.cust_id
     WHERE l.lead_id = ?
     LIMIT 1
 ";
@@ -125,7 +125,7 @@ try {
     }
 
     $custIdExclude = (int)$leadRow['cust_id'];
-    $stmtDup = mysqli_prepare($link, "SELECT ID FROM MAIN_DATABASE WHERE MAINDATABASE_MOBILE = ? AND ID <> ? LIMIT 1");
+    $stmtDup = mysqli_prepare($link, "SELECT ID FROM main_database WHERE MAINDATABASE_MOBILE = ? AND ID <> ? LIMIT 1");
     mysqli_stmt_bind_param($stmtDup, "si", $payload['mobile'], $custIdExclude);
     mysqli_stmt_execute($stmtDup);
     $resDup = mysqli_stmt_get_result($stmtDup);
@@ -140,7 +140,7 @@ try {
 
     $stmt = mysqli_prepare(
         $link,
-        "UPDATE MAIN_DATABASE
+        "UPDATE main_database
          SET MAINDATABASE_NAME = ?, MAINDATABASE_MOBILE = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_OTHER_INFO = ?
          WHERE ID = ?"
     );

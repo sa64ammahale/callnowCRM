@@ -1,10 +1,15 @@
 <?php
-require_once "../../../php_scripts/auth.php";
+require_once __DIR__ . '/../../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../config.php';
 
 header('Content-Type: application/json; charset=utf-8');
-
-
-if (!$link) die(json_encode(['error' => 'DB Failed']));
+if (!$link) {
+    $error = 'Database connection failed';
+    if (defined('APP_DEBUG') && APP_DEBUG) {
+        $error = 'Database connection failed: ' . mysqli_connect_error();
+    }
+    die(json_encode(['error' => 'DB Failed', 'message' => $error]));
+}
 
 $draw   = intval($_GET['draw'] ?? 0);
 $start  = intval($_GET['start'] ?? 0);
@@ -43,11 +48,11 @@ $orderby = $columns[$col] ?? 'MAINDATABASE_UPLOAD_DATETIME';
 $orderby .= " " . ($dir === 'asc' ? 'ASC' : 'DESC');
 
 // Total records (without filter)
-$total = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) AS c FROM MAIN_DATABASE"))['c'];
+$total = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) AS c FROM main_database"))['c'];
 
 // Filtered records count
-$countQuery = "SELECT COUNT(*) AS c FROM MAIN_DATABASE 
-               LEFT JOIN USERS u ON MAIN_DATABASE.MAINDATABASE_CALL_DIALED_USER = u.ID 
+$countQuery = "SELECT COUNT(*) AS c FROM main_database 
+               LEFT JOIN users u ON main_database.MAINDATABASE_CALL_DIALED_USER = u.ID 
                $where";
 $stmt = mysqli_prepare($link, $countQuery);
 if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
@@ -63,8 +68,8 @@ $sql = "SELECT MAIN_DATABASE.ID,
                MAINDATABASE_CALL_DIALED_STATUS,
                u.NAME AS assigned_name,
                DATE_FORMAT(MAINDATABASE_UPLOAD_DATETIME, '%d-%b-%Y %h:%i %p') AS upload_dt
-        FROM MAIN_DATABASE 
-        LEFT JOIN USERS u ON MAIN_DATABASE.MAINDATABASE_CALL_DIALED_USER = u.ID
+        FROM main_database 
+        LEFT JOIN users u ON main_database.MAINDATABASE_CALL_DIALED_USER = u.ID
         $where
         ORDER BY $orderby
         LIMIT ?, ?";
@@ -80,15 +85,15 @@ $result = mysqli_stmt_get_result($stmt);
 $data = [];
 while ($row = mysqli_fetch_assoc($result)) {
     $data[] = [
-        $row['ID'], // 0 – hidden ID
-        $row['MAINDATABASE_MOBILE'],
-        $row['MAINDATABASE_NAME'] ?: '-',
-        $row['MAINDATABASE_COMPANY'] ?: '-',
-        $row['MAINDATABASE_PACKAGE'] ?: '-',
-        $row['MAINDATABASE_CALL_DIALED_STATUS'] ?: 'Not Called',
-        $row['assigned_name'] ?: '<small class="text-muted">Not Assigned</small>',
-        $row['upload_dt'],
-        '<input type="checkbox" class="row-checkbox" value="'.$row['ID'].'">'
+        '<input type="checkbox" class="row-checkbox" value="'.$row['ID'].'">', // 0 – checkbox
+        $row['MAINDATABASE_MOBILE'],                                             // 1
+        $row['MAINDATABASE_NAME'] ?: '-',                                        // 2
+        $row['MAINDATABASE_COMPANY'] ?: '-',                                     // 3
+        $row['MAINDATABASE_PACKAGE'] ?: '-',                                     // 4
+        $row['MAINDATABASE_CALL_DIALED_STATUS'] ?: 'Not Called',                 // 5
+        $row['assigned_name'] ?: '<small class="text-muted">Not Assigned</small>', // 6
+        $row['upload_dt'],                                                       // 7
+        $row['ID']                                                               // 8 – raw ID for JS
     ];
 }
 
