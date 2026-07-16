@@ -36,11 +36,16 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `team_auth.php` | Team-scoped helpers: `canViewAllTeams()`, `getTeamFilterSQL()`, `requireTeamAccess()` |
 | `lead_ajax_check.php` | Stale duplicate (superseded by modules/leads/php_scripts/) |
 
+### modules/settings/
+| File | Purpose | Notes |
+|---|---|---|
+| `settings.php` | Settings page (Admin): General, Permissions, Users | Uses `app_settings` + `role_permissions` tables |
+
 ### modules/users/
 | File | Purpose | Notes |
 |---|---|---|
-| `users_view.php` | List/filter users (Admin) | Prepared, escaped, Excel export |
-| `users_add.php` | Add/edit user | Admin full; Supervisor limited to own team |
+| `users_view.php` | List/filter users (Admin) | Prepared, escaped, Excel export. System Admin (ID=1) and other Admin accounts are non-editable (Protected badge shown). |
+| `users_add.php` | Add/edit user | Admin full; Supervisor limited to own team. Server-side guard prevents editing ID=1 or other Admin accounts. |
 | `DeleteRow.php` | Legacy destructive delete | **DELETED** — SQL injection + schema corruption |
 | `teams_dashboard.php` | Team CRUD + reassignment | Was missing role guard |
 | `team_members.php` | Member assignment, supervisor changes | Admin/Manager only |

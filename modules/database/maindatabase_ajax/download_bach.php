@@ -34,7 +34,7 @@ include __DIR__ . '/../../../php_scripts/header.php';
             </div>
         </div>
         <div class="header-actions">
-            <a href="../data_management_main.php" class="btn btn-primary">
+            <a href="<?= url('modules/database/data_management_main.php') ?>" class="btn btn-primary">
                 <i class="bi bi-table me-2"></i>View Main Database
             </a>
         </div>

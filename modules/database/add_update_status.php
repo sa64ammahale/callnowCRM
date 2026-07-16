@@ -183,10 +183,10 @@ $todayInserts = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM 
             </div>
         </div>
         <div class="header-actions">
-            <a href="data_management_temporary.php" class="btn btn-primary">
+            <a href="<?= url('modules/database/data_management_temporary.php') ?>" class="btn btn-primary">
                 <i class="bi bi-table me-2"></i>View All Records
             </a>
-            <a href="upload_data.php" class="btn btn-outline-primary">
+            <a href="<?= url('modules/database/upload_data.php') ?>" class="btn btn-outline-primary">
                 <i class="bi bi-cloud-upload me-2"></i>Upload CSV
             </a>
         </div>

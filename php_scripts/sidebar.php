@@ -129,6 +129,10 @@ function navActive($patterns) {
                 <i class="bi bi-activity"></i>
                 <span class="link-text">Activity Log</span>
             </a>
+            <a class="app-sidebar-link <?= navActive(['settings.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/settings.php') ?>">
+                <i class="bi bi-gear"></i>
+                <span class="link-text">Settings</span>
+            </a>
         </div>
         <?php endif; ?>
     </nav>

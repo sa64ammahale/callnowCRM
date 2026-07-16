@@ -176,7 +176,7 @@ function buildQuery($overrides = []) {
                     <input type="text" name="search" class="form-control border-start-0" placeholder="Mobile, Name or Company" value="<?= htmlspecialchars($search) ?>">
                     <button class="btn btn-danger" type="submit">Go</button>
                     <?php if ($search): ?>
-                        <a class="btn btn-outline-secondary" href="../database/ViewDND.php">Clear</a>
+                        <a class="btn btn-outline-secondary" href="<?= url('modules/database/ViewDND.php') ?>">Clear</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -213,7 +213,7 @@ function buildQuery($overrides = []) {
                             <td><?= fmtDateTime($r['MAINDATABASE_CALL_DIAL_TIME']) ?></td>
                             <td class="text-end pe-3">
                                 <!-- Edit and Delete -->
-                                <a href="../database/add_single_number.php?ID=<?= intval($r['ID']) ?>" class="btn btn-sm btn-outline-primary me-1" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <a href="<?= url('modules/database/add_single_number.php') ?>?ID=<?= intval($r['ID']) ?>" class="btn btn-sm btn-outline-primary me-1" title="Edit"><i class="bi bi-pencil"></i></a>
 
                                 <?php if ($userRole === 'Admin'): ?>
                                     <form method="POST" class="d-inline-block" onsubmit="return confirm('Delete this record?');" style="display:inline;">

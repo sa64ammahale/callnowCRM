@@ -57,6 +57,33 @@ function requireRole($roles) {
     }
 }
 
+// Permission-based check against role_permissions table (cached in session)
+function can(string $permissionKey): bool {
+    static $perms = null;
+    if ($perms === null) {
+        global $link;
+        $role = USER_ROLE;
+        $cacheKey = 'rbac_perms_' . md5($role);
+        if (isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+            $perms = $_SESSION[$cacheKey];
+        } else {
+            $perms = [];
+            $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM role_permissions WHERE role = ?");
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, 's', $role);
+                mysqli_stmt_execute($stmt);
+                $res = mysqli_stmt_get_result($stmt);
+                while ($row = mysqli_fetch_assoc($res)) {
+                    $perms[$row['permission_key']] = (int)$row['permission_value'];
+                }
+                mysqli_stmt_close($stmt);
+            }
+            $_SESSION[$cacheKey] = $perms;
+        }
+    }
+    return isset($perms[$permissionKey]) && $perms[$permissionKey] === 1;
+}
+
 // Team filter for queries
 function getTeamFilter() {
     if (isAdmin() || isManager()) return "";

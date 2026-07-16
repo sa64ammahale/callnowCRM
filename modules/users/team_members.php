@@ -373,11 +373,11 @@ if (isAdmin()) {
             </p>
         </div>
         <div class="d-flex gap-2">
-            <a href="teams_dashboard.php" class="btn btn-outline-secondary btn-sm btn-icon">
+            <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="btn btn-outline-secondary btn-sm btn-icon">
                 <i class="bi bi-diagram-3"></i>
                 <span>Teams</span>
             </a>
-            <a href="../../dashboard.php" class="btn btn-outline-secondary btn-sm btn-icon">
+            <a href="<?= url('dashboard.php') ?>" class="btn btn-outline-secondary btn-sm btn-icon">
                 <i class="bi bi-speedometer2"></i>
                 <span>Dashboard</span>
             </a>
@@ -541,7 +541,7 @@ if (isAdmin()) {
                                     <button type="submit" class="btn btn-primary btn-sm w-100">
                                         Apply
                                     </button>
-                                    <a href="team_members.php" class="btn btn-outline-secondary btn-sm w-100">
+                                    <a href="<?= url('modules/users/team_members.php') ?>" class="btn btn-outline-secondary btn-sm w-100">
                                         Reset
                                     </a>
                                 </div>

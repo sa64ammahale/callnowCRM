@@ -314,7 +314,7 @@ if (isset($_POST['submit'])) {
                                     <button type="submit" name="submit" class="btn btn-gradient text-white btn-lg">
                                         <i class="bi bi-save"></i> <?php echo $isEdit ? 'Update Record' : 'Save Customer'; ?>
                                     </button>
-                                    <a href="../../dashboard.php" class="btn btn-outline-secondary">
+                                    <a href="<?= url('dashboard.php') ?>" class="btn btn-outline-secondary">
                                         <i class="bi bi-arrow-left"></i> Back to Dashboard
                                     </a>
                                 </div>

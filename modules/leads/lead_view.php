@@ -210,16 +210,12 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                         <input type="text" name="company_name" class="lv-input" value="<?= htmlspecialchars($lead['company_name'] ?? '') ?>">
                     </div>
                     <div class="mb-2">
-                        <label class="lv-label">DSA Name</label>
-                        <input type="text" name="dsa_name" class="lv-input" value="<?= htmlspecialchars($lead['dsa_name'] ?? '') ?>">
+                        <label class="lv-label">Net Salary</label>
+                        <input type="text" name="net_salary" class="lv-input" value="<?= htmlspecialchars($lead['net_salary'] ?? '') ?>">
                     </div>
                     <div class="mb-2">
-                        <label class="lv-label">Loan Type</label>
-                        <input type="text" name="loan_type" list="loanTypeOptions" class="lv-input" value="<?= htmlspecialchars($lead['loan_type'] ?? '') ?>">
-                    </div>
-                    <div class="mb-2">
-                        <label class="lv-label">Promo Code</label>
-                        <input type="text" name="promo_code" class="lv-input" value="<?= htmlspecialchars($lead['promo_code'] ?? '') ?>">
+                        <label class="lv-label">Salary A/C</label>
+                        <input type="text" name="salary_account" class="lv-input" value="<?= htmlspecialchars($lead['salary_account'] ?? '') ?>">
                     </div>
                     <div>
                         <label class="lv-label">Other Info</label>
@@ -250,14 +246,6 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                         <input type="text" name="login_location" class="lv-input" value="<?= htmlspecialchars($lead['login_location'] ?? '') ?>">
                     </div>
                     <div class="mb-2">
-                        <label class="lv-label">Net Salary</label>
-                        <input type="text" name="net_salary" class="lv-input" value="<?= htmlspecialchars($lead['net_salary'] ?? '') ?>">
-                    </div>
-                    <div class="mb-2">
-                        <label class="lv-label">Salary A/C</label>
-                        <input type="text" name="salary_account" class="lv-input" value="<?= htmlspecialchars($lead['salary_account'] ?? '') ?>">
-                    </div>
-                    <div class="mb-2">
                         <label class="lv-label">Bank Name</label>
                         <input type="text" name="bank_name" list="bankOptions" class="lv-input" value="<?= htmlspecialchars($lead['bank_name'] ?? '') ?>">
                     </div>
@@ -269,9 +257,13 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                         <label class="lv-label">Tenure</label>
                         <input type="text" name="loan_tenure" class="lv-input" value="<?= htmlspecialchars($lead['loan_tenure'] ?? '') ?>">
                     </div>
+                    <div class="mb-2">
+                        <label class="lv-label">Loan Type</label>
+                        <input type="text" name="loan_type" list="loanTypeOptions" class="lv-input" value="<?= htmlspecialchars($lead['loan_type'] ?? '') ?>">
+                    </div>
                     <div>
-                        <label class="lv-label">App No</label>
-                        <input type="text" name="loan_app_no" class="lv-input" value="<?= htmlspecialchars($lead['loan_app_no'] ?? '') ?>">
+                        <label class="lv-label">Promo Code</label>
+                        <input type="text" name="promo_code" class="lv-input" value="<?= htmlspecialchars($lead['promo_code'] ?? '') ?>">
                     </div>
                 </div>
             </div>
@@ -281,23 +273,31 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                 <div class="lv-card-head"><i class="bi bi-cash-coin"></i> Sanction / Disbursal</div>
                 <div class="lv-card-body">
                     <div class="mb-2">
-                        <label class="lv-label">Login Bank</label>
+                        <label class="lv-label">Disbursed Bank</label>
                         <input type="text" name="login_bank_name" list="bankOptions" class="lv-input" value="<?= htmlspecialchars($lead['login_bank_name'] ?? '') ?>">
                     </div>
                     <div class="mb-2">
                         <label class="lv-label">Bank RM</label>
                         <input type="text" name="bank_rm_name" class="lv-input" value="<?= htmlspecialchars($lead['bank_rm_name'] ?? '') ?>">
                     </div>
-                    <div>
+                    <div class="mb-2">
                         <label class="lv-label">BT Details</label>
                         <textarea name="bt_details" class="lv-input" rows="3"><?= htmlspecialchars($lead['bt_details'] ?? '') ?></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="lv-label">App No</label>
+                        <input type="text" name="loan_app_no" class="lv-input" value="<?= htmlspecialchars($lead['loan_app_no'] ?? '') ?>">
+                    </div>
+                    <div>
+                        <label class="lv-label">DSA Name</label>
+                        <input type="text" name="dsa_name" class="lv-input" value="<?= htmlspecialchars($lead['dsa_name'] ?? '') ?>">
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="lv-footer">
-            <button type="submit" class="btn btn-accent-solid"><i class="bi bi-save me-1"></i> Save Lead</button>
+            <button type="submit" class="lv-save-btn"><i class="bi bi-save me-2"></i> Save Lead</button>
         </div>
     </form>
 </div>
@@ -391,8 +391,24 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
 .lv-input:focus, .lv-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .lv-select { cursor: pointer; }
 .lv-footer {
-    display: flex; justify-content: flex-end; padding-top: 0.5rem;
+    display: flex; justify-content: flex-end; padding-top: 0.75rem;
+    position: sticky; bottom: 1rem; z-index: 10;
 }
+.lv-save-btn {
+    display: inline-flex; align-items: center;
+    padding: 0.75rem 2rem; font-size: 0.9375rem; font-weight: 700;
+    border: none; border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, var(--accent), #4f46e5);
+    color: #fff; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(94,106,210,0.35);
+    transition: all 0.15s ease; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.lv-save-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(94,106,210,0.45);
+    background: linear-gradient(135deg, #4f46e5, var(--accent));
+}
+.lv-save-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(94,106,210,0.3); }
 
 @media (max-width: 768px) {
     .lv-wrap { padding: 0.75rem; gap: 0.75rem; }

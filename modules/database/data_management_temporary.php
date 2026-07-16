@@ -265,7 +265,7 @@ include __DIR__ . '/../../php_scripts/header.php';
   <!-- ROW 1: ACTION BUTTONS -->
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
     <div class="btn-group" role="group">
-      <a href="add_single_number.php" class="btn btn-success btn-sm" disabled>
+      <a href="<?= url('modules/database/add_single_number.php') ?>" class="btn btn-success btn-sm" disabled>
           <i class="bi bi-upload"></i> Upload Single Data
       </a>
       <button id="deleteSelected" class="btn btn-danger btn-sm" disabled>
@@ -508,7 +508,7 @@ columnDefs: [
 
         if (ids.length === 0) return showToast('Warning', 'No records selected', 'warning');
 
-        $.post((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId }, function(res) {
+        $.post((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showToast('Success!', `${ids.length} records assigned successfully`, 'success');

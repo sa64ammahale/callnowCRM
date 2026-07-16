@@ -44,7 +44,7 @@ $affected = mysqli_stmt_affected_rows($stmt);
 mysqli_stmt_close($stmt);
 
 if ($ok) {
-    logActivity($link, 'ASSIGN', "Assigned $affected records to user $user_id");
+    logActivity($link, USER_ID, 'ASSIGN', "Assigned $affected records to user $user_id");
     echo json_encode(['success' => true, 'affected' => $affected]);
 } else {
     echo json_encode(['success' => false, 'error' => 'Execute failed: ' . mysqli_stmt_error($stmt)]);
