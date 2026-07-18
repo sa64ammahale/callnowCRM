@@ -2,6 +2,27 @@
 require_once "config.php";
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); } ensureCsrfToken();
 
+// Public self-registration is disabled. This script is only for initial
+// admin provisioning via a one-time SETUP_KEY (set in .env / environment),
+// or by an already-authenticated Admin. Otherwise it is blocked.
+$setupKey = getenv('SETUP_KEY') ?: '';
+$providedKey = $_GET['setup_key'] ?? ($_POST['setup_key'] ?? '');
+$isAdminUser = false;
+if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true) {
+    require_once __DIR__ . '/php_scripts/auth.php';
+    $isAdminUser = isAdmin();
+}
+if (!$isAdminUser && ($setupKey === '' || $providedKey !== $setupKey)) {
+    http_response_code(403);
+    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Disabled</title>'
+       . '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"></head>'
+       . '<body class="p-5"><div class="alert alert-warning w-50 mx-auto">'
+       . '<i class="bi bi-lock-fill me-2"></i>Self-registration is disabled on this server. '
+       . 'Contact your administrator to request an account.</div></body></html>';
+    exit;
+}
+
+
 // Initialize variables
 $name = $mobile = $company = $login_id = $password = $confirm_password = "";
 $name_err = $mobile_err = $company_err = $login_id_err = $password_err = $confirm_password_err = "";

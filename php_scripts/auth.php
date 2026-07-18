@@ -57,31 +57,87 @@ function requireRole($roles) {
     }
 }
 
-// Permission-based check against role_permissions table (cached in session)
-function can(string $permissionKey): bool {
+// ---- RBAC cache version (bumped on any role/permission change) ----
+function rbacCacheVersion(): int {
+    static $v = null;
+    if ($v !== null) return $v;
+    global $link;
+    $v = 0;
+    $res = mysqli_query($link, "SELECT setting_value FROM app_settings WHERE setting_key = 'rbac_cache_version'");
+    if ($res && $row = mysqli_fetch_assoc($res)) $v = (int)$row['setting_value'];
+    return $v;
+}
+
+function clearRbacCache(): void {
+    global $link;
+    $v = rbacCacheVersion() + 1;
+    mysqli_query($link, "INSERT INTO app_settings (setting_key, setting_value) VALUES ('rbac_cache_version', $v) ON DUPLICATE KEY UPDATE setting_value = $v");
+}
+
+// Build the effective permission set for the current user:
+//   - Admin role OR System Admin (USER_ID===1) => everything (handled in can())
+//   - starts from role_permissions for the user's role
+//   - user_permissions overrides win over role level
+function loadEffectivePermissions(): array {
     static $perms = null;
-    if ($perms === null) {
-        global $link;
-        $role = USER_ROLE;
-        $cacheKey = 'rbac_perms_' . md5($role);
-        if (isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
-            $perms = $_SESSION[$cacheKey];
-        } else {
-            $perms = [];
-            $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM role_permissions WHERE role = ?");
-            if ($stmt) {
-                mysqli_stmt_bind_param($stmt, 's', $role);
-                mysqli_stmt_execute($stmt);
-                $res = mysqli_stmt_get_result($stmt);
-                while ($row = mysqli_fetch_assoc($res)) {
-                    $perms[$row['permission_key']] = (int)$row['permission_value'];
-                }
-                mysqli_stmt_close($stmt);
-            }
-            $_SESSION[$cacheKey] = $perms;
-        }
+    if ($perms !== null) return $perms;
+
+    $version = rbacCacheVersion();
+    $cacheKey = 'rbac_user_perms_' . USER_ID . '_' . $version;
+    if (isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+        $perms = $_SESSION[$cacheKey];
+        return $perms;
     }
-    return isset($perms[$permissionKey]) && $perms[$permissionKey] === 1;
+
+    global $link;
+    $perms = [];
+
+    $role = USER_ROLE;
+    $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM role_permissions WHERE role = ?");
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, 's', $role);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        while ($row = mysqli_fetch_assoc($res)) {
+            $perms[$row['permission_key']] = (int)$row['permission_value'];
+        }
+        mysqli_stmt_close($stmt);
+    }
+
+    $curUid = USER_ID;
+    $stmt2 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM user_permissions WHERE user_id = ?");
+    if ($stmt2) {
+        mysqli_stmt_bind_param($stmt2, 'i', $curUid);
+        mysqli_stmt_execute($stmt2);
+        $res2 = mysqli_stmt_get_result($stmt2);
+        while ($row = mysqli_fetch_assoc($res2)) {
+            $perms[$row['permission_key']] = (int)$row['permission_value'];
+        }
+        mysqli_stmt_close($stmt2);
+    }
+
+    $_SESSION[$cacheKey] = $perms;
+    return $perms;
+}
+
+// Authoritative permission check. Admin role and System Admin always pass.
+function can(string $permissionKey): bool {
+    if (USER_ROLE === 'Admin' || USER_ID === 1) return true;
+    $perms = loadEffectivePermissions();
+    return !empty($perms[$permissionKey]);
+}
+
+// Gate a page/action: redirect to dashboard if the user lacks the permission.
+function requirePermission(string $key): void {
+    if (!can($key)) appRedirect('dashboard.php');
+}
+
+// Gate a page/action: redirect unless the user has at least one of the keys.
+function requireAnyPermission(array $keys): void {
+    foreach ($keys as $k) {
+        if (can($k)) return;
+    }
+    appRedirect('dashboard.php');
 }
 
 // Team filter for queries
@@ -163,8 +219,9 @@ function getAccessibleUserIds($link) : array {
     if (isSupervisor()) {
         // supervisor only sees users in their TEAM_ID
         if (USER_TEAM_ID === null) return [USER_ID];
+        $teamId = USER_TEAM_ID;
         $stmt = $link->prepare("SELECT ID FROM users WHERE TEAM_ID = ?");
-        $stmt->bind_param("i", USER_TEAM_ID);
+        $stmt->bind_param("i", $teamId);
         $stmt->execute();
         $res = $stmt->get_result();
         $ids = [];

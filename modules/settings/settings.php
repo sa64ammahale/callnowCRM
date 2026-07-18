@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
-requireRole('Admin');
+requirePermission('manage_settings');
 
 $msg = '';
 $msg_type = '';
@@ -30,128 +30,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logActivity($link, USER_ID, 'UPDATE', 'Updated general settings');
         }
 
-        // Save permissions
-        if ($action === 'save_permissions') {
-            $rr = mysqli_query($link, "SELECT role_name FROM roles ORDER BY id");
-            $dbRoles = [];
-            while ($r = mysqli_fetch_assoc($rr)) $dbRoles[] = $r['role_name'];
+        // Upload / remove application logo
+        if ($action === 'upload_logo') {
+            $uploadDir = __DIR__ . '/../../uploads/logo/';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
-            $perm_keys = ['manage_users','manage_teams','manage_leads','manage_settings','export_data','delete_leads','view_reports','upload_data','manage_database','assign_leads'];
-            $stmt = $link->prepare("INSERT INTO role_permissions (role, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
-            foreach ($dbRoles as $role) {
-                foreach ($perm_keys as $pk) {
-                    $v = isset($_POST["perm_{$role}_{$pk}"]) ? 1 : 0;
-                    // Admin always full
-                    if ($role === 'Admin') $v = 1;
-                    $stmt->bind_param('ssi', $role, $pk, $v);
-                    $stmt->execute();
-                }
-            }
-            // Clear cached perms for all roles so next request picks up changes
-            foreach ($dbRoles as $role) {
-                $ck = 'rbac_perms_' . md5($role);
-                unset($_SESSION[$ck]);
-            }
-            $msg = 'Permissions updated successfully!';
-            $msg_type = 'success';
-            logActivity($link, USER_ID, 'UPDATE', 'Updated role permissions');
-        }
+            if (isset($_POST['remove_logo']) && $_POST['remove_logo'] === '1') {
+                $link->query("DELETE FROM app_settings WHERE setting_key = 'logo_path'");
+                $msg = 'Logo removed. Default branding restored.';
+                $msg_type = 'success';
+                logActivity($link, USER_ID, 'UPDATE', 'Removed application logo');
+            } elseif (!empty($_FILES['logo_file']) && $_FILES['logo_file']['error'] === UPLOAD_ERR_OK) {
+                $allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/gif', 'image/webp'];
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $mime = finfo_file($finfo, $_FILES['logo_file']['tmp_name']);
+                finfo_close($finfo);
 
-        // Save / update role
-        if ($action === 'save_role') {
-            $roleName = trim($_POST['role_name'] ?? '');
-            $roleDesc = trim($_POST['role_description'] ?? '');
-            $roleId = (int)($_POST['role_id'] ?? 0);
-
-            if ($roleName === '') {
-                $msg = 'Role name is required.';
-                $msg_type = 'danger';
-            } else {
-                if ($roleId > 0) {
-                    // Edit — disallow renaming system roles, fetch old name
-                    $cs = $link->prepare("SELECT role_name, is_system FROM roles WHERE id = ?");
-                    $cs->bind_param('i', $roleId);
-                    $cs->execute();
-                    $cr = $cs->get_result()->fetch_assoc();
-                    if ($cr && $cr['is_system']) {
-                        $msg = 'System roles cannot be renamed.';
-                        $msg_type = 'danger';
-                    } else {
-                        $oldName = $cr['role_name'];
-                        $s = $link->prepare("UPDATE roles SET role_name = ?, description = ? WHERE id = ?");
-                        $s->bind_param('ssi', $roleName, $roleDesc, $roleId);
-                        $s->execute();
-                        // Cascade rename to role_permissions and users
-                        $up1 = $link->prepare("UPDATE role_permissions SET role = ? WHERE role = ?");
-                        $up1->bind_param('ss', $roleName, $oldName);
-                        $up1->execute();
-                        $up2 = $link->prepare("UPDATE users SET ROLE = ? WHERE ROLE = ?");
-                        $up2->bind_param('ss', $roleName, $oldName);
-                        $up2->execute();
-                        // Clear stale session caches
-                        unset($_SESSION['rbac_perms_' . md5($oldName)]);
-                        unset($_SESSION['rbac_perms_' . md5($roleName)]);
-                        $msg = 'Role updated and cascaded to permissions and users.';
-                        $msg_type = 'success';
-                        logActivity($link, USER_ID, 'UPDATE', "Renamed role $oldName to $roleName");
-                    }
-                } else {
-                    // Create new role
-                    $s = $link->prepare("INSERT INTO roles (role_name, description, is_system) VALUES (?, ?, 0)");
-                    $s->bind_param('ss', $roleName, $roleDesc);
-                    if ($s->execute()) {
-                        $perm_keys = ['manage_users','manage_teams','manage_leads','manage_settings','export_data','delete_leads','view_reports','upload_data','manage_database','assign_leads'];
-                        $is2 = $link->prepare("INSERT IGNORE INTO role_permissions (role, permission_key, permission_value) VALUES (?, ?, 0)");
-                        foreach ($perm_keys as $pk) {
-                            $is2->bind_param('ss', $roleName, $pk);
-                            $is2->execute();
-                        }
-                        $msg = "Role '$roleName' created!";
-                        $msg_type = 'success';
-                        logActivity($link, USER_ID, 'INSERT', "Created role $roleName");
-                    } else {
-                        $msg = 'Role name already exists.';
-                        $msg_type = 'danger';
-                    }
-                }
-            }
-        }
-
-        // Delete role
-        if ($action === 'delete_role') {
-            $roleId = (int)($_POST['role_id'] ?? 0);
-            $cs = $link->prepare("SELECT role_name, is_system FROM roles WHERE id = ?");
-            $cs->bind_param('i', $roleId);
-            $cs->execute();
-            $cr = $cs->get_result()->fetch_assoc();
-            if (!$cr) {
-                $msg = 'Role not found.';
-                $msg_type = 'danger';
-            } elseif ($cr['is_system']) {
-                $msg = 'System roles cannot be deleted.';
-                $msg_type = 'danger';
-            } else {
-                $roleName = $cr['role_name'];
-                // Check if any users have this role
-                $uc = $link->prepare("SELECT COUNT(*) as c FROM users WHERE ROLE = ?");
-                $uc->bind_param('s', $roleName);
-                $uc->execute();
-                $ucr = $uc->get_result()->fetch_assoc();
-                if ((int)$ucr['c'] > 0) {
-                    $msg = "Cannot delete: {$ucr['c']} user(s) still have this role. Reassign them first.";
+                if (!in_array($mime, $allowed, true)) {
+                    $msg = 'Invalid file type. Use PNG, JPG, SVG, GIF or WebP.';
+                    $msg_type = 'danger';
+                } elseif ($_FILES['logo_file']['size'] > 2 * 1024 * 1024) {
+                    $msg = 'File too large. Max size is 2 MB.';
                     $msg_type = 'danger';
                 } else {
-                    $dp = $link->prepare("DELETE FROM role_permissions WHERE role = ?");
-                    $dp->bind_param('s', $roleName);
-                    $dp->execute();
-                    $dr = $link->prepare("DELETE FROM roles WHERE id = ?");
-                    $dr->bind_param('i', $roleId);
-                    $dr->execute();
-                    unset($_SESSION['rbac_perms_' . md5($roleName)]);
-                    $msg = "Role '$roleName' deleted.";
-                    $msg_type = 'success';
-                    logActivity($link, USER_ID, 'DELETE', "Deleted role $roleName");
+                    $ext = array_search($mime, [
+                        'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+                        'svg' => 'image/svg+xml', 'gif' => 'image/gif', 'webp' => 'image/webp'
+                    ], true);
+                    $target = $uploadDir . 'app_logo.' . $ext;
+                    foreach (glob($uploadDir . 'app_logo.*') as $old) @unlink($old);
+                    $saved = move_uploaded_file($_FILES['logo_file']['tmp_name'], $target)
+                        || copy($_FILES['logo_file']['tmp_name'], $target);
+                    if ($saved) {
+                        $rel = 'uploads/logo/app_logo.' . $ext;
+                        $stmt = $link->prepare("INSERT INTO app_settings (setting_key, setting_value) VALUES ('logo_path', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
+                        $stmt->bind_param('si', $rel, USER_ID);
+                        $stmt->execute();
+                        $msg = 'Logo uploaded successfully!';
+                        $msg_type = 'success';
+                        logActivity($link, USER_ID, 'UPDATE', 'Uploaded application logo');
+                    } else {
+                        $msg = 'Failed to save the uploaded file.';
+                        $msg_type = 'danger';
+                    }
                 }
+            } else {
+                $msg = 'No file selected.';
+                $msg_type = 'danger';
             }
         }
     }
@@ -160,45 +85,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ─── Fetch settings ───
 $settings = [];
 $sr = mysqli_query($link, "SELECT setting_key, setting_value FROM app_settings");
-while ($s = mysqli_fetch_assoc($sr)) $settings[$s['setting_key']] = $s['setting_value'];
-
-// ─── Fetch roles ───
-$allRoles = [];
-$ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM users WHERE ROLE = r.role_name) as user_count FROM roles r ORDER BY r.is_system DESC, r.id");
-while ($a = mysqli_fetch_assoc($ar)) $allRoles[] = $a;
-$rolesOrder = array_column($allRoles, 'role_name');
-
-// ─── Fetch permissions ───
-$perms = [];
-$pr = mysqli_query($link, "SELECT role, permission_key, permission_value FROM role_permissions ORDER BY permission_key");
-while ($p = mysqli_fetch_assoc($pr)) $perms[$p['role']][$p['permission_key']] = (int)$p['permission_value'];
-$perm_keys = ['manage_users','manage_teams','manage_leads','manage_settings','export_data','delete_leads','view_reports','upload_data','manage_database','assign_leads'];
-$perm_labels = [
-    'manage_users' => 'Manage Users',
-    'manage_teams' => 'Manage Teams',
-    'manage_leads' => 'Manage Leads',
-    'manage_settings' => 'Manage Settings',
-    'export_data' => 'Export Data',
-    'delete_leads' => 'Delete Leads',
-    'view_reports' => 'View Reports',
-    'upload_data' => 'Upload Data',
-    'manage_database' => 'Manage Database',
-    'assign_leads' => 'Assign Leads',
-];
+if ($sr) while ($s = mysqli_fetch_assoc($sr)) $settings[$s['setting_key']] = $s['setting_value'];
 
 // ─── Fetch users summary ───
-$total_users = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM users"))[0];
-$active_users = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM users WHERE STATUS='Active'"))[0];
+$tu = mysqli_query($link, "SELECT COUNT(*) FROM users");
+$total_users = $tu ? (int)mysqli_fetch_row($tu)[0] : 0;
+$au = mysqli_query($link, "SELECT COUNT(*) FROM users WHERE STATUS='Active'");
+$active_users = $au ? (int)mysqli_fetch_row($au)[0] : 0;
 $role_counts = [];
 $rc = mysqli_query($link, "SELECT ROLE, COUNT(*) as cnt FROM users GROUP BY ROLE");
-while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
+if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
 ?>
 <?php $pageTitle = 'Settings - CallNow Admin'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <style>
 :root {
-    --st-accent: #6366f1;
-    --st-accent-dark: #4f46e5;
+    --st-accent: var(--accent);
+    --st-accent-dark: var(--accent-hover, #4f46e5);
     --st-ink: #1e1b4b;
     --st-ink-soft: #6b6890;
     --st-soft: #f0f2ff;
@@ -411,7 +314,12 @@ while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
         <div class="st-header-content">
             <div class="st-header-left">
                 <h1><i class="bi bi-gear-fill"></i> Settings</h1>
-                <p>Manage application settings, roles, permissions, and users</p>
+                <p>Manage application settings and users</p>
+            </div>
+            <div class="st-header-right">
+                <a href="<?= url('modules/settings/permissions_manager.php') ?>" class="st-btn-primary" style="text-decoration:none;font-size:0.8125rem!important;padding:0.5rem 1.1rem!important;display:inline-flex;align-items:center;gap:0.4rem;">
+                    <i class="bi bi-shield-lock"></i> Manage Roles &amp; Permissions
+                </a>
             </div>
         </div>
     </div>
@@ -429,14 +337,11 @@ while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
         <a href="<?= url('modules/settings/settings.php') ?>?tab=general" class="st-tab <?= $tab==='general'?'active':'' ?>">
             <i class="bi bi-sliders"></i> General
         </a>
-        <a href="<?= url('modules/settings/settings.php') ?>?tab=roles" class="st-tab <?= $tab==='roles'?'active':'' ?>">
-            <i class="bi bi-diagram-3"></i> Roles
-        </a>
-        <a href="<?= url('modules/settings/settings.php') ?>?tab=permissions" class="st-tab <?= $tab==='permissions'?'active':'' ?>">
-            <i class="bi bi-shield-check"></i> Permissions
-        </a>
         <a href="<?= url('modules/settings/settings.php') ?>?tab=users" class="st-tab <?= $tab==='users'?'active':'' ?>">
             <i class="bi bi-people"></i> Users
+        </a>
+        <a href="<?= url('modules/settings/api_settings.php') ?>" class="st-tab <?= $tab==='api'?'active':'' ?>">
+            <i class="bi bi-phone"></i> API Access
         </a>
     </div>
 
@@ -494,196 +399,36 @@ while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
                 </div>
 
                 <hr style="border-color:var(--st-border);margin:1.25rem 0;">
-                <div class="text-end">
-                    <button type="submit" class="st-btn-primary"><i class="bi bi-check-lg"></i> Save Settings</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
-    <?php elseif ($tab === 'roles'): ?>
-    <!-- ═══ Role Manager ═══ -->
-    <div class="st-card">
-        <div class="st-card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 style="font-size:1rem;font-weight:700;color:var(--st-ink);margin:0;"><i class="bi bi-diagram-3"></i> Roles</h5>
-                    <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0;">Create and manage user roles. System roles (Admin, Manager, etc.) cannot be deleted.</p>
-                </div>
-                <button type="button" class="st-btn-primary" data-bs-toggle="modal" data-bs-target="#addRoleModal" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;">
-                    <i class="bi bi-plus-lg"></i> New Role
-                </button>
-            </div>
-
-            <div class="st-role-grid">
-                <?php foreach ($allRoles as $role): ?>
-                    <?php $isSys = (int)$role['is_system'] === 1; ?>
-                    <div class="st-role-card">
-                        <h4>
-                            <i class="bi bi-person-badge" style="color:<?= $isSys?'#6366f1':'#a3a3a3' ?>;"></i>
-                            <?= htmlspecialchars($role['role_name']) ?>
-                            <span class="st-role-badge <?= $isSys ? 'system' : 'custom' ?>">
-                                <?= $isSys ? 'System' : 'Custom' ?>
-                            </span>
-                        </h4>
-                        <div class="desc"><?= htmlspecialchars($role['description'] ?: 'No description') ?></div>
-                        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.75rem;color:var(--st-ink-soft);">
-                            <span><i class="bi bi-people"></i> <?= (int)$role['user_count'] ?> user(s)</span>
-                            <div style="display:flex;gap:0.4rem;">
-                                <?php if (!$isSys): ?>
-                                    <button type="button" class="st-btn-outline" style="padding:0.2rem 0.6rem!important;"
-                                        data-bs-toggle="modal" data-bs-target="#editRoleModal"
-                                        data-id="<?= $role['id'] ?>"
-                                        data-name="<?= htmlspecialchars($role['role_name']) ?>"
-                                        data-desc="<?= htmlspecialchars($role['description']) ?>">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Delete role &quot;<?= htmlspecialchars($role['role_name']) ?>&quot;?')">
-                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                        <input type="hidden" name="settings_action" value="delete_role">
-                                        <input type="hidden" name="role_id" value="<?= $role['id'] ?>">
-                                        <button type="submit" class="st-btn-outline" style="padding:0.2rem 0.6rem!important;color:#ef4444!important;border-color:#fca5a5!important;">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                <?php else: ?>
-                                    <span style="font-size:0.6rem;color:#a3a3a3;"><i class="bi bi-lock"></i> Protected</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add Role Modal -->
-    <div class="modal fade" id="addRoleModal" tabindex="-1">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--st-border);">
-                <form method="POST">
+                <!-- ══ Application Logo ══ -->
+                <form method="POST" enctype="multipart/form-data" class="mb-0">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="settings_action" value="save_role">
-                    <input type="hidden" name="role_id" value="0">
-                    <div class="modal-header" style="border-bottom-color:var(--st-border);padding:1rem 1.25rem;">
-                        <h6 style="font-weight:700;font-size:0.9rem;margin:0;"><i class="bi bi-plus-circle"></i> New Role</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:0.7rem;"></button>
-                    </div>
-                    <div class="modal-body" style="padding:1.25rem;">
-                        <div class="mb-3">
-                            <label class="st-label">Role Name</label>
-                            <input type="text" name="role_name" class="form-control st-input" required maxlength="50" placeholder="e.g. Team Lead">
+                    <input type="hidden" name="settings_action" value="upload_logo">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-2 text-center">
+                            <?php if (!empty($settings['logo_path'])): ?>
+                                <img src="<?= htmlspecialchars((defined('APP_BASE') ? APP_BASE : '') . '/' . ltrim($settings['logo_path'], '/')) ?>" alt="App Logo" style="max-height:64px;max-width:140px;object-fit:contain;border:1px solid var(--st-border);border-radius:0.5rem;padding:0.25rem;background:#fff;">
+                            <?php else: ?>
+                                <div style="width:64px;height:64px;border:1px dashed var(--st-border);border-radius:0.5rem;display:flex;align-items:center;justify-content:center;color:var(--st-ink-soft);margin:0 auto;"><i class="bi bi-image" style="font-size:1.5rem;"></i></div>
+                            <?php endif; ?>
                         </div>
-                        <div>
-                            <label class="st-label">Description</label>
-                            <input type="text" name="role_description" class="form-control st-input" placeholder="Brief description" maxlength="255">
+                        <div class="col-md-7">
+                            <label class="st-label">Application Logo</label>
+                            <input type="file" name="logo_file" class="form-control st-input" accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp">
+                            <div class="st-hint">Shown in the sidebar and browser tab. PNG/SVG/JPG/WebP, max 2 MB. Recommended: square, transparent background.</div>
                         </div>
-                    </div>
-                    <div class="modal-footer" style="border-top-color:var(--st-border);padding:0.75rem 1.25rem;">
-                        <button type="button" class="st-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="st-btn-primary" style="padding:0.4rem 1.2rem!important;">Create Role</button>
+                        <div class="col-md-3 d-flex gap-2">
+                            <button type="submit" class="st-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;"><i class="bi bi-upload"></i> Upload</button>
+                            <?php if (!empty($settings['logo_path'])): ?>
+                                <button type="submit" name="remove_logo" value="1" class="st-btn-danger" onclick="return confirm('Remove the current logo and restore the default branding?');"><i class="bi bi-trash"></i></button>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Edit Role Modal -->
-    <div class="modal fade" id="editRoleModal" tabindex="-1">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--st-border);">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="settings_action" value="save_role">
-                    <input type="hidden" name="role_id" id="edit_role_id" value="0">
-                    <div class="modal-header" style="border-bottom-color:var(--st-border);padding:1rem 1.25rem;">
-                        <h6 style="font-weight:700;font-size:0.9rem;margin:0;"><i class="bi bi-pencil-square"></i> Edit Role</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:0.7rem;"></button>
-                    </div>
-                    <div class="modal-body" style="padding:1.25rem;">
-                        <div class="mb-3">
-                            <label class="st-label">Role Name</label>
-                            <input type="text" name="role_name" id="edit_role_name" class="form-control st-input" required maxlength="50">
-                        </div>
-                        <div>
-                            <label class="st-label">Description</label>
-                            <input type="text" name="role_description" id="edit_role_desc" class="form-control st-input" maxlength="255">
-                        </div>
-                    </div>
-                    <div class="modal-footer" style="border-top-color:var(--st-border);padding:0.75rem 1.25rem;">
-                        <button type="button" class="st-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="st-btn-primary" style="padding:0.4rem 1.2rem!important;">Save Changes</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    document.getElementById('editRoleModal')?.addEventListener('show.bs.modal', function (e) {
-        const btn = e.relatedTarget;
-        document.getElementById('edit_role_id').value = btn.dataset.id;
-        document.getElementById('edit_role_name').value = btn.dataset.name;
-        document.getElementById('edit_role_desc').value = btn.dataset.desc;
-    });
-    </script>
-
-    <?php elseif ($tab === 'permissions'): ?>
-    <!-- ═══ Permissions Manager ═══ -->
-    <div class="st-card">
-        <div class="st-card-body">
-            <form method="POST">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                <input type="hidden" name="settings_action" value="save_permissions">
-
-                <p style="font-size:0.8125rem;color:var(--st-ink-soft);margin-bottom:1rem;">
-                    Toggle permissions for each role. <strong>Admin</strong> always has full access.
-                    <br>Add or rename roles in the <a href="<?= url('modules/settings/settings.php') ?>?tab=roles" style="color:var(--st-accent);">Roles tab</a>.
-                </p>
-
-                <?php if (empty($rolesOrder)): ?>
-                    <p style="color:#ef4444;">No roles found. <a href="<?= url('modules/settings/settings.php') ?>?tab=roles">Create one</a>.</p>
-                <?php else: ?>
-                <div class="table-responsive">
-                    <table class="st-perm-grid">
-                        <thead>
-                            <tr>
-                                <th>Permission</th>
-                                <?php foreach ($rolesOrder as $role): ?>
-                                    <th><i class="bi bi-person"></i> <?= htmlspecialchars($role) ?></th>
-                                <?php endforeach; ?>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($perm_keys as $pk): ?>
-                                <tr>
-                                    <td>
-                                        <strong><?= $perm_labels[$pk] ?></strong>
-                                        <br><span style="font-size:0.6875rem;color:var(--st-ink-soft);"><?= $pk ?></span>
-                                    </td>
-                                    <?php foreach ($rolesOrder as $role): ?>
-                                        <td>
-                                            <?php if ($role === 'Admin'): ?>
-                                                <span style="color:#10b981;font-size:0.75rem;font-weight:600;"><i class="bi bi-check-lg"></i> Full</span>
-                                                <input type="hidden" name="perm_<?= $role ?>_<?= $pk ?>" value="1">
-                                            <?php else: ?>
-                                                <label class="st-perm-switch">
-                                                    <input type="checkbox" name="perm_<?= $role ?>_<?= $pk ?>" value="1" <?= ($perms[$role][$pk] ?? 0) ? 'checked' : '' ?>>
-                                                    <span class="st-perm-slider"></span>
-                                                </label>
-                                            <?php endif; ?>
-                                        </td>
-                                    <?php endforeach; ?>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php endif; ?>
 
                 <hr style="border-color:var(--st-border);margin:1.25rem 0;">
                 <div class="text-end">
-                    <button type="submit" class="st-btn-primary"><i class="bi bi-check-lg"></i> Save Permissions</button>
+                    <button type="submit" class="st-btn-primary"><i class="bi bi-check-lg"></i> Save Settings</button>
                 </div>
             </form>
         </div>

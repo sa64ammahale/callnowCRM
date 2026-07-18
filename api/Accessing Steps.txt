@@ -1,0 +1,79 @@
+Here's how the Android app talks to this API.
+
+## Base URL
+Replace `localhost` with your server's reachable address. For an Android emulator, `localhost` = the emulator itself, so use the PC's LAN IP (e.g. `http://192.168.1.50/callnowCRM`) or a tunnel.
+
+```
+BASE = http://<server>/callnowCRM/api/v1
+```
+
+CORS is already enabled (`Access-Control-Allow-Origin: *`), so a web/Android `HttpURLConnection`/Retrofit call works fine.
+
+## 1. Login → get a bearer token
+`POST BASE/auth/login` (JSON body)
+```json
+{ "email": "sa64ammahale@gmail.com", "password": "..." }
+```
+Response:
+```json
+{ "success": true,
+  "data": { "token": "abcd...64hex...", "expires_at": "...",
+            "user": {...}, "database_access": {...} } }
+```
+Store `data.token` securely (Android `EncryptedSharedPreferences` / `Keystore`). **This token is required on every request.**
+
+## 2. Authenticate every request
+Add header:
+```
+Authorization: Bearer <token>
+```
+Content-Type: `application/json`
+
+## 3. Endpoints available
+
+**Auth**
+| Method | Endpoint | Notes |
+|---|---|---|
+| GET | `/auth/me` | Current user + DB access |
+| POST | `/auth/refresh` | Extend token 30 days |
+| POST | `/auth/logout` | Revoke token |
+
+**Telecaller** (requires token; user must have temporary/leads DB assignment)
+| Method | Endpoint | Notes |
+|---|---|---|
+| GET | `/telecaller/dashboard` | Today's call stats |
+| GET | `/telecaller/next-call` | Next pending record |
+| GET | `/telecaller/calls?page=&limit=&source=&status=&date_from=&date_to=&search=` | Paged list |
+| POST | `/telecaller/calls/{id}/complete` | Body: `source`, `status`, `notes`, `duration_seconds`, `next_followup_at` |
+| GET | `/telecaller/history` | Extended history |
+
+**Admin** (requires `manage_api` permission)
+| Method | Endpoint |
+|---|---|
+| GET/POST | `/admin/settings` |
+| GET/POST/PUT/DELETE | `/admin/tokens[/id]` |
+| GET/POST/DELETE | `/admin/assignments[/id]` |
+
+## 4. Minimal Android (Retrofit) sketch
+```kotlin
+interface Api {
+    @POST("auth/login")
+    suspend fun login(@Body b: LoginBody): ApiResp<LoginData>
+
+    @GET("telecaller/next-call")
+    suspend fun nextCall(): ApiResp<NextCall>
+
+    @POST("telecaller/calls/{id}/complete")
+    suspend fun complete(@Path("id") id: Int, @Body b: CompleteBody): ApiResp<Any>
+}
+
+// Add the token on every call via OkHttp interceptor:
+request.newBuilder()
+    .header("Authorization", "Bearer $token")
+    .build()
+```
+
+## Critical: the user must be assigned DB access
+A telecaller only gets data if an admin assigned them in **API Access → Database Assignments** (table `api_database_assignments`). Your own admin account (ID 7) has `manage_api`, but to actually pull calls you need a `temporary`/`leads` assignment row for that user — otherwise `dashboard`/`next-call` return empty. Create one at the API Access page.
+
+Want me to generate a complete ready-to-import Android (Kotlin + Retrofit) client module, or a Postman/curl collection to test first?

@@ -2,10 +2,7 @@
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
 
-if (USER_ROLE !== 'Admin') {
-    header("Location: ../../dashboard.php");
-    exit;
-}
+requirePermission('manage_users');
 
 $limit  = 50;
 $page   = max(1, intval($_GET['page'] ?? 1));
@@ -105,14 +102,13 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
 $totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM users WHERE STATUS='Active'"))[0];
 $totalInactive = $totalRecords - $totalActive;
 
-mysqli_close($link);
 ?>
 <?php $pageTitle = 'App Users - CallNow Admin'; include '../../php_scripts/header.php'; ?>
 
 <style>
 :root {
-    --uv-accent: #6366f1;
-    --uv-accent-dark: #4f46e5;
+    --uv-accent: var(--accent);
+    --uv-accent-dark: var(--accent-hover, #4f46e5);
     --uv-ink: #1e1b4b;
     --uv-ink-soft: #6b6890;
     --uv-soft: #f0f2ff;
@@ -559,7 +555,7 @@ mysqli_close($link);
                 <a href="<?= url('modules/users/users_add.php') ?>" class="btn btn-uv-primary">
                     <i class="bi bi-person-plus"></i> Add User
                 </a>
-                <button id="exportBtn" class="btn">
+                <button id="exportBtn" class="btn btn-outline-primary">
                     <i class="bi bi-file-earmark-excel"></i> Export
                 </button>
                 <a href="<?= url('dashboard.php') ?>" class="btn">
@@ -683,7 +679,7 @@ mysqli_close($link);
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="uv-table">
+                    <table class="uv-table" id="usersTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -774,7 +770,7 @@ mysqli_close($link);
                     </div>
                 <?php else: ?>
                     <div class="table-responsive">
-                    <table class="uv-table" id="usersTable">
+                    <table class="uv-table">
                             <thead>
                                 <tr>
                                     <th>ID</th>

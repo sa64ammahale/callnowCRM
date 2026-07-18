@@ -9,11 +9,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
     exit;
 }
 
-if (!isAdmin() && !isManager()) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Admin or Manager access required']);
-    exit;
-}
+requireAnyPermission(['manage_database', 'delete_leads']);
 
 $ids = $_POST['ids'] ?? [];
 if (!is_array($ids) || empty($ids)) {

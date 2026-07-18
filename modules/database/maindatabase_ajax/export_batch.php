@@ -1,12 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 
-if (!isAdmin()) {
-    http_response_code(403);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['success' => false, 'error' => 'Admin access required']);
-    exit;
-}
+requirePermission('export_data');
 
 header('Content-Type: application/json; charset=utf-8');
 

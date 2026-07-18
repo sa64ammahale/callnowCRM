@@ -4,12 +4,7 @@ require_once __DIR__ . '/../lead_common.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$allowedRoles = ['Admin', 'Manager', 'Supervisor'];
-if (!in_array(USER_ROLE, $allowedRoles, true)) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'message' => 'Access denied.']);
-    exit;
-}
+requirePermission('delete_leads');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

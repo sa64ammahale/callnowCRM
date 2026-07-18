@@ -45,7 +45,6 @@ $res5 = mysqli_query($link, "SELECT COUNT(*) as unused FROM main_database WHERE 
 $row5 = $res5 ? mysqli_fetch_assoc($res5) : ['unused' => 0];
 $unused_numbers = (int)($row5['unused'] ?? 0);
 
-mysqli_close($link);
 ?>
 
 <div class="container py-4">
@@ -56,9 +55,9 @@ mysqli_close($link);
                 <h1>Good <?= ($h = date('H')) < 12 ? 'Morning' : ($h < 17 ? 'Afternoon' : 'Evening') ?>, <?= htmlspecialchars($_SESSION['name'] ?? 'Team') ?></h1>
                 <p>Your telecalling engine is running at full power today.</p>
                 <div class="d-flex flex-wrap gap-2 mt-3">
-                    <a href="modules/logs/Reports.php?type=daily" class="btn btn-light btn-sm">Today's Report</a>
-                    <a href="modules/database/data_management_temporary.php" class="btn btn-outline-light btn-sm">View Database</a>
-                    <a href="modules/database/maindatabase_ajax/download_bach.php" class="btn btn-outline-light btn-sm">Export Full DB</a>
+                    <a href="<?= url('modules/logs/Reports.php') ?>" class="btn btn-light btn-sm">Today's Report</a>
+                    <a href="<?= url('modules/database/data_management_temporary.php') ?>" class="btn btn-outline-light btn-sm">View Database</a>
+                    <a href="<?= url('modules/database/maindatabase_ajax/download_bach.php') ?>" class="btn btn-outline-light btn-sm">Export Full DB</a>
                 </div>
             </div>
             <div class="col-lg-4 text-center d-none d-lg-block">

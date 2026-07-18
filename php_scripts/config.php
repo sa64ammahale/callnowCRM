@@ -1,13 +1,34 @@
 <?php
 
-    $DB_SERVERNAME = getenv('DB_SERVERNAME') ?: "localhost";
+    // Load a local .env file if present (shared hosting without env support)
+    if (file_exists(__DIR__ . '/../.env')) {
+        $lines = @file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines) {
+            foreach ($lines as $line) {
+                if ($line[0] === '#' || strpos($line, '=') === false) continue;
+                [$k, $v] = explode('=', $line, 2);
+                $k = trim($k);
+                $v = trim(trim($v), '"\'');
+                if (!getenv($k)) {
+                    putenv("$k=$v");
+                    $_ENV[$k] = $v;
+                }
+            }
+        }
+    }
+
+    $DB_SERVERNAME = getenv('DB_SERVERNAME') ?: (getenv('DB_HOST') ?: "localhost");
+    $DB_PORT = getenv('DB_PORT') ?: "3306";
     $DB_USERNAME = getenv('DB_USERNAME') ?: "root";
     $DB_PASSWORD = getenv('DB_PASSWORD') ?: "";
     $DB_NAME = getenv('DB_NAME') ?: "callnow_incredit";
 
-    $link = mysqli_connect($DB_SERVERNAME, $DB_USERNAME, $DB_PASSWORD, $DB_NAME);
+    $link = mysqli_connect($DB_SERVERNAME, $DB_USERNAME, $DB_PASSWORD, $DB_NAME, (int)$DB_PORT);
     if($link === false){
-        die("ERROR: Could Not Connect to Database, Reason:- " . mysqli_connect_error());
+        if (defined('APP_DEBUG') && APP_DEBUG) {
+            die("ERROR: Could Not Connect to Database, Reason:- " . mysqli_connect_error());
+        }
+        die("ERROR: Could not connect to the database. Please contact the administrator.");
     }
 
     mysqli_set_charset($link, 'utf8mb4');
@@ -15,8 +36,7 @@
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/';
-    $scriptName = str_replace('\\', '/', $scriptName);
+    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/');
     $projectDir = basename(str_replace('\\', '/', __DIR__));
     $pos = strpos($scriptName, '/' . $projectDir . '/');
     if ($pos === false) {

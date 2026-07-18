@@ -1,10 +1,7 @@
 <?php
 require_once "../../../php_scripts/auth.php";
 
-if (!isAdmin()) {
-    http_response_code(403);
-    exit('Admin access required');
-}
+requirePermission('export_data');
 
 header('Content-Type: text/csv');
 header('Content-Disposition: attachment; filename="MainDatabase_'.date('Y-m-d_His').'.csv"');

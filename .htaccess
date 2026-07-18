@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────
+# CallNow CRM — Apache configuration (Hostinger shared hosting)
+# ─────────────────────────────────────────────────────────────
+
+# Use PHP 8.x (Hostinger: uncomment the line matching your plan)
+# <IfModule mime_module>
+#     AddType application/x-httpd-ea-php83 .php
+# </IfModule>
+
+# Disable directory listing
+Options -Indexes
+
+# Serve index.php for directories
+DirectoryIndex index.php
+
+# Turn on the rewrite engine
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Force HTTPS (Hostinger terminates SSL at the proxy; this is a safe guard)
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Block access to hidden/env files
+    RewriteRule ^\.env$ - [F,L]
+    RewriteRule ^(.*/)?\.git - [F,L]
+</IfModule>
+
+# ── Protect internal / sensitive paths ──
+<IfModule mod_rewrite.c>
+    # One-time setup & diagnostic scripts: only reachable from the server itself
+    RewriteCond %{REMOTE_ADDR} !^(127\.0\.0\.1|::1)$
+    RewriteRule ^(setup_permissions|setup_api|setup_rbac|create_settings_tables|diag_api|diag_api2)\.php$ - [F,L]
+
+    # Public self-signup is disabled in production (CRM is invite/admin-provisioned)
+    RewriteCond %{REMOTE_ADDR} !^(127\.0\.0\.1|::1)$
+    RewriteRule ^CallNowSignUp\.php$ - [F,L]
+</IfModule>
+
+# ── Deny direct execution of PHP in upload / private directories ──
+<DirectoryMatch "(uploads|php_scripts)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</DirectoryMatch>
+
+# Disable PHP execution inside uploads (defense in depth)
+<Directory "uploads">
+    <IfModule mod_php.c>
+        php_flag engine off
+    </IfModule>
+    <FilesMatch "\.(php|phtml|php3|php4|php5|cgi|pl|py)$">
+        Require all denied
+    </FilesMatch>
+</Directory>
+
+# ── Security headers ──
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-XSS-Protection "1; mode=block"
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|woff2?)$">
+        Header always set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+</IfModule>

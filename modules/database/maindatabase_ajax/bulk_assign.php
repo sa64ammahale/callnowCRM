@@ -9,11 +9,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
     exit;
 }
 
-if (!isAdmin() && !isManager()) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Admin or Manager access required']);
-    exit;
-}
+requireAnyPermission(['assign_leads', 'manage_database']);
 
 $ids = $_POST['ids'] ?? [];
 $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;

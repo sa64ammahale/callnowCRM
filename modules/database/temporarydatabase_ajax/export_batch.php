@@ -9,11 +9,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
     exit;
 }
 
-if (!isAdmin()) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Admin access required']);
-    exit;
-}
+requirePermission('export_data');
 
 $offset = intval($_POST['offset'] ?? 0);
 $limit  = intval($_POST['limit'] ?? 10000);

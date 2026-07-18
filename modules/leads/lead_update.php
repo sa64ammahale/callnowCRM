@@ -3,11 +3,7 @@ require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
 require_once __DIR__ . '/lead_common.php';
 
-$allowed_roles = ['Admin', 'Manager', 'Supervisor', 'Officer'];
-if (!in_array(USER_ROLE, $allowed_roles, true)) {
-    header("Location: leads_dashboard.php");
-    exit;
-}
+requirePermission('manage_leads');
 
 ensureLeadModuleSchema($link);
 

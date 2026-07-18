@@ -2,7 +2,7 @@
 // ViewDND.php - DND list with pagination, search, edit, delete (Admin-only)
 
 require_once '../../php_scripts/auth.php';
-requireRole('Admin'); // ensures only Admin can access
+requirePermission('manage_database'); // ensures only those with manage_database permission can access
 
 // CSRF token for delete forms
 if (session_status() === PHP_SESSION_NONE) session_start();

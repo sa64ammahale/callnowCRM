@@ -79,9 +79,15 @@ if ($col3 && str_starts_with($col3['Type'], 'enum')) {
     msg("  Already VARCHAR, skipping.");
 }
 
-// 6. Ensure role_permissions has a UNIQUE key
+// 6. Ensure role_permissions has a UNIQUE key (MySQL 5.7+ compatible)
 msg("Ensuring unique constraint on role_permissions...");
-$link->query("ALTER TABLE role_permissions ADD UNIQUE KEY IF NOT EXISTS uq_role_perm (role, permission_key)");
+$uq = mysqli_query($link, "SHOW INDEX FROM role_permissions WHERE Key_name = 'uq_role_perm'");
+if (mysqli_num_rows($uq) === 0) {
+    $link->query("ALTER TABLE role_permissions ADD UNIQUE KEY uq_role_perm (role, permission_key)");
+    msg("  Added.");
+} else {
+    msg("  Already exists, skipping.");
+}
 
 msg("\n=== RBAC setup complete! ===");
 msg("System roles: Admin, Manager, Supervisor, Officer");

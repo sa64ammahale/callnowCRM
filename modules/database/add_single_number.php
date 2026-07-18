@@ -3,7 +3,7 @@
 // Require authentication file (should create $link mysqli connection and maybe check user)
 require_once '../../php_scripts/auth.php';
 
-requireRole(['Admin', 'Manager']);
+requirePermission('manage_database');
 
 $userId = intval($_SESSION["id"]);
 

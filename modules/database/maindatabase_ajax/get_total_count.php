@@ -11,10 +11,7 @@ try {
         exit;
     }
     
-    if (!isAdmin()) {
-        echo json_encode(['error' => 'Not admin', 'count' => 0]);
-        exit;
-    }
+    requirePermission('manage_database');
     
     if (!isset($link) || !$link) {
         echo json_encode(['error' => 'No database connection', 'count' => 0]);

@@ -1,7 +1,7 @@
 <?php
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
-requireRole(['Admin', 'Manager']);
+requirePermission('manage_teams');
 
 $msg = $msg_type = "";
 
@@ -155,8 +155,8 @@ while ($m = mysqli_fetch_assoc($members_res)) {
 
 <style>
 :root {
-    --td-accent: #6366f1;
-    --td-accent-dark: #4f46e5;
+    --td-accent: var(--accent);
+    --td-accent-dark: var(--accent-hover, #4f46e5);
     --td-ink: #1e1b4b;
     --td-ink-soft: #6b6890;
     --td-soft: #f0f2ff;

@@ -1,6 +1,9 @@
 <?php
 if (!defined('APP_BASE')) { return; }
 
+// $appLogoUrl is resolved in header.php and reused here (single query per page load)
+if (!isset($appLogoUrl)) { $appLogoUrl = ''; }
+
 $current = basename($_SERVER['SCRIPT_NAME']);
 
 function navActive($patterns) {
@@ -13,7 +16,11 @@ function navActive($patterns) {
 ?>
 <aside class="app-sidebar" id="appSidebar">
     <a class="app-sidebar-brand" href="<?= url('dashboard.php') ?>">
-        <span class="brand-mark"><i class="bi bi-telephone-fill"></i></span>
+        <?php if ($appLogoUrl): ?>
+            <span class="brand-mark"><img src="<?= htmlspecialchars($appLogoUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Logo" class="brand-logo-img"></span>
+        <?php else: ?>
+            <span class="brand-mark"><i class="bi bi-telephone-fill"></i></span>
+        <?php endif; ?>
         <span class="brand-text">CallNow</span>
     </a>
 
@@ -30,7 +37,7 @@ function navActive($patterns) {
             </a>
         </div>
 
-        <?php if (isAdmin()): ?>
+        <?php if (can('manage_database')): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Database</div>
             <a class="app-sidebar-link <?= navActive(['data_management_temporary.php']) ? 'active' : '' ?>" href="<?= url('modules/database/data_management_temporary.php') ?>">
@@ -78,15 +85,18 @@ function navActive($patterns) {
                 <i class="bi bi-list-ul"></i>
                 <span class="link-text">View Leads</span>
             </a>
+            <?php if (can('manage_leads')): ?>
             <a class="app-sidebar-link <?= navActive(['lead_insert.php']) ? 'active' : '' ?>" href="<?= url('modules/leads/lead_insert.php') ?>">
                 <i class="bi bi-plus-square"></i>
                 <span class="link-text">Add New Lead</span>
             </a>
+            <?php endif; ?>
         </div>
 
         <?php if (isSupervisor() || isAdmin() || isManager()): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Manage</div>
+            <?php if (can('manage_users')): ?>
             <a class="app-sidebar-link <?= navActive(['users_view.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_view.php') ?>">
                 <i class="bi bi-people"></i>
                 <span class="link-text">App Users</span>
@@ -95,6 +105,7 @@ function navActive($patterns) {
                 <i class="bi bi-person-plus"></i>
                 <span class="link-text">Add User</span>
             </a>
+            <?php endif; ?>
             <a class="app-sidebar-link <?= navActive(['teams_dashboard.php']) ? 'active' : '' ?>" href="<?= url('modules/users/teams_dashboard.php') ?>">
                 <i class="bi bi-diagram-3"></i>
                 <span class="link-text">Teams</span>
@@ -108,31 +119,39 @@ function navActive($patterns) {
 
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Reports</div>
-            <a class="app-sidebar-link" href="<?= url('modules/logs/Reports.php?type=daily') ?>">
-                <i class="bi bi-calendar-day"></i>
-                <span class="link-text">Daily</span>
+            <?php if (can('view_reports')): ?>
+            <a class="app-sidebar-link <?= navActive(['Reports.php']) ? 'active' : '' ?>" href="<?= url('modules/logs/Reports.php') ?>">
+                <i class="bi bi-bar-chart"></i>
+                <span class="link-text">Reports</span>
             </a>
-            <a class="app-sidebar-link" href="<?= url('modules/logs/Reports.php?type=monthly') ?>">
-                <i class="bi bi-calendar-month"></i>
-                <span class="link-text">Monthly</span>
-            </a>
-            <a class="app-sidebar-link" href="<?= url('modules/logs/Reports.php?type=yearly') ?>">
-                <i class="bi bi-calendar3"></i>
-                <span class="link-text">Yearly</span>
-            </a>
+            <?php endif; ?>
         </div>
 
-        <?php if (isAdmin()): ?>
+        <?php if (can('manage_settings') || can('view_activity')): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">System</div>
-            <a class="app-sidebar-link <?= navActive(['manage_activity.php']) ? 'active' : '' ?>" href="<?= url('modules/logs/manage_activity.php') ?>">
-                <i class="bi bi-activity"></i>
-                <span class="link-text">Activity Log</span>
+            <?php if (can('manage_settings')): ?>
+            <a class="app-sidebar-link <?= navActive(['permissions_manager.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>">
+                <i class="bi bi-shield-lock"></i>
+                <span class="link-text">Access Control</span>
             </a>
             <a class="app-sidebar-link <?= navActive(['settings.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/settings.php') ?>">
                 <i class="bi bi-gear"></i>
                 <span class="link-text">Settings</span>
             </a>
+            <?php if (can('manage_api')): ?>
+            <a class="app-sidebar-link <?= navActive(['api_settings.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/api_settings.php') ?>">
+                <i class="bi bi-key"></i>
+                <span class="link-text">API Access</span>
+            </a>
+            <?php endif; ?>
+            <?php endif; ?>
+            <?php if (can('view_activity')): ?>
+            <a class="app-sidebar-link <?= navActive(['manage_activity.php']) ? 'active' : '' ?>" href="<?= url('modules/logs/manage_activity.php') ?>">
+                <i class="bi bi-activity"></i>
+                <span class="link-text">Activity Log</span>
+            </a>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
     </nav>

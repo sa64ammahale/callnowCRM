@@ -51,8 +51,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $message .= "Best regards,\nCallNow Team";
                         
                         // Email headers
-                        $headers = "From: no-reply@starsinfotech.in\r\n";
-                        $headers .= "Reply-To: no-reply@increditsolutions.in\r\n";
+                        $mailDomain = preg_replace('/^www\./', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
+                        $noReply = 'no-reply@' . $mailDomain;
+                        $headers = "From: $noReply\r\n";
+                        $headers .= "Reply-To: $noReply\r\n";
                         $headers .= "X-Mailer: PHP/" . phpversion();
                         $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
                         

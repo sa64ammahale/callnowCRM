@@ -9,6 +9,15 @@ ini_set('display_startup_errors', APP_DEBUG ? '1' : '0');
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 ensureCsrfToken();
 
+// Resolve the application logo for the login screen
+$loginLogo = '';
+if (isset($link) && $link) {
+    $logoRes = $link->query("SELECT setting_value FROM app_settings WHERE setting_key = 'logo_path'");
+    if ($logoRes && $row = $logoRes->fetch_assoc()) {
+        $loginLogo = APP_BASE . '/' . ltrim($row['setting_value'], '/');
+    }
+}
+
 $username = $password = $CompanyName = "";
 
 if($_SERVER["REQUEST_METHOD"] == "POST"){
@@ -109,8 +118,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 			<div class="login-card">
 				<!-- Header -->
 				<div class="login-header">
-					<img src="/assets/iclauncher.png" alt="CallNow" class="logo-container">
-					<h1>CallNow V5.00</h1>
+				<?php if ($loginLogo): ?>
+					<img src="<?= htmlspecialchars($loginLogo, ENT_QUOTES, 'UTF-8') ?>" alt="CallNow" class="logo-container">
+				<?php else: ?>
+					<i class="bi bi-telephone-fill" style="font-size:2.25rem;"></i>
+				<?php endif; ?>
+				<h1>CallNow V5.00</h1>
 				</div>
 				
 				<!-- Login Form -->

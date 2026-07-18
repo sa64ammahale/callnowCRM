@@ -1,6 +1,6 @@
 <?php
 require_once '../../php_scripts/auth.php';
-requireRole('Admin');
+requirePermission('manage_database');
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(16));

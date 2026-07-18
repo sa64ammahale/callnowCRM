@@ -9,7 +9,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 - **Backend**: PHP 8.x procedural, MySQL via `mysqli` (procedural + occasional OO), database `callnow_incredit`
 - **Frontend**: Bootstrap 5.3, jQuery, DataTables, Bootstrap Icons via CDN; monochrome theme (`assets/css/app-theme.css` with light+dark tokens)
 - **Auth**: Hand-rolled session-based, bcrypt (`password_hash`/`verify`), 30-min idle timeout
-- **Roles**: Admin / Manager / Supervisor / Officer
+- **RBAC**: Permission-based. 11 system permission keys + DB-backed custom keys (`permissions` table). Roles (incl. custom) map to perms via `role_permissions`; users may have per-user overrides in `user_permissions`. `can($key)` is the sole access gate (Admin + System Admin ID=1 always pass).
 - **Routing**: Direct file-based, no front controller
 - **Shared chrome**: `php_scripts/header.php` + `php_scripts/footer.php`
 
@@ -30,7 +30,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### php_scripts/
 | File | Purpose |
 |---|---|
-| `auth.php` | Core auth bootstrap: session, timeouts, role constants, `logActivity()`, `getAccessibleUserIds()`, `requireRole()`, `getTeamFilter()` |
+| `auth.php` | Core auth bootstrap: session, timeouts, role constants, `can($key)`, `requirePermission()`, `requireAnyPermission()`, `clearRbacCache()`, `logActivity()`, `getAccessibleUserIds()`, `requireRole()` (convenience only), `getTeamFilter()` |
 | `header.php` | Full HTML `<head>` (Bootstrap CSS, Bootstrap Icons, app-theme.css), sidebar, topbar, opens `<main>`; `url()` helper. Pages set `$pageTitle` before including. |
 | `footer.php` | Closes layout, loads Bootstrap JS bundle, theme.js, sidebar.js, APP_BASE, APP_CSRF |
 | `team_auth.php` | Team-scoped helpers: `canViewAllTeams()`, `getTeamFilterSQL()`, `requireTeamAccess()` |
@@ -39,7 +39,9 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/settings/
 | File | Purpose | Notes |
 |---|---|---|
-| `settings.php` | Settings page (Admin): General, Permissions, Users | Uses `app_settings` + `role_permissions` tables |
+| `settings.php` | Settings page (gated by `manage_settings`): General + Users tabs only | Roles/Permissions moved to `permissions_manager.php` |
+| `permissions_manager.php` | **Access Control** hub (gated by `manage_settings`): 4 tabs — Features (permission keys CRUD), Roles (CRUD), Role Permissions (per-role matrix), User Access (role assignment + per-user override matrix) | Uses `permissions`, `roles`, `role_permissions`, `user_permissions` tables |
+| `setup_permissions.php` | Run once (CLI or Admin) to create `permissions`/`user_permissions` tables, seed 11 system keys + system-role defaults | Idempotent; guarded by `rbac_initialized` flag |
 
 ### modules/users/
 | File | Purpose | Notes |
@@ -53,7 +55,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/logs/
 | File | Purpose | Notes |
 |---|---|---|
-| `Reports.php` | Call performance reports | Prepared UNION, Excel export, 60s refresh |
+| `Reports.php` | Call performance reports (gated `view_reports`) | Single date-range page: preset ranges (today default, yesterday, last7/30/90, this/last month, last3/6, current_year, custom), Trend/Status/Per-User Chart.js charts above the per-telecaller table; prepared UNION of `temporary_database`+`main_database`, Table2Excel export |
 | `ViewDialList.php` | Legacy per-user dial list | **DELETED** — broken schema + SQLi on dates |
 | `manage_activity.php` | Activity log viewer/admin | CSRF-protected, sort whitelist |
 
@@ -110,15 +112,20 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 - `modules/logs/ViewDialList.php` — broken schema + SQLi on dates
 - `php_scripts/lead_ajax_check_mobile.php` — stale duplicate
 
-### 2. Role guards added
-- `maindatabase_ajax/bulk_delete.php` → Admin only
-- `maindatabase_ajax/export_csv.php` → Admin only
-- `maindatabase_ajax/export_batch.php` → Admin only
-- `maindatabase_ajax/download_bach.php` → Admin only (via export_batch)
-- `maindatabase_ajax/get_total_count.php` → logged-in (read-only counts)
-- `data_management_temporary.php` → Admin/Manager on destructive actions
-- `add_single_number.php` → Admin/Manager
-- `teams_dashboard.php` → Admin/Manager
+### 2. Permission-based access gates (can() is now the SOLE gate)
+All feature/AJAX pages now call `requirePermission()`/`requireAnyPermission()` instead of `requireRole()`:
+- `settings.php` → `manage_settings`; `permissions_manager.php` → `manage_settings`
+- `users_view.php`, `users_add.php` → `manage_users`
+- `teams_dashboard.php`, `team_members.php` → `manage_teams`
+- `lead_insert.php`, `lead_update.php` → `manage_leads`; `lead_delete.php` → `delete_leads`
+- `data_management_temporary.php`, `data_management_main.php`, `add_single_number.php`, `add_update_status.php`, `ViewDND.php` → `manage_database`
+- `upload_data.php` → `upload_data`
+- `maindatabase_ajax/bulk_delete.php`, `temporarydatabase_ajax/bulk_delete.php` → `requireAnyPermission(['manage_database','delete_leads'])`
+- `maindatabase_ajax/bulk_assign.php`, `temporarydatabase_ajax/bulk_assign.php` → `requireAnyPermission(['assign_leads','manage_database'])`
+- `maindatabase_ajax/export_csv.php`, `export_batch.php`, `download_bach.php`, `temporarydatabase_ajax/export_batch.php`, `download_bach.php` → `export_data`
+- `maindatabase_ajax/get_total_count.php`, `temporarydatabase_ajax/get_total_count.php` → `manage_database`
+- `Reports.php` → `view_reports`; `manage_activity.php` → `view_activity`
+- In-page `isAdmin()`/`isManager()` checks that narrow DATA SCOPE (team/own filtering) are intentionally left role-based.
 
 ### 3. CSRF tokens added
 - `index.php` (login), `CallNowSignUp.php` (signup), `forgot-password.php`
@@ -166,6 +173,15 @@ Column mapping applied:
 
 **IMPORTANT**: Do NOT run `setup_callnow_crm.sql` — it uses `DROP TABLE IF EXISTS` and will wipe all live data. The live DB is now the source of truth.
 
+**RBAC tables (added 2026-07-16)**:
+- `permissions` (id, permission_key UNIQUE, label, category, description, is_system, created_at) — DB-backed permission keys; 11 system keys seeded, admins can add custom.
+- `roles` (id, role_name UNIQUE, description, is_system) — Admin/Manager/Supervisor/Officer (system) + custom roles.
+- `role_permissions` (role VARCHAR, permission_key, permission_value, UNIQUE(role,permission_key)) — per-role matrix; system-role defaults: Admin/Manager all-on, Supervisor 6, Officer 2.
+- `user_permissions` (user_id, permission_key, permission_value, UNIQUE(user_id,permission_key)) — per-user overrides (win over role).
+- `app_settings` holds `rbac_cache_version` (bumped by `clearRbacCache()` on any change) and `rbac_initialized` flag.
+- `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
+- Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
+
 ## Remaining Known Issues (not yet fixed)
 - `data_management_main.php` references `bulk_assign.php` which doesn't exist
 - `lead_common.php` runs runtime ALTER TABLE migrations on page load (static-guarded, but still risky)
@@ -178,7 +194,7 @@ Column mapping applied:
 
 ## Conventions for Future Changes
 - **Auth bootstrap**: `php_scripts/auth.php` (canonical) — include at top of every protected page
-- **Role checks**: use `requireRole('Admin')` or `isAdmin()`/`isManager()`/`isSupervisor()`/`isOfficer()`
+- **Role checks**: `can($key)` / `requirePermission($key)` / `requireAnyPermission([...])` is the SOLE access gate. `isAdmin()`/`isManager()`/`isSupervisor()`/`isOfficer()` remain as convenience helpers for data-scoping only, not page gates.
 - **CSRF**: call `ensureCsrfToken()` (done in auth.php automatically); add `<?= csrfField() ?>` in forms;verify via `verifyCsrfToken()` on POST
 - **DB queries**: always use prepared statements (`$link->prepare` + bind_param); never concatenate user input
 - **Output escaping**: always `htmlspecialchars($val, ENT_QUOTES, 'UTF-8')`

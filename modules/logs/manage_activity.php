@@ -4,9 +4,7 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../php_scripts/auth.php';
 
-if (empty($_SESSION['id'])) {
-    header('Location: index.php'); exit;
-}
+requirePermission('view_activity');
 
 $userId = intval($_SESSION['id']);
 $userRole = $_SESSION['role'] ?? '';
@@ -432,7 +430,7 @@ $baseQuery = $_GET;
         <h5 class="mb-3">Bulk delete selected logs?</h5>
         <p class="small-muted mb-3">This will permanently remove the selected activity logs.</p>
         <div class="d-flex justify-content-center gap-2">
-            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
             <button id="confirmBulkDeleteBtn" type="button" class="btn btn-danger">Delete</button>
         </div>
       </div>

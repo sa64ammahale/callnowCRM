@@ -2,10 +2,7 @@
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../../../config.php';
 
-if (!isAdmin()) {
-    http_response_code(403);
-    exit('Admin access required');
-}
+requirePermission('export_data');
 
 $csrfToken = $_SESSION['csrf_token'] ?? '';
 // === CONFIG ===

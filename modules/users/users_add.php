@@ -17,16 +17,17 @@ if (USER_ROLE === 'Supervisor') {
             header("Location: users_view.php"); exit;
         }
     }
-} elseif (USER_ROLE !== 'Admin') {
-    header("Location: ../../dashboard.php"); exit;
 }
+requirePermission('manage_users');
 
 $Message = ""; $type = "";
 
 if (USER_ROLE === 'Admin') {
     $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME");
+} elseif (USER_TEAM_ID) {
+    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams WHERE ID = " . (int)USER_TEAM_ID);
 } else {
-    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams WHERE ID = " . USER_TEAM_ID);
+    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME");
 }
 $teams = mysqli_fetch_all($teams_result, MYSQLI_ASSOC);
 
@@ -127,14 +128,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     }
 }
 
-mysqli_close($link);
 ?>
 <?php $pageTitle = ($isEdit ? 'Edit' : 'Add New') . ' User - CallNow'; include '../../php_scripts/header.php'; ?>
 
 <style>
 :root {
-    --ua-accent: #6366f1;
-    --ua-accent-dark: #4f46e5;
+    --ua-accent: var(--accent);
+    --ua-accent-dark: var(--accent-hover, #4f46e5);
     --ua-ink: #1e1b4b;
     --ua-ink-soft: #6b6890;
     --ua-soft: #f0f2ff;

@@ -1,10 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 
-if (!isAdmin()) {
-    http_response_code(403);
-    exit('Admin access required');
-}
+requirePermission('export_data');
 
 if (!isset($link) || !$link) {
     exit('Database connection failed');
@@ -169,7 +166,7 @@ include __DIR__ . '/../../../php_scripts/header.php';
 </div>
 
 <script>
-const CSRF_TOKEN = '<?= $_SESSION['csrf_token'] ?? '' ?>';
+const CSRF_TOKEN = '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>';
 const ajaxBase = '<?= defined('APP_BASE') ? APP_BASE : '' ?>/modules/database/maindatabase_ajax/';
 let totalRecords = <?= (int)$totalRecords ?>;
 

@@ -2,7 +2,7 @@
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
 
-requireRole('Admin');
+requirePermission('upload_data');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file']) && empty($_POST['import'])) {
     $_POST['import'] = '1';

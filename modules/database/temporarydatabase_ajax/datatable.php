@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../../../config.php';
 
+requirePermission('manage_database');
+
 header('Content-Type: application/json; charset=utf-8');
 if (!$link) {
     $error = 'Database connection failed';
@@ -14,6 +16,7 @@ if (!$link) {
 $draw   = intval($_GET['draw'] ?? 0);
 $start  = intval($_GET['start'] ?? 0);
 $length = intval($_GET['length'] ?? 10);
+$length = min($length, 2000);
 $search = $_GET['search']['value'] ?? '';
 $order  = $_GET['order'][0] ?? [];
 $col    = $order['column'] ?? 1;
