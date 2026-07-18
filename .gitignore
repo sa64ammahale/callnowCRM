@@ -1,0 +1,18 @@
+# Secrets / local config (keep .env.example committed, never .env)
+.env
+*.local
+
+# Logs
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Uploaded user files (git-tracked via .gitkeep only)
+uploads/logo/*
+!uploads/logo/.gitkeep
+
+# Hosting control files
+.user.ini
