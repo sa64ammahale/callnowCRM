@@ -506,9 +506,17 @@ $(document).ready(function() {
         processing: true,
         serverSide: true,
         responsive: true,
+        destroy: true,
         ajax: {
             url: TEMP_URL,
-            type: 'GET'
+            type: 'GET',
+            dataSrc: function (json) {
+                if (json === null || typeof json !== 'object' || !json.data) {
+                    console.error('DataTables: invalid response from server', json);
+                    throw new Error('Invalid server response. Check that the API endpoint is reachable.');
+                }
+                return json.data;
+            }
         },
         pageLength: 2500,
         lengthMenu: [ 250, 500, 1000, 1500, 2000 ],

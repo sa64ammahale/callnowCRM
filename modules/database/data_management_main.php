@@ -372,10 +372,18 @@ $(document).ready(function() {
         processing: true,
         serverSide: true,
         responsive: true,
+        destroy: true,
         searchDelay: 400,
         ajax: {
             url: (window.APP_BASE || '') + '/modules/database/maindatabase_ajax/datatable.php',
-            type: 'GET'
+            type: 'GET',
+            dataSrc: function (json) {
+                if (json === null || typeof json !== 'object' || !json.data) {
+                    console.error('DataTables: invalid response from server', json);
+                    throw new Error('Invalid server response. Check that the API endpoint is reachable.');
+                }
+                return json.data;
+            }
         },
         pageLength: 2500,
         lengthMenu: [[250, 500, 1000, 1500, 2000], [250, 500, 1000, 1500, 2000]],

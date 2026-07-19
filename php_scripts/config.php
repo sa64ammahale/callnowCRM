@@ -36,14 +36,12 @@
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
+    // The install path is the directory that contains the current script.
+    // SCRIPT_NAME is always the on-disk path from the document root, so
+    // dirname() correctly yields "" at the domain root, "/crm" in a subfolder,
+    // or "/" when the subdomain docroot already is the app folder.
     $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/');
-    $projectDir = basename(str_replace('\\', '/', __DIR__));
-    $pos = strpos($scriptName, '/' . $projectDir . '/');
-    if ($pos === false) {
-        $appPath = rtrim(dirname($scriptName), '/\\');
-    } else {
-        $appPath = substr($scriptName, 0, $pos + strlen('/' . $projectDir));
-    }
+    $appPath = rtrim(dirname($scriptName), '/\\');
     define('APP_BASE', rtrim($protocol . '://' . $host . $appPath, '/'));
 
     define('APP_DEBUG', getenv('APP_DEBUG') === '1');
