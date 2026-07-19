@@ -63,8 +63,12 @@ function rbacCacheVersion(): int {
     if ($v !== null) return $v;
     global $link;
     $v = 0;
-    $res = mysqli_query($link, "SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'rbac_cache_version'");
-    if ($res && $row = mysqli_fetch_assoc($res)) $v = (int)$row['setting_value'];
+    try {
+        $res = mysqli_query($link, "SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'rbac_cache_version'");
+        if ($res && $row = mysqli_fetch_assoc($res)) $v = (int)$row['setting_value'];
+    } catch (\Throwable $e) {
+        $v = 0;
+    }
     return $v;
 }
 
@@ -95,25 +99,33 @@ function loadEffectiveTBL_PERMISSIONS(): array {
     $role = USER_ROLE;
     $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM TBL_ROLE_PERMISSIONS WHERE role = ?");
     if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 's', $role);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        while ($row = mysqli_fetch_assoc($res)) {
-            $perms[$row['permission_key']] = (int)$row['permission_value'];
+        try {
+            mysqli_stmt_bind_param($stmt, 's', $role);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            while ($row = mysqli_fetch_assoc($res)) {
+                $perms[$row['permission_key']] = (int)$row['permission_value'];
+            }
+            mysqli_stmt_close($stmt);
+        } catch (\Throwable $e) {
+            if ($stmt) mysqli_stmt_close($stmt);
         }
-        mysqli_stmt_close($stmt);
     }
 
     $curUid = USER_ID;
     $stmt2 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM TBL_USER_PERMISSIONS WHERE user_id = ?");
     if ($stmt2) {
-        mysqli_stmt_bind_param($stmt2, 'i', $curUid);
-        mysqli_stmt_execute($stmt2);
-        $res2 = mysqli_stmt_get_result($stmt2);
-        while ($row = mysqli_fetch_assoc($res2)) {
-            $perms[$row['permission_key']] = (int)$row['permission_value'];
+        try {
+            mysqli_stmt_bind_param($stmt2, 'i', $curUid);
+            mysqli_stmt_execute($stmt2);
+            $res2 = mysqli_stmt_get_result($stmt2);
+            while ($row = mysqli_fetch_assoc($res2)) {
+                $perms[$row['permission_key']] = (int)$row['permission_value'];
+            }
+            mysqli_stmt_close($stmt2);
+        } catch (\Throwable $e) {
+            if ($stmt2) mysqli_stmt_close($stmt2);
         }
-        mysqli_stmt_close($stmt2);
     }
 
     $_SESSION[$cacheKey] = $perms;
