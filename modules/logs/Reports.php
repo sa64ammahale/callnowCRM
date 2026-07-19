@@ -753,8 +753,8 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
 
 <?php include '../../php_scripts/footer.php'; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/table2excel@1.0.4/dist/table2excel.min.js"></script>
+<script src="<?= vnd('js/chart.umd.min.js') ?>"></script>
+<script src="<?= vnd('js/table2excel.min.js') ?>"></script>
 <script>
 <?php if ($grand_total > 0): ?>
 // Adapt chart colors to the active theme

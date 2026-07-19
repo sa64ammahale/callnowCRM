@@ -874,7 +874,7 @@ $totalInactive = $totalRecords - $totalActive;
 
 <?php include '../../php_scripts/footer.php'; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/table2excel@1.0.4/dist/table2excel.min.js"></script>
+<script src="<?= vnd('js/table2excel.min.js') ?>"></script>
 <script>
 document.getElementById("exportBtn").addEventListener("click", function(){
     var btn = this;

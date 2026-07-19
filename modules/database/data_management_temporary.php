@@ -468,16 +468,16 @@ include __DIR__ . '/../../php_scripts/header.php';
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
-<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.bootstrap5.min.js"></script>
-<script src="https://cdn.datatables.net/responsive/3.0.2/js/responsive.bootstrap5.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
+<script src="<?= vnd('dt/dataTables.min.js') ?>"></script>
+<script src="<?= vnd('dt/dataTables.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/responsive.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/jszip.min.js') ?>"></script>
+<script src="<?= vnd('dt/pdfmake.min.js') ?>"></script>
+<script src="<?= vnd('dt/vfs_fonts.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.html5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.print.min.js') ?>"></script>
 
 <style>
 .td-dt-table thead th { background: #fafbff; color: #6b6890; font-weight: 600; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #e2e4f0; padding: 0.625rem 0.5rem; }

@@ -88,10 +88,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 		<title>CallNow | Professional Communication Platform</title>
 		
 		<!-- Bootstrap 5 CSS -->
-		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+		<link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
 		<link href="assets/css/app-theme.css" rel="stylesheet">
 		
-		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+		<link rel="stylesheet" href="<?= vnd('css/bootstrap-icons.css') ?>">
 		
 		<style>
 			.login-header {
@@ -242,7 +242,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 		</footer>
 		
 		<!-- Bootstrap JS Bundle with Popper -->
-		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+		<script src="<?= vnd('js/bootstrap.bundle.min.js') ?>"></script>
 		
 		<!-- Custom JS -->
 		<script>

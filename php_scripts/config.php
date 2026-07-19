@@ -44,6 +44,13 @@
     $appPath = rtrim(dirname($scriptName), '/\\');
     define('APP_BASE', rtrim($protocol . '://' . $host . $appPath, '/'));
 
+    // Local vendored asset URL (no external CDNs — works on shared hosting)
+    if (!function_exists('vnd')) {
+        function vnd(string $path): string {
+            return APP_BASE . '/assets/vendor/' . ltrim($path, '/');
+        }
+    }
+
     define('APP_DEBUG', getenv('APP_DEBUG') === '1');
     error_reporting(E_ALL);
     ini_set('display_errors', APP_DEBUG ? '1' : '0');

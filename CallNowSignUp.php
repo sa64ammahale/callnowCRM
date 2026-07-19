@@ -15,7 +15,7 @@ if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true) {
 if (!$isAdminUser && ($setupKey === '' || $providedKey !== $setupKey)) {
     http_response_code(403);
     echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Disabled</title>'
-       . '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"></head>'
+       . '<link href="' . vnd('css/bootstrap.min.css') . '" rel="stylesheet"></head>'
        . '<body class="p-5"><div class="alert alert-warning w-50 mx-auto">'
        . '<i class="bi bi-lock-fill me-2"></i>Self-registration is disabled on this server. '
        . 'Contact your administrator to request an account.</div></body></html>';
@@ -180,10 +180,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     <title>CallNow | Sign Up</title>
     
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
     
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="<?= vnd('css/bootstrap-icons.css') ?>">
     
     <style>
         .signup-card { max-width: 550px; }
@@ -552,7 +552,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     </footer>
     
     <!-- Bootstrap JS Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="<?= vnd('js/bootstrap.bundle.min.js') ?>"></script>
     
     <!-- Custom JS with Enhanced Validations -->
     <script>
