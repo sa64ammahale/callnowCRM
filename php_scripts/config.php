@@ -1,34 +1,4 @@
 <?php
-// ── Live error capture (temporary diagnostic) ──
-// Writes PHP errors/fatals to <approot>/php_errors.log so they are visible on
-// shared hosting where display_errors is off. Append ?cnerror=1 to any URL to
-// also show the error on the page. Remove once the 500 is fixed.
-if (!function_exists('__cn_log_err')) {
-    function __cn_log_err(string $msg): void {
-        @file_put_contents(__DIR__ . '/../php_errors.log', $msg, FILE_APPEND);
-    }
-}
-set_error_handler(function ($errno, $errstr, $errfile, $errline) {
-    if (!(error_reporting() & $errno)) return false;
-    __cn_log_err('[' . date('Y-m-d H:i:s') . "] ERR $errno: $errstr @ $errfile:$errline\n");
-    return false;
-});
-if (!function_exists('__cn_fatal_log')) {
-    function __cn_fatal_log(): void {
-        $err = error_get_last();
-        if ($err !== null && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-            $msg = '[' . date('Y-m-d H:i:s') . '] FATAL ' . $err['type'] . ': ' . $err['message']
-                . ' @ ' . $err['file'] . ':' . $err['line'] . "\n";
-            __cn_log_err($msg);
-            if (!empty($_GET['cnerror'])) {
-                header('Content-Type: text/plain; charset=utf-8');
-                echo "FATAL ERROR (cnerror mode)\n" . $msg;
-                exit;
-            }
-        }
-    }
-    register_shutdown_function('__cn_fatal_log');
-}
 
 
     // Load a local .env file if present (shared hosting without env support)
