@@ -24,7 +24,7 @@ $action = trim((string)($_POST['action'] ?? 'save_lead'));
 
 $leadSql = "
     SELECT l.lead_id, l.cust_id, l.assigned_to, m.MAINDATABASE_MOBILE
-    FROM LEADS_TABLE l
+    FROM leads_table l
     LEFT JOIN main_database m ON m.ID = l.cust_id
     WHERE l.lead_id = ?
     LIMIT 1
@@ -56,13 +56,13 @@ try {
         $remarks = trim((string)($_POST['remarks'] ?? ''));
         $stmt = mysqli_prepare(
             $link,
-            "UPDATE LEADS_TABLE SET remarks = ?, updated_by = ?, updated_at = NOW() WHERE lead_id = ?"
+            "UPDATE leads_table SET remarks = ?, updated_by = ?, updated_at = NOW() WHERE lead_id = ?"
         );
         mysqli_stmt_bind_param($stmt, 'sii', $remarks, USER_ID, $leadId);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
 
-        logActivity($link, USER_ID, 'REMARK', "Updated remark on lead {$leadId}", (string)$leadId, 'LEADS_TABLE');
+        logActivity($link, USER_ID, 'REMARK', "Updated remark on lead {$leadId}", (string)$leadId, 'leads_table');
         $_SESSION['success_message'] = 'Remark updated successfully.';
         $_SESSION['flash_class'] = 'success';
         header("Location: lead_view.php?id={$leadId}");
@@ -165,7 +165,7 @@ try {
     };
     $stmt = mysqli_prepare(
         $link,
-        "UPDATE LEADS_TABLE
+        "UPDATE leads_table
          SET assigned_to = ?, login_date = ?, net_salary = ?, salary_account = ?, bank_name = ?,
              loan_amount = ?, loan_tenure = ?, promo_code = ?, login_bank_name = ?, lead_status_new = ?,
              login_mode = ?, loan_type = ?, loan_app_no = ?, login_location = ?, bank_rm_name = ?,
@@ -228,7 +228,7 @@ try {
         'UPDATE',
         "Updated lead {$leadId} with status {$payload['lead_status_new']}",
         (string)$leadId,
-        'LEADS_TABLE'
+        'leads_table'
     );
 
     mysqli_commit($link);

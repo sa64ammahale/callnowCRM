@@ -110,7 +110,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             }
 
             $existingLead = mysqli_fetch_assoc(
-                mysqli_query($link, "SELECT lead_id FROM LEADS_TABLE WHERE cust_id = {$custId} LIMIT 1")
+                mysqli_query($link, "SELECT lead_id FROM leads_table WHERE cust_id = {$custId} LIMIT 1")
             );
             if ($existingLead) {
                 throw new RuntimeException(
@@ -126,7 +126,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             };
             $stmt = mysqli_prepare(
                 $link,
-                "INSERT INTO LEADS_TABLE (
+                "INSERT INTO leads_table (
                     cust_id, assigned_to, assigned_by, lead_status, lead_stage, priority, created_by, updated_by,
                     login_date, net_salary, salary_account, bank_name, loan_amount, loan_tenure, promo_code,
                     login_bank_name, lead_status_new, login_mode, loan_type, loan_app_no, login_location,
@@ -193,7 +193,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 'INSERT',
                 "Created lead for {$form['name']} ({$form['mobile']}) with status {$form['lead_status_new']}",
                 (string)$leadId,
-                'LEADS_TABLE'
+                'leads_table'
             );
 
             mysqli_commit($link);

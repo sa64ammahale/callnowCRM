@@ -15,9 +15,9 @@ $Message = "";
 $type = "";
 
 // Table name constants (change if your actual names differ)
-define('TBL_MAIN', 'MAIN_DATABASE');
-define('TBL_TEMP', 'TEMPORARY_DATABASE');
-define('TBL_ACTIVITY', 'ACTIVITY_LOG');
+define('TBL_MAIN', 'main_database');
+define('TBL_TEMP', 'temporary_database');
+define('TBL_ACTIVITY', 'activity_log');
 
 // Show success message (redirect pattern)
 if (isset($_GET['success']) && $_GET['success'] == '1') {

@@ -193,7 +193,7 @@ function normalizeActivityType($actionType): string {
 function logActivity($link, $userId, $actionType, $actionDetails = null, $affectedIds = null, $targetTable = null) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
     $actionType = normalizeActivityType($actionType);
-    $stmt = mysqli_prepare($link, "INSERT INTO ACTIVITY_LOG(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
+    $stmt = mysqli_prepare($link, "INSERT INTO activity_log(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
         VALUES (?, ?, ?, ?, ?, NOW(), ?)");
     mysqli_stmt_bind_param($stmt, "isssss", $userId, $actionType, $actionDetails, $affectedIds, $targetTable, $ip);
     mysqli_stmt_execute($stmt);

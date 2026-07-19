@@ -7,10 +7,10 @@ require_once '../../php_scripts/auth.php';
 requirePermission('view_activity');
 
 $userId = intval($_SESSION['id']);
-$userRole = $_SESSION['role'] ?? '';
+$userRole = defined('USER_ROLE') ? USER_ROLE : ($_SESSION['role'] ?? '');
 
-define('TBL_ACTIVITY', 'ACTIVITY_LOG');
-define('TBL_USERS', 'USERS');
+define('TBL_ACTIVITY', 'activity_log');
+define('TBL_USERS', 'users');
 
 /* CSRF */
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(16));

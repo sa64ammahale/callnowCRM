@@ -10,7 +10,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     mysqli_set_charset($link, 'utf8mb4');
 
     $columns = [];
-    $result = mysqli_query($link, "SHOW COLUMNS FROM LEADS_TABLE");
+    $result = mysqli_query($link, "SHOW COLUMNS FROM leads_table");
     while ($result && ($row = mysqli_fetch_assoc($result))) {
         $columns[$row['Field']] = $row['Type'];
     }
@@ -19,7 +19,7 @@ function ensureLeadModuleSchema(mysqli $link): void
         if (isset($columns[$name])) {
             return;
         }
-        mysqli_query($link, "ALTER TABLE LEADS_TABLE ADD COLUMN {$name} {$definition}");
+        mysqli_query($link, "ALTER TABLE leads_table ADD COLUMN {$name} {$definition}");
         $columns[$name] = $definition;
     };
 
@@ -46,7 +46,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     if (isset($columns['lead_status_new']) && stripos((string)$columns['lead_status_new'], "'REJECT'") === false) {
         mysqli_query(
             $link,
-            "ALTER TABLE LEADS_TABLE
+            "ALTER TABLE leads_table
              MODIFY COLUMN lead_status_new
              ENUM('FOLLOWUP','LEAD','LOGIN','UNDERWRTING','SANCTIONED','DISBURSED','REJECT')
              NOT NULL DEFAULT 'LEAD'"
@@ -57,14 +57,14 @@ function ensureLeadModuleSchema(mysqli $link): void
     if (isset($columns['salary_bank_name'])) {
         mysqli_query(
             $link,
-            "UPDATE LEADS_TABLE SET bank_name = COALESCE(NULLIF(bank_name, ''), salary_bank_name)
+            "UPDATE leads_table SET bank_name = COALESCE(NULLIF(bank_name, ''), salary_bank_name)
              WHERE salary_bank_name IS NOT NULL AND salary_bank_name <> ''"
         );
     }
 
     mysqli_query(
         $link,
-        "UPDATE LEADS_TABLE
+        "UPDATE leads_table
          SET lead_status_new = CASE lead_status
              WHEN 'Follow_Up' THEN 'FOLLOWUP'
              WHEN 'In_Progress' THEN 'LOGIN'
@@ -78,7 +78,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     );
 
     $existingIndexes = [];
-    $indexResult = mysqli_query($link, "SHOW INDEX FROM LEADS_TABLE");
+    $indexResult = mysqli_query($link, "SHOW INDEX FROM leads_table");
     while ($indexResult && ($row = mysqli_fetch_assoc($indexResult))) {
         $existingIndexes[$row['Key_name']] = true;
     }
@@ -90,10 +90,10 @@ function ensureLeadModuleSchema(mysqli $link): void
         mysqli_query($link, $sql);
     };
 
-    $addIndex('idx_login_date', "ALTER TABLE LEADS_TABLE ADD INDEX idx_login_date (login_date)");
-    $addIndex('idx_lead_status_new', "ALTER TABLE LEADS_TABLE ADD INDEX idx_lead_status_new (lead_status_new)");
-    $addIndex('idx_login_bank_name', "ALTER TABLE LEADS_TABLE ADD INDEX idx_login_bank_name (login_bank_name)");
-    $addIndex('idx_loan_type', "ALTER TABLE LEADS_TABLE ADD INDEX idx_loan_type (loan_type)");
+    $addIndex('idx_login_date', "ALTER TABLE leads_table ADD INDEX idx_login_date (login_date)");
+    $addIndex('idx_lead_status_new', "ALTER TABLE leads_table ADD INDEX idx_lead_status_new (lead_status_new)");
+    $addIndex('idx_login_bank_name', "ALTER TABLE leads_table ADD INDEX idx_login_bank_name (login_bank_name)");
+    $addIndex('idx_loan_type', "ALTER TABLE leads_table ADD INDEX idx_loan_type (loan_type)");
 
     $done = true;
 }
@@ -314,7 +314,7 @@ function ensureLeadFilterPreferenceSchema(mysqli $link): void
 
     mysqli_query(
         $link,
-        "CREATE TABLE IF NOT EXISTS USER_PAGE_FILTERS (
+        "CREATE TABLE IF NOT EXISTS user_page_filters (
             preference_id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
             page_key VARCHAR(100) NOT NULL,
@@ -336,7 +336,7 @@ function getUserPageFilterPreference(mysqli $link, int $userId, string $pageKey)
     $stmt = mysqli_prepare(
         $link,
         "SELECT filter_json
-         FROM USER_PAGE_FILTERS
+         FROM user_page_filters
          WHERE user_id = ? AND page_key = ?
          LIMIT 1"
     );
@@ -365,7 +365,7 @@ function saveUserPageFilterPreference(mysqli $link, int $userId, string $pageKey
 
     $stmt = mysqli_prepare(
         $link,
-        "INSERT INTO USER_PAGE_FILTERS (user_id, page_key, filter_json)
+        "INSERT INTO user_page_filters (user_id, page_key, filter_json)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE
              filter_json = VALUES(filter_json),

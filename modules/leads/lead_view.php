@@ -30,7 +30,7 @@ $leadSql = "
         COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') AS company_name,
         m.MAINDATABASE_OTHER_INFO AS other_info,
         u.NAME AS assigned_name
-    FROM LEADS_TABLE l
+    FROM leads_table l
     LEFT JOIN main_database m ON m.ID = l.cust_id
     LEFT JOIN users u ON u.ID = l.assigned_to
     WHERE l.lead_id = ? {$accessWhere}

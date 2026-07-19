@@ -26,7 +26,7 @@ $baseWhere = $baseConditions ? ('WHERE ' . implode(' AND ', $baseConditions)) : 
 
 $totalRecords = (int)mysqli_fetch_row(mysqli_query(
     $link,
-    "SELECT COUNT(*) FROM LEADS_TABLE l {$baseWhere}"
+    "SELECT COUNT(*) FROM leads_table l {$baseWhere}"
 ))[0];
 
 $loginMonths = [];
@@ -37,7 +37,7 @@ $loanTypeOptionsAvailable = [];
 $loginMonthResult = mysqli_query(
     $link,
     "SELECT DISTINCT COALESCE(DATE_FORMAT(l.login_date, '%Y-%m'), DATE_FORMAT(l.next_followup_at, '%Y-%m'), DATE_FORMAT(l.created_at, '%Y-%m')) AS month_key
-     FROM LEADS_TABLE l
+     FROM leads_table l
      {$baseWhere}
      HAVING month_key IS NOT NULL AND month_key <> ''
      ORDER BY month_key DESC"
@@ -50,7 +50,7 @@ while ($loginMonthResult && ($row = mysqli_fetch_assoc($loginMonthResult))) {
 $followupMonthResult = mysqli_query(
     $link,
     "SELECT DISTINCT DATE_FORMAT(l.next_followup_at, '%Y-%m') AS month_key
-     FROM LEADS_TABLE l
+     FROM leads_table l
      {$baseWhere}" . ($baseWhere ? ' AND ' : ' WHERE ') . "l.next_followup_at IS NOT NULL
      ORDER BY month_key DESC"
 );
@@ -62,7 +62,7 @@ while ($followupMonthResult && ($row = mysqli_fetch_assoc($followupMonthResult))
 $assignedResult = mysqli_query(
     $link,
     "SELECT DISTINCT COALESCE(u.NAME, 'Unassigned') AS assigned_name
-     FROM LEADS_TABLE l
+     FROM leads_table l
      LEFT JOIN users u ON u.ID = l.assigned_to
      {$baseWhere}
      ORDER BY assigned_name"
@@ -74,7 +74,7 @@ while ($assignedResult && ($row = mysqli_fetch_assoc($assignedResult))) {
 $loanTypeResult = mysqli_query(
     $link,
     "SELECT DISTINCT l.loan_type
-     FROM LEADS_TABLE l
+     FROM leads_table l
      {$baseWhere}" . ($baseWhere ? ' AND ' : ' WHERE ') . "l.loan_type IS NOT NULL AND l.loan_type <> ''
      ORDER BY l.loan_type"
 );

@@ -67,7 +67,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $sql = "SELECT 
             COUNT(*) as total,
             SUM(CASE WHEN lead_status_new IN ('LOGIN','UNDERWRTING','SANCTIONED','DISBURSED') THEN 1 ELSE 0 END) as converted
-        FROM LEADS_TABLE 
+        FROM leads_table 
         WHERE assigned_to = ?";
         $stmt = $link->prepare($sql);
         $stmt->bind_param('i', $tokenData['user_id']);
@@ -124,7 +124,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $sql = "SELECT 
             lead_id, NAME, MOBILE, COMPANY_NAME, lead_status_new, pipeline_status,
             next_followup_at, OTHER_INFO, assigned_by, created_at
-        FROM LEADS_TABLE 
+        FROM leads_table 
         WHERE assigned_to = ?
         AND lead_status_new IN ('LEAD','FOLLOWUP','LOGIN')
         ORDER BY next_followup_at ASC, created_at ASC
@@ -210,7 +210,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $dbAccess = getUserDatabaseAccess($tokenData['user_id']);
         if (!$dbAccess['leads']) apiError(403, 'No access to leads');
         
-        $stmt = $link->prepare("SELECT lead_id FROM LEADS_TABLE WHERE lead_id = ? AND assigned_to = ?");
+        $stmt = $link->prepare("SELECT lead_id FROM leads_table WHERE lead_id = ? AND assigned_to = ?");
         $stmt->bind_param('ii', $recordId, $tokenData['user_id']);
         $stmt->execute();
         if (!$stmt->get_result()->fetch_assoc()) apiError(404, 'Lead not found or not assigned');
@@ -239,7 +239,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $params[] = $tokenData['user_id'];
         $types .= 'i';
         
-        $sql = "UPDATE LEADS_TABLE SET " . implode(', ', $updateFields) . " WHERE lead_id = ?";
+        $sql = "UPDATE leads_table SET " . implode(', ', $updateFields) . " WHERE lead_id = ?";
         $params[] = $recordId;
         $types .= 'i';
         
@@ -248,7 +248,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $stmt->execute();
     }
     
-    logActivity($link, $tokenData['user_id'], 'API_CALL_COMPLETED', "Completed call #$recordId from $source with status $status", (string)$recordId, $source === 'temporary' ? 'temporary_database' : 'LEADS_TABLE');
+    logActivity($link, $tokenData['user_id'], 'API_CALL_COMPLETED', "Completed call #$recordId from $source with status $status", (string)$recordId, $source === 'temporary' ? 'temporary_database' : 'leads_table');
     
     apiSuccess(['message' => 'Call result saved successfully']);
     
@@ -326,7 +326,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         
         $whereSql = implode(' AND ', $where);
         
-        $sql = "SELECT COUNT(*) as c FROM LEADS_TABLE WHERE $whereSql";
+        $sql = "SELECT COUNT(*) as c FROM leads_table WHERE $whereSql";
         $stmt = $link->prepare($sql);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
@@ -337,7 +337,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             $sql = "SELECT 
                 lead_id, NAME, MOBILE, COMPANY_NAME, lead_status_new, pipeline_status,
                 next_followup_at, REMARKS, created_at
-            FROM LEADS_TABLE 
+            FROM leads_table 
             WHERE $whereSql
             ORDER BY created_at DESC
             LIMIT ?, ?";

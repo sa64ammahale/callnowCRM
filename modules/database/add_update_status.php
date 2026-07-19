@@ -25,7 +25,7 @@ function status_class_name($s) {
 function log_activity($link, $userId, $actionType, $actionDetails, $affectedIds, $targetTable = 'temporary_database') {
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
     $actionType = normalizeActivityType($actionType);
-    $sql = "INSERT INTO ACTIVITY_LOG (USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, IP_ADDRESS)
+    $sql = "INSERT INTO activity_log (USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, IP_ADDRESS)
             VALUES (?, ?, ?, ?, ?, ?)";
     if ($stmt = mysqli_prepare($link, $sql)) {
         $detailsJson = is_string($actionDetails) ? $actionDetails : json_encode($actionDetails, JSON_UNESCAPED_UNICODE);

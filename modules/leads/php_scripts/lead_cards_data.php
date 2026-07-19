@@ -33,7 +33,7 @@ $allowedStatuses = leadStatusOptions();
 $allowedLoginModes = loginModeOptions();
 
 $baseFrom = "
-    FROM LEADS_TABLE l
+    FROM leads_table l
     LEFT JOIN main_database m ON m.ID = l.cust_id
     LEFT JOIN users u ON u.ID = l.assigned_to
 ";

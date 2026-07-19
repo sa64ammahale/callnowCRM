@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'fetch_activity') {
-        $res = mysqli_query($link, "SELECT LOG_ID, USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS FROM ACTIVITY_LOG ORDER BY LOG_TIME DESC LIMIT 200");
+        $res = mysqli_query($link, "SELECT LOG_ID, USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS FROM activity_log ORDER BY LOG_TIME DESC LIMIT 200");
         $arr = [];
         while ($r = mysqli_fetch_assoc($res)) $arr[] = $r;
         respond_json(['activities' => $arr]);

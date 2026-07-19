@@ -18,7 +18,7 @@ if ($leadId <= 0) {
     exit;
 }
 
-$stmt = mysqli_prepare($link, "SELECT lead_id, assigned_to FROM LEADS_TABLE WHERE lead_id = ? LIMIT 1");
+$stmt = mysqli_prepare($link, "SELECT lead_id, assigned_to FROM leads_table WHERE lead_id = ? LIMIT 1");
 mysqli_stmt_bind_param($stmt, 'i', $leadId);
 mysqli_stmt_execute($stmt);
 $lead = mysqli_stmt_get_result($stmt)->fetch_assoc();
@@ -36,11 +36,11 @@ if (!isAdmin() && !empty($accessibleUserIds) && !in_array((int)$lead['assigned_t
     exit;
 }
 
-$stmt = mysqli_prepare($link, "DELETE FROM LEADS_TABLE WHERE lead_id = ?");
+$stmt = mysqli_prepare($link, "DELETE FROM leads_table WHERE lead_id = ?");
 mysqli_stmt_bind_param($stmt, 'i', $leadId);
 $ok = mysqli_stmt_execute($stmt);
 mysqli_stmt_close($stmt);
 
-logActivity($link, USER_ID, 'DELETE', "Deleted lead #{$leadId}", (string)$leadId, 'LEADS_TABLE');
+logActivity($link, USER_ID, 'DELETE', "Deleted lead #{$leadId}", (string)$leadId, 'leads_table');
 
 echo json_encode(['ok' => (bool)$ok, 'message' => $ok ? 'Lead deleted successfully.' : 'Delete failed.']);

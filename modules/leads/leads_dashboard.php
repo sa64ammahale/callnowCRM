@@ -34,7 +34,7 @@ $countSql = "
         SUM(CASE WHEN DATE(l.next_followup_at) = CURDATE() THEN 1 ELSE 0 END) AS cnt_today_followup,
         SUM(CASE WHEN DATE_FORMAT(l.login_date, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN 1 ELSE 0 END) AS cnt_month_logins,
         SUM(CASE WHEN DATE(l.created_at) = CURDATE() THEN 1 ELSE 0 END) AS cnt_today_new
-    FROM LEADS_TABLE l
+    FROM leads_table l
     {$where}
 ";
 $res = mysqli_query($link, $countSql);
