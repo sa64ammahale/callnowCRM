@@ -74,7 +74,7 @@ $filteredRes = mysqli_stmt_get_result($stmt);
 $filtered = ($filteredRes && $row = mysqli_fetch_assoc($filteredRes)) ? (int)$row['c'] : 0;
 
 // Data query
-$sql = "SELECT MAIN_DATABASE.ID, 
+$sql = "SELECT maindb.ID, 
                MAINDATABASE_MOBILE,
                MAINDATABASE_NAME,
                MAINDATABASE_COMPANY,
@@ -82,8 +82,8 @@ $sql = "SELECT MAIN_DATABASE.ID,
                MAINDATABASE_CALL_DIALED_STATUS,
                u.NAME AS assigned_name,
                DATE_FORMAT(MAINDATABASE_UPLOAD_DATETIME, '%d-%b-%Y %h:%i %p') AS upload_dt
-        FROM main_database 
-        LEFT JOIN users u ON main_database.MAINDATABASE_CALL_DIALED_USER = u.ID
+        FROM main_database maindb
+        LEFT JOIN users u ON maindb.MAINDATABASE_CALL_DIALED_USER = u.ID
         $where
         ORDER BY $orderby
         LIMIT ?, ?";
