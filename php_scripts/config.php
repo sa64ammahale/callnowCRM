@@ -36,15 +36,29 @@
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
-    // The install path is the directory that contains the current script.
-    // SCRIPT_NAME is always the on-disk path from the document root, so
-    // dirname() correctly yields "" at the domain root, "/crm" in a subfolder,
-    // or "/" when the subdomain docroot already is the app folder.
-    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/');
-    $appPath = rtrim(dirname($scriptName), '/\\');
+    // App install path relative to the document root.
+    // Derive it from THIS file's physical location (php_scripts/config.php lives
+    // in <approot>/php_scripts) so it is identical for every request — including
+    // pages served from subfolders like /modules/database. This keeps asset URLs
+    // anchored to the app root instead of the current script's directory.
+    $appRootReal = dirname(dirname(__FILE__));
+    $docRoot = rtrim(str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+    $appPath = '';
+    if ($docRoot !== '' && strpos($appRootReal, $docRoot) === 0) {
+        $appPath = rtrim(substr($appRootReal, strlen($docRoot)), '/');
+    } else {
+        // Fallback: use the requested script's directory
+        $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/');
+        $appPath = rtrim(dirname($scriptName), '/\\');
+    }
+    if ($appPath !== '' && $appPath[0] !== '/') {
+        $appPath = '/' . $appPath;
+    }
     define('APP_BASE', rtrim($protocol . '://' . $host . $appPath, '/'));
+    define('APP_PATH', $appPath);
 
-    // Local vendored asset URL (no external CDNs — works on shared hosting)
+    // Local vendored asset URL (no external CDNs — works on shared hosting).
+    // Always anchored to the app root so module pages resolve correctly.
     if (!function_exists('vnd')) {
         function vnd(string $path): string {
             return APP_BASE . '/assets/vendor/' . ltrim($path, '/');
