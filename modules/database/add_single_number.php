@@ -14,10 +14,10 @@ $id = $isEdit ? intval($_GET['ID']) : 0;
 $Message = "";
 $type = "";
 
-// Table name constants (change if your actual names differ)
-define('TBL_MAIN', 'main_database');
-define('TBL_TEMP', 'temporary_database');
-define('TBL_ACTIVITY', 'activity_log');
+// Table name constants (resolved to canonical lowercase tables via config.php)
+if (!defined('TBL_MAIN'))     define('TBL_MAIN', 'main_database');
+if (!defined('TBL_TEMP'))     define('TBL_TEMP', 'temporary_database');
+if (!defined('TBL_ACTIVITY')) define('TBL_ACTIVITY', 'activity_log');
 
 // Show success message (redirect pattern)
 if (isset($_GET['success']) && $_GET['success'] == '1') {
@@ -71,7 +71,7 @@ if (isset($_POST['submit'])) {
         // Start logic
         $error = false;
 
-        // If editing: update MAIN_DATABASE record only
+        // If editing: update TBL_MAIN record only
         if ($isEdit) {
             $sql_update = "UPDATE " . TBL_MAIN . " SET 
                 MAINDATABASE_NAME = ?, 
@@ -223,10 +223,10 @@ if (isset($_POST['submit'])) {
             // If no error, write activity logs for inserted records
             if (!$error) {
                 if ($insertedMainId) {
-                    logActivity($link, $userId, "INSERT", "Inserted into MAIN_DATABASE", (string)$insertedMainId, TBL_MAIN);
+                    logActivity($link, $userId, "INSERT", "Inserted into TBL_MAIN", (string)$insertedMainId, TBL_MAIN);
                 }
                 if ($insertedTempId) {
-                    logActivity($link, $userId, "INSERT", "Inserted into TEMPORARY_DATABASE", (string)$insertedTempId, TBL_TEMP);
+                    logActivity($link, $userId, "INSERT", "Inserted into TBL_TEMP", (string)$insertedTempId, TBL_TEMP);
                 }
 
                 // Success message and redirect (preserve original behavior)

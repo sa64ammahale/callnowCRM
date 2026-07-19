@@ -1,6 +1,7 @@
 <?php
 require_once '../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
+api_init();
 
 ensureLeadModuleSchema($link);
 
@@ -15,7 +16,7 @@ if ($mobile === '') {
 $stmt = mysqli_prepare(
     $link,
     "SELECT ID, MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_OTHER_INFO
-     FROM main_database
+     FROM TBL_MAIN
      WHERE MAINDATABASE_MOBILE = ?
      LIMIT 1"
 );

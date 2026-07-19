@@ -10,7 +10,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     mysqli_set_charset($link, 'utf8mb4');
 
     $columns = [];
-    $result = mysqli_query($link, "SHOW COLUMNS FROM leads_table");
+    $result = mysqli_query($link, "SHOW COLUMNS FROM TBL_LEADS");
     while ($result && ($row = mysqli_fetch_assoc($result))) {
         $columns[$row['Field']] = $row['Type'];
     }
@@ -19,7 +19,7 @@ function ensureLeadModuleSchema(mysqli $link): void
         if (isset($columns[$name])) {
             return;
         }
-        mysqli_query($link, "ALTER TABLE leads_table ADD COLUMN {$name} {$definition}");
+        mysqli_query($link, "ALTER TABLE TBL_LEADS ADD COLUMN {$name} {$definition}");
         $columns[$name] = $definition;
     };
 
@@ -33,7 +33,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     $addColumn('login_bank_name', "VARCHAR(100) DEFAULT NULL AFTER promo_code");
     $addColumn(
         'lead_status_new',
-        "ENUM('FOLLOWUP','LEAD','LOGIN','UNDERWRTING','SANCTIONED','DISBURSED','REJECT') NOT NULL DEFAULT 'LEAD' AFTER login_bank_name"
+        "ENUM('LEAD','FOLLOWUP','INTERNAL_UNDERWRITING','LOGIN','BANK_UNDERWRITING','SANCTIONED','DISBURSED','REJECT') NOT NULL DEFAULT 'LEAD' AFTER login_bank_name"
     );
     $addColumn('login_mode', "ENUM('ONLINE','MAIL','PHYSICALLY') DEFAULT NULL AFTER lead_status_new");
     $addColumn('loan_type', "VARCHAR(100) DEFAULT NULL AFTER login_mode");
@@ -46,25 +46,25 @@ function ensureLeadModuleSchema(mysqli $link): void
     if (isset($columns['lead_status_new']) && stripos((string)$columns['lead_status_new'], "'REJECT'") === false) {
         mysqli_query(
             $link,
-            "ALTER TABLE leads_table
+            "ALTER TABLE TBL_LEADS
              MODIFY COLUMN lead_status_new
-             ENUM('FOLLOWUP','LEAD','LOGIN','UNDERWRTING','SANCTIONED','DISBURSED','REJECT')
+             ENUM('LEAD','FOLLOWUP','INTERNAL_UNDERWRITING','LOGIN','BANK_UNDERWRITING','SANCTIONED','DISBURSED','REJECT')
              NOT NULL DEFAULT 'LEAD'"
         );
-        $columns['lead_status_new'] = "ENUM('FOLLOWUP','LEAD','LOGIN','UNDERWRTING','SANCTIONED','DISBURSED','REJECT')";
+        $columns['lead_status_new'] = "ENUM('LEAD','FOLLOWUP','INTERNAL_UNDERWRITING','LOGIN','BANK_UNDERWRITING','SANCTIONED','DISBURSED','REJECT')";
     }
 
     if (isset($columns['salary_bank_name'])) {
         mysqli_query(
             $link,
-            "UPDATE leads_table SET bank_name = COALESCE(NULLIF(bank_name, ''), salary_bank_name)
+            "UPDATE TBL_LEADS SET bank_name = COALESCE(NULLIF(bank_name, ''), salary_bank_name)
              WHERE salary_bank_name IS NOT NULL AND salary_bank_name <> ''"
         );
     }
 
     mysqli_query(
         $link,
-        "UPDATE leads_table
+        "UPDATE TBL_LEADS
          SET lead_status_new = CASE lead_status
              WHEN 'Follow_Up' THEN 'FOLLOWUP'
              WHEN 'In_Progress' THEN 'LOGIN'
@@ -78,7 +78,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     );
 
     $existingIndexes = [];
-    $indexResult = mysqli_query($link, "SHOW INDEX FROM leads_table");
+    $indexResult = mysqli_query($link, "SHOW INDEX FROM TBL_LEADS");
     while ($indexResult && ($row = mysqli_fetch_assoc($indexResult))) {
         $existingIndexes[$row['Key_name']] = true;
     }
@@ -90,17 +90,17 @@ function ensureLeadModuleSchema(mysqli $link): void
         mysqli_query($link, $sql);
     };
 
-    $addIndex('idx_login_date', "ALTER TABLE leads_table ADD INDEX idx_login_date (login_date)");
-    $addIndex('idx_lead_status_new', "ALTER TABLE leads_table ADD INDEX idx_lead_status_new (lead_status_new)");
-    $addIndex('idx_login_bank_name', "ALTER TABLE leads_table ADD INDEX idx_login_bank_name (login_bank_name)");
-    $addIndex('idx_loan_type', "ALTER TABLE leads_table ADD INDEX idx_loan_type (loan_type)");
+    $addIndex('idx_login_date', "ALTER TABLE TBL_LEADS ADD INDEX idx_login_date (login_date)");
+    $addIndex('idx_lead_status_new', "ALTER TABLE TBL_LEADS ADD INDEX idx_lead_status_new (lead_status_new)");
+    $addIndex('idx_login_bank_name', "ALTER TABLE TBL_LEADS ADD INDEX idx_login_bank_name (login_bank_name)");
+    $addIndex('idx_loan_type', "ALTER TABLE TBL_LEADS ADD INDEX idx_loan_type (loan_type)");
 
     $done = true;
 }
 
 function leadStatusOptions(): array
 {
-    return ['FOLLOWUP', 'LEAD', 'LOGIN', 'UNDERWRTING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
+    return ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
 }
 
 function leadStatusMeta(): array
@@ -109,36 +109,49 @@ function leadStatusMeta(): array
         'LEAD' => [
             'label' => 'Lead',
             'icon' => 'bi-person-badge',
+            'owner' => 'Telecaller',
             'description' => 'Fresh enquiry and qualification in progress.'
         ],
         'FOLLOWUP' => [
             'label' => 'Follow-up',
             'icon' => 'bi-arrow-repeat',
+            'owner' => 'Telecaller',
             'description' => 'Waiting on customer response or next action.'
+        ],
+        'INTERNAL_UNDERWRITING' => [
+            'label' => 'Internal Underwriting',
+            'icon' => 'bi-building-check',
+            'owner' => 'Back Office',
+            'description' => 'Our Back Office checks documents and eligibility BEFORE bank login.'
         ],
         'LOGIN' => [
             'label' => 'Login',
             'icon' => 'bi-box-arrow-in-right',
-            'description' => 'Application logged with bank or lending partner.'
+            'owner' => 'Back Office',
+            'description' => 'File logged into the bank / lending partner.'
         ],
-        'UNDERWRTING' => [
-            'label' => 'Underwriting',
-            'icon' => 'bi-file-earmark-check',
-            'description' => 'Documents and eligibility under review.'
+        'BANK_UNDERWRITING' => [
+            'label' => 'Bank Underwriting',
+            'icon' => 'bi-bank',
+            'owner' => 'Bank / Manager',
+            'description' => 'Bank reviews the logged-in file for approval.'
         ],
         'SANCTIONED' => [
             'label' => 'Sanctioned',
             'icon' => 'bi-patch-check',
+            'owner' => 'Manager',
             'description' => 'Loan approved and ready for release steps.'
         ],
         'DISBURSED' => [
             'label' => 'Disbursed',
             'icon' => 'bi-cash-stack',
+            'owner' => 'Manager',
             'description' => 'Funds released successfully.'
         ],
         'REJECT' => [
             'label' => 'Reject',
             'icon' => 'bi-x-octagon',
+            'owner' => 'Manager',
             'description' => 'Case closed or declined.'
         ],
     ];
@@ -149,8 +162,9 @@ function leadJourneySteps(): array
     return [
         ['key' => 'LEAD', 'label' => 'Qualification', 'icon' => 'bi-person-lines-fill'],
         ['key' => 'FOLLOWUP', 'label' => 'Follow-up', 'icon' => 'bi-arrow-repeat'],
-        ['key' => 'LOGIN', 'label' => 'Application Login', 'icon' => 'bi-box-arrow-in-right'],
-        ['key' => 'UNDERWRTING', 'label' => 'Underwriting', 'icon' => 'bi-clipboard2-check'],
+        ['key' => 'INTERNAL_UNDERWRITING', 'label' => 'Internal Check', 'icon' => 'bi-building-check'],
+        ['key' => 'LOGIN', 'label' => 'Bank Login', 'icon' => 'bi-box-arrow-in-right'],
+        ['key' => 'BANK_UNDERWRITING', 'label' => 'Bank Underwriting', 'icon' => 'bi-bank'],
         ['key' => 'SANCTIONED', 'label' => 'Sanction', 'icon' => 'bi-patch-check'],
         ['key' => 'DISBURSED', 'label' => 'Disbursal', 'icon' => 'bi-cash-coin'],
     ];
@@ -216,13 +230,35 @@ function leadStatusBadgeClass(string $status): string
     return match (strtoupper($status)) {
         'FOLLOWUP' => 'bg-info text-dark',
         'LEAD' => 'bg-primary',
+        'INTERNAL_UNDERWRITING' => 'bg-secondary',
         'LOGIN' => 'bg-warning text-dark',
-        'UNDERWRTING' => 'bg-secondary',
+        'BANK_UNDERWRITING' => 'bg-purple',
         'SANCTIONED' => 'bg-success',
         'DISBURSED' => 'bg-dark',
         'REJECT' => 'bg-danger',
         default => 'bg-light text-dark border'
     };
+}
+
+function loginStatusMeta(): array
+{
+    return [
+        '' => ['label' => '—', 'class' => 'bg-light text-dark border'],
+        'PENDING' => ['label' => 'Login Pending', 'class' => 'bg-warning text-dark'],
+        'SUCCESS' => ['label' => 'Login Success', 'class' => 'bg-success'],
+        'REWORK_PENDING' => ['label' => 'Rework Pending', 'class' => 'bg-danger'],
+        'REJECTED' => ['label' => 'Login Rejected', 'class' => 'bg-dark'],
+    ];
+}
+
+function loginStatusBadgeClass(string $status): string
+{
+    return loginStatusMeta()[$status]['class'] ?? 'bg-light text-dark border';
+}
+
+function loginStatusLabel(string $status): string
+{
+    return loginStatusMeta()[$status]['label'] ?? '—';
 }
 
 function normalizeLeadDate(?string $value): ?string
@@ -246,7 +282,7 @@ function normalizeFollowupDate(?string $value): ?string
     return $date ? ($date . ' 00:00:00') : null;
 }
 
-function getLeadAssignableUsers(mysqli $link): array
+function getLeadAssignableTBL_USERS(mysqli $link): array
 {
     $accessibleUserIds = getAccessibleUserIds($link);
     $whereParts = ["STATUS = 'Active'"];
@@ -257,7 +293,7 @@ function getLeadAssignableUsers(mysqli $link): array
         $whereParts[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     }
 
-    $sql = "SELECT ID, NAME, ROLE, TEAM_ID FROM users WHERE " . implode(' AND ', $whereParts) . " ORDER BY NAME";
+    $sql = "SELECT ID, NAME, ROLE, TEAM_ID FROM TBL_USERS WHERE " . implode(' AND ', $whereParts) . " ORDER BY NAME";
     $result = mysqli_query($link, $sql);
 
     return $result ? mysqli_fetch_all($result, MYSQLI_ASSOC) : [];
@@ -269,7 +305,7 @@ function canAssignLeadToUserId(mysqli $link, int $targetUserId): bool
         return false;
     }
 
-    foreach (getLeadAssignableUsers($link) as $user) {
+    foreach (getLeadAssignableTBL_USERS($link) as $user) {
         if ((int)$user['ID'] === $targetUserId) {
             return true;
         }
@@ -297,6 +333,137 @@ function getLeadAccessCondition(mysqli $link, string $alias = 'l'): ?string
     return "{$alias}.assigned_to IN (" . implode(',', array_map('intval', $accessibleUserIds)) . ")";
 }
 
+/**
+ * Tray / visibility helpers for the multi-stage lead workflow.
+ * A lead is visible only to: its telecaller (assigned_to), their Supervisor,
+ * their Manager, or a Super Admin. The Back Office team additionally sees leads
+ * assigned to their team during internal underwriting / login.
+ */
+
+function getLeadTrayOwner(array $lead): array
+{
+    return [
+        'assigned_to' => (int)($lead['assigned_to'] ?? 0),
+        'team_id' => (int)($lead['team_id'] ?? 0),
+    ];
+}
+
+function canEditLead(array $lead): bool
+{
+    if (isAdmin() || isManager()) {
+        return true;
+    }
+
+    $assignedTo = (int)($lead['assigned_to'] ?? 0);
+    if ($assignedTo === (int)USER_ID) {
+        return true;
+    }
+
+    if (can('manage_leads')) {
+        $teamId = (int)($lead['team_id'] ?? 0);
+        if ($teamId > 0 && userBelongsToTeam((int)USER_ID, $teamId)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function canViewLead(mysqli $link, array $lead): bool
+{
+    if (isAdmin()) {
+        return true;
+    }
+
+    $assignedTo = (int)($lead['assigned_to'] ?? 0);
+    if ($assignedTo === (int)USER_ID) {
+        return true;
+    }
+
+    $teamId = (int)($lead['team_id'] ?? 0);
+    if ($teamId > 0 && userBelongsToTeam((int)USER_ID, $teamId)) {
+        return true;
+    }
+
+    return inLeadManagerChain($link, $assignedTo);
+}
+
+function canPullToTray(array $lead): bool
+{
+    if (isAdmin() || isManager()) {
+        return true;
+    }
+
+    return can('manage_leads');
+}
+
+function userBelongsToTeam(int $userId, int $teamId): bool
+{
+    if ($userId <= 0 || $teamId <= 0) {
+        return false;
+    }
+
+    $link = $GLOBALS['link'] ?? null;
+    if (!$link) {
+        return false;
+    }
+
+    $stmt = mysqli_prepare($link, "SELECT 1 FROM TBL_USERS WHERE ID = ? AND TEAM_ID = ? LIMIT 1");
+    if (!$stmt) {
+        return false;
+    }
+    mysqli_stmt_bind_param($stmt, 'ii', $userId, $teamId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $ok = (bool)mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
+
+    return $ok;
+}
+
+function inLeadManagerChain(mysqli $link, int $ownerUserId): bool
+{
+    if ($ownerUserId <= 0) {
+        return false;
+    }
+
+    if (isManager()) {
+        $managed = getManagerTeamIds($link, (int)USER_ID);
+        if (empty($managed)) {
+            return true;
+        }
+        $stmt = mysqli_prepare($link, "SELECT TEAM_ID FROM TBL_USERS WHERE ID = ? LIMIT 1");
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, 'i', $ownerUserId);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $row = mysqli_fetch_assoc($res);
+            mysqli_stmt_close($stmt);
+            if ($row && in_array((int)$row['TEAM_ID'], $managed, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    if (isSupervisor()) {
+        $stmt = mysqli_prepare($link, "SELECT TEAM_ID FROM TBL_USERS WHERE ID = ? LIMIT 1");
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, 'i', $ownerUserId);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $row = mysqli_fetch_assoc($res);
+            mysqli_stmt_close($stmt);
+            if ($row) {
+                return userBelongsToTeam((int)USER_ID, (int)$row['TEAM_ID']);
+            }
+        }
+        return false;
+    }
+
+    return false;
+}
+
 function escapeLikeValue(mysqli $link, string $value): string
 {
     return mysqli_real_escape_string(
@@ -314,7 +481,7 @@ function ensureLeadFilterPreferenceSchema(mysqli $link): void
 
     mysqli_query(
         $link,
-        "CREATE TABLE IF NOT EXISTS user_page_filters (
+        "CREATE TABLE IF NOT EXISTS TBL_USER_PAGE_FILTERS (
             preference_id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
             page_key VARCHAR(100) NOT NULL,
@@ -336,7 +503,7 @@ function getUserPageFilterPreference(mysqli $link, int $userId, string $pageKey)
     $stmt = mysqli_prepare(
         $link,
         "SELECT filter_json
-         FROM user_page_filters
+         FROM TBL_USER_PAGE_FILTERS
          WHERE user_id = ? AND page_key = ?
          LIMIT 1"
     );
@@ -365,7 +532,7 @@ function saveUserPageFilterPreference(mysqli $link, int $userId, string $pageKey
 
     $stmt = mysqli_prepare(
         $link,
-        "INSERT INTO user_page_filters (user_id, page_key, filter_json)
+        "INSERT INTO TBL_USER_PAGE_FILTERS (user_id, page_key, filter_json)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE
              filter_json = VALUES(filter_json),

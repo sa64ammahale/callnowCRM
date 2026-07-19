@@ -18,7 +18,7 @@ try {
         exit;
     }
     
-    $result = mysqli_query($link, "SELECT COUNT(*) AS c FROM main_database");
+    $result = mysqli_query($link, "SELECT COUNT(*) AS c FROM TBL_MAIN");
     if (!$result) {
         echo json_encode(['error' => 'Query failed: ' . mysqli_error($link), 'count' => 0]);
         exit;

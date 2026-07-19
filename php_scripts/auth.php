@@ -29,7 +29,7 @@ $user_id = (int)($_SESSION['id'] ?? 0);
 if ($user_id <= 0) { appRedirect('index.php'); }
 
 
-$stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM users WHERE ID = ?");
+$stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM TBL_USERS WHERE ID = ?");
 mysqli_stmt_bind_param($stmt, "i", $user_id);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
@@ -50,9 +50,9 @@ function isSupervisor() { return USER_ROLE === 'Supervisor'; }
 function isOfficer() { return USER_ROLE === 'Officer'; }
 
 // Require role
-function requireRole($roles) {
-    $roles = is_array($roles) ? $roles : [$roles];
-    if (!in_array(USER_ROLE, $roles)) {
+function requireRole($TBL_ROLES) {
+    $TBL_ROLES = is_array($TBL_ROLES) ? $TBL_ROLES : [$TBL_ROLES];
+    if (!in_array(USER_ROLE, $TBL_ROLES)) {
         appRedirect('dashboard.php');
     }
 }
@@ -63,7 +63,7 @@ function rbacCacheVersion(): int {
     if ($v !== null) return $v;
     global $link;
     $v = 0;
-    $res = mysqli_query($link, "SELECT setting_value FROM app_settings WHERE setting_key = 'rbac_cache_version'");
+    $res = mysqli_query($link, "SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'rbac_cache_version'");
     if ($res && $row = mysqli_fetch_assoc($res)) $v = (int)$row['setting_value'];
     return $v;
 }
@@ -71,14 +71,14 @@ function rbacCacheVersion(): int {
 function clearRbacCache(): void {
     global $link;
     $v = rbacCacheVersion() + 1;
-    mysqli_query($link, "INSERT INTO app_settings (setting_key, setting_value) VALUES ('rbac_cache_version', $v) ON DUPLICATE KEY UPDATE setting_value = $v");
+    mysqli_query($link, "INSERT INTO TBL_APP_SETTINGS (setting_key, setting_value) VALUES ('rbac_cache_version', $v) ON DUPLICATE KEY UPDATE setting_value = $v");
 }
 
 // Build the effective permission set for the current user:
 //   - Admin role OR System Admin (USER_ID===1) => everything (handled in can())
-//   - starts from role_permissions for the user's role
-//   - user_permissions overrides win over role level
-function loadEffectivePermissions(): array {
+//   - starts from TBL_ROLE_PERMISSIONS for the user's role
+//   - TBL_USER_PERMISSIONS overrides win over role level
+function loadEffectiveTBL_PERMISSIONS(): array {
     static $perms = null;
     if ($perms !== null) return $perms;
 
@@ -93,7 +93,7 @@ function loadEffectivePermissions(): array {
     $perms = [];
 
     $role = USER_ROLE;
-    $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM role_permissions WHERE role = ?");
+    $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM TBL_ROLE_PERMISSIONS WHERE role = ?");
     if ($stmt) {
         mysqli_stmt_bind_param($stmt, 's', $role);
         mysqli_stmt_execute($stmt);
@@ -105,7 +105,7 @@ function loadEffectivePermissions(): array {
     }
 
     $curUid = USER_ID;
-    $stmt2 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM user_permissions WHERE user_id = ?");
+    $stmt2 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM TBL_USER_PERMISSIONS WHERE user_id = ?");
     if ($stmt2) {
         mysqli_stmt_bind_param($stmt2, 'i', $curUid);
         mysqli_stmt_execute($stmt2);
@@ -123,7 +123,7 @@ function loadEffectivePermissions(): array {
 // Authoritative permission check. Admin role and System Admin always pass.
 function can(string $permissionKey): bool {
     if (USER_ROLE === 'Admin' || USER_ID === 1) return true;
-    $perms = loadEffectivePermissions();
+    $perms = loadEffectiveTBL_PERMISSIONS();
     return !empty($perms[$permissionKey]);
 }
 
@@ -148,10 +148,10 @@ function getTeamFilter() {
 }
 
 
-// Get teams current manager can control
+// Get TBL_TEAMS current manager can control
 function getManagerTeamIds(mysqli $link, int $managerId): array {
     $ids = [];
-    $stmt = $link->prepare("SELECT ID FROM teams WHERE MANAGER_ID = ?");
+    $stmt = $link->prepare("SELECT ID FROM TBL_TEAMS WHERE MANAGER_ID = ?");
     $stmt->bind_param("i", $managerId);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -193,7 +193,7 @@ function normalizeActivityType($actionType): string {
 function logActivity($link, $userId, $actionType, $actionDetails = null, $affectedIds = null, $targetTable = null) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
     $actionType = normalizeActivityType($actionType);
-    $stmt = mysqli_prepare($link, "INSERT INTO activity_log(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
+    $stmt = mysqli_prepare($link, "INSERT INTO TBL_ACTIVITY_LOG(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
         VALUES (?, ?, ?, ?, ?, NOW(), ?)");
     mysqli_stmt_bind_param($stmt, "isssss", $userId, $actionType, $actionDetails, $affectedIds, $targetTable, $ip);
     mysqli_stmt_execute($stmt);
@@ -205,22 +205,22 @@ function getAccessibleUserIds($link) : array {
         return []; // empty meaning "no restriction" for usage below
     }
     if (isManager()) {
-        // all users whose TEAM_ID is under manager's teams
+        // all TBL_USERS whose TEAM_ID is under manager's TBL_TEAMS
         $teamIds = getManagerTeamIds($link, USER_ID);
-        if (empty($teamIds)) return [USER_ID]; // manager with no teams - only self
-        // fetch users in those teams
+        if (empty($teamIds)) return [USER_ID]; // manager with no TBL_TEAMS - only self
+        // fetch TBL_USERS in those TBL_TEAMS
         $in = implode(',', array_map('intval', $teamIds));
-        $sql = "SELECT ID FROM users WHERE TEAM_ID IN ($in)";
+        $sql = "SELECT ID FROM TBL_USERS WHERE TEAM_ID IN ($in)";
         $res = mysqli_query($link, $sql);
         $ids = [];
         while ($r = mysqli_fetch_assoc($res)) $ids[] = (int)$r['ID'];
         return $ids;
     }
     if (isSupervisor()) {
-        // supervisor only sees users in their TEAM_ID
+        // supervisor only sees TBL_USERS in their TEAM_ID
         if (USER_TEAM_ID === null) return [USER_ID];
         $teamId = USER_TEAM_ID;
-        $stmt = $link->prepare("SELECT ID FROM users WHERE TEAM_ID = ?");
+        $stmt = $link->prepare("SELECT ID FROM TBL_USERS WHERE TEAM_ID = ?");
         $stmt->bind_param("i", $teamId);
         $stmt->execute();
         $res = $stmt->get_result();

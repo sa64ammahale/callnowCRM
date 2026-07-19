@@ -4,17 +4,17 @@ require_once __DIR__ . '/../../config.php';     // CRITICAL: establishes databas
 requirePermission('manage_database');
 
 // Get total count for header
-$total_records = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as total FROM main_database"))['total'] ?? 0;
-$unused = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as c FROM main_database WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called'"))['c'] ?? 0;
+$total_records = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as total FROM TBL_MAIN"))['total'] ?? 0;
+$unused = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as c FROM TBL_MAIN WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called'"))['c'] ?? 0;
 
 $statusCounts = [];
-$sc = mysqli_query($link, "SELECT MAINDATABASE_CALL_DIALED_STATUS, COUNT(*) as cnt FROM main_database GROUP BY MAINDATABASE_CALL_DIALED_STATUS ORDER BY cnt DESC");
+$sc = mysqli_query($link, "SELECT MAINDATABASE_CALL_DIALED_STATUS, COUNT(*) as cnt FROM TBL_MAIN GROUP BY MAINDATABASE_CALL_DIALED_STATUS ORDER BY cnt DESC");
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
 
 // Get all active assignees for assign dropdown
-$users_result = mysqli_query($link, "SELECT ID, NAME FROM users WHERE STATUS = 'Active' ORDER BY NAME");
+$TBL_USERS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE STATUS = 'Active' ORDER BY NAME");
 $telecallers = [];
-while ($u = mysqli_fetch_assoc($users_result)) {
+while ($u = mysqli_fetch_assoc($TBL_USERS_result)) {
     $telecallers[$u['ID']] = $u['NAME'];
 }
 ?>
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($action === 'view' && !empty($_POST['id'])) {
         $id = intval($_POST['id']);
-        $stmt = mysqli_prepare($link, "SELECT * FROM main_database WHERE ID = ? LIMIT 1");
+        $stmt = mysqli_prepare($link, "SELECT * FROM TBL_MAIN WHERE ID = ? LIMIT 1");
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $mobile = substr($mobile, -10);
 
-        $sql = "UPDATE main_database SET MAINDATABASE_NAME = ?, MAINDATABASE_MOBILE = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_PACKAGE = ?, MAINDATABASE_OTHER_INFO = ?, MAINDATABASE_CALL_DIALED_STATUS = ?, MAINDATABASE_CALL_DIALED_USER = ? WHERE ID = ?";
+        $sql = "UPDATE TBL_MAIN SET MAINDATABASE_NAME = ?, MAINDATABASE_MOBILE = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_PACKAGE = ?, MAINDATABASE_OTHER_INFO = ?, MAINDATABASE_CALL_DIALED_STATUS = ?, MAINDATABASE_CALL_DIALED_USER = ? WHERE ID = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "ssssssii", $name, $mobile, $company, $package, $other, $status, $assigned, $id);
         $ok = mysqli_stmt_execute($stmt);
@@ -390,7 +390,7 @@ $(document).ready(function() {
         order: [[7, 'desc']],
         dom: '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4 text-center"B><"col-sm-12 col-md-4"f>>rtip',
         buttons: [
-            { extend: 'copy', text: '<i class="bi bi-copy"></i> Copy', className: 'btn btn-outline-secondary btn-sm text-white' },
+            { extend: 'copy', text: '<i class="bi bi-copy"></i> Copy', className: 'btn btn-outline-secondary btn-sm' },
             { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet"></i> CSV', className: 'btn btn-success btn-sm', title: 'MainDatabase_Export_' + new Date().toISOString().slice(0,10) },
             { extend: 'excel', text: '<i class="bi bi-file-excel"></i> Excel', className: 'btn btn-info btn-sm' },
             { text: '<i class="bi bi-trash3"></i> Delete Selected', className: 'btn btn-danger btn-sm', action: function() { bulkDelete(); }},

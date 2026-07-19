@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
     }
     
     global $link;
-    $stmt = $link->prepare("SELECT ID, NAME, EMAIL, PASSWORD, ROLE, TEAM_ID, STATUS FROM users WHERE EMAIL = ?");
+    $stmt = $link->prepare("SELECT ID, NAME, EMAIL, PASSWORD, ROLE, TEAM_ID, STATUS FROM TBL_USERS WHERE EMAIL = ?");
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
     $token = bin2hex(random_bytes(32));
     $expiresAt = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60)); // 30 days
     
-    $stmt = $link->prepare("INSERT INTO api_tokens (user_id, token, name, expires_at, is_active) VALUES (?, ?, 'Mobile App', ?, 1)");
+    $stmt = $link->prepare("INSERT INTO TBL_API_TOKENS (user_id, token, name, expires_at, is_active) VALUES (?, ?, 'Mobile App', ?, 1)");
     $stmt->bind_param('iss', $user['ID'], $token, $expiresAt);
     $stmt->execute();
     $tokenId = $link->insert_id;
@@ -70,14 +70,14 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
             'team_id' => $user['TEAM_ID'] ? (int)$user['TEAM_ID'] : null,
         ],
         'database_access' => $dbAccess,
-        'assigned_teams' => $teamIds,
+        'assigned_TBL_TEAMS' => $teamIds,
     ]);
     
 } elseif ($_SERVER['REQUEST_URI'] === '/api/v1/auth/logout') {
     $tokenData = apiRequireAuth();
     
     global $link;
-    $stmt = $link->prepare("UPDATE api_tokens SET is_active = 0 WHERE id = ?");
+    $stmt = $link->prepare("UPDATE TBL_API_TOKENS SET is_active = 0 WHERE id = ?");
     $stmt->bind_param('i', $tokenData['id']);
     $stmt->execute();
     $stmt->close();
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
     $newExpiry = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
     
     global $link;
-    $stmt = $link->prepare("UPDATE api_tokens SET expires_at = ?, last_used_at = NOW() WHERE id = ?");
+    $stmt = $link->prepare("UPDATE TBL_API_TOKENS SET expires_at = ?, last_used_at = NOW() WHERE id = ?");
     $stmt->bind_param('si', $newExpiry, $tokenData['id']);
     $stmt->execute();
     $stmt->close();
@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
     apiSuccess([
         'expires_at' => $newExpiry,
         'database_access' => $dbAccess,
-        'assigned_teams' => $teamIds,
+        'assigned_TBL_TEAMS' => $teamIds,
     ]);
     
 } elseif ($_SERVER['REQUEST_URI'] === '/api/v1/auth/me') {
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
             'team_id' => $tokenData['TEAM_ID'] ? (int)$tokenData['TEAM_ID'] : null,
         ],
         'database_access' => $dbAccess,
-        'assigned_teams' => $teamIds,
+        'assigned_TBL_TEAMS' => $teamIds,
     ]);
     
 } else {

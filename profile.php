@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         $Message = "Passwords do not match.";
         $type = "danger";
     } else {
-        $duplicateSql = "SELECT ID FROM users WHERE (LOGIN_ID = ? OR MOBILE = ?) AND ID <> ? LIMIT 1";
+        $duplicateSql = "SELECT ID FROM TBL_USERS WHERE (LOGIN_ID = ? OR MOBILE = ?) AND ID <> ? LIMIT 1";
         $duplicateStmt = mysqli_prepare($link, $duplicateSql);
         if (!$duplicateStmt) {
             $Message = "Database error: " . mysqli_error($link);
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
                 $params[] = USER_ID;
                 $types    .= "i";
 
-                $sql = "UPDATE users SET " . implode(", ", $updateFields) . " WHERE ID = ?";
+                $sql = "UPDATE TBL_USERS SET " . implode(", ", $updateFields) . " WHERE ID = ?";
                 $stmt = mysqli_prepare($link, $sql);
                 mysqli_stmt_bind_param($stmt, $types, ...$params);
 
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
                     $_SESSION['login_id'] = $login_id;
                     $Message = "Profile updated successfully!";
                     $type = "success";
-                    logActivity($link, USER_ID, "UPDATE", "Updated own profile", (string)USER_ID, "users");
+                    logActivity($link, USER_ID, "UPDATE", "Updated own profile", (string)USER_ID, "TBL_USERS");
                 } else {
                     $Message = "Database error: " . mysqli_error($link);
                     $type = "danger";

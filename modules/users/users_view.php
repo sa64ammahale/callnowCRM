@@ -2,7 +2,7 @@
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
 
-requirePermission('manage_users');
+requirePermission('manage_TBL_USERS');
 
 $limit  = 50;
 $page   = max(1, intval($_GET['page'] ?? 1));
@@ -45,7 +45,7 @@ if ($package) {
     $types   .= "s";
 }
 
-$countSql = "SELECT COUNT(*) FROM users u $where";
+$countSql = "SELECT COUNT(*) FROM TBL_USERS u $where";
 $stmt = mysqli_prepare($link, $countSql);
 if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
 mysqli_stmt_execute($stmt);
@@ -56,8 +56,8 @@ $sql = "
     SELECT
         u.*,
         t.NAME as TEAM_NAME
-    FROM users u
-    LEFT JOIN teams t ON u.TEAM_ID = t.ID
+    FROM TBL_USERS u
+    LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
     $where
     ORDER BY
         CASE WHEN u.STATUS = 'Active' THEN 0 ELSE 1 END,
@@ -75,35 +75,35 @@ mysqli_stmt_bind_param($stmt, $types, ...$finalParams);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
-$users = [];
+$TBL_USERS = [];
 while ($row = mysqli_fetch_assoc($result)) {
-    $users[] = $row;
+    $TBL_USERS[] = $row;
 }
 
-$active_users = [];
-$other_users  = [];
-foreach ($users as $u) {
+$active_TBL_USERS = [];
+$other_TBL_USERS  = [];
+foreach ($TBL_USERS as $u) {
     if ($u['STATUS'] === 'Active') {
-        $active_users[] = $u;
+        $active_TBL_USERS[] = $u;
     } else {
-        $other_users[] = $u;
+        $other_TBL_USERS[] = $u;
     }
 }
 
-$roles    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM users WHERE ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
-$teams    = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME"), MYSQLI_ASSOC);
-$packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM users WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
+$TBL_ROLES    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM TBL_USERS WHERE ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
+$TBL_TEAMS    = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME"), MYSQLI_ASSOC);
+$packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM TBL_USERS WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
 
-// Build role description lookup from roles table
+// Build role description lookup from TBL_ROLES table
 $roleDesc = [];
-$rd = mysqli_query($link, "SELECT role_name, description FROM roles");
+$rd = mysqli_query($link, "SELECT role_name, description FROM TBL_ROLES");
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 
-$totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM users WHERE STATUS='Active'"))[0];
+$totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM TBL_USERS WHERE STATUS='Active'"))[0];
 $totalInactive = $totalRecords - $totalActive;
 
 ?>
-<?php $pageTitle = 'App Users - CallNow Admin'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'App TBL_USERS - CallNow Admin'; include '../../php_scripts/header.php'; ?>
 
 <style>
 :root {
@@ -548,11 +548,11 @@ $totalInactive = $totalRecords - $totalActive;
     <div class="uv-header">
         <div class="uv-header-content">
             <div class="uv-header-left">
-                <h1><i class="bi bi-people-fill"></i> App Users Management</h1>
+                <h1><i class="bi bi-people-fill"></i> App TBL_USERS Management</h1>
                 <p><?= number_format($totalRecords) ?> total &middot; Page <?= $page ?> of <?= $totalPages ?></p>
             </div>
             <div class="uv-header-actions">
-                <a href="<?= url('modules/users/users_add.php') ?>" class="btn btn-uv-primary">
+                <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>" class="btn btn-uv-primary">
                     <i class="bi bi-person-plus"></i> Add User
                 </a>
                 <button id="exportBtn" class="btn btn-outline-primary">
@@ -588,15 +588,15 @@ $totalInactive = $totalRecords - $totalActive;
             <div class="uv-stat">
                 <div class="uv-stat-icon"><i class="bi bi-shield-check"></i></div>
                 <div class="uv-stat-info">
-                    <div class="uv-stat-num"><?= count($roles) ?></div>
-                    <div class="uv-stat-label">Roles</div>
+                    <div class="uv-stat-num"><?= count($TBL_ROLES) ?></div>
+                    <div class="uv-stat-label">TBL_ROLES</div>
                 </div>
             </div>
             <div class="uv-stat">
                 <div class="uv-stat-icon"><i class="bi bi-diagram-3"></i></div>
                 <div class="uv-stat-info">
-                    <div class="uv-stat-num"><?= count($teams) ?></div>
-                    <div class="uv-stat-label">Teams</div>
+                    <div class="uv-stat-num"><?= count($TBL_TEAMS) ?></div>
+                    <div class="uv-stat-label">TBL_TEAMS</div>
                 </div>
             </div>
         </div>
@@ -624,7 +624,7 @@ $totalInactive = $totalRecords - $totalActive;
                 <label>Role</label>
                 <select name="role" class="form-select form-select-sm">
                     <option value="">All</option>
-                    <?php foreach($roles as $r): ?>
+                    <?php foreach($TBL_ROLES as $r): ?>
                         <option value="<?= $r['ROLE'] ?>" <?= $role==$r['ROLE']?'selected':'' ?>>
                             <?= $r['ROLE'] ?>
                         </option>
@@ -635,7 +635,7 @@ $totalInactive = $totalRecords - $totalActive;
                 <label>Team</label>
                 <select name="team" class="form-select form-select-sm">
                     <option value="">All</option>
-                    <?php foreach($teams as $t): ?>
+                    <?php foreach($TBL_TEAMS as $t): ?>
                         <option value="<?= $t['ID'] ?>" <?= $team_id==$t['ID']?'selected':'' ?>>
                             <?= htmlspecialchars($t['NAME']) ?>
                         </option>
@@ -662,24 +662,24 @@ $totalInactive = $totalRecords - $totalActive;
         </form>
     </div>
 
-    <!-- ─── Active Users ─── -->
+    <!-- ─── Active TBL_USERS ─── -->
     <div class="uv-card">
         <div class="uv-card-header">
             <div class="uv-card-header-left">
                 <i class="bi bi-person-check-fill" style="color:#10b981;"></i>
-                Active Users
-                <span class="uv-badge-count"><?= count($active_users) ?></span>
+                Active TBL_USERS
+                <span class="uv-badge-count"><?= count($active_TBL_USERS) ?></span>
             </div>
         </div>
         <div class="uv-card-body">
-            <?php if (empty($active_users)): ?>
+            <?php if (empty($active_TBL_USERS)): ?>
                 <div class="uv-empty">
                     <div class="uv-empty-icon"><i class="bi bi-people"></i></div>
-                    <p class="uv-empty-text">No active users match your filters.</p>
+                    <p class="uv-empty-text">No active TBL_USERS match your filters.</p>
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="uv-table" id="usersTable">
+                    <table class="uv-table" id="TBL_USERSTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -695,7 +695,7 @@ $totalInactive = $totalRecords - $totalActive;
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($active_users as $u): ?>
+                            <?php foreach ($active_TBL_USERS as $u): ?>
                                 <tr>
                                     <td><span class="uv-id">#<?= $u['ID'] ?></span></td>
                                     <td>
@@ -731,7 +731,7 @@ $totalInactive = $totalRecords - $totalActive;
                                                 <i class="bi bi-shield-lock"></i> Protected
                                             </span>
                                         <?php else: ?>
-                                            <a href="<?= url('modules/users/users_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
+                                            <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
                                                 <i class="bi bi-pencil-square"></i> Edit
                                             </a>
                                         <?php endif; ?>
@@ -745,13 +745,13 @@ $totalInactive = $totalRecords - $totalActive;
         </div>
     </div>
 
-    <!-- ─── Inactive / Other Users ─── -->
+    <!-- ─── Inactive / Other TBL_USERS ─── -->
     <div class="uv-card">
         <div class="uv-card-header">
             <div class="uv-card-header-left">
                 <i class="bi bi-person-dash-fill" style="color:#ef4444;"></i>
-                Inactive / Other Users
-                <span class="uv-badge-count"><?= count($other_users) ?></span>
+                Inactive / Other TBL_USERS
+                <span class="uv-badge-count"><?= count($other_TBL_USERS) ?></span>
             </div>
             <button class="uv-card-header-toggle" type="button"
                     data-bs-toggle="collapse"
@@ -763,10 +763,10 @@ $totalInactive = $totalRecords - $totalActive;
         </div>
         <div class="collapse" id="uvInactiveCollapse">
             <div class="uv-card-body">
-                <?php if (empty($other_users)): ?>
+                <?php if (empty($other_TBL_USERS)): ?>
                     <div class="uv-empty">
                         <div class="uv-empty-icon"><i class="bi bi-people"></i></div>
-                        <p class="uv-empty-text">No inactive users match your filters.</p>
+                        <p class="uv-empty-text">No inactive TBL_USERS match your filters.</p>
                     </div>
                 <?php else: ?>
                     <div class="table-responsive">
@@ -786,7 +786,7 @@ $totalInactive = $totalRecords - $totalActive;
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($other_users as $u): ?>
+                                <?php foreach ($other_TBL_USERS as $u): ?>
                                     <tr class="uv-row-inactive">
                                         <td><span class="uv-id">#<?= $u['ID'] ?></span></td>
                                         <td>
@@ -829,7 +829,7 @@ $totalInactive = $totalRecords - $totalActive;
                                                     <i class="bi bi-shield-lock"></i> Protected
                                                 </span>
                                             <?php else: ?>
-                                                <a href="<?= url('modules/users/users_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
+                                                <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
                                                     <i class="bi bi-pencil-square"></i> Edit
                                                 </a>
                                             <?php endif; ?>
@@ -846,7 +846,7 @@ $totalInactive = $totalRecords - $totalActive;
 
     <!-- ─── Pagination ─── -->
     <?php if ($totalPages > 1):
-        $baseUrl = url('modules/users/users_view.php');
+        $baseUrl = url('modules/TBL_USERS/TBL_USERS_view.php');
         $q = http_build_query(array_merge($_GET, ['page' => '']));
     ?>
         <div class="uv-pagination">
@@ -879,9 +879,9 @@ $totalInactive = $totalRecords - $totalActive;
 document.getElementById("exportBtn").addEventListener("click", function(){
     var btn = this;
     btn.classList.add('uv-spinning');
-    new Table2Excel().export(document.querySelector("#usersTable"), {
-        name: "CallNow_App_Users",
-        filename: "CallNow_Users_" + new Date().toISOString().slice(0,10)
+    new Table2Excel().export(document.querySelector("#TBL_USERSTable"), {
+        name: "CallNow_App_TBL_USERS",
+        filename: "CallNow_TBL_USERS_" + new Date().toISOString().slice(0,10)
     });
     setTimeout(function(){ btn.classList.remove('uv-spinning'); }, 2000);
 });

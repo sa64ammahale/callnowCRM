@@ -7,51 +7,51 @@ $userID = $isEdit ? intval($_GET['ID']) : 0;
 
 if (USER_ROLE === 'Supervisor') {
     if ($isEdit) {
-        $check = mysqli_prepare($link, "SELECT TEAM_ID FROM users WHERE ID = ?");
+        $check = mysqli_prepare($link, "SELECT TEAM_ID FROM TBL_USERS WHERE ID = ?");
         mysqli_stmt_bind_param($check, "i", $userID);
         mysqli_stmt_execute($check);
         $res = mysqli_stmt_get_result($check);
         $user = mysqli_fetch_assoc($res);
         if (!$user || $user['TEAM_ID'] != USER_TEAM_ID) {
             $_SESSION['error'] = "Access denied! You can only edit your team members.";
-            header("Location: users_view.php"); exit;
+            header("Location: TBL_USERS_view.php"); exit;
         }
     }
 }
-requirePermission('manage_users');
+requirePermission('manage_TBL_USERS');
 
 $Message = ""; $type = "";
 
 if (USER_ROLE === 'Admin') {
-    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME");
+    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
 } elseif (USER_TEAM_ID) {
-    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams WHERE ID = " . (int)USER_TEAM_ID);
+    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS WHERE ID = " . (int)USER_TEAM_ID);
 } else {
-    $teams_result = mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME");
+    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
 }
-$teams = mysqli_fetch_all($teams_result, MYSQLI_ASSOC);
+$TBL_TEAMS = mysqli_fetch_all($TBL_TEAMS_result, MYSQLI_ASSOC);
 
-// Fetch dynamic roles from DB
-$allRoles = [];
-$ar = mysqli_query($link, "SELECT role_name, description FROM roles ORDER BY is_system DESC, id");
-if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allRoles[] = $a;
+// Fetch dynamic TBL_ROLES from DB
+$allTBL_ROLES = [];
+$ar = mysqli_query($link, "SELECT role_name, description FROM TBL_ROLES ORDER BY is_system DESC, id");
+if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allTBL_ROLES[] = $a;
 
 $editUser = null;
 if ($isEdit) {
-    $stmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM users u LEFT JOIN teams t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
+    $stmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM TBL_USERS u LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
     mysqli_stmt_bind_param($stmt, "i", $userID);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     $editUser = mysqli_fetch_assoc($result);
-    if (!$editUser) { header("Location: users_view.php"); exit; }
+    if (!$editUser) { header("Location: TBL_USERS_view.php"); exit; }
     // Protect system accounts from editing (allow self-edit)
     if ((int)$editUser['ID'] === 1) {
         $_SESSION['error'] = 'System Administrator (ID:1) cannot be edited.';
-        header('Location: users_view.php'); exit;
+        header('Location: TBL_USERS_view.php'); exit;
     }
     if ($editUser['ROLE'] === 'Admin' && (int)$editUser['ID'] !== USER_ID) {
         $_SESSION['error'] = 'Other Admin accounts cannot be edited.';
-        header('Location: users_view.php'); exit;
+        header('Location: TBL_USERS_view.php'); exit;
     }
 }
 
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         elseif (!$isEdit && strlen($password) < 6) $Message = "Password must be 6+ characters";
         elseif (empty($role) || empty($team_id) || empty($package)) $Message = "All required fields must be filled";
         else {
-            $checkSql = "SELECT ID FROM users WHERE (MOBILE = ? OR LOGIN_ID = ?) AND ID != ?";
+            $checkSql = "SELECT ID FROM TBL_USERS WHERE (MOBILE = ? OR LOGIN_ID = ?) AND ID != ?";
             $stmt = mysqli_prepare($link, $checkSql);
             mysqli_stmt_bind_param($stmt, "ssi", $mobile, $login_id, $userID);
             mysqli_stmt_execute($stmt);
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 $type = "warning";
             } else {
                 if ($isEdit) {
-                    $sql = "UPDATE users SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
+                    $sql = "UPDATE TBL_USERS SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
                     $params = [$name, $mobile, $login_id, $email_addr, $company_name, $role, $team_id, $package, $status, $company];
                     $types = "ssssssisss";
 
@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $types .= "i";
                 } else {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
-                    $sql = "INSERT INTO users (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
+                    $sql = "INSERT INTO TBL_USERS (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                     $params = [$name, $mobile, $login_id, $email_addr, $company_name, $hashed, $role, $team_id, $package, $status, $company];
                     $types = "sssssssisss";
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $type = "success";
                     if (!$isEdit) {
                         $_POST = [];
-                        header("Location: users_view.php?created=1"); exit;
+                        header("Location: TBL_USERS_view.php?created=1"); exit;
                     }
                 } else {
                     $Message = "Database error!";
@@ -350,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     .ua-header-actions .btn { flex: 1; text-align: center; }
 }
 
-/* ── Success banner on redirect from users_view ── */
+/* ── Success banner on redirect from TBL_USERS_view ── */
 .ua-success-banner {
     background: linear-gradient(135deg, #d1fae5, #a7f3d0);
     border: 1px solid #6ee7b7;
@@ -380,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 <p><?= $isEdit ? 'Update user account details' : 'Create a new app user account' ?></p>
             </div>
             <div class="ua-header-actions">
-                <a href="<?= url('modules/users/users_view.php') ?>" class="btn btn-ua-outline"><i class="bi bi-people"></i> View All Users</a>
+                <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" class="btn btn-ua-outline"><i class="bi bi-people"></i> View All TBL_USERS</a>
                 <a href="<?= url('dashboard.php') ?>" class="btn btn-ua-outline"><i class="bi bi-grid"></i> Dashboard</a>
             </div>
         </div>
@@ -476,7 +476,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                                 <?php if (USER_ROLE === 'Admin'): ?>
                                     <select name="role" class="form-select ua-select" required>
                                         <option value="">-- Select Role --</option>
-                                        <?php foreach ($allRoles as $r): ?>
+                                        <?php foreach ($allTBL_ROLES as $r): ?>
                                             <?php $sel = ($editUser['ROLE'] ?? '') === $r['role_name'] ? 'selected' : ''; ?>
                                             <option value="<?= htmlspecialchars($r['role_name']) ?>" <?= $sel ?>>
                                                 <?= htmlspecialchars($r['role_name']) ?>
@@ -496,7 +496,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                                 <select name="team_id" class="form-select ua-select"
                                         <?= USER_ROLE==='Supervisor'?'disabled':'' ?> required>
                                     <option value="">-- Select Team --</option>
-                                    <?php foreach($teams as $t): ?>
+                                    <?php foreach($TBL_TEAMS as $t): ?>
                                         <option value="<?= $t['ID'] ?>"
                                             <?= ($editUser['TEAM_ID'] ?? USER_TEAM_ID) == $t['ID'] ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($t['NAME']) ?>
@@ -505,7 +505,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                                 </select>
                                 <?php if (USER_ROLE==='Supervisor'): ?>
                                     <div class="ua-help">
-                                        Assigned to your team: <strong><?= htmlspecialchars($teams[0]['NAME'] ?? '') ?></strong>
+                                        Assigned to your team: <strong><?= htmlspecialchars($TBL_TEAMS[0]['NAME'] ?? '') ?></strong>
                                     </div>
                                     <input type="hidden" name="team_id" value="<?= USER_TEAM_ID ?>">
                                 <?php endif; ?>
@@ -537,7 +537,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
 
                         <!-- ── Buttons ── -->
                         <div class="d-flex justify-content-center gap-3 pt-2">
-                            <a href="<?= url('modules/users/users_view.php') ?>" class="ua-btn-secondary">
+                            <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" class="ua-btn-secondary">
                                 <i class="bi bi-arrow-left"></i> Cancel
                             </a>
                             <button type="submit" name="submit" class="ua-btn-primary">

@@ -51,10 +51,10 @@ if (!in_array($callStatus, $validStatuses)) {
 
 // Verify record belongs to user
 if ($source === 'TEMP') {
-    $stmt = $link->prepare("SELECT ID, CALL_DIALED_TELECALLER FROM temporary_database WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, CALL_DIALED_TELECALLER FROM TBL_TEMP WHERE ID = ?");
     $stmt->bind_param('i', $recordId);
 } else {
-    $stmt = $link->prepare("SELECT ID, MAINDATABASE_CALL_DIALED_USER FROM main_database WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, MAINDATABASE_CALL_DIALED_USER FROM TBL_MAIN WHERE ID = ?");
     $stmt->bind_param('i', $recordId);
 }
 $stmt->execute();
@@ -90,7 +90,7 @@ foreach ($updateFields as $col => $val) {
 $types .= 'i';
 $values[] = $recordId;
 
-$table = $source === 'TEMP' ? 'temporary_database' : 'main_database';
+$table = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
 $sql = "UPDATE $table SET " . implode(', ', $setClause) . " WHERE ID = ?";
 
 $stmt = $link->prepare($sql);

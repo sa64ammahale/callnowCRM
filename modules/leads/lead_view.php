@@ -29,11 +29,13 @@ $leadSql = "
         COALESCE(NULLIF(m.MAINDATABASE_MOBILE, ''), NULLIF(l.MOBILE, ''), 'N/A') AS mobile,
         COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') AS company_name,
         m.MAINDATABASE_OTHER_INFO AS other_info,
-        u.NAME AS assigned_name
-    FROM leads_table l
-    LEFT JOIN main_database m ON m.ID = l.cust_id
-    LEFT JOIN users u ON u.ID = l.assigned_to
-    WHERE l.lead_id = ? {$accessWhere}
+        u.NAME AS assigned_name,
+        t.TEAM_NAME AS team_name
+    FROM TBL_LEADS l
+    LEFT JOIN TBL_MAIN m ON m.ID = l.cust_id
+    LEFT JOIN TBL_USERS u ON u.ID = l.assigned_to
+    LEFT JOIN TBL_TEAMS t ON t.ID = l.team_id
+    WHERE l.lead_id = ?
     LIMIT 1
 ";
 $stmt = mysqli_prepare($link, $leadSql);
@@ -42,15 +44,40 @@ mysqli_stmt_execute($stmt);
 $lead = mysqli_stmt_get_result($stmt)->fetch_assoc();
 mysqli_stmt_close($stmt);
 
-if (!$lead) {
+if (!$lead || !canViewLead($link, $lead)) {
     $_SESSION['success_message'] = 'Lead not found or access denied.';
     $_SESSION['flash_class'] = 'danger';
     header('Location: lead_list.php');
     exit;
 }
 
-$users = getLeadAssignableUsers($link);
+$canEdit = canEditLead($lead);
+$canPull = canPullToTray($lead);
+
+$TBL_USERS = getLeadAssignableTBL_USERS($link);
 $canEditAssignment = canEditLeadAssignment();
+
+// Threaded notes
+$notes = [];
+$ns = mysqli_prepare($link, "SELECT n.*, u.NAME AS author FROM TBL_LEAD_NOTES n LEFT JOIN TBL_USERS u ON u.ID = n.user_id WHERE n.lead_id = ? ORDER BY n.created_at ASC");
+if ($ns) {
+    mysqli_stmt_bind_param($ns, 'i', $leadId);
+    mysqli_stmt_execute($ns);
+    $nr = mysqli_stmt_get_result($ns);
+    while ($nr && $row = mysqli_fetch_assoc($nr)) $notes[] = $row;
+    mysqli_stmt_close($ns);
+}
+
+// Follow-ups
+$followups = [];
+$fs = mysqli_prepare($link, "SELECT * FROM TBL_LEAD_FOLLOWUPS WHERE lead_id = ? ORDER BY followup_at ASC");
+if ($fs) {
+    mysqli_stmt_bind_param($fs, 'i', $leadId);
+    mysqli_stmt_execute($fs);
+    $fr = mysqli_stmt_get_result($fs);
+    while ($fr && $row = mysqli_fetch_assoc($fr)) $followups[] = $row;
+    mysqli_stmt_close($fs);
+}
 
 $flashMessage = $_SESSION['success_message'] ?? '';
 $flashClass = $_SESSION['flash_class'] ?? 'success';
@@ -103,6 +130,20 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
         </div>
     </div>
 
+    <!-- Action row: manual flags + multi-bank clone -->
+    <div class="lv-actionrow">
+        <button type="button" class="btn btn-sm <?= ((int)($lead['forwarded_flag'] ?? 0) === 1) ? 'btn-success' : 'btn-outline-secondary' ?>" id="forwardBtn">
+            <i class="bi bi-send"></i> Forward to Back Office: <strong><?= ((int)($lead['forwarded_flag'] ?? 0) === 1) ? 'Sent' : 'Not sent' ?></strong>
+        </button>
+        <button type="button" class="btn btn-sm <?= ((int)($lead['sent_backward_flag'] ?? 0) === 1) ? 'btn-warning' : 'btn-outline-secondary' ?>" id="backwardBtn">
+            <i class="bi bi-arrow-return-left"></i> Send Backward: <strong><?= ((int)($lead['sent_backward_flag'] ?? 0) === 1) ? 'Sent' : 'N/A' ?></strong>
+        </button>
+        <?php if ($canEdit): ?>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="cloneBankBtn"><i class="bi bi-bank2"></i> Log in another bank</button>
+        <?php endif; ?>
+    </div>
+    </div>
+
     <!-- Workflow -->
     <div class="lv-workflow">
         <div class="lv-workflow-inner">
@@ -126,6 +167,35 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
             <?= htmlspecialchars($flashMessage) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+    <?php endif; ?>
+
+    <!-- Tray / owner + rework banner -->
+    <div class="lv-traybar">
+        <div class="lv-tray-info">
+            <span class="lv-tray-chip"><i class="bi bi-person"></i> Owner: <strong><?= htmlspecialchars($lead['assigned_name'] ?? 'Unassigned') ?></strong></span>
+            <?php if (!empty($lead['team_name'])): ?>
+                <span class="lv-tray-chip"><i class="bi bi-diagram-3"></i> Team: <strong><?= htmlspecialchars($lead['team_name']) ?></strong></span>
+            <?php endif; ?>
+            <?php if ((int)($lead['rework_flag'] ?? 0) === 1): ?>
+                <span class="lv-tray-chip lv-chip-rework"><i class="bi bi-exclamation-triangle"></i> Rework &mdash; <?= $lead['rework_stage'] === 'BANK' ? 'Bank' : 'Internal' ?></span>
+            <?php endif; ?>
+            <?php if (!empty($lead['login_status'])): ?>
+                <span class="lv-tray-chip"><i class="bi bi-bank"></i> Login: <strong><?= htmlspecialchars(loginStatusLabel($lead['login_status'])) ?></strong></span>
+            <?php endif; ?>
+            <?php if (!empty($lead['parent_lead_id'])): ?>
+                <span class="lv-tray-chip"><i class="bi bi-link-45deg"></i> Duplicate of #<?= (int)$lead['parent_lead_id'] ?></span>
+            <?php endif; ?>
+        </div>
+        <div class="lv-tray-actions">
+            <?php if (!$canEdit && $canPull): ?>
+                <button type="button" class="btn btn-warning btn-sm" id="pullBtn"><i class="bi bi-inbox"></i> Pull into my tray</button>
+            <?php elseif (!$canEdit): ?>
+                <span class="lv-tray-chip lv-chip-readonly"><i class="bi bi-eye"></i> Read-only (not in your tray)</span>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php if (!$canEdit): ?>
+        <div class="alert alert-warning py-2 px-3 rounded-4 mb-0"><i class="bi bi-lock"></i> This lead is in someone else's tray. <?= $canPull ? 'Pull it into your tray to edit.' : 'You have view-only access.' ?></div>
     <?php endif; ?>
 
     <!-- Summary Bar -->
@@ -174,7 +244,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                     <div class="mb-2">
                         <label class="lv-label">Assigned To</label>
                         <select name="assigned_to" class="lv-select" <?= $canEditAssignment ? '' : 'disabled' ?>>
-                            <?php foreach ($users as $user): ?>
+                            <?php foreach ($TBL_USERS as $user): ?>
                                 <option value="<?= (int)$user['ID'] ?>" <?= (int)$user['ID'] === (int)($lead['assigned_to'] ?? 0) ? 'selected' : '' ?>><?= htmlspecialchars($user['NAME']) ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -265,6 +335,30 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                         <label class="lv-label">Promo Code</label>
                         <input type="text" name="promo_code" class="lv-input" value="<?= htmlspecialchars($lead['promo_code'] ?? '') ?>">
                     </div>
+                    <div class="lv-rework-box">
+                        <div class="mb-2">
+                            <label class="lv-label">Login Status</label>
+                            <select name="login_status" class="lv-select">
+                                <option value="">—</option>
+                                <option value="PENDING" <?= ($lead['login_status'] ?? '') === 'PENDING' ? 'selected' : '' ?>>Login Pending</option>
+                                <option value="SUCCESS" <?= ($lead['login_status'] ?? '') === 'SUCCESS' ? 'selected' : '' ?>>Login Success</option>
+                                <option value="REWORK_PENDING" <?= ($lead['login_status'] ?? '') === 'REWORK_PENDING' ? 'selected' : '' ?>>Rework Pending</option>
+                                <option value="REJECTED" <?= ($lead['login_status'] ?? '') === 'REJECTED' ? 'selected' : '' ?>>Login Rejected</option>
+                            </select>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="rework_flag" id="reworkFlag" value="1" <?= ((int)($lead['rework_flag'] ?? 0) === 1) ? 'checked' : '' ?>>
+                            <label class="form-check-label lv-label" for="reworkFlag">Rework required</label>
+                        </div>
+                        <div class="mb-2">
+                            <label class="lv-label">Rework Stage</label>
+                            <select name="rework_stage" class="lv-select">
+                                <option value="" <?= ($lead['rework_stage'] ?? '') === '' ? 'selected' : '' ?>>—</option>
+                                <option value="INTERNAL" <?= ($lead['rework_stage'] ?? '') === 'INTERNAL' ? 'selected' : '' ?>>Internal</option>
+                                <option value="BANK" <?= ($lead['rework_stage'] ?? '') === 'BANK' ? 'selected' : '' ?>>Bank</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -288,12 +382,72 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                         <label class="lv-label">App No</label>
                         <input type="text" name="loan_app_no" class="lv-input" value="<?= htmlspecialchars($lead['loan_app_no'] ?? '') ?>">
                     </div>
-                    <div>
-                        <label class="lv-label">DSA Name</label>
-                        <input type="text" name="dsa_name" class="lv-input" value="<?= htmlspecialchars($lead['dsa_name'] ?? '') ?>">
-                    </div>
+                <div>
+                    <label class="lv-label">DSA Name</label>
+                    <input type="text" name="dsa_name" class="lv-input" value="<?= htmlspecialchars($lead['dsa_name'] ?? '') ?>">
                 </div>
             </div>
+
+            <!-- Activity Notes -->
+            <div class="lv-card lv-card-notes">
+                <div class="lv-card-head"><i class="bi bi-chat-left-text"></i> Activity Notes</div>
+                <div class="lv-card-body">
+                    <div class="lv-notes-list" id="notesList">
+                        <?php if (empty($notes)): ?>
+                            <div class="lv-note-empty">No notes yet.</div>
+                        <?php else: ?>
+                            <?php foreach ($notes as $n): ?>
+                                <div class="lv-note">
+                                    <div class="lv-note-meta"><strong><?= htmlspecialchars($n['author'] ?? 'System') ?></strong> &middot; <?= htmlspecialchars(date('d M Y, h:i A', strtotime($n['created_at']))) ?></div>
+                                    <div class="lv-note-text"><?= nl2br(htmlspecialchars($n['note'])) ?></div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($canEdit): ?>
+                    <form id="noteForm" class="lv-note-form mt-2">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                        <input type="hidden" name="lead_id" value="<?= $leadId ?>">
+                        <textarea name="note" class="lv-input" rows="2" placeholder="Add a note..." required></textarea>
+                        <button type="submit" class="lv-mini-btn"><i class="bi bi-send"></i> Add Note</button>
+                    </form>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Follow-ups -->
+            <div class="lv-card lv-card-followups">
+                <div class="lv-card-head"><i class="bi bi-calendar-check"></i> Follow-ups</div>
+                <div class="lv-card-body">
+                    <div class="lv-followup-list" id="followupList">
+                        <?php if (empty($followups)): ?>
+                            <div class="lv-note-empty">No follow-ups scheduled.</div>
+                        <?php else: ?>
+                            <?php foreach ($followups as $f): ?>
+                                <div class="lv-followup <?= $f['status'] === 'DONE' ? 'done' : '' ?>">
+                                    <div class="lv-followup-meta"><strong><?= htmlspecialchars(date('d M Y, h:i A', strtotime($f['followup_at']))) ?></strong> &middot; <?= htmlspecialchars($f['status']) ?></div>
+                                    <div class="lv-note-text"><?= nl2br(htmlspecialchars($f['note'] ?? '')) ?></div>
+                                    <?php if ($canEdit && $f['status'] === 'OPEN'): ?>
+                                        <button type="button" class="lv-mini-btn lv-mini-done" data-id="<?= (int)$f['id'] ?>"><i class="bi bi-check-lg"></i> Mark Done</button>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($canEdit): ?>
+                    <form id="followupForm" class="lv-note-form mt-2">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                        <input type="hidden" name="lead_id" value="<?= $leadId ?>">
+                        <div class="row g-2">
+                            <div class="col-7"><input type="datetime-local" name="followup_at" class="lv-input" required></div>
+                            <div class="col-5"><button type="submit" class="lv-mini-btn w-100"><i class="bi bi-plus-lg"></i> Schedule</button></div>
+                        </div>
+                        <textarea name="note" class="lv-input mt-2" rows="2" placeholder="Follow-up note..."></textarea>
+                    </form>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
         </div>
 
         <div class="lv-footer">
@@ -303,6 +457,114 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
 </div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
+<script>
+(function () {
+    var canEdit = <?= $canEdit ? 'true' : 'false' ?>;
+
+    // Read-only: disable all form fields when not in tray
+    if (!canEdit) {
+        document.querySelectorAll('form.lv-form input, form.lv-form select, form.lv-form textarea').forEach(function (el) {
+            el.disabled = true;
+        });
+        var saveBtn = document.querySelector('.lv-save-btn');
+        if (saveBtn) saveBtn.style.display = 'none';
+    }
+
+    function lvPost(url, data, done) {
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(data).toString()
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (j.error) { alert(j.message); }
+            else if (done) { done(j); }
+        })
+        .catch(function (e) { alert('Request failed: ' + e.message); });
+    }
+
+    // Add note
+    var noteForm = document.getElementById('noteForm');
+    if (noteForm) {
+        noteForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var f = e.target;
+            lvPost('php_scripts/lead_note_add.php', {
+                csrf_token: f.csrf_token.value, lead_id: f.lead_id.value, note: f.note.value
+            }, function () { location.reload(); });
+        });
+    }
+
+    // Schedule follow-up
+    var fuForm = document.getElementById('followupForm');
+    if (fuForm) {
+        fuForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var f = e.target;
+            lvPost('php_scripts/lead_followup_add.php', {
+                csrf_token: f.csrf_token.value, lead_id: f.lead_id.value,
+                followup_at: f.followup_at.value, note: f.note.value
+            }, function () { location.reload(); });
+        });
+    }
+
+    // Mark follow-up done
+    document.querySelectorAll('.lv-mini-done').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            lvPost('php_scripts/lead_followup_done.php', {
+                csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>',
+                id: btn.getAttribute('data-id')
+            }, function () { location.reload(); });
+        });
+    });
+
+    // Pull into my tray
+    var pullBtn = document.getElementById('pullBtn');
+    if (pullBtn) {
+        pullBtn.addEventListener('click', function () {
+            lvPost('php_scripts/lead_assign.php', {
+                csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>',
+                lead_id: <?= $leadId ?>, to_user_id: <?= (int)USER_ID ?>, reason: 'Pulled into my tray'
+            }, function () { location.reload(); });
+        });
+    }
+
+    // Forward to Back Office toggle (manual flag, no email)
+    var forwardBtn = document.getElementById('forwardBtn');
+    if (forwardBtn) {
+        forwardBtn.addEventListener('click', function () {
+            lvPost('php_scripts/lead_forward_toggle.php', {
+                csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>', lead_id: <?= $leadId ?>
+            }, function (j) { location.reload(); });
+        });
+    }
+
+    // Send Backward toggle (manual flag)
+    var backwardBtn = document.getElementById('backwardBtn');
+    if (backwardBtn) {
+        backwardBtn.addEventListener('click', function () {
+            lvPost('php_scripts/lead_send_backward_toggle.php', {
+                csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>', lead_id: <?= $leadId ?>
+            }, function () { location.reload(); });
+        });
+    }
+
+    // Log in another bank (clone)
+    var cloneBtn = document.getElementById('cloneBankBtn');
+    if (cloneBtn) {
+        cloneBtn.addEventListener('click', function () {
+            if (!confirm('Create a new lead record for logging into another bank? The customer will be linked.')) return;
+            lvPost('php_scripts/lead_clone_bank.php', {
+                csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>', lead_id: <?= $leadId ?>
+            }, function (j) {
+                if (j.new_lead_id) location.href = 'lead_view.php?id=' + j.new_lead_id;
+                else location.reload();
+            });
+        });
+    }
+})();
+</script>
 
 <style>
 .lv-wrap {
@@ -379,6 +641,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
 .lv-card-followup .lv-card-head { background: linear-gradient(135deg, rgba(14,165,233,0.06), rgba(99,102,241,0.06)); color: #0ea5e9; }
 .lv-card-customer .lv-card-head { background: linear-gradient(135deg, rgba(94,106,210,0.06), rgba(59,130,246,0.06)); color: #5e6ad2; }
 .lv-card-login .lv-card-head { background: linear-gradient(135deg, rgba(245,158,11,0.06), rgba(239,68,68,0.06)); color: #f59e0b; }
+.lv-rework-box { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border); }
 .lv-card-sanction .lv-card-head { background: linear-gradient(135deg, rgba(16,185,129,0.06), rgba(5,150,105,0.06)); color: #10b981; }
 .lv-card-body { padding: 0.75rem 1rem; }
 .lv-label { font-size: 0.625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); display: block; margin-bottom: 0.1875rem; }
@@ -409,6 +672,29 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     background: linear-gradient(135deg, #4f46e5, var(--accent));
 }
 .lv-save-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(94,106,210,0.3); }
+
+.lv-traybar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 0.625rem 1rem; }
+.lv-actionrow { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.lv-actionrow .btn { font-weight: 600; }
+.lv-tray-info { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.lv-tray-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.6875rem; font-weight: 600; background: var(--surface-2, #f1f3f9); color: var(--ink-soft); padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); }
+.lv-chip-rework { background: rgba(239,68,68,0.12); color: #ef4444; border-color: #fca5a5; }
+.lv-chip-readonly { background: rgba(245,158,11,0.12); color: #f59e0b; border-color: #fcd34d; }
+.lv-card-notes .lv-card-head { background: linear-gradient(135deg, rgba(124,58,237,0.06), rgba(99,102,241,0.06)); color: #7c3aed; }
+.lv-card-followups .lv-card-head { background: linear-gradient(135deg, rgba(14,165,233,0.06), rgba(16,185,129,0.06)); color: #0ea5e9; }
+.lv-notes-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 260px; overflow-y: auto; }
+.lv-note-empty { font-size: 0.75rem; color: var(--ink-muted); padding: 0.5rem 0; }
+.lv-note { background: var(--surface-2, #f7f8fc); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0.5rem 0.625rem; }
+.lv-note-meta { font-size: 0.625rem; color: var(--ink-muted); margin-bottom: 0.15rem; }
+.lv-note-text { font-size: 0.8125rem; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.lv-followup { background: var(--surface-2, #f7f8fc); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0.5rem 0.625rem; margin-bottom: 0.5rem; }
+.lv-followup.done { opacity: 0.6; }
+.lv-followup-meta { font-size: 0.625rem; color: var(--ink-muted); margin-bottom: 0.15rem; }
+.lv-note-form textarea { margin-bottom: 0.4rem; }
+.lv-mini-btn { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; padding: 0.35rem 0.8rem; font-size: 0.75rem; font-weight: 600; border: none; border-radius: var(--radius-lg); background: var(--accent); color: #fff; cursor: pointer; }
+.lv-mini-btn:hover { background: var(--accent-hover, #4f46e5); }
+.lv-mini-done { background: #10b981; }
+.lv-mini-done:hover { background: #059669; }
 
 @media (max-width: 768px) {
     .lv-wrap { padding: 0.75rem; gap: 0.75rem; }

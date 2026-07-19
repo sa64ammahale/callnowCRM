@@ -18,8 +18,8 @@ function apiRequireAuth(): array {
     global $link;
     $stmt = $link->prepare("
         SELECT t.*, u.NAME as user_name, u.ROLE as user_role, u.TEAM_ID as user_team_id, u.STATUS as user_status
-        FROM api_tokens t
-        JOIN users u ON t.user_id = u.ID
+        FROM TBL_API_TOKENS t
+        JOIN TBL_USERS u ON t.user_id = u.ID
         WHERE t.token = ? AND t.is_active = 1
     ");
     $stmt->bind_param('s', $token);
@@ -42,7 +42,7 @@ function apiRequireAuth(): array {
     }
     
     // Update last used
-    $link->query("UPDATE api_tokens SET last_used_at = NOW() WHERE id = " . (int)$tokenData['id']);
+    $link->query("UPDATE TBL_API_TOKENS SET last_used_at = NOW() WHERE id = " . (int)$tokenData['id']);
     
     return $tokenData;
 }
@@ -53,8 +53,8 @@ function apiRequirePermission(string $permission): void {
     
     global $link;
     $stmt = $link->prepare("
-        SELECT 1 FROM role_permissions rp
-        JOIN users u ON rp.role = u.ROLE
+        SELECT 1 FROM TBL_ROLE_PERMISSIONS rp
+        JOIN TBL_USERS u ON rp.role = u.ROLE
         WHERE u.ID = ? AND rp.permission_key = ? AND rp.permission_value = 1
     ");
     $stmt->bind_param('is', $tokenData['user_id'], $permission);
@@ -62,7 +62,7 @@ function apiRequirePermission(string $permission): void {
     if (!$stmt->get_result()->fetch_assoc()) {
         // Check user override
         $stmt2 = $link->prepare("
-            SELECT 1 FROM user_permissions WHERE user_id = ? AND permission_key = ? AND permission_value = 1
+            SELECT 1 FROM TBL_USER_PERMISSIONS WHERE user_id = ? AND permission_key = ? AND permission_value = 1
         ");
         $stmt2->bind_param('is', $tokenData['user_id'], $permission);
         $stmt2->execute();
@@ -77,7 +77,7 @@ function getApiSettings(): array {
     static $cache = null;
     if ($cache !== null) return $cache;
     
-    $res = $link->query("SELECT setting_key, setting_value FROM api_settings");
+    $res = $link->query("SELECT setting_key, setting_value FROM TBL_API_SETTINGS");
     $settings = [];
     while ($row = $res->fetch_assoc()) {
         $val = $row['setting_value'];
@@ -107,7 +107,7 @@ function getUserDatabaseAccess(int $userId): array {
     
     // Check assignments
     $stmt = $link->prepare("
-        SELECT database_type FROM api_database_assignments 
+        SELECT database_type FROM TBL_API_DB_ASSIGNMENTS 
         WHERE user_id = ? AND is_active = 1
     ");
     $stmt->bind_param('i', $userId);
@@ -144,7 +144,7 @@ function grantDefaultApiAccess(int $userId): void {
     foreach ($allowed as $dbType) {
         if (!in_array($dbType, ['temporary', 'main', 'leads'], true)) continue;
         $stmt = $link->prepare("
-            INSERT INTO api_database_assignments (user_id, database_type, team_id, assigned_by, is_active)
+            INSERT INTO TBL_API_DB_ASSIGNMENTS (user_id, database_type, team_id, assigned_by, is_active)
             VALUES (?, ?, NULL, NULL, 1)
             ON DUPLICATE KEY UPDATE is_active = 1
         ");
@@ -157,17 +157,17 @@ function grantDefaultApiAccess(int $userId): void {
 function getUserAssignedTeamIds(int $userId): array {
     global $link;
     $stmt = $link->prepare("
-        SELECT DISTINCT team_id FROM api_database_assignments 
+        SELECT DISTINCT team_id FROM TBL_API_DB_ASSIGNMENTS 
         WHERE user_id = ? AND is_active = 1 AND team_id IS NOT NULL
     ");
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $res = $stmt->get_result();
-    $teams = [];
+    $TBL_TEAMS = [];
     while ($row = $res->fetch_assoc()) {
-        $teams[] = (int)$row['team_id'];
+        $TBL_TEAMS[] = (int)$row['team_id'];
     }
-    return $teams;
+    return $TBL_TEAMS;
 }
 
 function apiSuccess(array $data, int $code = 200): void {
@@ -184,7 +184,7 @@ function apiError(int $code, string $message, array $extra = []): void {
 
 function logActivity(mysqli $link, int $userId, string $actionType, string $details, string $affectedIds = '', string $targetTable = ''): void {
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
-    $stmt = $link->prepare("INSERT INTO activity_log(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
+    $stmt = $link->prepare("INSERT INTO TBL_ACTIVITY_LOG(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
         VALUES (?, ?, ?, ?, ?, NOW(), ?)");
     $stmt->bind_param('isssss', $userId, $actionType, $details, $affectedIds, $targetTable, $ip);
     $stmt->execute();
@@ -209,7 +209,7 @@ function checkRateLimit(array $tokenData): void {
         SELECT 
             SUM(created_at >= ?) as count_min,
             SUM(created_at >= ?) as count_hour
-        FROM api_access_logs 
+        FROM TBL_API_ACCESS_LOGS 
         WHERE token_id = ?
     ");
     $stmt->bind_param('iii', $minuteAgo, $hourAgo, $tokenId);
@@ -231,7 +231,7 @@ function logApiAccess(array $tokenData, string $endpoint, string $method, int $r
     
     global $link;
     $stmt = $link->prepare("
-        INSERT INTO api_access_logs (token_id, user_id, endpoint, method, ip_address, user_agent, response_code, execution_time_ms)
+        INSERT INTO TBL_API_ACCESS_LOGS (token_id, user_id, endpoint, method, ip_address, user_agent, response_code, execution_time_ms)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->bind_param('iisssiii', 

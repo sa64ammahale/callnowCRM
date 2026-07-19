@@ -2,6 +2,7 @@
 require_once "../../../php_scripts/auth.php";
 
 requirePermission('export_data');
+api_init();
 
 header('Content-Type: text/csv');
 header('Content-Disposition: attachment; filename="MainDatabase_'.date('Y-m-d_His').'.csv"');
@@ -16,8 +17,8 @@ $sql = "SELECT MAINDATABASE_MOBILE,
                MAINDATABASE_CALL_DIALED_STATUS,
                u.NAME AS assigned,
                DATE_FORMAT(MAINDATABASE_UPLOAD_DATETIME, '%d-%m-%Y %H:%i') AS dt
-        FROM main_database 
-        LEFT JOIN users u ON main_database.MAINDATABASE_CALL_DIALED_USER = u.ID
+        FROM TBL_MAIN 
+        LEFT JOIN TBL_USERS u ON TBL_MAIN.MAINDATABASE_CALL_DIALED_USER = u.ID
         ORDER BY MAINDATABASE_UPLOAD_DATETIME DESC";
 
 $res = mysqli_query($link, $sql);

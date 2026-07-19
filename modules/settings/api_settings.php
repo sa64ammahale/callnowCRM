@@ -30,12 +30,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         
         foreach ($settings as $key => $value) {
-            $stmt = $link->prepare("INSERT INTO api_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+            $stmt = $link->prepare("INSERT INTO TBL_API_SETTINGS (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
             $stmt->bind_param('sss', $key, $value, $value);
             $stmt->execute();
         }
         
-        logActivity($link, USER_ID, 'API_SETTINGS_UPDATED', 'Updated mobile API settings');
+        logActivity($link, USER_ID, 'TBL_API_SETTINGS_UPDATED', 'Updated mobile API settings');
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'API settings saved'];
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = bin2hex(random_bytes(32));
         $expiry = $expiryDays > 0 ? date('Y-m-d H:i:s', strtotime("+$expiryDays days")) : null;
         
-        $stmt = $link->prepare("INSERT INTO api_tokens (user_id, token, name, expires_at) VALUES (?, ?, ?, ?)");
+        $stmt = $link->prepare("INSERT INTO TBL_API_TOKENS (user_id, token, name, expires_at) VALUES (?, ?, ?, ?)");
         $stmt->bind_param('isss', $userId, $token, $name, $expiry);
         $stmt->execute();
 
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/../../php_scripts/api_auth.php';
         grantDefaultApiAccess($userId);
         
-        logActivity($link, USER_ID, 'API_TOKEN_CREATED', "Created API token for user #$userId", '', 'api_tokens');
+        logActivity($link, USER_ID, 'API_TOKEN_CREATED', "Created API token for user #$userId", '', 'TBL_API_TOKENS');
         $_SESSION['flash'] = ['type' => 'success', 'msg' => "API token created: $token (shown once only)"];
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
@@ -72,8 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'revoke_token') {
         $tokenId = (int)($_POST['token_id'] ?? 0);
         if ($tokenId) {
-            $link->query("UPDATE api_tokens SET is_active = 0 WHERE id = $tokenId");
-            logActivity($link, USER_ID, 'API_TOKEN_REVOKED', "Revoked token #$tokenId", '', 'api_tokens');
+            $link->query("UPDATE TBL_API_TOKENS SET is_active = 0 WHERE id = $tokenId");
+            logActivity($link, USER_ID, 'API_TOKEN_REVOKED', "Revoked token #$tokenId", '', 'TBL_API_TOKENS');
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Token revoked'];
         header('Location: ' . $_SERVER['REQUEST_URI']);
@@ -91,11 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         
-        $stmt = $link->prepare("INSERT INTO api_database_assignments (user_id, database_type, team_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1");
+        $stmt = $link->prepare("INSERT INTO TBL_API_DB_ASSIGNMENTS (user_id, database_type, team_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1");
         $stmt->bind_param('isii', $userId, $databaseType, $teamId, USER_ID);
         $stmt->execute();
         
-        logActivity($link, USER_ID, 'API_ASSIGNMENT_CREATED', "Assigned $databaseType to user #$userId" . ($teamId ? " team #$teamId" : ''), '', 'api_database_assignments');
+        logActivity($link, USER_ID, 'API_ASSIGNMENT_CREATED', "Assigned $databaseType to user #$userId" . ($teamId ? " team #$teamId" : ''), '', 'TBL_API_DB_ASSIGNMENTS');
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Database assignment created'];
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
@@ -104,8 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'remove_assignment') {
         $assignId = (int)($_POST['assign_id'] ?? 0);
         if ($assignId) {
-            $link->query("DELETE FROM api_database_assignments WHERE id = $assignId");
-            logActivity($link, USER_ID, 'API_ASSIGNMENT_REMOVED', "Removed assignment #$assignId", '', 'api_database_assignments');
+            $link->query("DELETE FROM TBL_API_DB_ASSIGNMENTS WHERE id = $assignId");
+            logActivity($link, USER_ID, 'API_ASSIGNMENT_REMOVED', "Removed assignment #$assignId", '', 'TBL_API_DB_ASSIGNMENTS');
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Assignment removed'];
         header('Location: ' . $_SERVER['REQUEST_URI']);
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch data
 $settings = [];
-$res = $link->query("SELECT setting_key, setting_value FROM api_settings");
+$res = $link->query("SELECT setting_key, setting_value FROM TBL_API_SETTINGS");
 while ($row = $res->fetch_assoc()) {
     $val = $row['setting_value'];
     $decoded = json_decode($val, true);
@@ -126,31 +126,31 @@ while ($row = $res->fetch_assoc()) {
 $tokens = [];
 $res = $link->query("
     SELECT t.*, u.NAME as user_name, u.EMAIL as user_email, u.ROLE as user_role
-    FROM api_tokens t
-    JOIN users u ON t.user_id = u.ID
+    FROM TBL_API_TOKENS t
+    JOIN TBL_USERS u ON t.user_id = u.ID
     ORDER BY t.created_at DESC
 ");
 while ($row = $res->fetch_assoc()) $tokens[] = $row;
 
-$users = [];
-$res = $link->query("SELECT ID, NAME, EMAIL, ROLE, TEAM_ID FROM users WHERE STATUS = 'Active' ORDER BY ROLE, NAME");
-while ($row = $res->fetch_assoc()) $users[] = $row;
+$TBL_USERS = [];
+$res = $link->query("SELECT ID, NAME, EMAIL, ROLE, TEAM_ID FROM TBL_USERS WHERE STATUS = 'Active' ORDER BY ROLE, NAME");
+while ($row = $res->fetch_assoc()) $TBL_USERS[] = $row;
 
 $assignments = [];
 $res = $link->query("
     SELECT a.*, u.NAME as user_name, u.ROLE as user_role, u.TEAM_ID as user_team_id, 
            t.NAME as team_name, sup.NAME as assigned_by_name
-    FROM api_database_assignments a
-    JOIN users u ON a.user_id = u.ID
-    LEFT JOIN teams t ON a.team_id = t.ID
-    LEFT JOIN users sup ON a.assigned_by = sup.ID
+    FROM TBL_API_DB_ASSIGNMENTS a
+    JOIN TBL_USERS u ON a.user_id = u.ID
+    LEFT JOIN TBL_TEAMS t ON a.team_id = t.ID
+    LEFT JOIN TBL_USERS sup ON a.assigned_by = sup.ID
     ORDER BY a.assigned_at DESC
 ");
 while ($row = $res->fetch_assoc()) $assignments[] = $row;
 
-$teams = [];
-$res = $link->query("SELECT ID, NAME FROM teams ORDER BY NAME");
-while ($row = $res->fetch_assoc()) $teams[] = $row;
+$TBL_TEAMS = [];
+$res = $link->query("SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
+while ($row = $res->fetch_assoc()) $TBL_TEAMS[] = $row;
 
 $allowedDbs = $settings['allowed_databases'] ?? '["temporary","leads"]';
 if (is_string($allowedDbs)) {
@@ -357,7 +357,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             <?= ucfirst($a['database_type']) ?>
                                         </span>
                                     </td>
-                                    <td><?= $a['team_name'] ? htmlspecialchars($a['team_name']) : '<span class="text-muted">All Teams</span>' ?></td>
+                                    <td><?= $a['team_name'] ? htmlspecialchars($a['team_name']) : '<span class="text-muted">All TBL_TEAMS</span>' ?></td>
                                     <td><?= htmlspecialchars($a['assigned_by_name'] ?? '—') ?></td>
                                     <td><?= date('M j, Y', strtotime($a['assigned_at'])) ?></td>
                                     <td>
@@ -398,8 +398,8 @@ include __DIR__ . '/../../php_scripts/header.php';
                         <?php
                         $logs = $link->query("
                             SELECT al.*, u.NAME as user_name
-                            FROM api_access_logs al
-                            LEFT JOIN users u ON al.user_id = u.ID
+                            FROM TBL_API_ACCESS_LOGS al
+                            LEFT JOIN TBL_USERS u ON al.user_id = u.ID
                             ORDER BY al.created_at DESC
                             LIMIT 50
                         ");
@@ -444,7 +444,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                         <label class="form-label">User <span class="text-danger">*</span></label>
                         <select class="form-select" name="user_id" required>
                             <option value="">Select user...</option>
-                            <?php foreach ($users as $u): ?>
+                            <?php foreach ($TBL_USERS as $u): ?>
                                 <option value="<?= $u['ID'] ?>"><?= htmlspecialchars($u['NAME']) ?> (<?= htmlspecialchars($u['ROLE']) ?>) - <?= htmlspecialchars($u['EMAIL']) ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -483,7 +483,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                             <label class="form-label">User <span class="text-danger">*</span></label>
                             <select class="form-select" name="assign_user_id" required>
                                 <option value="">Select user...</option>
-                                <?php foreach ($users as $u): ?>
+                                <?php foreach ($TBL_USERS as $u): ?>
                                     <option value="<?= $u['ID'] ?>"><?= htmlspecialchars($u['NAME']) ?> (<?= htmlspecialchars($u['ROLE']) ?>)</option>
                                 <?php endforeach; ?>
                             </select>
@@ -499,8 +499,8 @@ include __DIR__ . '/../../php_scripts/header.php';
                         <div class="mb-3">
                             <label class="form-label">Team Filter (optional)</label>
                             <select class="form-select" name="assign_team_id">
-                                <option value="">All Teams</option>
-                                <?php foreach ($teams as $t): ?>
+                                <option value="">All TBL_TEAMS</option>
+                                <?php foreach ($TBL_TEAMS as $t): ?>
                                     <option value="<?= $t['ID'] ?>"><?= htmlspecialchars($t['NAME']) ?></option>
                                 <?php endforeach; ?>
                             </select>

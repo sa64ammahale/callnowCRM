@@ -1,11 +1,12 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
+api_init();
 
 header('Content-Type: application/json; charset=utf-8');
 
-$allowedRoles = ['Admin', 'Manager', 'Supervisor', 'Officer'];
-if (!in_array(USER_ROLE, $allowedRoles, true)) {
+$allowedTBL_ROLES = ['Admin', 'Manager', 'Supervisor', 'Officer'];
+if (!in_array(USER_ROLE, $allowedTBL_ROLES, true)) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'message' => 'Access denied.']);
     exit;
@@ -25,17 +26,18 @@ $followupMonth = trim((string)($_POST['followupMonth'] ?? ''));
 $quickLoginMode = strtoupper(trim((string)($_POST['quickLoginMode'] ?? '')));
 $quickAssigned = trim((string)($_POST['quickAssigned'] ?? ''));
 $quickLoanType = trim((string)($_POST['quickLoanType'] ?? ''));
+$quickRework = strtoupper(trim((string)($_POST['quickRework'] ?? '')));
 
 $currentMonth = date('Y-m');
 $previousMonth = date('Y-m', strtotime('first day of last month'));
-$pipelineStatuses = ['LEAD', 'LOGIN', 'UNDERWRTING', 'FOLLOWUP', 'SANCTIONED'];
+$pipelineStatuses = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
 $allowedStatuses = leadStatusOptions();
 $allowedLoginModes = loginModeOptions();
 
 $baseFrom = "
-    FROM leads_table l
-    LEFT JOIN main_database m ON m.ID = l.cust_id
-    LEFT JOIN users u ON u.ID = l.assigned_to
+    FROM TBL_LEADS l
+    LEFT JOIN TBL_MAIN m ON m.ID = l.cust_id
+    LEFT JOIN TBL_USERS u ON u.ID = l.assigned_to
 ";
 
 $conditions = [];
@@ -91,6 +93,13 @@ if ($quickAssigned !== '') {
 if ($quickLoanType !== '') {
     $conditions[] = "COALESCE(l.loan_type, '') = '" . mysqli_real_escape_string($link, $quickLoanType) . "'";
 }
+if ($quickRework === 'YES') {
+    $conditions[] = "l.rework_flag = 1";
+} elseif ($quickRework === 'INTERNAL') {
+    $conditions[] = "l.rework_flag = 1 AND l.rework_stage = 'INTERNAL'";
+} elseif ($quickRework === 'BANK') {
+    $conditions[] = "l.rework_flag = 1 AND l.rework_stage = 'BANK'";
+}
 
 if ($search !== '') {
     $like = '%' . escapeLikeValue($link, $search) . '%';
@@ -140,6 +149,12 @@ $dataSql = "
         l.remarks,
         l.dsa_name,
         l.next_followup_at,
+        l.rework_flag,
+        l.rework_stage,
+        l.login_status,
+        l.forwarded_flag,
+        l.sent_backward_flag,
+        l.parent_lead_id,
         COALESCE(NULLIF(m.MAINDATABASE_NAME, ''), NULLIF(l.NAME, ''), CONCAT('Lead #', l.lead_id)) AS customer_name,
         COALESCE(NULLIF(m.MAINDATABASE_MOBILE, ''), NULLIF(l.MOBILE, ''), 'N/A') AS mobile,
         COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') AS company_name,
@@ -210,6 +225,12 @@ foreach ($rows as $row) {
         'status_label' => $meta['label'],
         'status_badge' => leadStatusBadgeClass($status),
         'status_icon' => $meta['icon'],
+        'rework_flag' => (int)$row['rework_flag'],
+        'rework_stage' => $row['rework_stage'],
+        'login_status' => $row['login_status'],
+        'forwarded_flag' => (int)$row['forwarded_flag'],
+        'sent_backward_flag' => (int)$row['sent_backward_flag'],
+        'parent_lead_id' => (int)$row['parent_lead_id'],
         'next_followup_raw' => $nextFollowupDate,
         'timeline' => $timeline,
         'identity' => $identity,

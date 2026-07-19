@@ -12,7 +12,7 @@ ensureCsrfToken();
 // Resolve the application logo for the login screen
 $loginLogo = '';
 if (isset($link) && $link) {
-    $logoRes = $link->query("SELECT setting_value FROM app_settings WHERE setting_key = 'logo_path'");
+    $logoRes = $link->query("SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
     if ($logoRes && $row = $logoRes->fetch_assoc()) {
         $loginLogo = APP_BASE . '/' . ltrim($row['setting_value'], '/');
     }
@@ -32,7 +32,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 
 	if(!empty($username) && !empty($password) && !empty($CompanyName)){
 		
-        $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM users WHERE LOGIN_ID = ?";        
+        $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM TBL_USERS WHERE LOGIN_ID = ?";        
 			if($stmt = mysqli_prepare($link, $sql)){
 				mysqli_stmt_bind_param($stmt, "s", $param_username);
 				$param_username = $username;

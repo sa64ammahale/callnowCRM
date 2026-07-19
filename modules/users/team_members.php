@@ -2,7 +2,7 @@
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
 
-requirePermission('manage_teams');
+requirePermission('manage_TBL_TEAMS');
 
 $msg = $msg_type = "";
 $currentUserId = (int)($_SESSION['id'] ?? 0);
@@ -27,7 +27,7 @@ if ($_POST['action'] === 'assign_member') {
         $team_id = ($_POST['team_id'] ?? '') !== '' ? (int)$_POST['team_id'] : null;
         if ($user_id <= 0) { $msg = "Invalid member."; $msg_type = "danger"; }
         else {
-            $stmt = $link->prepare("SELECT TEAM_ID FROM users WHERE ID = ?");
+            $stmt = $link->prepare("SELECT TEAM_ID FROM TBL_USERS WHERE ID = ?");
             $stmt->bind_param("i", $user_id); $stmt->execute();
             $userRow = $stmt->get_result()->fetch_assoc();
             if (!$userRow) { $msg = "User not found."; $msg_type = "danger"; }
@@ -43,8 +43,8 @@ if ($_POST['action'] === 'assign_member') {
                 }
                 if (empty($msg)) {
                     $upd = $team_id === null
-                        ? $link->prepare("UPDATE users SET TEAM_ID = NULL WHERE ID = ?")
-                        : $link->prepare("UPDATE users SET TEAM_ID = ? WHERE ID = ?");
+                        ? $link->prepare("UPDATE TBL_USERS SET TEAM_ID = NULL WHERE ID = ?")
+                        : $link->prepare("UPDATE TBL_USERS SET TEAM_ID = ? WHERE ID = ?");
                     if ($team_id === null) $upd->bind_param("i", $user_id);
                     else $upd->bind_param("ii", $team_id, $user_id);
                     if ($upd->execute()) { $msg = "Member assignment updated."; $msg_type = "success"; }
@@ -65,11 +65,11 @@ if ($_POST['action'] === 'change_supervisor') {
         elseif (isManager() && !in_array($team_id, $managerTeamIds, true)) { $msg = "Not allowed."; $msg_type = "danger"; }
         else {
             if ($supervisor_id !== null) {
-                $check = $link->prepare("SELECT ID FROM users WHERE ID = ? AND ROLE IN ('Supervisor','Manager') AND STATUS = 'Active'");
+                $check = $link->prepare("SELECT ID FROM TBL_USERS WHERE ID = ? AND ROLE IN ('Supervisor','Manager') AND STATUS = 'Active'");
                 $check->bind_param("i", $supervisor_id); $check->execute();
                 if ($check->get_result()->num_rows === 0) { $msg = "User is not an active Supervisor/Manager."; $msg_type = "danger"; }
                 if (empty($msg)) {
-                    $checkTeam = $link->prepare("SELECT ID, NAME FROM teams WHERE SUPERVISOR_ID = ? AND ID != ? LIMIT 1");
+                    $checkTeam = $link->prepare("SELECT ID, NAME FROM TBL_TEAMS WHERE SUPERVISOR_ID = ? AND ID != ? LIMIT 1");
                     $checkTeam->bind_param("ii", $supervisor_id, $team_id); $checkTeam->execute();
                     $existing = $checkTeam->get_result()->fetch_assoc();
                     if ($existing) { $msg = "Supervisor already assigned to \"{$existing['NAME']}\"."; $msg_type = "danger"; }
@@ -77,17 +77,17 @@ if ($_POST['action'] === 'change_supervisor') {
             }
             if (empty($msg)) {
                 if ($supervisor_id === null) {
-                    $sql = "UPDATE teams SET SUPERVISOR_ID = NULL WHERE ID = ?";
+                    $sql = "UPDATE TBL_TEAMS SET SUPERVISOR_ID = NULL WHERE ID = ?";
                     if (isManager()) $sql .= " AND ID IN (" . implode(',', array_map('intval', $managerTeamIds)) . ")";
                     $stmt = $link->prepare($sql); $stmt->bind_param("i", $team_id);
                 } else {
-                    $sql = "UPDATE teams SET SUPERVISOR_ID = ? WHERE ID = ?";
+                    $sql = "UPDATE TBL_TEAMS SET SUPERVISOR_ID = ? WHERE ID = ?";
                     if (isManager()) $sql .= " AND ID IN (" . implode(',', array_map('intval', $managerTeamIds)) . ")";
                     $stmt = $link->prepare($sql); $stmt->bind_param("ii", $supervisor_id, $team_id);
                 }
                 if ($stmt->execute() && $stmt->affected_rows >= 0) {
                     if ($supervisor_id !== null) {
-                        $upd = $link->prepare("UPDATE users SET TEAM_ID = ? WHERE ID = ?");
+                        $upd = $link->prepare("UPDATE TBL_USERS SET TEAM_ID = ? WHERE ID = ?");
                         $upd->bind_param("ii", $team_id, $supervisor_id); $upd->execute();
                     }
                     $msg = "Supervisor updated."; $msg_type = "success";
@@ -99,25 +99,25 @@ if ($_POST['action'] === 'change_supervisor') {
 
 // ─── Fetch data ───
 if (isAdmin()) {
-    $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
-        FROM teams t LEFT JOIN users sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN users mgr ON t.MANAGER_ID = mgr.ID ORDER BY t.NAME";
+    $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
+        FROM TBL_TEAMS t LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID ORDER BY t.NAME";
 } elseif (isManager()) {
     $ids_str = implode(',', array_map('intval', $managerTeamIds));
-    $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
-        FROM teams t LEFT JOIN users sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN users mgr ON t.MANAGER_ID = mgr.ID
+    $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
+        FROM TBL_TEAMS t LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID IN ($ids_str) ORDER BY t.NAME";
 } else { // Supervisor
-    $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
-        FROM teams t LEFT JOIN users sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN users mgr ON t.MANAGER_ID = mgr.ID
+    $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
+        FROM TBL_TEAMS t LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID = " . (int)USER_TEAM_ID . " ORDER BY t.NAME";
 }
-$teams = mysqli_fetch_all(mysqli_query($link, $teams_sql), MYSQLI_ASSOC);
+$TBL_TEAMS = mysqli_fetch_all(mysqli_query($link, $TBL_TEAMS_sql), MYSQLI_ASSOC);
 
-$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM users WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' ORDER BY NAME"), MYSQLI_ASSOC);
+$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' ORDER BY NAME"), MYSQLI_ASSOC);
 
 // Member count per team
 $memberCounts = [];
-$mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM users WHERE TEAM_ID IS NOT NULL GROUP BY TEAM_ID");
+$mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM TBL_USERS WHERE TEAM_ID IS NOT NULL GROUP BY TEAM_ID");
 if ($mc) while ($m = mysqli_fetch_assoc($mc)) $memberCounts[(int)$m['TEAM_ID']] = (int)$m['cnt'];
 $totalMembers = 0;
 
@@ -135,23 +135,23 @@ if ($filter_team_id > 0) { $where .= " AND u.TEAM_ID = ?"; $types .= 'i'; $param
 if ($search_name !== '') { $where .= " AND u.NAME LIKE ?"; $types .= 's'; $params[] = "%$search_name%"; }
 if ($filter_role !== '') { $where .= " AND u.ROLE = ?"; $types .= 's'; $params[] = $filter_role; }
 if ($filter_status !== '') { $where .= " AND u.STATUS = ?"; $types .= 's'; $params[] = $filter_status; }
-$users_sql = "SELECT u.ID, u.NAME, u.MOBILE, u.LOGIN_ID, u.ROLE, u.STATUS, u.TEAM_ID, t.NAME AS TEAM_NAME
-    FROM users u LEFT JOIN teams t ON u.TEAM_ID = t.ID WHERE $where ORDER BY t.NAME, u.NAME";
-$stmt = $link->prepare($users_sql);
+$TBL_USERS_sql = "SELECT u.ID, u.NAME, u.MOBILE, u.LOGIN_ID, u.ROLE, u.STATUS, u.TEAM_ID, t.NAME AS TEAM_NAME
+    FROM TBL_USERS u LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID WHERE $where ORDER BY t.NAME, u.NAME";
+$stmt = $link->prepare($TBL_USERS_sql);
 if ($types !== '') $stmt->bind_param($types, ...$params);
 $stmt->execute();
-$users_res = $stmt->get_result();
-$usersList = $users_res->fetch_all(MYSQLI_ASSOC);
-$totalMembers = count($usersList);
+$TBL_USERS_res = $stmt->get_result();
+$TBL_USERSList = $TBL_USERS_res->fetch_all(MYSQLI_ASSOC);
+$totalMembers = count($TBL_USERSList);
 
 $unassignedCount = 0;
-$teamSupervisedCount = 0;
-foreach ($teams as $t) { if ($t['SUPERVISOR_ID']) $teamSupervisedCount++; }
-foreach ($usersList as $u) { if (!$u['TEAM_ID']) $unassignedCount++; }
+$TBL_TEAMSupervisedCount = 0;
+foreach ($TBL_TEAMS as $t) { if ($t['SUPERVISOR_ID']) $TBL_TEAMSupervisedCount++; }
+foreach ($TBL_USERSList as $u) { if (!$u['TEAM_ID']) $unassignedCount++; }
 
 // Role description lookup
 $roleDesc = [];
-$rd = mysqli_query($link, "SELECT role_name, description FROM roles");
+$rd = mysqli_query($link, "SELECT role_name, description FROM TBL_ROLES");
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 ?>
 <?php $pageTitle = 'Team Members - CallNow'; include '../../php_scripts/header.php'; ?>
@@ -254,11 +254,11 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
         <div class="tm-header-content">
             <div class="tm-header-left">
                 <h1><i class="bi bi-people-fill"></i> Team Members</h1>
-                <p>Assign members to teams, transfer between teams, and manage supervisors</p>
+                <p>Assign members to TBL_TEAMS, transfer between TBL_TEAMS, and manage supervisors</p>
             </div>
             <div class="tm-header-actions">
-                <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-diagram-3"></i> Teams</a>
-                <a href="<?= url('modules/users/users_view.php') ?>" class="tm-btn-glass"><i class="bi bi-person-gear"></i> Users</a>
+                <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-diagram-3"></i> TBL_TEAMS</a>
+                <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" class="tm-btn-glass"><i class="bi bi-person-gear"></i> TBL_USERS</a>
                 <a href="<?= url('dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-speedometer2"></i> Dashboard</a>
             </div>
         </div>
@@ -278,16 +278,16 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
             <p class="lbl"><i class="bi bi-people"></i> Total Members</p>
         </div>
         <div class="tm-stat-card">
-            <div class="num"><?= count($teams) ?></div>
-            <p class="lbl"><i class="bi bi-diagram-3"></i> Teams</p>
+            <div class="num"><?= count($TBL_TEAMS) ?></div>
+            <p class="lbl"><i class="bi bi-diagram-3"></i> TBL_TEAMS</p>
         </div>
         <div class="tm-stat-card">
             <div class="num"><?= $unassignedCount ?></div>
             <p class="lbl"><i class="bi bi-person-dash"></i> Unassigned</p>
         </div>
         <div class="tm-stat-card">
-            <div class="num"><?= $teamSupervisedCount ?>/<?= count($teams) ?></div>
-            <p class="lbl"><i class="bi bi-person-badge"></i> Teams with Supervisor</p>
+            <div class="num"><?= $TBL_TEAMSupervisedCount ?>/<?= count($TBL_TEAMS) ?></div>
+            <p class="lbl"><i class="bi bi-person-badge"></i> TBL_TEAMS with Supervisor</p>
         </div>
     </div>
 
@@ -304,14 +304,14 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                     </div>
                     <p style="font-size:0.7rem;color:var(--tm-ink-soft);margin-bottom:0.75rem;">Assign a supervisor to each team. A supervisor can oversee only one team.</p>
 
-                    <?php if (empty($teams)): ?>
+                    <?php if (empty($TBL_TEAMS)): ?>
                         <div style="text-align:center;padding:2rem 0;color:var(--tm-ink-soft);font-size:0.8125rem;">
                             <i class="bi bi-diagram-3" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>
-                            No teams found. Create teams first.
+                            No TBL_TEAMS found. Create TBL_TEAMS first.
                         </div>
                     <?php else: ?>
                         <div class="tm-sup-grid">
-                            <?php foreach ($teams as $t): ?>
+                            <?php foreach ($TBL_TEAMS as $t): ?>
                                 <div class="tm-sup-item">
                                     <h6><i class="bi bi-people" style="color:var(--tm-accent);font-size:0.7rem;"></i> <?= htmlspecialchars($t['NAME']) ?></h6>
                                     <div class="sup-meta">
@@ -351,7 +351,7 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                             <h6 style="font-size:0.85rem;font-weight:700;color:var(--tm-ink);margin:0;">
                                 <i class="bi bi-people" style="color:var(--tm-accent);"></i> Members &amp; Team Assignment
                             </h6>
-                            <p style="font-size:0.7rem;color:var(--tm-ink-soft);margin:0;">Assign or transfer members between teams</p>
+                            <p style="font-size:0.7rem;color:var(--tm-ink-soft);margin:0;">Assign or transfer members between TBL_TEAMS</p>
                         </div>
                     </div>
 
@@ -361,13 +361,13 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                             <input type="text" name="search_name" class="form-control tm-input" placeholder="Search name..." value="<?= htmlspecialchars($search_name) ?>">
                         </div>
                         <select name="team_id" class="form-select tm-select" style="width:auto;min-width:130px;">
-                            <option value="0">All Teams</option>
-                            <?php foreach ($teams as $t): ?>
+                            <option value="0">All TBL_TEAMS</option>
+                            <?php foreach ($TBL_TEAMS as $t): ?>
                                 <option value="<?= (int)$t['ID'] ?>" <?= $filter_team_id == $t['ID'] ? 'selected' : '' ?>><?= htmlspecialchars($t['NAME']) ?></option>
                             <?php endforeach; ?>
                         </select>
                         <select name="role" class="form-select tm-select" style="width:auto;min-width:110px;">
-                            <option value="">All Roles</option>
+                            <option value="">All TBL_ROLES</option>
                             <option value="Admin" <?= $filter_role==='Admin'?'selected':'' ?>>Admin</option>
                             <option value="Manager" <?= $filter_role==='Manager'?'selected':'' ?>>Manager</option>
                             <option value="Supervisor" <?= $filter_role==='Supervisor'?'selected':'' ?>>Supervisor</option>
@@ -380,7 +380,7 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                             <option value="Suspended" <?= $filter_status==='Suspended'?'selected':'' ?>>Suspended</option>
                         </select>
                         <button type="submit" class="tm-btn-primary tm-btn-sm"><i class="bi bi-funnel"></i> Filter</button>
-                        <a href="<?= url('modules/users/team_members.php') ?>" class="tm-btn-outline tm-btn-sm"><i class="bi bi-x-lg"></i></a>
+                        <a href="<?= url('modules/TBL_USERS/team_members.php') ?>" class="tm-btn-outline tm-btn-sm"><i class="bi bi-x-lg"></i></a>
                     </form>
 
                     <div class="table-responsive">
@@ -395,14 +395,14 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (empty($usersList)): ?>
+                                <?php if (empty($TBL_USERSList)): ?>
                                     <tr>
                                         <td colspan="5" class="text-center py-4" style="color:var(--tm-ink-soft);font-size:0.8125rem;">
                                             <i class="bi bi-info-circle"></i> No members found.
                                         </td>
                                     </tr>
                                 <?php else: ?>
-                                    <?php foreach ($usersList as $u):
+                                    <?php foreach ($TBL_USERSList as $u):
                                         $initial = strtoupper(substr($u['NAME'], 0, 1));
                                         $colors = ['#6366f1','#8b5cf6','#a855f7','#ec4899','#f43f5e','#10b981','#14b8a6','#06b6d4','#0ea5e9','#2563eb'];
                                         $colorIdx = (int)$u['ID'] % count($colors);
@@ -444,7 +444,7 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                                                     <input type="hidden" name="user_id" value="<?= (int)$u['ID'] ?>">
                                                     <select name="team_id" class="form-select tm-select" style="width:auto;min-width:130px;">
                                                         <option value="">No Team</option>
-                                                        <?php foreach ($teams as $t): ?>
+                                                        <?php foreach ($TBL_TEAMS as $t): ?>
                                                             <option value="<?= (int)$t['ID'] ?>" <?= ($u['TEAM_ID'] == $t['ID']) ? 'selected' : '' ?>><?= htmlspecialchars($t['NAME']) ?></option>
                                                         <?php endforeach; ?>
                                                     </select>

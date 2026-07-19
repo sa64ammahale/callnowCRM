@@ -123,7 +123,7 @@ $whereSql = $whereParts
     : "";
 
 /**
- * Unified call log: temporary_database + main_database
+ * Unified call log: TBL_TEMP + TBL_MAIN
  */
 $unionSubquery = "
     SELECT
@@ -135,7 +135,7 @@ $unionSubquery = "
         CUST_MOBILE            AS cust_mobile,
         CUST_COMPANY           AS cust_company,
         'TEMP'                 AS source
-    FROM temporary_database
+    FROM TBL_TEMP
 
     UNION ALL
 
@@ -148,7 +148,7 @@ $unionSubquery = "
         MAINDATABASE_MOBILE  AS cust_mobile,
         MAINDATABASE_COMPANY AS cust_company,
         'MAIN'               AS source
-    FROM main_database
+    FROM TBL_MAIN
 ";
 
 /**
@@ -173,9 +173,9 @@ $sqlSummary = "
     FROM (
         $unionSubquery
     ) AS m
-    JOIN users u ON m.user_id = u.ID
-    LEFT JOIN teams t ON u.TEAM_ID = t.ID
-    LEFT JOIN users s ON t.SUPERVISOR_ID = s.ID
+    JOIN TBL_USERS u ON m.user_id = u.ID
+    LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
+    LEFT JOIN TBL_USERS s ON t.SUPERVISOR_ID = s.ID
     $whereSql
     GROUP BY u.ID, t.ID
     ORDER BY t.NAME, u.NAME
@@ -200,7 +200,7 @@ $grand_no_ans  = 0;
 $grand_dnc     = 0;
 $grand_pending = 0;
 $grand_not_called = 0;
-$users_index   = [];
+$TBL_USERS_index   = [];
 
 while ($row = mysqli_fetch_assoc($result)) {
     $row['rate'] = $row['total'] ? round($row['connected'] / $row['total'] * 100, 1) : 0;
@@ -211,10 +211,10 @@ while ($row = mysqli_fetch_assoc($result)) {
             'team_id'         => $row['team_id'],
             'supervisor_id'   => $row['SUPERVISOR_ID'],
             'supervisor_name' => $row['supervisor_name'],
-            'users'           => []
+            'TBL_USERS'           => []
         ];
     }
-    $data[$team_name]['users'][] = $row;
+    $data[$team_name]['TBL_USERS'][] = $row;
 
     $grand_total      += (int)$row['total'];
     $grand_connected  += (int)$row['connected'];
@@ -225,15 +225,15 @@ while ($row = mysqli_fetch_assoc($result)) {
     $grand_pending    += (int)$row['pending'];
     $grand_not_called += (int)$row['not_called'];
 
-    $users_index[$row['user_id']] = $row['user_name'];
+    $TBL_USERS_index[$row['user_id']] = $row['user_name'];
 }
 mysqli_stmt_close($stmt);
 
 $grand_rate = $grand_total ? round($grand_connected / $grand_total * 100, 1) : 0;
 
-// Teams for filter dropdown
-$teams = in_array(USER_ROLE, ['Admin','Manager'])
-    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME"), MYSQLI_ASSOC)
+// TBL_TEAMS for filter dropdown
+$TBL_TEAMS = in_array(USER_ROLE, ['Admin','Manager'])
+    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME"), MYSQLI_ASSOC)
     : [];
 
 /**
@@ -251,8 +251,8 @@ $sqlTrend = "
     FROM (
         $unionSubquery
     ) AS m
-    JOIN users u ON m.user_id = u.ID
-    LEFT JOIN teams t ON u.TEAM_ID = t.ID
+    JOIN TBL_USERS u ON m.user_id = u.ID
+    LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
     $whereSql
     GROUP BY bucket
     ORDER BY bucket
@@ -284,7 +284,7 @@ mysqli_stmt_close($stmtT);
 $userLabels = [];
 $userTotals = [];
 foreach ($data as $block) {
-    foreach ($block['users'] as $u) {
+    foreach ($block['TBL_USERS'] as $u) {
         $userLabels[] = $u['user_name'];
         $userTotals[] = (int)$u['total'];
     }
@@ -303,10 +303,10 @@ $detail_rows = [];
 $selected_user_name = null;
 
 if ($selected_user_id !== null) {
-    $selected_user_name = $users_index[$selected_user_id] ?? null;
+    $selected_user_name = $TBL_USERS_index[$selected_user_id] ?? null;
 
     if ($selected_user_name === null) {
-        $resUser = mysqli_query($link, "SELECT NAME FROM users WHERE ID = " . (int)$selected_user_id);
+        $resUser = mysqli_query($link, "SELECT NAME FROM TBL_USERS WHERE ID = " . (int)$selected_user_id);
         if ($resUser && mysqli_num_rows($resUser) === 1) {
             $selected_user_name = mysqli_fetch_assoc($resUser)['NAME'];
         }
@@ -333,8 +333,8 @@ if ($selected_user_id !== null) {
         FROM (
             $unionSubquery
         ) AS m
-        JOIN users u ON m.user_id = u.ID
-        LEFT JOIN teams t ON u.TEAM_ID = t.ID
+        JOIN TBL_USERS u ON m.user_id = u.ID
+        LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
         $whereDetailSql
         ORDER BY m.call_time DESC
     ";
@@ -564,8 +564,8 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                 <div class="col-auto">
                     <label class="form-label d-block">Team</label>
                     <select name="team" class="form-select" onchange="this.form.submit()">
-                        <option value="">All Teams</option>
-                        <?php foreach($teams as $t): ?>
+                        <option value="">All TBL_TEAMS</option>
+                        <?php foreach($TBL_TEAMS as $t): ?>
                             <option value="<?= $t['ID'] ?>" <?= $team_filter==$t['ID']?'selected':'' ?>>
                                 <?= htmlspecialchars($t['NAME']) ?>
                             </option>
@@ -617,7 +617,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
         <?php foreach ($data as $team_name => $block):
             $team_total = 0;
             $team_connected = 0;
-            foreach ($block['users'] as $u) {
+            foreach ($block['TBL_USERS'] as $u) {
                 $team_total     += $u['total'];
                 $team_connected += $u['connected'];
             }
@@ -638,7 +638,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                     </div>
                 </div>
                 <div class="rp-team-body">
-                    <?php foreach ($block['users'] as $u):
+                    <?php foreach ($block['TBL_USERS'] as $u):
                         $rate = $u['rate'];
                         $rateClass = $rate >= 40 ? 'rate-good' : 'rate-poor';
                         $isSelected = $selected_user_id && $selected_user_id == $u['user_id'];

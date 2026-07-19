@@ -45,8 +45,8 @@ if (isset($_POST['archive_action']) && isset($_POST['archive_months'])) {
     } else {
     $months = intval($_POST['archive_months']);
     if ($months < 1) $months = 12;
-    $source_table = 'main_database';
-    $archive_table = 'main_database_archive';
+    $source_table = 'TBL_MAIN';
+    $archive_table = 'TBL_MAIN_ARCHIVE';
 
     $create_sql = "CREATE TABLE IF NOT EXISTS `$archive_table` LIKE `$source_table`";
     if (!mysqli_query($link, $create_sql)) {
@@ -126,7 +126,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
         $safe = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file['name']);
         $path = 'uploads/' . $safe;
         if (!move_uploaded_file($file['tmp_name'], $path)) {
-            $summary = "Failed to save upload - check permissions.";
+            $summary = "Failed to save upload - check TBL_PERMISSIONS.";
             $summaryType = "danger";
             logLine($logs, "move_uploaded_file() failed.");
         } else {
@@ -197,7 +197,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
                     $targets = [];
                     if ($target === 'temporary' || $target === 'both') {
                         $targets['temporary'] = [
-                            'table' => 'temporary_database',
+                            'table' => 'TBL_TEMP',
                             'cols' => [
                                 'name' => 'CUST_NAME',
                                 'mobile' => 'CUST_MOBILE',
@@ -210,7 +210,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
                     }
                     if ($target === 'main' || $target === 'both') {
                         $targets['main'] = [
-                            'table' => 'main_database',
+                            'table' => 'TBL_MAIN',
                             'cols' => [
                                 'name' => 'MAINDATABASE_NAME',
                                 'mobile' => 'MAINDATABASE_MOBILE',
@@ -620,7 +620,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
               <input type="number" name="archive_months" class="form-control form-control-sm" min="1" value="12" aria-label="months">
               <button class="btn btn-outline-secondary" type="submit" name="archive_action" value="1">Archive</button>
             </div>
-            <div class="small text-muted">Creates New `MAIN_DATABASE_archive` if missing. Moves rows older than Selected months.</div>
+            <div class="small text-muted">Creates New `TBL_MAIN_ARCHIVE` if missing. Moves rows older than Selected months.</div>
           </form>
         </div>
       </div>

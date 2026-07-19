@@ -6,7 +6,7 @@ include 'php_scripts/header.php';
 
 // === ALL DATA WITH NULL-SAFE FALLBACKS ===
 $today_calls = $today_connected = $connect_rate = 0;
-$total_leads = $total_numbers = $unused_numbers = $active_users_today = 0;
+$total_leads = $total_numbers = $unused_numbers = $active_TBL_USERS_today = 0;
 
 function fmt($num) {
     return number_format((int)$num);
@@ -16,7 +16,7 @@ function fmt($num) {
 $sql_today = "SELECT
                 COUNT(*) as total_calls,
                 SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected
-              FROM main_database
+              FROM TBL_MAIN
               WHERE DATE(MAINDATABASE_CALL_DIAL_TIME) = CURDATE()";
 
 $res = mysqli_query($link, $sql_today);
@@ -26,22 +26,22 @@ $today_connected = (int)($row['connected'] ?? 0);
 $connect_rate    = $today_calls > 0 ? round(($today_connected / $today_calls) * 100, 1) : 0;
 
 // 2. Total Hot Leads / Sales
-$res2 = mysqli_query($link, "SELECT COUNT(*) as leads FROM main_database WHERE MAINDATABASE_CALL_DIALED_STATUS IN ('Connected','Interested','Follow Up','Sale','Callback')");
+$res2 = mysqli_query($link, "SELECT COUNT(*) as leads FROM TBL_MAIN WHERE MAINDATABASE_CALL_DIALED_STATUS IN ('Connected','Interested','Follow Up','Sale','Callback')");
 $row2 = $res2 ? mysqli_fetch_assoc($res2) : ['leads' => 0];
 $total_leads = (int)($row2['leads'] ?? 0);
 
 // 3. Active Callers Today
-$res3 = mysqli_query($link, "SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as users FROM main_database WHERE DATE(MAINDATABASE_CALL_DIAL_TIME) = CURDATE() AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL");
-$row3 = $res3 ? mysqli_fetch_assoc($res3) : ['users' => 0];
-$active_users_today = (int)($row3['users'] ?? 0);
+$res3 = mysqli_query($link, "SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as TBL_USERS FROM TBL_MAIN WHERE DATE(MAINDATABASE_CALL_DIAL_TIME) = CURDATE() AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL");
+$row3 = $res3 ? mysqli_fetch_assoc($res3) : ['TBL_USERS' => 0];
+$active_TBL_USERS_today = (int)($row3['TBL_USERS'] ?? 0);
 
 // 4. Total Records
-$res4 = mysqli_query($link, "SELECT COUNT(*) as total FROM main_database");
+$res4 = mysqli_query($link, "SELECT COUNT(*) as total FROM TBL_MAIN");
 $row4 = $res4 ? mysqli_fetch_assoc($res4) : ['total' => 0];
 $total_numbers = (int)($row4['total'] ?? 0);
 
 // 5. Fresh / Not Called Numbers
-$res5 = mysqli_query($link, "SELECT COUNT(*) as unused FROM main_database WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '' OR MAINDATABASE_CALL_DIAL_TIME IS NULL");
+$res5 = mysqli_query($link, "SELECT COUNT(*) as unused FROM TBL_MAIN WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '' OR MAINDATABASE_CALL_DIAL_TIME IS NULL");
 $row5 = $res5 ? mysqli_fetch_assoc($res5) : ['unused' => 0];
 $unused_numbers = (int)($row5['unused'] ?? 0);
 
@@ -136,7 +136,7 @@ $unused_numbers = (int)($row5['unused'] ?? 0);
             <div class="card text-center p-4">
                 <div class="card-body">
                     <i class="bi bi-people-fill text-primary" style="font-size:2.5rem"></i>
-                    <div class="metric-card-value mt-2"><?= $active_users_today ?></div>
+                    <div class="metric-card-value mt-2"><?= $active_TBL_USERS_today ?></div>
                     <div class="metric-card-label">Active Callers Today</div>
                 </div>
             </div>

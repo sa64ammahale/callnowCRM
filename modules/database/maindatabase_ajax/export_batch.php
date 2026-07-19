@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 
 requirePermission('export_data');
+api_init();
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -31,8 +32,8 @@ $sql = "SELECT
     md.MAINDATABASE_PACKAGE, md.MAINDATABASE_OTHER_INFO, md.MAINDATABASE_CALL_DIALED_STATUS,
     u.NAME AS assigned_to,
     DATE_FORMAT(md.MAINDATABASE_UPLOAD_DATETIME, '%d-%m-%Y %H:%i') AS uploaded
-    FROM main_database md
-    LEFT JOIN users u ON md.MAINDATABASE_CALL_DIALED_USER = u.ID
+    FROM TBL_MAIN md
+    LEFT JOIN TBL_USERS u ON md.MAINDATABASE_CALL_DIALED_USER = u.ID
     ORDER BY md.ID ASC
     LIMIT ? OFFSET ?";
 

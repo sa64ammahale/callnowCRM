@@ -2,18 +2,18 @@
 /**
  * Central permission seed + helpers for the DB-backed RBAC system.
  *
- * The `permissions` DB table is the runtime source of truth (DB-backed, addable via UI).
+ * The `TBL_PERMISSIONS` DB table is the runtime source of truth (DB-backed, addable via UI).
  * This file only defines the INITIAL seed data and helper functions. Include it once.
  */
 
-if (!function_exists('getPermissionSeed')) {
+if (!function_exists('getTBL_PERMISSIONSeed')) {
 
     // Seed definition of the core permission keys.
     // is_system = 1 => protected from delete/rename in the UI.
-    function getPermissionSeed(): array {
+    function getTBL_PERMISSIONSeed(): array {
         return [
-            'manage_users'    => ['label' => 'Manage Users',     'category' => 'Administration', 'description' => 'Create, edit and delete user accounts', 'is_system' => 1],
-            'manage_teams'    => ['label' => 'Manage Teams',      'category' => 'Administration', 'description' => 'Create teams and assign members', 'is_system' => 1],
+            'manage_TBL_USERS'    => ['label' => 'Manage TBL_USERS',     'category' => 'Administration', 'description' => 'Create, edit and delete user accounts', 'is_system' => 1],
+            'manage_TBL_TEAMS'    => ['label' => 'Manage TBL_TEAMS',      'category' => 'Administration', 'description' => 'Create TBL_TEAMS and assign members', 'is_system' => 1],
             'manage_settings' => ['label' => 'Manage Settings',   'category' => 'Administration', 'description' => 'Access the Settings hub and permission manager', 'is_system' => 1],
             'view_activity'   => ['label' => 'View Activity Log', 'category' => 'Administration', 'description' => 'Access the audit / activity log', 'is_system' => 1],
             'manage_database' => ['label' => 'Manage Database',   'category' => 'Data', 'description' => 'Edit, delete and transfer records in temporary & main databases', 'is_system' => 1],
@@ -26,14 +26,14 @@ if (!function_exists('getPermissionSeed')) {
         ];
     }
 
-    // Default permission matrix for SYSTEM roles. Custom roles default to ALL OFF (secure by default).
-    // Admin/Manager are treated as superusers in can(); listed here for seed completeness.
+    // Default permission matrix for SYSTEM TBL_ROLES. Custom TBL_ROLES default to ALL OFF (secure by default).
+    // Admin/Manager are treated as superTBL_USERS in can(); listed here for seed completeness.
     function getSystemRoleDefaults(): array {
         return [
             'Admin'      => ['*' => 1],
             'Manager'    => ['*' => 1],
             'Supervisor' => [
-                'manage_teams' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
+                'manage_TBL_TEAMS' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
                 'export_data' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
             'Officer'    => [
@@ -42,10 +42,10 @@ if (!function_exists('getPermissionSeed')) {
         ];
     }
 
-    // Seed the permissions table (idempotent). Call after the table exists.
-    function seedPermissions(mysqli $link): int {
-        $seed = getPermissionSeed();
-        $stmt = mysqli_prepare($link, "INSERT IGNORE INTO permissions (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, ?)");
+    // Seed the TBL_PERMISSIONS table (idempotent). Call after the table exists.
+    function seedTBL_PERMISSIONS(mysqli $link): int {
+        $seed = getTBL_PERMISSIONSeed();
+        $stmt = mysqli_prepare($link, "INSERT IGNORE INTO TBL_PERMISSIONS (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, ?)");
         $count = 0;
         foreach ($seed as $key => $d) {
             mysqli_stmt_bind_param($stmt, 'ssssi', $key, $d['label'], $d['category'], $d['description'], $d['is_system']);
@@ -54,25 +54,25 @@ if (!function_exists('getPermissionSeed')) {
         return $count;
     }
 
-    // Fetch all permissions from DB (runtime source of truth).
-    function getAllPermissions(mysqli $link): array {
+    // Fetch all TBL_PERMISSIONS from DB (runtime source of truth).
+    function getAllTBL_PERMISSIONS(mysqli $link): array {
         $out = [];
-        $res = mysqli_query($link, "SELECT id, permission_key, label, category, description, is_system FROM permissions ORDER BY category, label");
+        $res = mysqli_query($link, "SELECT id, permission_key, label, category, description, is_system FROM TBL_PERMISSIONS ORDER BY category, label");
         if ($res) while ($r = mysqli_fetch_assoc($res)) $out[] = $r;
         return $out;
     }
 
-    // Group permissions by category.
-    function getPermissionsByCategory(mysqli $link): array {
+    // Group TBL_PERMISSIONS by category.
+    function getTBL_PERMISSIONSByCategory(mysqli $link): array {
         $grouped = [];
-        foreach (getAllPermissions($link) as $p) {
+        foreach (getAllTBL_PERMISSIONS($link) as $p) {
             $grouped[$p['category']][] = $p;
         }
         return $grouped;
     }
 
     function permissionExists(mysqli $link, string $key): bool {
-        $stmt = mysqli_prepare($link, "SELECT 1 FROM permissions WHERE permission_key = ?");
+        $stmt = mysqli_prepare($link, "SELECT 1 FROM TBL_PERMISSIONS WHERE permission_key = ?");
         mysqli_stmt_bind_param($stmt, 's', $key);
         mysqli_stmt_execute($stmt);
         return (bool) mysqli_stmt_num_rows($stmt);

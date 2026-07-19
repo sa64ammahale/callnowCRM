@@ -14,7 +14,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // UPDATED QUERY with correct column names and order
     $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, PASSWORD, LOGIN_ID, DEVICE_ID, TEAM_ID 
-            FROM users WHERE LOGIN_ID = ?";
+            FROM TBL_USERS WHERE LOGIN_ID = ?";
     
     if ($stmt = mysqli_prepare($link, $sql)) {
         mysqli_stmt_bind_param($stmt, "s", $param_username);
@@ -60,7 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         
                         // Update password in database using prepared statement
                         $newHashedPassword = password_hash($NewPassword, PASSWORD_DEFAULT);
-                        $update_sql = "UPDATE users SET PASSWORD = ? WHERE LOGIN_ID = ?";
+                        $update_sql = "UPDATE TBL_USERS SET PASSWORD = ? WHERE LOGIN_ID = ?";
 
                         if ($update_stmt = mysqli_prepare($link, $update_sql)) {
                             mysqli_stmt_bind_param($update_stmt, "ss", $newHashedPassword, $username);

@@ -65,6 +65,68 @@
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Canonical table names (lowercase). Reference these constants in
+    // every SQL statement instead of raw strings. MySQL/MariaDB table
+    // names are case-sensitive on Linux (Hostinger), so hardcoding the
+    // correct lowercase form here prevents "table doesn't exist" errors
+    // that only appear in production.
+    // ─────────────────────────────────────────────────────────────
+    if (!defined('TBL_ACTIVITY_LOG')) {
+        define('TBL_ACTIVITY_LOG',      'activity_log');
+        define('TBL_API_ACCESS_LOGS',    'api_access_logs');
+        define('TBL_API_DB_ASSIGNMENTS', 'api_database_assignments');
+        define('TBL_API_SETTINGS',       'api_settings');
+        define('TBL_API_TOKENS',         'api_tokens');
+        define('TBL_APP_SETTINGS',       'app_settings');
+        define('TBL_ENQUIRY',            'enquiry');
+        define('TBL_LEADS',              'leads_table');
+        define('TBL_MAIN',               'main_database');
+        define('TBL_MAIN_ARCHIVE',       'main_database_archive');
+        define('TBL_PERMISSIONS',        'permissions');
+        define('TBL_ROLE_PERMISSIONS',   'role_permissions');
+        define('TBL_ROLES',              'roles');
+        define('TBL_TEAMS',              'teams');
+        define('TBL_TEMP',               'temporary_database');
+        define('TBL_USER_PAGE_FILTERS',  'user_page_filters');
+        define('TBL_USER_PERMISSIONS',   'user_permissions');
+        define('TBL_USERS',              'users');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Shared AJAX helpers. Call api_init() at the top of any JSON
+    // endpoint so unexpected fatals are returned as JSON (not a blank
+    // page or HTML error) and the UI can show the real message.
+    // ─────────────────────────────────────────────────────────────
+    if (!function_exists('api_send_json')) {
+        function api_send_json($payload, int $code = 200): void {
+            while (ob_get_level()) { ob_end_clean(); }
+            http_response_code($code);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+    if (!function_exists('api_error')) {
+        function api_error(string $message, int $code = 500, $extra = []): void {
+            $payload = array_merge(['error' => true, 'message' => $message], (array)$extra);
+            api_send_json($payload, $code);
+        }
+    }
+    if (!function_exists('api_init')) {
+        function api_init(): void {
+            set_exception_handler(function ($e) {
+                api_error(APP_DEBUG ? ($e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()) : 'Server error', 500);
+            });
+            register_shutdown_function(function () {
+                $err = error_get_last();
+                if ($err !== null && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                    api_error(APP_DEBUG ? ($err['message'] . ' @ ' . $err['file'] . ':' . $err['line']) : 'Server error', 500);
+                }
+            });
+        }
+    }
+
     define('APP_DEBUG', getenv('APP_DEBUG') === '1');
     error_reporting(E_ALL);
     ini_set('display_errors', APP_DEBUG ? '1' : '0');

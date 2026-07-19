@@ -12,7 +12,7 @@ $userInitial = mb_strtoupper(mb_substr($userName, 0, 1));
 
     <div class="app-topbar-search">
         <i class="bi bi-search"></i>
-        <input type="search" placeholder="Search leads, numbers, users..." aria-label="Search" />
+        <input type="search" placeholder="Search leads, numbers, TBL_USERS..." aria-label="Search" />
     </div>
 
     <div class="app-topbar-actions">

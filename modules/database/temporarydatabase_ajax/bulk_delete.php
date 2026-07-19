@@ -10,6 +10,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 }
 
 requireAnyPermission(['manage_database', 'delete_leads']);
+api_init();
 
 $ids = $_POST['ids'] ?? [];
 if (!is_array($ids) || empty($ids)) {
@@ -20,7 +21,7 @@ if (!is_array($ids) || empty($ids)) {
 $ids = array_map('intval', $ids);
 $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
-$sql = "DELETE FROM temporary_database WHERE ID IN ($placeholders)";
+$sql = "DELETE FROM TBL_TEMP WHERE ID IN ($placeholders)";
 $stmt = mysqli_prepare($link, $sql);
 if (!$stmt) {
     echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . mysqli_error($link)]);

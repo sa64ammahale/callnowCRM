@@ -2,13 +2,14 @@
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 
 requirePermission('export_data');
+api_init();
 
 if (!isset($link) || !$link) {
     exit('Database connection failed');
 }
 
 $totalRecords = 0;
-$result = mysqli_query($link, "SELECT COUNT(*) as total FROM main_database");
+$result = mysqli_query($link, "SELECT COUNT(*) as total FROM TBL_MAIN");
 if ($result) {
     $row = mysqli_fetch_assoc($result);
     $totalRecords = (int)$row['total'];

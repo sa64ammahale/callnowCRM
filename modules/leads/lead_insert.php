@@ -13,7 +13,7 @@ $loginModeOptions = loginModeOptions();
 $loanTypeOptions = loanTypeOptions();
 $bankOptions = indianBankOptions();
 
-$users = getLeadAssignableUsers($link);
+$TBL_USERS = getLeadAssignableTBL_USERS($link);
 
 $form = [
     'login_date' => '',
@@ -71,7 +71,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         mysqli_begin_transaction($link);
 
         try {
-            $stmtDup = mysqli_prepare($link, "SELECT ID FROM main_database WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
+            $stmtDup = mysqli_prepare($link, "SELECT ID FROM TBL_MAIN WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
             mysqli_stmt_bind_param($stmtDup, "s", $form['mobile']);
             mysqli_stmt_execute($stmtDup);
             $resDup = mysqli_stmt_get_result($stmtDup);
@@ -82,7 +82,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $custId = (int)$existingMain['ID'];
                 $stmt = mysqli_prepare(
                     $link,
-                    "UPDATE main_database
+                    "UPDATE TBL_MAIN
                      SET MAINDATABASE_NAME = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_OTHER_INFO = ?
                      WHERE ID = ?"
                 );
@@ -95,7 +95,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             } else {
                 $stmt = mysqli_prepare(
                     $link,
-                    "INSERT INTO main_database
+                    "INSERT INTO TBL_MAIN
                      (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_OTHER_INFO, MAINDATABASE_UPLOAD_DATETIME)
                      VALUES (?, ?, ?, ?, NOW())"
                 );
@@ -110,7 +110,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             }
 
             $existingLead = mysqli_fetch_assoc(
-                mysqli_query($link, "SELECT lead_id FROM leads_table WHERE cust_id = {$custId} LIMIT 1")
+                mysqli_query($link, "SELECT lead_id FROM TBL_LEADS WHERE cust_id = {$custId} LIMIT 1")
             );
             if ($existingLead) {
                 throw new RuntimeException(
@@ -126,7 +126,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             };
             $stmt = mysqli_prepare(
                 $link,
-                "INSERT INTO leads_table (
+                "INSERT INTO TBL_LEADS (
                     cust_id, assigned_to, assigned_by, lead_status, lead_stage, priority, created_by, updated_by,
                     login_date, net_salary, salary_account, bank_name, loan_amount, loan_tenure, promo_code,
                     login_bank_name, lead_status_new, login_mode, loan_type, loan_app_no, login_location,
@@ -193,7 +193,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 'INSERT',
                 "Created lead for {$form['name']} ({$form['mobile']}) with status {$form['lead_status_new']}",
                 (string)$leadId,
-                'leads_table'
+                'TBL_LEADS'
             );
 
             mysqli_commit($link);
@@ -343,7 +343,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                         <label class="li-label">Assigned Employee <span class="text-danger">*</span></label>
                         <select name="assigned_to" class="li-select" required>
                             <option value="">Choose Employee</option>
-                            <?php foreach ($users as $user): ?>
+                            <?php foreach ($TBL_USERS as $user): ?>
                                 <option value="<?= (int)$user['ID'] ?>" <?= (string)$user['ID'] === $form['assigned_to'] ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($user['NAME']) ?><?= (int)$user['ID'] === USER_ID ? ' (You)' : '' ?>
                                 </option>

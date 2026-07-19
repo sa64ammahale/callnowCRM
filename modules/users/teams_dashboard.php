@@ -1,7 +1,7 @@
 <?php
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
-requirePermission('manage_teams');
+requirePermission('manage_TBL_TEAMS');
 
 $msg = $msg_type = "";
 
@@ -17,7 +17,7 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
             $msg = "Please select a valid target team for reassignment.";
             $msg_type = "warning";
         } else {
-            $check = $link->prepare("SELECT COUNT(*) FROM teams WHERE ID IN (?, ?)");
+            $check = $link->prepare("SELECT COUNT(*) FROM TBL_TEAMS WHERE ID IN (?, ?)");
             $check->bind_param("ii", $from_team_id, $to_team_id);
             $check->execute();
             $count = $check->get_result()->fetch_row()[0] ?? 0;
@@ -25,7 +25,7 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
                 $msg = "Invalid team selection.";
                 $msg_type = "danger";
             } else {
-                $stmt = $link->prepare("UPDATE users SET TEAM_ID = ? WHERE TEAM_ID = ?");
+                $stmt = $link->prepare("UPDATE TBL_USERS SET TEAM_ID = ? WHERE TEAM_ID = ?");
                 $stmt->bind_param("ii", $to_team_id, $from_team_id);
                 $stmt->execute();
                 $affected = $stmt->affected_rows;
@@ -33,7 +33,7 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
                     $msg = "$affected member(s) reassigned successfully.";
                     $msg_type = "success";
                 } else {
-                    $msg = "No members were reassigned (no users in this team).";
+                    $msg = "No members were reassigned (no TBL_USERS in this team).";
                     $msg_type = "info";
                 }
             }
@@ -54,14 +54,14 @@ if (($_POST['action'] ?? '') === 'add') {
             $msg = "Team name is required!";
             $msg_type = "danger";
         } else {
-            $check = $link->prepare("SELECT ID FROM teams WHERE NAME = ?");
+            $check = $link->prepare("SELECT ID FROM TBL_TEAMS WHERE NAME = ?");
             $check->bind_param("s", $team_name);
             $check->execute();
             if ($check->get_result()->num_rows > 0) {
                 $msg = "Team name already exists!";
                 $msg_type = "warning";
             } else {
-                $stmt = $link->prepare("INSERT INTO teams (NAME, SUPERVISOR_ID, MANAGER_ID) VALUES (?, ?, ?)");
+                $stmt = $link->prepare("INSERT INTO TBL_TEAMS (NAME, SUPERVISOR_ID, MANAGER_ID) VALUES (?, ?, ?)");
                 $stmt->bind_param("sii", $team_name, $supervisor_id, $manager_id);
                 if ($stmt->execute()) {
                     $msg = "Team created successfully!";
@@ -85,7 +85,7 @@ if (($_POST['action'] ?? '') === 'edit') {
         $team_name     = trim($_POST['team_name']);
         $supervisor_id = $_POST['supervisor_id'] ?: null;
         $manager_id    = $_POST['manager_id'] ?: null;
-        $stmt = $link->prepare("UPDATE teams SET NAME = ?, SUPERVISOR_ID = ?, MANAGER_ID = ? WHERE ID = ?");
+        $stmt = $link->prepare("UPDATE TBL_TEAMS SET NAME = ?, SUPERVISOR_ID = ?, MANAGER_ID = ? WHERE ID = ?");
         $stmt->bind_param("siii", $team_name, $supervisor_id, $manager_id, $id);
         if ($stmt->execute()) {
             $msg = "Team updated!";
@@ -100,20 +100,20 @@ if (($_POST['action'] ?? '') === 'edit') {
 // ==================== DELETE TEAM ====================
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $link->query("UPDATE users SET TEAM_ID = NULL WHERE TEAM_ID = $id");
-    if ($link->query("DELETE FROM teams WHERE ID = $id")) {
+    $link->query("UPDATE TBL_USERS SET TEAM_ID = NULL WHERE TEAM_ID = $id");
+    if ($link->query("DELETE FROM TBL_TEAMS WHERE ID = $id")) {
         $msg = "Team deleted!";
         $msg_type = "success";
     } else {
         $msg = "Cannot delete team (in use?)";
         $msg_type = "danger";
     }
-    header("Location: teams_dashboard.php");
+    header("Location: TBL_TEAMS_dashboard.php");
     exit;
 }
 
-// Fetch all teams with supervisor name, manager name & member count
-$teams_query = "
+// Fetch all TBL_TEAMS with supervisor name, manager name & member count
+$TBL_TEAMS_query = "
     SELECT
         t.ID,
         t.NAME as TEAM_NAME,
@@ -121,37 +121,37 @@ $teams_query = "
         t.MANAGER_ID,
         sup.NAME as SUP_NAME,
         mgr.NAME as MANAGER_NAME,
-        (SELECT COUNT(*) FROM users WHERE TEAM_ID = t.ID) as MEMBER_COUNT
-    FROM teams t
-    LEFT JOIN users sup ON t.SUPERVISOR_ID = sup.ID
-    LEFT JOIN users mgr ON t.MANAGER_ID = mgr.ID
+        (SELECT COUNT(*) FROM TBL_USERS WHERE TEAM_ID = t.ID) as MEMBER_COUNT
+    FROM TBL_TEAMS t
+    LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID
+    LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID
     ORDER BY t.NAME
 ";
-$teams_result = mysqli_query($link, $teams_query);
-$total_teams  = mysqli_num_rows($teams_result);
+$TBL_TEAMS_result = mysqli_query($link, $TBL_TEAMS_query);
+$total_TBL_TEAMS  = mysqli_num_rows($TBL_TEAMS_result);
 
 // Fetch supervisors & managers into arrays once
 $all_supervisors = [];
-$sup_res = mysqli_query($link, "SELECT ID, NAME FROM users WHERE ROLE IN ('Supervisor','Manager') ORDER BY NAME");
+$sup_res = mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE ROLE IN ('Supervisor','Manager') ORDER BY NAME");
 while ($s = mysqli_fetch_assoc($sup_res)) $all_supervisors[] = $s;
 
 $all_managers = [];
-$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM users WHERE ROLE = 'Manager' ORDER BY NAME");
+$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE ROLE = 'Manager' ORDER BY NAME");
 while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
 
-// All teams for reassign dropdown
-$all_teams = [];
-$at_res = mysqli_query($link, "SELECT ID, NAME FROM teams ORDER BY NAME");
-while ($r = mysqli_fetch_assoc($at_res)) $all_teams[] = $r;
+// All TBL_TEAMS for reassign dropdown
+$all_TBL_TEAMS = [];
+$at_res = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
+while ($r = mysqli_fetch_assoc($at_res)) $all_TBL_TEAMS[] = $r;
 
 // Members grouped by team
 $team_members = [];
-$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM users u WHERE u.TEAM_ID IS NOT NULL ORDER BY u.TEAM_ID, u.NAME");
+$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM TBL_USERS u WHERE u.TEAM_ID IS NOT NULL ORDER BY u.TEAM_ID, u.NAME");
 while ($m = mysqli_fetch_assoc($members_res)) {
     $team_members[$m['TEAM_ID']][] = $m;
 }
 ?>
-<?php $pageTitle = 'Manage Teams - CallNow'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Manage TBL_TEAMS - CallNow'; include '../../php_scripts/header.php'; ?>
 
 <style>
 :root {
@@ -484,11 +484,11 @@ while ($m = mysqli_fetch_assoc($members_res)) {
     <div class="td-header">
         <div class="td-header-content">
             <div class="td-header-left">
-                <h1><i class="bi bi-diagram-3-fill"></i> Manage Teams</h1>
-                <p>Create teams, assign supervisors &amp; managers, and manage team members</p>
+                <h1><i class="bi bi-diagram-3-fill"></i> Manage TBL_TEAMS</h1>
+                <p>Create TBL_TEAMS, assign supervisors &amp; managers, and manage team members</p>
             </div>
             <div class="td-header-actions">
-                <a href="<?= url('modules/users/team_members.php') ?>" class="btn"><i class="bi bi-people"></i> Members</a>
+                <a href="<?= url('modules/TBL_USERS/team_members.php') ?>" class="btn"><i class="bi bi-people"></i> Members</a>
                 <a href="<?= url('dashboard.php') ?>" class="btn"><i class="bi bi-grid"></i> Dashboard</a>
             </div>
         </div>
@@ -496,8 +496,8 @@ while ($m = mysqli_fetch_assoc($members_res)) {
             <div class="td-stat">
                 <div class="td-stat-icon"><i class="bi bi-collection"></i></div>
                 <div class="td-stat-info">
-                    <div class="td-stat-num"><?= $total_teams ?></div>
-                    <div class="td-stat-label">Teams</div>
+                    <div class="td-stat-num"><?= $total_TBL_TEAMS ?></div>
+                    <div class="td-stat-label">TBL_TEAMS</div>
                 </div>
             </div>
             <div class="td-stat">
@@ -534,7 +534,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
             $edit_team = null;
             if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
                 $edit_id = (int)$_GET['edit'];
-                $res = mysqli_query($link, "SELECT * FROM teams WHERE ID = $edit_id");
+                $res = mysqli_query($link, "SELECT * FROM TBL_TEAMS WHERE ID = $edit_id");
                 $edit_team = mysqli_fetch_assoc($res);
                 $edit_mode = true;
             }
@@ -595,7 +595,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                             <?= $edit_mode ? 'Update Team' : 'Create Team' ?>
                         </button>
                         <?php if ($edit_mode): ?>
-                            <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="td-btn-outline w-100 mt-2 d-block text-center">
+                            <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>" class="td-btn-outline w-100 mt-2 d-block text-center">
                                 <i class="bi bi-x-circle"></i> Cancel
                             </a>
                         <?php endif; ?>
@@ -604,25 +604,25 @@ while ($m = mysqli_fetch_assoc($members_res)) {
             </div>
         </div>
 
-        <!-- ─── Right: Teams List ─── -->
+        <!-- ─── Right: TBL_TEAMS List ─── -->
         <div class="col-lg-8">
             <div class="td-card">
                 <div class="td-card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             <div class="td-card-title">
-                                <i class="bi bi-people"></i> All Teams
+                                <i class="bi bi-people"></i> All TBL_TEAMS
                             </div>
                             <div class="td-card-subtitle">Click any row to view details &amp; members</div>
                         </div>
                         <span style="font-size:0.75rem;font-weight:600;color:var(--td-accent-dark);background:var(--td-soft);padding:0.25rem 0.75rem;border-radius:999px;border:1px solid #dde0f5;display:flex;align-items:center;gap:0.35rem;">
-                            <i class="bi bi-collection"></i> <?= $total_teams ?> Teams
+                            <i class="bi bi-collection"></i> <?= $total_TBL_TEAMS ?> TBL_TEAMS
                         </span>
                     </div>
 
-                    <?php if ($total_teams > 0): ?>
+                    <?php if ($total_TBL_TEAMS > 0): ?>
                         <div class="table-responsive">
-                            <table class="td-table" id="teamsTable">
+                            <table class="td-table" id="TBL_TEAMSTable">
                                 <thead>
                                     <tr>
                                         <th>Team</th>
@@ -633,7 +633,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php while ($t = mysqli_fetch_assoc($teams_result)):
+                                    <?php while ($t = mysqli_fetch_assoc($TBL_TEAMS_result)):
                                         $members = $team_members[$t['ID']] ?? [];
                                         $members_json = htmlspecialchars(json_encode($members), ENT_QUOTES, 'UTF-8');
                                     ?>
@@ -663,10 +663,10 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                                                 <span class="td-badge-pill td-badge-member"><?= (int)$t['MEMBER_COUNT'] ?></span>
                                             </td>
                                             <td class="text-end">
-                                                <a href="<?= url('modules/users/teams_dashboard.php') ?>?edit=<?= $t['ID'] ?>" class="td-btn-sm-icon team-action-btn" title="Edit team" style="border-color:#fde68a;color:#92400e;">
+                                                <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>?edit=<?= $t['ID'] ?>" class="td-btn-sm-icon team-action-btn" title="Edit team" style="border-color:#fde68a;color:#92400e;">
                                                     <i class="bi bi-pencil-square"></i> Edit
                                                 </a>
-                                                <a href="<?= url('modules/users/teams_dashboard.php') ?>?delete=<?= $t['ID'] ?>"
+                                                <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>?delete=<?= $t['ID'] ?>"
                                                    onclick="return confirm('Delete team «<?= htmlspecialchars($t['TEAM_NAME']) ?>»? All members will be unassigned.')"
                                                    class="td-btn-sm-icon team-action-btn"
                                                    title="Delete team"
@@ -682,7 +682,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                     <?php else: ?>
                         <div class="td-empty">
                             <div class="td-empty-icon"><i class="bi bi-diagram-3"></i></div>
-                            <p class="td-empty-text">No teams found. Create your first team using the form on the left.</p>
+                            <p class="td-empty-text">No TBL_TEAMS found. Create your first team using the form on the left.</p>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -764,7 +764,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                         <label style="font-size:0.6875rem;font-weight:600;color:var(--td-ink-soft);margin-bottom:0.2rem;">Target Team</label>
                         <select name="to_team_id" id="reassign_to_team" class="form-select td-select" required>
                             <option value="">— Select target team —</option>
-                            <?php foreach ($all_teams as $t): ?>
+                            <?php foreach ($all_TBL_TEAMS as $t): ?>
                                 <option value="<?= $t['ID'] ?>"><?= htmlspecialchars($t['NAME']) ?></option>
                             <?php endforeach; ?>
                         </select>

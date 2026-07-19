@@ -96,21 +96,21 @@ function navActive($patterns) {
         <?php if (isSupervisor() || isAdmin() || isManager()): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Manage</div>
-            <?php if (can('manage_users')): ?>
-            <a class="app-sidebar-link <?= navActive(['users_view.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_view.php') ?>">
+            <?php if (can('manage_TBL_USERS')): ?>
+            <a class="app-sidebar-link <?= navActive(['TBL_USERS_view.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>">
                 <i class="bi bi-people"></i>
-                <span class="link-text">App Users</span>
+                <span class="link-text">App TBL_USERS</span>
             </a>
-            <a class="app-sidebar-link <?= navActive(['users_add.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_add.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['TBL_USERS_add.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>">
                 <i class="bi bi-person-plus"></i>
                 <span class="link-text">Add User</span>
             </a>
             <?php endif; ?>
-            <a class="app-sidebar-link <?= navActive(['teams_dashboard.php']) ? 'active' : '' ?>" href="<?= url('modules/users/teams_dashboard.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['TBL_TEAMS_dashboard.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>">
                 <i class="bi bi-diagram-3"></i>
-                <span class="link-text">Teams</span>
+                <span class="link-text">TBL_TEAMS</span>
             </a>
-            <a class="app-sidebar-link <?= navActive(['team_members.php']) ? 'active' : '' ?>" href="<?= url('modules/users/team_members.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['team_members.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/team_members.php') ?>">
                 <i class="bi bi-person-check"></i>
                 <span class="link-text">Team Members</span>
             </a>
@@ -130,8 +130,8 @@ function navActive($patterns) {
         <?php if (can('manage_settings') || can('view_activity')): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">System</div>
-            <?php if (can('manage_settings')): ?>
-            <a class="app-sidebar-link <?= navActive(['permissions_manager.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>">
+            <?php if (isAdmin()): ?>
+            <a class="app-sidebar-link <?= navActive(['TBL_PERMISSIONS_manager.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>">
                 <i class="bi bi-shield-lock"></i>
                 <span class="link-text">Access Control</span>
             </a>
@@ -140,7 +140,7 @@ function navActive($patterns) {
                 <span class="link-text">Settings</span>
             </a>
             <?php if (can('manage_api')): ?>
-            <a class="app-sidebar-link <?= navActive(['api_settings.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/api_settings.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['TBL_API_SETTINGS.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/TBL_API_SETTINGS.php') ?>">
                 <i class="bi bi-key"></i>
                 <span class="link-text">API Access</span>
             </a>

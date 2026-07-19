@@ -2,6 +2,7 @@
 require_once "../../../php_scripts/auth.php";
 
 requireAnyPermission(['manage_database', 'delete_leads']);
+api_init();
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -18,7 +19,7 @@ if (!isset($_POST['ids']) || !is_array($_POST['ids']) || empty($_POST['ids'])) {
 $ids = array_map('intval', $_POST['ids']);
 $placeholders = str_repeat('?,', count($ids)-1) . '?';
 
-$sql = "DELETE FROM main_database WHERE ID IN ($placeholders)";
+$sql = "DELETE FROM TBL_MAIN WHERE ID IN ($placeholders)";
 $stmt = mysqli_prepare($link, $sql);
 mysqli_stmt_bind_param($stmt, str_repeat('i', count($ids)), ...$ids);
 

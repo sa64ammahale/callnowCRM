@@ -118,7 +118,7 @@ $sort = in_array($rawSort, $allowedSort) ? $rawSort : 'LOG_TIME';
 $dir = (isset($_GET['dir']) && strtoupper($_GET['dir']) === 'ASC') ? 'ASC' : 'DESC';
 $sort_col = '`' . $sort . '`';
 
-/* Count total (JOIN users for name filter correctness) */
+/* Count total (JOIN TBL_USERS for name filter correctness) */
 $count_sql = "SELECT COUNT(*) FROM " . TBL_ACTIVITY . " a LEFT JOIN " . TBL_USERS . " u ON a.USER_ID = u.ID $where_sql";
 $total = 0;
 if ($stmt = mysqli_prepare($link, $count_sql)) {
@@ -197,11 +197,11 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     }
 }
 
-/* Build filter dropdown values (users with names) */
-$usersList = [];
+/* Build filter dropdown values (TBL_USERS with names) */
+$TBL_USERSList = [];
 $res = mysqli_query($link, "SELECT ID, NAME FROM " . TBL_USERS . " ORDER BY NAME ASC");
 if ($res) {
-    while ($r = mysqli_fetch_assoc($res)) $usersList[$r['ID']] = $r['NAME'];
+    while ($r = mysqli_fetch_assoc($res)) $TBL_USERSList[$r['ID']] = $r['NAME'];
     mysqli_free_result($res);
 }
 $actionTypes = [];
@@ -252,8 +252,8 @@ $baseQuery = $_GET;
             <div class="col-12 col-sm-6 col-md-3">
                 <label class="form-label small mb-1">User</label>
                 <select name="filter_user" class="form-select form-select-sm">
-                    <option value="">All users</option>
-                    <?php foreach ($usersList as $uid => $uname): ?>
+                    <option value="">All TBL_USERS</option>
+                    <?php foreach ($TBL_USERSList as $uid => $uname): ?>
                         <option value="<?php echo (int)$uid; ?>" <?php if((string)$uid === (string)$filter_user) echo 'selected'; ?>><?php echo htmlspecialchars($uname); ?></option>
                     <?php endforeach; ?>
                 </select>

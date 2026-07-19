@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Save general settings
         if ($action === 'save_settings') {
             $keys = ['app_name','company_name','default_lead_status','default_lead_stage','pagination_size','session_timeout','timezone'];
-            $stmt = $link->prepare("INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
+            $stmt = $link->prepare("INSERT INTO TBL_APP_SETTINGS (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
             $uid = USER_ID;
             foreach ($keys as $k) {
                 $v = $_POST[$k] ?? '';
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
             if (isset($_POST['remove_logo']) && $_POST['remove_logo'] === '1') {
-                $link->query("DELETE FROM app_settings WHERE setting_key = 'logo_path'");
+                $link->query("DELETE FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
                 $msg = 'Logo removed. Default branding restored.';
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'UPDATE', 'Removed application logo');
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         || copy($_FILES['logo_file']['tmp_name'], $target);
                     if ($saved) {
                         $rel = 'uploads/logo/app_logo.' . $ext;
-                        $stmt = $link->prepare("INSERT INTO app_settings (setting_key, setting_value) VALUES ('logo_path', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
+                        $stmt = $link->prepare("INSERT INTO TBL_APP_SETTINGS (setting_key, setting_value) VALUES ('logo_path', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
                         $stmt->bind_param('si', $rel, USER_ID);
                         $stmt->execute();
                         $msg = 'Logo uploaded successfully!';
@@ -84,16 +84,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ─── Fetch settings ───
 $settings = [];
-$sr = mysqli_query($link, "SELECT setting_key, setting_value FROM app_settings");
+$sr = mysqli_query($link, "SELECT setting_key, setting_value FROM TBL_APP_SETTINGS");
 if ($sr) while ($s = mysqli_fetch_assoc($sr)) $settings[$s['setting_key']] = $s['setting_value'];
 
-// ─── Fetch users summary ───
-$tu = mysqli_query($link, "SELECT COUNT(*) FROM users");
-$total_users = $tu ? (int)mysqli_fetch_row($tu)[0] : 0;
-$au = mysqli_query($link, "SELECT COUNT(*) FROM users WHERE STATUS='Active'");
-$active_users = $au ? (int)mysqli_fetch_row($au)[0] : 0;
+// ─── Fetch TBL_USERS summary ───
+$tu = mysqli_query($link, "SELECT COUNT(*) FROM TBL_USERS");
+$total_TBL_USERS = $tu ? (int)mysqli_fetch_row($tu)[0] : 0;
+$au = mysqli_query($link, "SELECT COUNT(*) FROM TBL_USERS WHERE STATUS='Active'");
+$active_TBL_USERS = $au ? (int)mysqli_fetch_row($au)[0] : 0;
 $role_counts = [];
-$rc = mysqli_query($link, "SELECT ROLE, COUNT(*) as cnt FROM users GROUP BY ROLE");
+$rc = mysqli_query($link, "SELECT ROLE, COUNT(*) as cnt FROM TBL_USERS GROUP BY ROLE");
 if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
 ?>
 <?php $pageTitle = 'Settings - CallNow Admin'; include __DIR__ . '/../../php_scripts/header.php'; ?>
@@ -314,11 +314,11 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
         <div class="st-header-content">
             <div class="st-header-left">
                 <h1><i class="bi bi-gear-fill"></i> Settings</h1>
-                <p>Manage application settings and users</p>
+                <p>Manage application settings and TBL_USERS</p>
             </div>
             <div class="st-header-right">
-                <a href="<?= url('modules/settings/permissions_manager.php') ?>" class="st-btn-primary" style="text-decoration:none;font-size:0.8125rem!important;padding:0.5rem 1.1rem!important;display:inline-flex;align-items:center;gap:0.4rem;">
-                    <i class="bi bi-shield-lock"></i> Manage Roles &amp; Permissions
+                <a href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>" class="st-btn-primary" style="text-decoration:none;font-size:0.8125rem!important;padding:0.5rem 1.1rem!important;display:inline-flex;align-items:center;gap:0.4rem;">
+                    <i class="bi bi-shield-lock"></i> Manage TBL_ROLES &amp; TBL_PERMISSIONS
                 </a>
             </div>
         </div>
@@ -337,10 +337,10 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
         <a href="<?= url('modules/settings/settings.php') ?>?tab=general" class="st-tab <?= $tab==='general'?'active':'' ?>">
             <i class="bi bi-sliders"></i> General
         </a>
-        <a href="<?= url('modules/settings/settings.php') ?>?tab=users" class="st-tab <?= $tab==='users'?'active':'' ?>">
-            <i class="bi bi-people"></i> Users
+        <a href="<?= url('modules/settings/settings.php') ?>?tab=TBL_USERS" class="st-tab <?= $tab==='TBL_USERS'?'active':'' ?>">
+            <i class="bi bi-people"></i> TBL_USERS
         </a>
-        <a href="<?= url('modules/settings/api_settings.php') ?>" class="st-tab <?= $tab==='api'?'active':'' ?>">
+        <a href="<?= url('modules/settings/TBL_API_SETTINGS.php') ?>" class="st-tab <?= $tab==='api'?'active':'' ?>">
             <i class="bi bi-phone"></i> API Access
         </a>
     </div>
@@ -362,12 +362,12 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
                     <div class="col-md-6">
                         <label class="st-label">Company Name</label>
                         <input type="text" name="company_name" class="form-control st-input" value="<?= htmlspecialchars($settings['company_name'] ?? 'CallNow') ?>">
-                        <div class="st-hint">Default company for new users</div>
+                        <div class="st-hint">Default company for new TBL_USERS</div>
                     </div>
                     <div class="col-md-4">
                         <label class="st-label">Default Lead Status</label>
                         <select name="default_lead_status" class="form-select st-select">
-                            <?php foreach (['LEAD','FOLLOWUP','LOGIN','UNDERWRTING','SANCTIONED','DISBURSED','REJECT'] as $opt): ?>
+                            <?php foreach (['LEAD','FOLLOWUP','INTERNAL_UNDERWRITING','LOGIN','BANK_UNDERWRITING','SANCTIONED','DISBURSED','REJECT'] as $opt): ?>
                                 <option value="<?= $opt ?>" <?= ($settings['default_lead_status'] ?? 'LEAD') === $opt ? 'selected' : '' ?>><?= $opt ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -434,27 +434,27 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
         </div>
     </div>
 
-    <?php elseif ($tab === 'users'): ?>
+    <?php elseif ($tab === 'TBL_USERS'): ?>
     <!-- ═══ User Management ═══ -->
     <div class="st-card">
         <div class="st-card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
                     <h5 style="font-size:1rem;font-weight:700;color:var(--st-ink);margin:0;">User Overview</h5>
-                    <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0;">Summary of all registered users</p>
+                    <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0;">Summary of all registered TBL_USERS</p>
                 </div>
-                <a href="<?= url('modules/users/users_add.php') ?>" class="st-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;">
+                <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>" class="st-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;">
                     <i class="bi bi-person-plus"></i> Add User
                 </a>
             </div>
 
             <div class="st-stat-grid">
                 <div class="st-stat-card">
-                    <div class="num"><?= $total_users ?></div>
-                    <p class="lbl">Total Users</p>
+                    <div class="num"><?= $total_TBL_USERS ?></div>
+                    <p class="lbl">Total TBL_USERS</p>
                 </div>
                 <div class="st-stat-card">
-                    <div class="num"><?= $active_users ?></div>
+                    <div class="num"><?= $active_TBL_USERS ?></div>
                     <p class="lbl">Active</p>
                 </div>
                 <?php foreach ($role_counts as $role => $cnt): ?>
@@ -468,7 +468,7 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
             <hr style="border-color:var(--st-border);margin:1rem 0;">
             <p style="font-size:0.8125rem;color:var(--st-ink-soft);margin-bottom:0;">
                 <i class="bi bi-arrow-right-circle"></i>
-                <a href="<?= url('modules/users/users_view.php') ?>" style="color:var(--st-accent);font-weight:600;">Go to full User Management</a> to edit, filter, and manage all users.
+                <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" style="color:var(--st-accent);font-weight:600;">Go to full User Management</a> to edit, filter, and manage all TBL_USERS.
             </p>
         </div>
     </div>

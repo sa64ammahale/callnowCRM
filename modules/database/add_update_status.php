@@ -22,10 +22,10 @@ function status_class_name($s) {
     return 'status-' . $class;
 }
 
-function log_activity($link, $userId, $actionType, $actionDetails, $affectedIds, $targetTable = 'temporary_database') {
+function log_activity($link, $userId, $actionType, $actionDetails, $affectedIds, $targetTable = TBL_TEMP) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
     $actionType = normalizeActivityType($actionType);
-    $sql = "INSERT INTO activity_log (USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, IP_ADDRESS)
+    $sql = "INSERT INTO " . TBL_ACTIVITY_LOG . " (USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, IP_ADDRESS)
             VALUES (?, ?, ?, ?, ?, ?)";
     if ($stmt = mysqli_prepare($link, $sql)) {
         $detailsJson = is_string($actionDetails) ? $actionDetails : json_encode($actionDetails, JSON_UNESCAPED_UNICODE);
@@ -56,7 +56,7 @@ if (isset($_POST['submitDND'])) {
             $Message = "Invalid status selected.";
             $type = "danger";
         } else {
-            $sql = "INSERT INTO temporary_database
+            $sql = "INSERT INTO " . TBL_TEMP . "
                         (CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CALL_DIALED_STATUS, TEMP_UPLOAD_DATETIME)
                     VALUES (?, ?, ?, ?, ?, NOW())
                     ON DUPLICATE KEY UPDATE
@@ -74,7 +74,7 @@ if (isset($_POST['submitDND'])) {
 
                 if ($ok) {
                     $id = 0;
-                    if ($s2 = mysqli_prepare($link, "SELECT ID FROM temporary_database WHERE CUST_MOBILE = ? LIMIT 1")) {
+                    if ($s2 = mysqli_prepare($link, "SELECT ID FROM " . TBL_TEMP . " WHERE CUST_MOBILE = ? LIMIT 1")) {
                         mysqli_stmt_bind_param($s2, "s", $dndNumber);
                         mysqli_stmt_execute($s2);
                         $res2 = mysqli_stmt_get_result($s2);
@@ -126,7 +126,7 @@ if (isset($_POST['minMaxIdChange'])) {
             $Message = "Invalid status selected for bulk update.";
             $type = "danger";
         } else {
-            $sql = "UPDATE temporary_database SET CALL_DIALED_STATUS = ?, TEMP_UPLOAD_DATETIME = NOW() WHERE ID BETWEEN ? AND ?";
+            $sql = "UPDATE " . TBL_TEMP . " SET CALL_DIALED_STATUS = ?, TEMP_UPLOAD_DATETIME = NOW() WHERE ID BETWEEN ? AND ?";
             if ($stmt = mysqli_prepare($link, $sql)) {
                 mysqli_stmt_bind_param($stmt, "sii", $status, $minID, $maxID);
                 $ok = mysqli_stmt_execute($stmt);
@@ -158,15 +158,15 @@ if (isset($_POST['minMaxIdChange'])) {
 
 $sampleRows = [];
 $sampleSql = "SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CALL_DIALED_STATUS, TEMP_UPLOAD_DATETIME
-              FROM temporary_database
+              FROM " . TBL_TEMP . "
               ORDER BY TEMP_UPLOAD_DATETIME DESC
               LIMIT 12";
 if ($res = mysqli_query($link, $sampleSql)) {
     while ($r = mysqli_fetch_assoc($res)) $sampleRows[] = $r;
 }
 
-$totalTempRecords = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM temporary_database"))[0];
-$todayInserts = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM temporary_database WHERE DATE(TEMP_UPLOAD_DATETIME) = CURDATE()"))[0];
+$totalTempRecords = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . TBL_TEMP))[0];
+$todayInserts = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . TBL_TEMP . " WHERE DATE(TEMP_UPLOAD_DATETIME) = CURDATE()"))[0];
 ?>
 <?php $pageTitle = 'Update Status - CallNow'; include '../../php_scripts/header.php'; ?>
 

@@ -16,7 +16,7 @@ $themeAttr = (($_SESSION['theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
 // Resolve the uploaded application logo for the favicon / shortcut icon
 $appLogoUrl = '';
 if (isset($link) && $link) {
-    $logoRes = $link->query("SELECT setting_value FROM app_settings WHERE setting_key = 'logo_path'");
+    $logoRes = $link->query("SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
     if ($logoRes && $row = $logoRes->fetch_assoc()) {
         $appLogoUrl = (defined('APP_BASE') ? APP_BASE : '') . '/' . ltrim($row['setting_value'], '/');
     }

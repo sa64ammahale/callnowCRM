@@ -2,8 +2,8 @@
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/lead_common.php';
 
-$allowedRoles = ['Admin', 'Manager', 'Supervisor', 'Officer'];
-if (!in_array(USER_ROLE, $allowedRoles, true)) {
+$allowedTBL_ROLES = ['Admin', 'Manager', 'Supervisor', 'Officer'];
+if (!in_array(USER_ROLE, $allowedTBL_ROLES, true)) {
     header('Location: ../../dashboard.php');
     exit;
 }
@@ -25,16 +25,24 @@ $countSql = "
     SELECT
         SUM(CASE WHEN l.lead_status_new = 'LEAD' THEN 1 ELSE 0 END) AS cnt_LEAD,
         SUM(CASE WHEN l.lead_status_new = 'FOLLOWUP' THEN 1 ELSE 0 END) AS cnt_FOLLOWUP,
+        SUM(CASE WHEN l.lead_status_new = 'INTERNAL_UNDERWRITING' THEN 1 ELSE 0 END) AS cnt_INTERNAL_UNDERWRITING,
         SUM(CASE WHEN l.lead_status_new = 'LOGIN' THEN 1 ELSE 0 END) AS cnt_LOGIN,
-        SUM(CASE WHEN l.lead_status_new = 'UNDERWRTING' THEN 1 ELSE 0 END) AS cnt_UNDERWRTING,
+        SUM(CASE WHEN l.lead_status_new = 'BANK_UNDERWRITING' THEN 1 ELSE 0 END) AS cnt_BANK_UNDERWRITING,
         SUM(CASE WHEN l.lead_status_new = 'SANCTIONED' THEN 1 ELSE 0 END) AS cnt_SANCTIONED,
         SUM(CASE WHEN l.lead_status_new = 'DISBURSED' THEN 1 ELSE 0 END) AS cnt_DISBURSED,
         SUM(CASE WHEN l.lead_status_new = 'REJECT' THEN 1 ELSE 0 END) AS cnt_REJECT,
         COUNT(*) AS total_all,
         SUM(CASE WHEN DATE(l.next_followup_at) = CURDATE() THEN 1 ELSE 0 END) AS cnt_today_followup,
         SUM(CASE WHEN DATE_FORMAT(l.login_date, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN 1 ELSE 0 END) AS cnt_month_logins,
-        SUM(CASE WHEN DATE(l.created_at) = CURDATE() THEN 1 ELSE 0 END) AS cnt_today_new
-    FROM leads_table l
+        SUM(CASE WHEN DATE(l.created_at) = CURDATE() THEN 1 ELSE 0 END) AS cnt_today_new,
+        SUM(CASE WHEN l.rework_flag = 1 THEN 1 ELSE 0 END) AS cnt_rework_all,
+        SUM(CASE WHEN l.rework_flag = 1 AND l.rework_stage = 'INTERNAL' THEN 1 ELSE 0 END) AS cnt_rework_internal,
+        SUM(CASE WHEN l.rework_flag = 1 AND l.rework_stage = 'BANK' THEN 1 ELSE 0 END) AS cnt_rework_bank,
+        SUM(CASE WHEN l.login_status = 'PENDING' THEN 1 ELSE 0 END) AS cnt_login_pending,
+        SUM(CASE WHEN l.login_status = 'SUCCESS' THEN 1 ELSE 0 END) AS cnt_login_success,
+        SUM(CASE WHEN l.login_status = 'REJECTED' THEN 1 ELSE 0 END) AS cnt_login_rejected,
+        SUM(CASE WHEN l.login_status NOT IN ('PENDING','SUCCESS','REJECTED') OR l.login_status IS NULL THEN 1 ELSE 0 END) AS cnt_login_none
+    FROM TBL_LEADS l
     {$where}
 ";
 $res = mysqli_query($link, $countSql);
@@ -44,20 +52,28 @@ $totalLeads = (int)($row['total_all'] ?? 0);
 $todayFollowups = (int)($row['cnt_today_followup'] ?? 0);
 $thisMonthLogins = (int)($row['cnt_month_logins'] ?? 0);
 $todayNew = (int)($row['cnt_today_new'] ?? 0);
+$reworkAll = (int)($row['cnt_rework_all'] ?? 0);
+$reworkInternal = (int)($row['cnt_rework_internal'] ?? 0);
+$reworkBank = (int)($row['cnt_rework_bank'] ?? 0);
+$loginPending = (int)($row['cnt_login_pending'] ?? 0);
+$loginSuccess = (int)($row['cnt_login_success'] ?? 0);
+$loginRejected = (int)($row['cnt_login_rejected'] ?? 0);
+$loginNone = (int)($row['cnt_login_none'] ?? 0);
 
-foreach (['LEAD','FOLLOWUP','LOGIN','UNDERWRTING','SANCTIONED','DISBURSED','REJECT'] as $k) {
+foreach (['LEAD','FOLLOWUP','INTERNAL_UNDERWRITING','LOGIN','BANK_UNDERWRITING','SANCTIONED','DISBURSED','REJECT'] as $k) {
     $statusCounts[$k] = (int)($row["cnt_$k"] ?? 0);
 }
 
-$activePipeline = $statusCounts['LEAD'] + $statusCounts['FOLLOWUP'] + $statusCounts['LOGIN'] + $statusCounts['UNDERWRTING'] + $statusCounts['SANCTIONED'];
+$activePipeline = $statusCounts['LEAD'] + $statusCounts['FOLLOWUP'] + $statusCounts['INTERNAL_UNDERWRITING'] + $statusCounts['LOGIN'] + $statusCounts['BANK_UNDERWRITING'] + $statusCounts['SANCTIONED'];
 $conversionBase = max(1, $statusCounts['DISBURSED'] + $activePipeline + $statusCounts['REJECT']);
 $conversionRate = round(($statusCounts['DISBURSED'] / $conversionBase) * 100, 1);
 
 $pipelineSteps = [
     ['key' => 'LEAD',         'icon' => 'bi-person-plus',   'color' => 'var(--accent)'],
     ['key' => 'FOLLOWUP',     'icon' => 'bi-arrow-repeat',  'color' => '#0ea5e9'],
+    ['key' => 'INTERNAL_UNDERWRITING', 'icon' => 'bi-building-check', 'color' => '#8b8fa3'],
     ['key' => 'LOGIN',        'icon' => 'bi-box-arrow-in-right', 'color' => '#f59e0b'],
-    ['key' => 'UNDERWRTING',  'icon' => 'bi-search',        'color' => '#8b8fa3'],
+    ['key' => 'BANK_UNDERWRITING', 'icon' => 'bi-bank',     'color' => '#7c3aed'],
     ['key' => 'SANCTIONED',   'icon' => 'bi-check-circle',  'color' => '#10b981'],
     ['key' => 'DISBURSED',    'icon' => 'bi-cash-coin',     'color' => '#059669'],
 ];
@@ -206,6 +222,48 @@ $userName = (is_array($user) && isset($user['NAME'])) ? $user['NAME'] : 'User';
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
+        </div>
+    </div>
+
+    <!-- Rework + Login Status -->
+    <div class="dash-single-col">
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <div class="dash-card-header-left">
+                    <i class="bi bi-exclamation-triangle-fill card-header-icon rework-icon"></i>
+                    <div>
+                        <h3 class="dash-card-title">Rework & Login Status</h3>
+                        <p class="dash-card-sub">Pending rework and bank login breakdown</p>
+                    </div>
+                </div>
+                <a href="<?= url('modules/leads/lead_list.php') ?>?rework=yes" class="btn btn-sm btn-outline-accent">View Leads</a>
+            </div>
+            <div class="dash-subrow">
+                <div class="mini-stat">
+                    <div class="mini-value"><?= number_format($reworkAll) ?></div>
+                    <div class="mini-label">Rework Pending</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="mini-value"><?= number_format($reworkInternal) ?></div>
+                    <div class="mini-label">Internal Rework</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="mini-value"><?= number_format($reworkBank) ?></div>
+                    <div class="mini-label">Bank Rework</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="mini-value login-success"><?= number_format($loginSuccess) ?></div>
+                    <div class="mini-label">Login Success</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="mini-value login-pending"><?= number_format($loginPending) ?></div>
+                    <div class="mini-label">Login Pending</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="mini-value login-rejected"><?= number_format($loginRejected) ?></div>
+                    <div class="mini-label">Login Rejected</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -690,6 +748,39 @@ $userName = (is_array($user) && isset($user['NAME'])) ? $user['NAME'] : 'User';
 }
 .followup-icon { background: rgba(245,158,11,0.1); color: #f59e0b; }
 .recent-icon { background: rgba(94,106,210,0.1); color: #5e6ad2; }
+.rework-icon { background: rgba(124,58,237,0.1); color: #7c3aed; }
+
+/* ── Sub-row mini stats (Rework / Login) ── */
+.dash-subrow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+    padding: 1.1rem 1.25rem 1.25rem;
+}
+.mini-stat {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 0.875rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.mini-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+}
+.mini-label {
+    font-size: 0.6875rem;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.mini-value.login-success { color: #10b981; }
+.mini-value.login-pending { color: #f59e0b; }
+.mini-value.login-rejected { color: #ef4444; }
 .dash-card-title {
     font-size: 0.9375rem;
     font-weight: 600;
@@ -824,14 +915,14 @@ function escapeHtml(s) {
 function leadStatusBadgeClass(status) {
     const cls = {
         'LEAD': 'bg-primary', 'FOLLOWUP': 'bg-info', 'LOGIN': 'bg-warning',
-        'UNDERWRTING': 'bg-secondary', 'SANCTIONED': 'bg-success', 'DISBURSED': 'bg-dark', 'REJECT': 'bg-danger'
+        'INTERNAL_UNDERWRITING': 'bg-secondary', 'BANK_UNDERWRITING': 'bg-purple', 'SANCTIONED': 'bg-success', 'DISBURSED': 'bg-dark', 'REJECT': 'bg-danger'
     };
     return cls[status] || 'bg-secondary';
 }
 
 function statusIcon(status) {
     const icons = { 'LEAD': 'bi-person-plus', 'FOLLOWUP': 'bi-arrow-repeat', 'LOGIN': 'bi-box-arrow-in-right',
-        'UNDERWRTING': 'bi-search', 'SANCTIONED': 'bi-check-circle', 'DISBURSED': 'bi-cash', 'REJECT': 'bi-x-circle' };
+        'INTERNAL_UNDERWRITING': 'bi-building-check', 'BANK_UNDERWRITING': 'bi-bank', 'SANCTIONED': 'bi-check-circle', 'DISBURSED': 'bi-cash', 'REJECT': 'bi-x-circle' };
     return icons[status] || 'bi-circle';
 }
 

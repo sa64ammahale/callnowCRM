@@ -10,6 +10,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 }
 
 requirePermission('export_data');
+api_init();
 
 $offset = intval($_POST['offset'] ?? 0);
 $limit  = intval($_POST['limit'] ?? 10000);
@@ -17,7 +18,7 @@ $limit  = intval($_POST['limit'] ?? 10000);
 $sql = "SELECT 
     CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS,
     CALL_DIALED_TELECALLER, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD
-    FROM temporary_database 
+    FROM TBL_TEMP 
     ORDER BY TEMP_UPLOAD_DATETIME DESC, ID DESC
     LIMIT ? OFFSET ?";
 

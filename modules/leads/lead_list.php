@@ -2,8 +2,8 @@
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/lead_common.php';
 
-$allowedRoles = ['Admin', 'Manager', 'Supervisor', 'Officer'];
-if (!in_array(USER_ROLE, $allowedRoles, true)) {
+$allowedTBL_ROLES = ['Admin', 'Manager', 'Supervisor', 'Officer'];
+if (!in_array(USER_ROLE, $allowedTBL_ROLES, true)) {
     header('Location: leads_dashboard.php');
     exit;
 }
@@ -13,7 +13,7 @@ ensureLeadFilterPreferenceSchema($link);
 mysqli_set_charset($link, 'utf8mb4');
 
 $prefillSearch = trim((string)($_GET['q'] ?? ''));
-$defaultPipelineStatuses = ['LEAD', 'LOGIN', 'UNDERWRTING', 'FOLLOWUP', 'SANCTIONED'];
+$defaultPipelineStatuses = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
 $currentMonthKey = date('Y-m');
 $previousMonthKey = date('Y-m', strtotime('first day of last month'));
 
@@ -26,7 +26,7 @@ $baseWhere = $baseConditions ? ('WHERE ' . implode(' AND ', $baseConditions)) : 
 
 $totalRecords = (int)mysqli_fetch_row(mysqli_query(
     $link,
-    "SELECT COUNT(*) FROM leads_table l {$baseWhere}"
+    "SELECT COUNT(*) FROM TBL_LEADS l {$baseWhere}"
 ))[0];
 
 $loginMonths = [];
@@ -37,7 +37,7 @@ $loanTypeOptionsAvailable = [];
 $loginMonthResult = mysqli_query(
     $link,
     "SELECT DISTINCT COALESCE(DATE_FORMAT(l.login_date, '%Y-%m'), DATE_FORMAT(l.next_followup_at, '%Y-%m'), DATE_FORMAT(l.created_at, '%Y-%m')) AS month_key
-     FROM leads_table l
+     FROM TBL_LEADS l
      {$baseWhere}
      HAVING month_key IS NOT NULL AND month_key <> ''
      ORDER BY month_key DESC"
@@ -50,7 +50,7 @@ while ($loginMonthResult && ($row = mysqli_fetch_assoc($loginMonthResult))) {
 $followupMonthResult = mysqli_query(
     $link,
     "SELECT DISTINCT DATE_FORMAT(l.next_followup_at, '%Y-%m') AS month_key
-     FROM leads_table l
+     FROM TBL_LEADS l
      {$baseWhere}" . ($baseWhere ? ' AND ' : ' WHERE ') . "l.next_followup_at IS NOT NULL
      ORDER BY month_key DESC"
 );
@@ -62,8 +62,8 @@ while ($followupMonthResult && ($row = mysqli_fetch_assoc($followupMonthResult))
 $assignedResult = mysqli_query(
     $link,
     "SELECT DISTINCT COALESCE(u.NAME, 'Unassigned') AS assigned_name
-     FROM leads_table l
-     LEFT JOIN users u ON u.ID = l.assigned_to
+     FROM TBL_LEADS l
+     LEFT JOIN TBL_USERS u ON u.ID = l.assigned_to
      {$baseWhere}
      ORDER BY assigned_name"
 );
@@ -74,7 +74,7 @@ while ($assignedResult && ($row = mysqli_fetch_assoc($assignedResult))) {
 $loanTypeResult = mysqli_query(
     $link,
     "SELECT DISTINCT l.loan_type
-     FROM leads_table l
+     FROM TBL_LEADS l
      {$baseWhere}" . ($baseWhere ? ' AND ' : ' WHERE ') . "l.loan_type IS NOT NULL AND l.loan_type <> ''
      ORDER BY l.loan_type"
 );
@@ -101,6 +101,13 @@ if (!is_array($savedFilterState)) {
 }
 if ($prefillSearch !== '') {
     $savedFilterState['globalSearch'] = $prefillSearch;
+}
+$reworkParam = strtoupper(trim((string)($_GET['rework'] ?? '')));
+if ($reworkParam === 'YES' || $reworkParam === 'INTERNAL' || $reworkParam === 'BANK') {
+    $savedFilterState['quickRework'] = $reworkParam;
+}
+if (trim((string)($_GET['followup'] ?? '')) === 'today') {
+    $savedFilterState['followupMonth'] = date('Y-m');
 }
 ?>
 <?php $pageTitle = 'Leads - CallNow'; include __DIR__ . '/../../php_scripts/header.php';
@@ -201,6 +208,15 @@ $canDelete = isAdmin() || isManager() || isSupervisor();
                 <?php foreach ($loanTypeOptionsAvailable as $lt): ?>
                     <option value="<?= htmlspecialchars($lt) ?>"><?= htmlspecialchars($lt) ?></option>
                 <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="ll-filter-group">
+            <label><i class="bi bi-exclamation-triangle"></i> Rework</label>
+            <select id="quickReworkFilter" class="ll-select">
+                <option value="">All</option>
+                <option value="YES">Any Rework</option>
+                <option value="INTERNAL">Internal Rework</option>
+                <option value="BANK">Bank Rework</option>
             </select>
         </div>
     </div>
@@ -350,7 +366,8 @@ $canDelete = isAdmin() || isManager() || isSupervisor();
 .ll-card.status-LEAD::before { background: linear-gradient(180deg, #6366f1, #818cf8); }
 .ll-card.status-FOLLOWUP::before { background: linear-gradient(180deg, #0ea5e9, #38bdf8); }
 .ll-card.status-LOGIN::before { background: linear-gradient(180deg, #f59e0b, #fbbf24); }
-.ll-card.status-UNDERWRTING::before { background: linear-gradient(180deg, #6b7280, #9ca3af); }
+.ll-card.status-INTERNAL_UNDERWRITING::before { background: linear-gradient(180deg, #6b7280, #9ca3af); }
+.ll-card.status-BANK_UNDERWRITING::before { background: linear-gradient(180deg, #7c3aed, #a78bfa); }
 .ll-card.status-SANCTIONED::before { background: linear-gradient(180deg, #10b981, #34d399); }
 .ll-card.status-DISBURSED::before { background: linear-gradient(180deg, #059669, #10b981); }
 .ll-card.status-REJECT::before { background: linear-gradient(180deg, #ef4444, #f87171); }
@@ -393,6 +410,8 @@ $canDelete = isAdmin() || isManager() || isSupervisor();
 a.ll-pill:hover { background: #eef1ff; color: #4338ca; border-color: #bcc0e8; }
 .ll-pill.overdue { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
 .ll-pill.today { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+.ll-pill-rework { background: #f5f3ff; color: #7c3aed; border-color: #ddd6fe; }
+.ll-pill-login { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
 .ll-card-footer {
     display: flex; justify-content: space-between; align-items: center;
     gap: 0.5rem; padding-top: 0.625rem; border-top: 1px solid #eceef5;
@@ -492,12 +511,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const perPageSelect = document.getElementById('perPageSelect');
     const filterIds = [
         'quickStatusFilter', 'loginMonthFilter', 'followupMonthFilter',
-        'quickLoginModeFilter', 'quickAssignedFilter', 'quickLoanTypeFilter'
+        'quickLoginModeFilter', 'quickAssignedFilter', 'quickLoanTypeFilter', 'quickReworkFilter'
     ];
 
     const defaultState = {
         quickStatus: 'PIPELINE', loginMonth: 'current_previous', followupMonth: '',
-        quickLoginMode: '', quickAssigned: '', quickLoanType: '',
+        quickLoginMode: '', quickAssigned: '', quickLoanType: '', quickRework: '',
         globalSearch: '', perPage: 12, page: 1, columnFilters: {}
     };
 
@@ -548,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function statusBadgeClass(status) {
         var cls = { 'LEAD': 'll-badge-lead', 'FOLLOWUP': 'll-badge-followup', 'LOGIN': 'll-badge-login',
-            'UNDERWRTING': 'll-badge-underwriting', 'SANCTIONED': 'll-badge-sanctioned', 'DISBURSED': 'll-badge-disbursed', 'REJECT': 'll-badge-reject' };
+            'INTERNAL_UNDERWRITING': 'll-badge-internal', 'BANK_UNDERWRITING': 'll-badge-bank', 'SANCTIONED': 'll-badge-sanctioned', 'DISBURSED': 'll-badge-disbursed', 'REJECT': 'll-badge-reject' };
         return cls[status] || 'll-badge-lead';
     }
 
@@ -609,6 +628,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 + (card.identity ? card.identity.filter(function(i) { return i.label === 'Loan Type'; }).map(function(i) { return '<span class="ll-pill"><i class="bi bi-briefcase"></i> ' + escapeHtml(i.value) + '</span>'; }).join('') : '')
                 + (card.identity ? card.identity.filter(function(i) { return i.label === 'Application'; }).map(function(i) { return '<span class="ll-pill"><i class="bi bi-hash"></i> ' + escapeHtml(i.value) + '</span>'; }).join('') : '')
                 + (followupDate ? '<span class="ll-pill' + (followupClass ? ' ' + followupClass : '') + '"><i class="bi bi-alarm"></i> ' + escapeHtml(followupDate) + '</span>' : '')
+                + (card.rework_flag ? '<span class="ll-pill ll-pill-rework" title="Rework pending"><i class="bi bi-exclamation-triangle-fill"></i> Rework' + (card.rework_stage ? ' (' + escapeHtml(card.rework_stage === 'BANK' ? 'Bank' : 'Internal') + ')' : '') + '</span>' : '')
+                + (card.login_status ? '<span class="ll-pill ll-pill-login" title="Login status"><i class="bi bi-shield-check"></i> ' + escapeHtml(card.login_status) + '</span>' : '')
                 + '</div>'
                 + '<div class="ll-card-footer">'
                 + '<div class="ll-card-actions">'
@@ -700,7 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
             search: state.globalSearch, quickStatus: state.quickStatus,
             loginMonth: state.loginMonth, followupMonth: state.followupMonth,
             quickLoginMode: state.quickLoginMode, quickAssigned: state.quickAssigned,
-            quickLoanType: state.quickLoanType
+            quickLoanType: state.quickLoanType, quickRework: state.quickRework
         });
         fetch(dataUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: body })
             .then(function(r) { return r.json(); })

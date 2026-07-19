@@ -5,8 +5,8 @@ require_once __DIR__ . "/../config.php";
 
 $user_id = $_SESSION["id"];
 $stmt = $link->prepare("SELECT u.*, t.NAME as TEAM_NAME, t.SUPERVISOR_ID 
-                        FROM users u 
-                        LEFT JOIN teams t ON u.TEAM_ID = t.ID 
+                        FROM TBL_USERS u 
+                        LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID 
                         WHERE u.ID = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -20,19 +20,19 @@ if (!defined('USER_TEAM_NAME')) define('USER_TEAM_NAME', $user['TEAM_NAME'] ?? '
 if (!defined('IS_SUPERVISOR_OF_TEAM'))  define('IS_SUPERVISOR_OF_TEAM', ($user['ID'] == $user['SUPERVISOR_ID']));
 
 // Helper Functions
-function canViewAllTeams() {
+function canViewAllTBL_TEAMS() {
     return in_array(USER_ROLE, ['Admin', 'Manager']);
 }
 
-function canManageTeams() {
+function canManageTBL_TEAMS() {
     return in_array(USER_ROLE, ['Admin', 'Manager']);
 }
 
 function getTeamFilterSQL($table_alias = 'm') {
-    if (canViewAllTeams()) return "";
+    if (canViewAllTBL_TEAMS()) return "";
     
     if (USER_ROLE == 'Supervisor') {
-        return " AND {$table_alias}.CALL_BY IN (SELECT ID FROM users WHERE TEAM_ID = " . USER_TEAM_ID . ")";
+        return " AND {$table_alias}.CALL_BY IN (SELECT ID FROM TBL_USERS WHERE TEAM_ID = " . USER_TEAM_ID . ")";
     }
     
     if (USER_ROLE == 'Officer') {
@@ -41,8 +41,8 @@ function getTeamFilterSQL($table_alias = 'm') {
     return "";
 }
 
-function requireTeamAccess($required_roles = ['Admin','Manager','Supervisor']) {
-    if (!in_array(USER_ROLE, $required_roles)) {
+function requireTeamAccess($required_TBL_ROLES = ['Admin','Manager','Supervisor']) {
+    if (!in_array(USER_ROLE, $required_TBL_ROLES)) {
         $_SESSION['error'] = "Access Denied!";
         header("Location: " . (defined('APP_BASE') ? APP_BASE . '/' : '') . "dashboard.php"); exit;
     }

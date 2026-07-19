@@ -2,8 +2,8 @@
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/lead_common.php';
 
-$allowedRoles = ['Admin', 'Manager', 'Supervisor', 'Officer'];
-if (!in_array(USER_ROLE, $allowedRoles, true)) {
+$allowedTBL_ROLES = ['Admin', 'Manager', 'Supervisor', 'Officer'];
+if (!in_array(USER_ROLE, $allowedTBL_ROLES, true)) {
     header('Location: ../../dashboard.php');
     exit;
 }
@@ -12,13 +12,14 @@ ensureLeadModuleSchema($link);
 mysqli_set_charset($link, 'utf8mb4');
 
 $statusMeta = leadStatusMeta();
-$pipelineOrder = ['LEAD', 'FOLLOWUP', 'LOGIN', 'UNDERWRTING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
+$pipelineOrder = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
 
 $stageColors = [
     'LEAD' => ['bg' => '#5e6ad2', 'soft' => 'rgba(94,106,210,0.1)'],
     'FOLLOWUP' => ['bg' => '#0ea5e9', 'soft' => 'rgba(14,165,233,0.1)'],
+    'INTERNAL_UNDERWRITING' => ['bg' => '#8b8fa3', 'soft' => 'rgba(139,143,163,0.1)'],
     'LOGIN' => ['bg' => '#f59e0b', 'soft' => 'rgba(245,158,11,0.1)'],
-    'UNDERWRTING' => ['bg' => '#8b8fa3', 'soft' => 'rgba(139,143,163,0.1)'],
+    'BANK_UNDERWRITING' => ['bg' => '#7c3aed', 'soft' => 'rgba(124,58,237,0.1)'],
     'SANCTIONED' => ['bg' => '#10b981', 'soft' => 'rgba(16,185,129,0.1)'],
     'DISBURSED' => ['bg' => '#059669', 'soft' => 'rgba(5,150,105,0.1)'],
     'REJECT' => ['bg' => '#ef4444', 'soft' => 'rgba(239,68,68,0.1)'],
@@ -37,15 +38,16 @@ $sql = "
         l.next_followup_at, l.created_at, l.updated_at, l.loan_tenure,
         l.salary_account, l.bank_name, l.bank_rm_name, l.bt_details, l.dsa_name,
         l.login_location, l.promo_code, l.followup_count, l.last_contacted_at,
+        l.rework_flag, l.rework_stage, l.login_status,
         COALESCE(NULLIF(m.MAINDATABASE_NAME, ''), NULLIF(l.NAME, ''), 'Lead #' . l.lead_id) AS customer_name,
         COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') AS company_name,
         COALESCE(NULLIF(m.MAINDATABASE_MOBILE, ''), NULLIF(l.MOBILE, ''), 'N/A') AS mobile,
         COALESCE(u.NAME, 'Unassigned') AS assigned_name
-    FROM leads_table l
-    LEFT JOIN main_database m ON m.ID = l.cust_id
-    LEFT JOIN users u ON u.ID = l.assigned_to
+    FROM TBL_LEADS l
+    LEFT JOIN TBL_MAIN m ON m.ID = l.cust_id
+    LEFT JOIN TBL_USERS u ON u.ID = l.assigned_to
     {$where}
-    ORDER BY FIELD(l.lead_status_new, 'LEAD', 'FOLLOWUP', 'LOGIN', 'UNDERWRTING', 'SANCTIONED', 'DISBURSED', 'REJECT'),
+    ORDER BY FIELD(l.lead_status_new, 'LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'),
              l.updated_at DESC, l.lead_id DESC
 ";
 $result = mysqli_query($link, $sql);
@@ -181,6 +183,16 @@ $totalAll = count($rows);
                                             <?php endif; ?>
                                             <?php if ($lead['loan_app_no']): ?>
                                                 <span class="pl-meta-pill"><i class="bi bi-hash"></i> <?= htmlspecialchars($lead['loan_app_no']) ?></span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($lead['rework_flag'])): ?>
+                                                <span class="pl-meta-pill pl-rework-pill" title="Rework pending">
+                                                    <i class="bi bi-exclamation-triangle-fill"></i> Rework<?= $lead['rework_stage'] ? ' (' . htmlspecialchars($lead['rework_stage'] === 'BANK' ? 'Bank' : 'Internal') . ')' : '' ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($lead['login_status'])): ?>
+                                                <span class="pl-meta-pill pl-login-pill" title="Login status">
+                                                    <i class="bi bi-shield-check"></i> <?= htmlspecialchars($lead['login_status']) ?>
+                                                </span>
                                             <?php endif; ?>
                                         </div>
 
@@ -567,7 +579,8 @@ $totalAll = count($rows);
     transition: all 0.12s ease;
     white-space: nowrap;
 }
-.pl-meta-pill:hover {
+.pl-rework-pill { background: #f5f3ff; color: #7c3aed; border-color: #ddd6fe; }
+.pl-login-pill { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }.pl-meta-pill:hover {
     background: var(--accent-soft);
     color: var(--accent);
     border-color: var(--accent-soft-strong);

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../../../config.php';
 
 requirePermission('export_data');
+api_init();
 
 $csrfToken = $_SESSION['csrf_token'] ?? '';
 // === CONFIG ===
@@ -104,7 +105,7 @@ function startExport(offset) {
             // Add downloadable file
             const blob = b64toBlob(res.csv, 'text/csv');
             const url = URL.createObjectURL(blob);
-            const fileName = 'TEMPORARY_DATABASE_part_' + part + '_(' + current.toLocaleString() + 'rows).csv';
+            const fileName = 'TBL_TEMP_part_' + part + '_(' + current.toLocaleString() + 'rows).csv';
 
             $('#filesList').append(`
                 <div class="col-md-6">

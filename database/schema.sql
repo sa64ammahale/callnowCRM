@@ -232,7 +232,16 @@ CREATE TABLE `leads_table` (
   `ADDED_AT` datetime DEFAULT current_timestamp(),
   `promo_code` varchar(100) DEFAULT NULL,
   `login_bank_name` varchar(100) DEFAULT NULL,
-  `lead_status_new` enum('FOLLOWUP','LEAD','LOGIN','UNDERWRTING','SANCTIONED','DISBURSED','REJECT') NOT NULL DEFAULT 'LEAD',
+  `lead_status_new` enum('LEAD','FOLLOWUP','INTERNAL_UNDERWRITING','LOGIN','BANK_UNDERWRITING','SANCTIONED','DISBURSED','REJECT') NOT NULL DEFAULT 'LEAD',
+  `rework_flag` TINYINT(1) NOT NULL DEFAULT 0,
+  `rework_stage` ENUM('','INTERNAL','BANK') NOT NULL DEFAULT '',
+  `login_status` ENUM('','PENDING','SUCCESS','REWORK_PENDING','REJECTED') NOT NULL DEFAULT '',
+  `login_submitted_by` INT(11) DEFAULT NULL,
+  `login_submitted_at` DATETIME DEFAULT NULL,
+  `forwarded_flag` TINYINT(1) NOT NULL DEFAULT 0,
+  `sent_backward_flag` TINYINT(1) NOT NULL DEFAULT 0,
+  `parent_lead_id` INT(11) DEFAULT NULL,
+  `team_id` INT(11) DEFAULT NULL,
   `login_mode` enum('ONLINE','MAIL','PHYSICALLY') DEFAULT NULL,
   `loan_type` varchar(100) DEFAULT NULL,
   `loan_app_no` varchar(100) DEFAULT NULL,
@@ -263,13 +272,71 @@ CREATE TABLE `leads_table` (
   KEY `idx_lead_status_new` (`lead_status_new`),
   KEY `idx_login_bank_name` (`login_bank_name`),
   KEY `idx_loan_type` (`loan_type`),
+  KEY `idx_team_id` (`team_id`),
+  KEY `idx_parent_lead` (`parent_lead_id`),
   FULLTEXT KEY `idx_remarks` (`remarks`),
   CONSTRAINT `leads_table_ibfk_1` FOREIGN KEY (`cust_id`) REFERENCES `main_database` (`ID`) ON DELETE SET NULL,
   CONSTRAINT `leads_table_ibfk_2` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
   CONSTRAINT `leads_table_ibfk_3` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
   CONSTRAINT `leads_table_ibfk_4` FOREIGN KEY (`created_by`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
-  CONSTRAINT `leads_table_ibfk_5` FOREIGN KEY (`updated_by`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+  CONSTRAINT `leads_table_ibfk_5` FOREIGN KEY (`updated_by`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
+  CONSTRAINT `leads_table_ibfk_6` FOREIGN KEY (`parent_lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE SET NULL,
+  CONSTRAINT `leads_table_ibfk_7` FOREIGN KEY (`team_id`) REFERENCES `teams` (`ID`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `lead_notes`
+--
+
+CREATE TABLE `lead_notes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `lead_id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `note` text NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_lead_id` (`lead_id`),
+  CONSTRAINT `lead_notes_ibfk_1` FOREIGN KEY (`lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE CASCADE,
+  CONSTRAINT `lead_notes_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `lead_followups`
+--
+
+CREATE TABLE `lead_followups` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `lead_id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `followup_at` datetime NOT NULL,
+  `note` text DEFAULT NULL,
+  `status` enum('OPEN','DONE','CANCELLED') NOT NULL DEFAULT 'OPEN',
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_lead_id` (`lead_id`),
+  KEY `idx_followup_at` (`followup_at`),
+  KEY `idx_status` (`status`),
+  CONSTRAINT `lead_followups_ibfk_1` FOREIGN KEY (`lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE CASCADE,
+  CONSTRAINT `lead_followups_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `lead_assignments`
+--
+
+CREATE TABLE `lead_assignments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `lead_id` int(11) NOT NULL,
+  `from_user_id` int(11) DEFAULT NULL,
+  `to_user_id` int(11) DEFAULT NULL,
+  `from_team_id` int(11) DEFAULT NULL,
+  `to_team_id` int(11) DEFAULT NULL,
+  `reason` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_lead_id` (`lead_id`),
+  CONSTRAINT `lead_assignments_ibfk_1` FOREIGN KEY (`lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -620,7 +687,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `permissions` WRITE;
 /*!40000 ALTER TABLE `permissions` DISABLE KEYS */;
-INSERT INTO `permissions` VALUES (1,'manage_users','Manage Users','Administration','Create, edit and delete user accounts',1,'2026-07-16 13:05:54'),(2,'manage_teams','Manage Teams','Administration','Create teams and assign members',1,'2026-07-16 13:05:54'),(3,'manage_settings','Manage Settings','Administration','Access the Settings hub and permission manager',1,'2026-07-16 13:05:54'),(4,'view_activity','View Activity Log','Administration','Access the audit / activity log',1,'2026-07-16 13:05:54'),(5,'manage_database','Manage Database','Data','Edit, delete and transfer records in temporary & main databases',1,'2026-07-16 13:05:54'),(6,'upload_data','Upload Data','Data','Import CSV files into the databases',1,'2026-07-16 13:05:54'),(7,'export_data','Export Data','Data','Export database lists to CSV',1,'2026-07-16 13:05:54'),(8,'assign_leads','Assign Leads','Leads','Assign leads / numbers to telecallers',1,'2026-07-16 13:05:54'),(9,'manage_leads','Manage Leads','Leads','Create and edit leads',1,'2026-07-16 13:05:54'),(10,'delete_leads','Delete Leads','Leads','Delete lead records',1,'2026-07-16 13:05:54'),(11,'view_reports','View Reports','Reporting','Access call-performance reports',1,'2026-07-16 13:05:54'),(23,'manage_api','Manage API Access','Administration','Configure mobile API settings and tokens',1,'2026-07-18 11:05:30');
+INSERT INTO `permissions` VALUES (1,'manage_TBL_USERS','Manage TBL_USERS','Administration','Create, edit and delete user accounts',1,'2026-07-16 13:05:54'),(2,'manage_TBL_TEAMS','Manage TBL_TEAMS','Administration','Create TBL_TEAMS and assign members',1,'2026-07-16 13:05:54'),(3,'manage_settings','Manage Settings','Administration','Access the Settings hub and permission manager',1,'2026-07-16 13:05:54'),(4,'view_activity','View Activity Log','Administration','Access the audit / activity log',1,'2026-07-16 13:05:54'),(5,'manage_database','Manage Database','Data','Edit, delete and transfer records in temporary & main databases',1,'2026-07-16 13:05:54'),(6,'upload_data','Upload Data','Data','Import CSV files into the databases',1,'2026-07-16 13:05:54'),(7,'export_data','Export Data','Data','Export database lists to CSV',1,'2026-07-16 13:05:54'),(8,'assign_leads','Assign Leads','Leads','Assign leads / numbers to telecallers',1,'2026-07-16 13:05:54'),(9,'manage_leads','Manage Leads','Leads','Create and edit leads',1,'2026-07-16 13:05:54'),(10,'delete_leads','Delete Leads','Leads','Delete lead records',1,'2026-07-16 13:05:54'),(11,'view_reports','View Reports','Reporting','Access call-performance reports',1,'2026-07-16 13:05:54'),(23,'manage_api','Manage API Access','Administration','Configure mobile API settings and tokens',1,'2026-07-18 11:05:30');
 /*!40000 ALTER TABLE `permissions` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

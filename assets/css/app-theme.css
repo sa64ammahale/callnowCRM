@@ -23,6 +23,8 @@
     --danger-soft: rgba(239, 68, 68, 0.10);
     --info: #0ea5e9;
     --info-soft: rgba(14, 165, 233, 0.10);
+    --purple: #7c3aed;
+    --purple-soft: rgba(124, 58, 237, 0.10);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
@@ -957,6 +959,10 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
 .badge.bg-secondary { background: var(--surface-2) !important; color: var(--ink-soft) !important; }
 .badge.bg-light { background: var(--surface-2) !important; color: var(--ink-soft) !important; }
 .badge.bg-dark  { background: var(--ink) !important; color: var(--bg) !important; }
+.badge.bg-purple { background: var(--purple-soft) !important; color: var(--purple) !important; }
+
+.ll-badge-internal { background: var(--surface-2) !important; color: var(--ink-soft) !important; border: 1px solid var(--border); }
+.ll-badge-bank { background: var(--purple-soft) !important; color: var(--purple) !important; }
 
 .status-pill {
     display: inline-flex;
