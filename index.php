@@ -12,9 +12,13 @@ ensureCsrfToken();
 // Resolve the application logo for the login screen
 $loginLogo = '';
 if (isset($link) && $link) {
-    $logoRes = $link->query("SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
-    if ($logoRes && $row = $logoRes->fetch_assoc()) {
-        $loginLogo = APP_BASE . '/' . ltrim($row['setting_value'], '/');
+    try {
+        $logoRes = $link->query("SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
+        if ($logoRes && $row = $logoRes->fetch_assoc()) {
+            $loginLogo = APP_BASE . '/' . ltrim($row['setting_value'], '/');
+        }
+    } catch (\Throwable $e) {
+        $loginLogo = '';
     }
 }
 

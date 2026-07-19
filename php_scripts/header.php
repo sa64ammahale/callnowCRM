@@ -16,9 +16,13 @@ $themeAttr = (($_SESSION['theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
 // Resolve the uploaded application logo for the favicon / shortcut icon
 $appLogoUrl = '';
 if (isset($link) && $link) {
-    $logoRes = $link->query("SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
-    if ($logoRes && $row = $logoRes->fetch_assoc()) {
-        $appLogoUrl = (defined('APP_BASE') ? APP_BASE : '') . '/' . ltrim($row['setting_value'], '/');
+    try {
+        $logoRes = $link->query("SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
+        if ($logoRes && $row = $logoRes->fetch_assoc()) {
+            $appLogoUrl = (defined('APP_BASE') ? APP_BASE : '') . '/' . ltrim($row['setting_value'], '/');
+        }
+    } catch (\Throwable $e) {
+        $appLogoUrl = '';
     }
 }
 $faviconUrl = $appLogoUrl ?: 'data:image/svg+xml,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="%235e6ad2"/><path fill="%23fff" d="M11 9a9 9 0 0 0 0 14l1.4-1.4A7 7 0 0 1 12.4 10.4L11 9zm10 0-1.4 1.4A7 7 0 0 1 19.6 21.6L21 23a9 9 0 0 0 0-14zM16 13a3 3 0 0 0-3 3 1 1 0 0 0 2 0 1 1 0 0 1 1-1 1 1 0 0 0 0-2z"/></svg>');
