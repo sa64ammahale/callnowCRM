@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../config.php';
 requirePermission('manage_database');
 
 header('Content-Type: application/json; charset=utf-8');
+while (ob_get_level()) ob_end_clean();
 if (!$link) {
     $error = 'Database connection failed';
     if (defined('APP_DEBUG') && APP_DEBUG) {
@@ -51,7 +52,8 @@ $orderby = $columns[$col] ?? 'MAINDATABASE_UPLOAD_DATETIME';
 $orderby .= " " . ($dir === 'asc' ? 'ASC' : 'DESC');
 
 // Total records (without filter)
-$total = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) AS c FROM main_database"))['c'];
+$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM main_database");
+$total = $totalRes ? (int)mysqli_fetch_assoc($totalRes)['c'] : 0;
 
 // Filtered records count
 $countQuery = "SELECT COUNT(*) AS c FROM main_database 
@@ -60,7 +62,8 @@ $countQuery = "SELECT COUNT(*) AS c FROM main_database
 $stmt = mysqli_prepare($link, $countQuery);
 if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
 mysqli_stmt_execute($stmt);
-$filtered = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['c'];
+$filteredRes = mysqli_stmt_get_result($stmt);
+$filtered = $filteredRes ? (int)mysqli_fetch_assoc($filteredRes)['c'] : 0;
 
 // Data query
 $sql = "SELECT MAIN_DATABASE.ID, 
@@ -100,6 +103,7 @@ while ($row = mysqli_fetch_assoc($result)) {
     ];
 }
 
+while (ob_get_level()) ob_end_clean();
 echo json_encode([
     "draw"            => $draw,
     "recordsTotal"    => $total,

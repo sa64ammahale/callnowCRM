@@ -5,6 +5,8 @@ require_once __DIR__ . '/../../../config.php';
 requirePermission('manage_database');
 
 header('Content-Type: application/json; charset=utf-8');
+// Discard any accidental output (warnings, BOM, whitespace) so the JSON stays valid
+while (ob_get_level()) ob_end_clean();
 if (!$link) {
     $error = 'Database connection failed';
     if (defined('APP_DEBUG') && APP_DEBUG) {
@@ -51,14 +53,16 @@ $orderby = $columns[$col] ?? 'TEMP_UPLOAD_DATETIME';
 $orderby .= " " . ($dir === 'asc' ? 'ASC' : 'DESC');
 
 // Total records (without filter)
-$total = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) AS c FROM temporary_database"))['c'];
+$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM temporary_database");
+$total = $totalRes ? (int)mysqli_fetch_assoc($totalRes)['c'] : 0;
 
 // Filtered records count
 $countQuery = "SELECT COUNT(*) AS c FROM temporary_database $where";
 $stmt = mysqli_prepare($link, $countQuery);
 if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
 mysqli_stmt_execute($stmt);
-$filtered = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['c'];
+$filteredRes = mysqli_stmt_get_result($stmt);
+$filtered = $filteredRes ? (int)mysqli_fetch_assoc($filteredRes)['c'] : 0;
 
 // Data query
 $sql = "SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, 
@@ -92,6 +96,7 @@ while ($row = mysqli_fetch_assoc($result)) {
     ];
 }
 
+while (ob_get_level()) ob_end_clean();
 echo json_encode([
     "draw"            => $draw,
     "recordsTotal"    => $total,
