@@ -43,6 +43,17 @@ function ensureLeadModuleSchema(mysqli $link): void
     $addColumn('bt_details', "TEXT DEFAULT NULL AFTER bank_rm_name");
     $addColumn('dsa_name', "VARCHAR(100) DEFAULT NULL AFTER bt_details");
 
+    // Phase 0 migration columns (self-heal on live without running SQL manually)
+    $addColumn('team_id', "INT DEFAULT NULL AFTER dsa_name");
+    $addColumn('rework_flag', "TINYINT(1) NOT NULL DEFAULT 0 AFTER team_id");
+    $addColumn('rework_stage', "ENUM('INTERNAL','BANK') DEFAULT NULL AFTER rework_flag");
+    $addColumn('login_status', "ENUM('PENDING','SUCCESS','REJECTED') DEFAULT NULL AFTER rework_stage");
+    $addColumn('login_submitted_by', "INT DEFAULT NULL AFTER login_status");
+    $addColumn('login_submitted_at', "DATETIME DEFAULT NULL AFTER login_submitted_by");
+    $addColumn('forwarded_flag', "TINYINT(1) NOT NULL DEFAULT 0 AFTER login_submitted_at");
+    $addColumn('sent_backward_flag', "TINYINT(1) NOT NULL DEFAULT 0 AFTER forwarded_flag");
+    $addColumn('parent_lead_id', "INT DEFAULT NULL AFTER sent_backward_flag");
+
     if (isset($columns['lead_status_new']) && stripos((string)$columns['lead_status_new'], "'REJECT'") === false) {
         mysqli_query(
             $link,

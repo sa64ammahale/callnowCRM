@@ -1,4 +1,18 @@
 <?php
+// ── Live fatal-error capture (temporary diagnostic) ──
+// Writes PHP fatals to <approot>/php_errors.log so errors are visible on
+// shared hosting where display_errors is off. Remove once the 500 is fixed.
+if (!function_exists('__cn_fatal_log')) {
+    function __cn_fatal_log(): void {
+        $err = error_get_last();
+        if ($err !== null && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+            $msg = '[' . date('Y-m-d H:i:s') . '] FATAL ' . $err['type'] . ': ' . $err['message']
+                . ' @ ' . $err['file'] . ':' . $err['line'] . "\n";
+            @file_put_contents(__DIR__ . '/../php_errors.log', $msg, FILE_APPEND);
+        }
+    }
+    register_shutdown_function('__cn_fatal_log');
+}
 
     // Load a local .env file if present (shared hosting without env support)
     if (file_exists(__DIR__ . '/../.env')) {

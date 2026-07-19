@@ -184,7 +184,7 @@ Column mapping applied:
 
 ## Remaining Known Issues (not yet fixed)
 - `data_management_main.php` references `bulk_assign.php` which doesn't exist
-- `lead_common.php` runs runtime ALTER TABLE migrations on page load (static-guarded, but still risky)
+- `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.
 - No rate limiting on login/forgot-password (brute force)
 - Default admin `Admin@123` hardcoded in SQL seed (with warning in comments)
 - CSV export (`export_batch.php`) uses `implode()` without field escaping (CSV injection)

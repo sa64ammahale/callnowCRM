@@ -30,16 +30,27 @@ if ($user_id <= 0) { appRedirect('index.php'); }
 
 
 $stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM TBL_USERS WHERE ID = ?");
-mysqli_stmt_bind_param($stmt, "i", $user_id);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-$user = mysqli_fetch_assoc($result);
+$user = null;
+if ($stmt) {
+    mysqli_stmt_bind_param($stmt, "i", $user_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    if ($result) {
+        $user = mysqli_fetch_assoc($result);
+    }
+    mysqli_stmt_close($stmt);
+}
+if (empty($user)) {
+    session_unset();
+    session_destroy();
+    appRedirect('index.php');
+}
 
 
 if (!defined('CURRENT_USER')) define('CURRENT_USER', $user);
 if (!defined('USER_ROLE')) define('USER_ROLE', $user['ROLE']);
 if (!defined('USER_ID'))   define('USER_ID',   (int)$user['ID']);
-if (!defined('USER_TEAM_ID')) define('USER_TEAM_ID', $user['TEAM_ID']);
+if (!defined('USER_TEAM_ID')) define('USER_TEAM_ID', $user['TEAM_ID'] ?? null);
 if (!defined('THEME')) define('THEME', ($_SESSION['theme'] ?? 'light') === 'dark' ? 'dark' : 'light');
 
 
