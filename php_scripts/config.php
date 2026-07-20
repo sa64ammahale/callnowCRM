@@ -94,6 +94,58 @@
         define('TBL_USERS',              'users');
     }
 
+    // ── Self-heal guard (defense against a stale/deployed config or
+    // opcache serving an old copy where these constants were undefined
+    // or equal to their own name, e.g. TBL_USERS === 'TBL_USERS') ──
+    $__cn_tbl = [
+        'TBL_ACTIVITY_LOG'      => 'activity_log',
+        'TBL_API_ACCESS_LOGS'  => 'api_access_logs',
+        'TBL_API_DB_ASSIGNMENTS'=> 'api_database_assignments',
+        'TBL_API_SETTINGS'     => 'api_settings',
+        'TBL_API_TOKENS'       => 'api_tokens',
+        'TBL_APP_SETTINGS'     => 'app_settings',
+        'TBL_ENQUIRY'          => 'enquiry',
+        'TBL_LEADS'            => 'leads_table',
+        'TBL_MAIN'             => 'main_database',
+        'TBL_MAIN_ARCHIVE'     => 'main_database_archive',
+        'TBL_PERMISSIONS'      => 'permissions',
+        'TBL_ROLE_PERMISSIONS'=> 'role_permissions',
+        'TBL_ROLES'            => 'roles',
+        'TBL_TEAMS'            => 'teams',
+        'TBL_TEMP'             => 'temporary_database',
+        'TBL_USER_PAGE_FILTERS'=> 'user_page_filters',
+        'TBL_USER_PERMISSIONS' => 'user_permissions',
+        'TBL_USERS'            => 'users',
+    ];
+    foreach ($__cn_tbl as $__cn_k => $__cn_v) {
+        $__cn_cur = defined($__cn_k) ? constant($__cn_k) : null;
+        // Fix if undefined, empty, or accidentally equal to its own name.
+        if ($__cn_cur === null || $__cn_cur === '' || $__cn_cur === $__cn_k) {
+            // Can't redefine an existing constant; use runkit if present,
+            // otherwise redefine via a clean trick only when not yet defined.
+            if (!defined($__cn_k)) {
+                define($__cn_k, $__cn_v);
+            } elseif (function_exists('runkit_constant_redefine')) {
+                runkit_constant_redefine($__cn_k, $__cn_v);
+            } else {
+                // Last-resort: expose a global map so code can fall back.
+                $GLOBALS['__cn_tbl_override'][$__cn_k] = $__cn_v;
+            }
+        }
+    }
+    // Safe table-name resolver: falls back to the override map if a
+    // constant could not be redefined (should never happen with opcache off).
+    if (!function_exists('tn')) {
+        function tn(string $name): string {
+            if (defined($name)) {
+                $v = constant($name);
+                if ($v !== '' && $v !== $name) return $v;
+            }
+            return $GLOBALS['__cn_tbl_override'][$name] ?? $name;
+        }
+    }
+    unset($__cn_tbl, $__cn_k, $__cn_v, $__cn_cur);
+
     // ─────────────────────────────────────────────────────────────
     // Shared AJAX helpers. Call api_init() at the top of any JSON
     // endpoint so unexpected fatals are returned as JSON (not a blank

@@ -29,7 +29,7 @@ $user_id = (int)($_SESSION['id'] ?? 0);
 if ($user_id <= 0) { appRedirect('index.php'); }
 
 
-$stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM TBL_USERS WHERE ID = ?");
+$stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ?");
 mysqli_stmt_bind_param($stmt, "i", $user_id);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
@@ -97,7 +97,7 @@ function loadEffectiveTBL_PERMISSIONS(): array {
     $perms = [];
 
     $role = USER_ROLE;
-    $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM TBL_ROLE_PERMISSIONS WHERE role = ?");
+    $stmt = mysqli_prepare($link, "SELECT permission_key, permission_value FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = ?");
     if ($stmt) {
         try {
             mysqli_stmt_bind_param($stmt, 's', $role);
@@ -113,7 +113,7 @@ function loadEffectiveTBL_PERMISSIONS(): array {
     }
 
     $curUid = USER_ID;
-    $stmt2 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM TBL_USER_PERMISSIONS WHERE user_id = ?");
+    $stmt2 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = ?");
     if ($stmt2) {
         try {
             mysqli_stmt_bind_param($stmt2, 'i', $curUid);
@@ -222,7 +222,7 @@ function getAccessibleUserIds($link) : array {
         if (empty($teamIds)) return [USER_ID]; // manager with no TBL_TEAMS - only self
         // fetch TBL_USERS in those TBL_TEAMS
         $in = implode(',', array_map('intval', $teamIds));
-        $sql = "SELECT ID FROM TBL_USERS WHERE TEAM_ID IN ($in)";
+        $sql = "SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IN ($in)";
         $res = mysqli_query($link, $sql);
         $ids = [];
         while ($r = mysqli_fetch_assoc($res)) $ids[] = (int)$r['ID'];
@@ -232,7 +232,7 @@ function getAccessibleUserIds($link) : array {
         // supervisor only sees TBL_USERS in their TEAM_ID
         if (USER_TEAM_ID === null) return [USER_ID];
         $teamId = USER_TEAM_ID;
-        $stmt = $link->prepare("SELECT ID FROM TBL_USERS WHERE TEAM_ID = ?");
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?");
         $stmt->bind_param("i", $teamId);
         $stmt->execute();
         $res = $stmt->get_result();
