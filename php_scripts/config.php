@@ -34,6 +34,11 @@
 
     mysqli_set_charset($link, 'utf8mb4');
 
+    // PHP 8.2 defaults to MYSQLI_REPORT_STRICT which throws exceptions
+    // on query failures → uncaught → HTTP 500. Remove STRICT so mysqli
+    // returns false on error (like PHP 7.x) instead of throwing.
+    mysqli_report(MYSQLI_REPORT_ERROR);
+
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
