@@ -99,6 +99,36 @@ try {
     echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
 } catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
 
+// Test 4g: main_database (used by dashboard.php)
+echo "\n  Test 4g: SELECT COUNT(*) FROM main_database...\n";
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM main_database");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4h: EXACT dashboard query (checks if columns exist)
+echo "\n  Test 4h: EXACT dashboard.php query (calls today)...\n";
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) as total_calls, SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected FROM main_database WHERE DATE(MAINDATABASE_CALL_DIAL_TIME) = CURDATE()");
+    if ($r) { $row = mysqli_fetch_assoc($r); echo "  => total_calls={$row['total_calls']} connected={$row['connected']}\n"; }
+    else { echo "  => FAIL: " . mysqli_error($link) . "\n"; }
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4i: Dashboard active users query
+echo "\n  Test 4i: EXACT dashboard.php active users query...\n";
+try {
+    $r = mysqli_query($link, "SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as TBL_USERS FROM main_database WHERE DATE(MAINDATABASE_CALL_DIAL_TIME) = CURDATE() AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL");
+    if ($r) { $row = mysqli_fetch_assoc($r); echo "  => count={$row['TBL_USERS']}\n"; }
+    else { echo "  => FAIL: " . mysqli_error($link) . "\n"; }
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4j: leads_table (used by leads module)
+echo "\n  Test 4j: SELECT COUNT(*) FROM leads_table...\n";
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM leads_table");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
 // ── Step 5: Session ──
 echo "\n--- Step 5: Session ---\n";
 @session_start();
