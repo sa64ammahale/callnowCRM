@@ -1,103 +1,162 @@
 <?php
 /**
- * UNIVERSAL 500 CATCHER — upload to your CallNow5 root, visit, get the REAL error.
- * Catches everything including fatal errors and displays them.
+ * 500 DIAGNOSTIC V2 — incremental flush, NO auth.php include,
+ * manually tests the critical queries. Always shows output.
  */
-// ── Catch ALL errors ─────────────────────────────────────────
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
 
-set_error_handler(function ($severity, $msg, $file, $line) {
-    echo "[ERROR_HANDLER] $msg in $file:$line\n\n";
-    return true;
-});
-
-set_exception_handler(function ($e) {
-    echo "[EXCEPTION_HANDLER] " . $e->getMessage() . "\n  in " . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString() . "\n\n";
-});
-
+set_error_handler(function ($s, $m, $f, $l) { echo "[ERR] $m in $f:$l\n"; return true; });
+set_exception_handler(function ($e) { echo "[EXC] {$e->getMessage()}\n  {$e->getFile()}:{$e->getLine()}\n{$e->getTraceAsString()}\n"; });
 register_shutdown_function(function () {
-    $err = error_get_last();
-    if ($err !== null && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-        echo "[FATAL_SHUTDOWN] {$err['message']} in {$err['file']}:{$err['line']}\n\n";
-    }
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR])) echo "[FATAL] {$e['message']} in {$e['file']}:{$e['line']}\n";
 });
 
-echo "=== 500 DIAGNOSTIC ===\n\n";
+header('Content-Type: text/plain; charset=utf-8');
 
-// ── Step 1: config.php ─────────────────────────────────────────
-echo "--- Step 1: Loading config.php ---\n";
+echo "=== CallNow 500 DIAGNOSTIC V2 ===\n\n";
+
+// ── Step 1: config.php ──
+echo "--- Step 1: Load config.php ---\n";
 try {
     require_once __DIR__ . '/php_scripts/config.php';
-    echo "OK: config.php loaded\n\n";
+    echo "OK\n\n";
 } catch (\Throwable $e) {
     echo "FAIL: " . $e->getMessage() . "\n\n";
     exit;
 }
 
-// ── Step 2: TBL constants ──────────────────────────────────────
+// ── Step 2: TBL_* constants ──
 echo "--- Step 2: TBL_* constants ---\n";
-$expected = [
-    'TBL_USERS'=>'users', 'TBL_MAIN'=>'main_database', 'TBL_LEADS'=>'leads_table',
-    'TBL_APP_SETTINGS'=>'app_settings', 'TBL_ROLE_PERMISSIONS'=>'role_permissions',
-    'TBL_USER_PERMISSIONS'=>'user_permissions', 'TBL_TEAMS'=>'teams', 'TBL_PERMISSIONS'=>'permissions'
-];
-foreach ($expected as $const => $expect) {
-    if (defined($const)) {
-        $v = constant($const);
-        $status = $v === $expect ? 'OK' : ("WRONG_VALUE='" . $v . "'");
-    } else {
-        $status = 'UNDEFINED';
-    }
-    echo "  $const => $status\n";
+$checks = ['TBL_USERS'=>'users','TBL_MAIN'=>'main_database','TBL_LEADS'=>'leads_table','TBL_APP_SETTINGS'=>'app_settings','TBL_ROLE_PERMISSIONS'=>'role_permissions','TBL_USER_PERMISSIONS'=>'user_permissions','TBL_TEAMS'=>'teams','TBL_PERMISSIONS'=>'permissions'];
+foreach ($checks as $c=>$e) {
+    $v = defined($c) ? constant($c) : null;
+    echo "  $c => " . ($v === null ? 'UNDEFINED' : ($v === $e ? "OK ($v)" : "WRONG ('$v' expected '$e')")) . "\n";
 }
 
-// ── Step 3: tn() function ───────────────────────────────────────
+// ── Step 3: tn() ──
 echo "\n--- Step 3: tn() function ---\n";
 if (function_exists('tn')) {
+    echo "  tn() exists\n";
     echo "  tn('TBL_USERS') => " . tn('TBL_USERS') . "\n";
     echo "  tn('TBL_MAIN')  => " . tn('TBL_MAIN') . "\n";
-    echo "  tn('FAKE')      => " . tn('FAKE') . "\n";
 } else {
-    echo "  tn() DOES NOT EXIST — FATAL!\n";
+    echo "  tn() => DOES NOT EXIST\n";
 }
 
-// ── Step 4: Database connection ────────────────────────────────
-echo "\n--- Step 4: Database ---\n";
-if (isset($link) && $link !== false) {
-    echo "  DB connected: yes\n";
+// ── Step 4: DB ──
+echo "\n--- Step 4: Database queries ---\n";
+if (!$link) { echo "  DB FAIL\n"; exit; }
+echo "  DB connected OK\n";
+
+// Test 4a: users table
+echo "\n  Test 4a: SELECT from users...\n";
+$tbl = function_exists('tn') ? tn('TBL_USERS') : (defined('TBL_USERS') ? constant('TBL_USERS') : 'users');
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM $tbl");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4b: role_permissions
+echo "\n  Test 4b: SELECT from role_permissions...\n";
+$tbl2 = function_exists('tn') ? tn('TBL_ROLE_PERMISSIONS') : (defined('TBL_ROLE_PERMISSIONS') ? constant('TBL_ROLE_PERMISSIONS') : 'role_permissions');
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM $tbl2");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4c: user_permissions
+echo "\n  Test 4c: SELECT from user_permissions...\n";
+$tbl3 = function_exists('tn') ? tn('TBL_USER_PERMISSIONS') : (defined('TBL_USER_PERMISSIONS') ? constant('TBL_USER_PERMISSIONS') : 'user_permissions');
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM $tbl3");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4d: app_settings (used by auth.php)
+echo "\n  Test 4d: SELECT from app_settings...\n";
+$tbl4 = function_exists('tn') ? tn('TBL_APP_SETTINGS') : (defined('TBL_APP_SETTINGS') ? constant('TBL_APP_SETTINGS') : 'app_settings');
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM $tbl4");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4e: teams
+echo "\n  Test 4e: SELECT from teams...\n";
+$tbl5 = function_exists('tn') ? tn('TBL_TEAMS') : (defined('TBL_TEAMS') ? constant('TBL_TEAMS') : 'teams');
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM $tbl5");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4f: permissions
+echo "\n  Test 4f: SELECT from permissions...\n";
+$tbl6 = function_exists('tn') ? tn('TBL_PERMISSIONS') : (defined('TBL_PERMISSIONS') ? constant('TBL_PERMISSIONS') : 'permissions');
+try {
+    $r = mysqli_query($link, "SELECT COUNT(*) c FROM $tbl6");
+    echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// ── Step 5: Session ──
+echo "\n--- Step 5: Session ---\n";
+@session_start();
+echo "  Session active: " . (session_status() === PHP_SESSION_ACTIVE ? 'yes' : 'no') . "\n";
+echo "  \$_SESSION['loggedin']: " . (isset($_SESSION['loggedin']) ? ($_SESSION['loggedin'] ? 'true' : 'false') : 'NOT SET') . "\n";
+echo "  \$_SESSION['id']: " . ($_SESSION['id'] ?? 'NOT SET') . "\n";
+echo "  \$_SESSION['csrf_token']: " . (isset($_SESSION['csrf_token']) ? 'SET' : 'NOT SET') . "\n";
+
+// ── Step 6: Simulate the EXACT auth.php queries ──
+echo "\n--- Step 6: Simulate auth.php queries ---\n";
+if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true && isset($_SESSION['id'])) {
+    $uid = (int)$_SESSION['id'];
+    $tblU = function_exists('tn') ? tn('TBL_USERS') : (defined('TBL_USERS') ? constant('TBL_USERS') : 'users');
     try {
-        $r = mysqli_query($link, "SELECT COUNT(*) c FROM " . tn('TBL_USERS'));
-        if ($r) {
-            $row = mysqli_fetch_assoc($r);
-            echo "  Query TBL_USERS => " . ($row['c'] ?? '?') . " rows\n";
+        $stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM $tblU WHERE ID = ?");
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, "i", $uid);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $user = mysqli_fetch_assoc($res);
+            if ($user) {
+                echo "  User found: ID={$user['ID']} NAME={$user['NAME']} ROLE={$user['ROLE']} TEAM_ID={$user['TEAM_ID']}\n";
+                
+                // Test RBAC query (what loadEffectivePermissions does)
+                $tblRP = function_exists('tn') ? tn('TBL_ROLE_PERMISSIONS') : (defined('TBL_ROLE_PERMISSIONS') ? constant('TBL_ROLE_PERMISSIONS') : 'role_permissions');
+                $stmt2 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM $tblRP WHERE role = ?");
+                if ($stmt2) {
+                    $role = $user['ROLE'];
+                    mysqli_stmt_bind_param($stmt2, 's', $role);
+                    mysqli_stmt_execute($stmt2);
+                    echo "  RBAC query OK for role '$role'\n";
+                    mysqli_stmt_close($stmt2);
+                } else {
+                    echo "  RBAC prepare FAIL: " . mysqli_error($link) . "\n";
+                }
+                
+                $tblUP = function_exists('tn') ? tn('TBL_USER_PERMISSIONS') : (defined('TBL_USER_PERMISSIONS') ? constant('TBL_USER_PERMISSIONS') : 'user_permissions');
+                $stmt3 = mysqli_prepare($link, "SELECT permission_key, permission_value FROM $tblUP WHERE user_id = ?");
+                if ($stmt3) {
+                    mysqli_stmt_bind_param($stmt3, 'i', $uid);
+                    mysqli_stmt_execute($stmt3);
+                    echo "  User permissions query OK\n";
+                    mysqli_stmt_close($stmt3);
+                } else {
+                    echo "  User perms prepare FAIL: " . mysqli_error($link) . "\n";
+                }
+            } else {
+                echo "  User NOT FOUND in DB (id=$uid) — causes NULL CURRENT_USER → 500\n";
+            }
         } else {
-            echo "  Query TBL_USERS => FAIL: " . mysqli_error($link) . "\n";
+            echo "  User query prepare FAIL: " . mysqli_error($link) . "\n";
         }
     } catch (\Throwable $e) {
-        echo "  Query THREW: " . $e->getMessage() . "\n";
+        echo "  auth.php simulation THREW: " . $e->getMessage() . "\n";
     }
 } else {
-    echo "  DB connection: FAIL\n";
-}
-
-// ── Step 5: Auth load test ──────────────────────────────────────
-echo "\n--- Step 5: Loading auth.php (session required) ---\n";
-// Start a session if not started, with a test user id to simulate login
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
-$hadSession = isset($_SESSION['id']);
-echo "  Session active: " . (session_status() === PHP_SESSION_ACTIVE ? 'yes' : 'no') . "\n";
-echo "  User logged in: " . (isset($_SESSION['id']) ? "yes (id={$_SESSION['id']})" : 'no') . "\n";
-
-try {
-    require_once __DIR__ . '/php_scripts/auth.php';
-    echo "  auth.php loaded: OK\n";
-    echo "  USER_ID: " . (defined('USER_ID') ? constant('USER_ID') : 'N/A') . "\n";
-} catch (\Throwable $e) {
-    echo "  auth.php FAIL: " . $e->getMessage() . "\n";
+    echo "  Not logged in in this session.\n";
+    echo "  ==> Log in FIRST in the SAME browser tab, then visit this URL again.\n";
 }
 
 echo "\n=== DIAGNOSTIC COMPLETE ===\n";
