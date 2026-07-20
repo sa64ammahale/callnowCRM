@@ -99,6 +99,22 @@ try {
     echo $r ? "  => " . mysqli_fetch_assoc($r)['c'] . " rows\n" : "  => FAIL: " . mysqli_error($link) . "\n";
 } catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
 
+// Test users table columns
+echo "\n  Test 4g1: SHOW COLUMNS FROM users (live schema)...\n";
+try {
+    $r = mysqli_query($link, "SHOW COLUMNS FROM users");
+    if ($r) { while ($row = mysqli_fetch_assoc($r)) echo "    {$row['Field']}\n"; }
+    else { echo "  => FAIL: " . mysqli_error($link) . "\n"; }
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test main_database columns
+echo "\n  Test 4g2: SHOW COLUMNS FROM main_database (live schema)...\n";
+try {
+    $r = mysqli_query($link, "SHOW COLUMNS FROM main_database");
+    if ($r) { while ($row = mysqli_fetch_assoc($r)) echo "    {$row['Field']}\n"; }
+    else { echo "  => FAIL: " . mysqli_error($link) . "\n"; }
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
 // Test 4g: main_database (used by dashboard.php)
 echo "\n  Test 4g: SELECT COUNT(*) FROM main_database...\n";
 try {
@@ -122,7 +138,17 @@ try {
     else { echo "  => FAIL: " . mysqli_error($link) . "\n"; }
 } catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
 
-// Test 4j: leads_table (used by leads module)
+// Test 4j: EXACT login query (index.php login SQL)
+echo "\n  Test 4j: EXACT login query (SELECT with LOGIN_ID, DEVICE_ID)...\n";
+try {
+    $r = mysqli_query($link, "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM users WHERE LOGIN_ID = 'admin@callnow.in'");
+    if ($r) {
+        if (mysqli_num_rows($r) > 0) { $row = mysqli_fetch_assoc($r); echo "  => FOUND: ID={$row['ID']} NAME={$row['NAME']}\n"; }
+        else { echo "  => No match (user not found — expected)\n"; }
+    } else { echo "  => FAIL: " . mysqli_error($link) . "\n"; }
+} catch (\Throwable $e) { echo "  => THREW: " . $e->getMessage() . "\n"; }
+
+// Test 4k: leads_table (used by leads module)
 echo "\n  Test 4j: SELECT COUNT(*) FROM leads_table...\n";
 try {
     $r = mysqli_query($link, "SELECT COUNT(*) c FROM leads_table");
