@@ -1,7 +1,5 @@
 <?php
 header('Content-Type: application/json');
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
 try {
     require_once __DIR__ . '/../../../php_scripts/auth.php';

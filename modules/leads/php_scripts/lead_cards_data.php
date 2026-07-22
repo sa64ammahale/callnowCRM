@@ -12,6 +12,18 @@ if (!in_array(USER_ROLE, $allowedTBL_ROLES, true)) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['ok' => false, 'message' => 'Method not allowed.']);
+    exit;
+}
+
+if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'Invalid session token.']);
+    exit;
+}
+
 ensureLeadModuleSchema($link);
 mysqli_set_charset($link, 'utf8mb4');
 

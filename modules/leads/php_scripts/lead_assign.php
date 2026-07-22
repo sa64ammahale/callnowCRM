@@ -22,7 +22,11 @@ if (!canPullToTray(['assigned_to' => 0])) {
     api_error('You are not allowed to assign leads', 403);
 }
 
-$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT lead_id, assigned_to, team_id, assigned_by FROM " . tn('TBL_LEADS') . " WHERE lead_id = $leadId"));
+$stmt = mysqli_prepare($link, "SELECT lead_id, assigned_to, team_id, assigned_by FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? LIMIT 1");
+mysqli_stmt_bind_param($stmt, 'i', $leadId);
+mysqli_stmt_execute($stmt);
+$lead = mysqli_stmt_get_result($stmt)->fetch_assoc();
+mysqli_stmt_close($stmt);
 if (!$lead) {
     api_error('Lead not found', 404);
 }
@@ -33,7 +37,11 @@ $fromTeamId = (int)$lead['team_id'];
 $realToUser = $toUserId;
 $realToTeam = $toTeamId;
 if ($toUserId > 0) {
-    $u = mysqli_fetch_assoc(mysqli_query($link, "SELECT ID, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = $toUserId"));
+    $uStmt = mysqli_prepare($link, "SELECT ID, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
+    mysqli_stmt_bind_param($uStmt, 'i', $toUserId);
+    mysqli_stmt_execute($uStmt);
+    $u = mysqli_stmt_get_result($uStmt)->fetch_assoc();
+    mysqli_stmt_close($uStmt);
     if (!$u) {
         api_error('Target user not found', 404);
     }

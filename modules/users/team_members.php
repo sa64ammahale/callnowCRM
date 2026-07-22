@@ -257,8 +257,8 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                 <p>Assign members to TBL_TEAMS, transfer between TBL_TEAMS, and manage supervisors</p>
             </div>
             <div class="tm-header-actions">
-                <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-diagram-3"></i> TBL_TEAMS</a>
-                <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" class="tm-btn-glass"><i class="bi bi-person-gear"></i> TBL_USERS</a>
+                <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-diagram-3"></i> TBL_TEAMS</a>
+                <a href="<?= url('modules/users/users_view.php') ?>" class="tm-btn-glass"><i class="bi bi-person-gear"></i> TBL_USERS</a>
                 <a href="<?= url('dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-speedometer2"></i> Dashboard</a>
             </div>
         </div>
@@ -380,7 +380,7 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                             <option value="Suspended" <?= $filter_status==='Suspended'?'selected':'' ?>>Suspended</option>
                         </select>
                         <button type="submit" class="tm-btn-primary tm-btn-sm"><i class="bi bi-funnel"></i> Filter</button>
-                        <a href="<?= url('modules/TBL_USERS/team_members.php') ?>" class="tm-btn-outline tm-btn-sm"><i class="bi bi-x-lg"></i></a>
+                        <a href="<?= url('modules/users/team_members.php') ?>" class="tm-btn-outline tm-btn-sm"><i class="bi bi-x-lg"></i></a>
                     </form>
 
                     <div class="table-responsive">

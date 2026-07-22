@@ -443,7 +443,7 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
                     <h5 style="font-size:1rem;font-weight:700;color:var(--st-ink);margin:0;">User Overview</h5>
                     <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0;">Summary of all registered TBL_USERS</p>
                 </div>
-                <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>" class="st-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;">
+                <a href="<?= url('modules/users/users_add.php') ?>" class="st-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;">
                     <i class="bi bi-person-plus"></i> Add User
                 </a>
             </div>
@@ -468,7 +468,7 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
             <hr style="border-color:var(--st-border);margin:1rem 0;">
             <p style="font-size:0.8125rem;color:var(--st-ink-soft);margin-bottom:0;">
                 <i class="bi bi-arrow-right-circle"></i>
-                <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" style="color:var(--st-accent);font-weight:600;">Go to full User Management</a> to edit, filter, and manage all TBL_USERS.
+                    <a href="<?= url('modules/users/users_view.php') ?>" style="color:var(--st-accent);font-weight:600;">Go to full User Management</a> to edit, filter, and manage all TBL_USERS.
             </p>
         </div>
     </div>

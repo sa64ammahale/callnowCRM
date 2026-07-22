@@ -37,7 +37,7 @@
     // PHP 8.2 defaults to MYSQLI_REPORT_STRICT which throws exceptions
     // on query failures → uncaught → HTTP 500. Remove STRICT so mysqli
     // returns false on error (like PHP 7.x) instead of throwing.
-    mysqli_report(MYSQLI_REPORT_ERROR);
+    mysqli_report(MYSQLI_REPORT_OFF);
 
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -47,7 +47,7 @@
     // in <approot>/php_scripts) so it is identical for every request — including
     // pages served from subfolders like /modules/database. This keeps asset URLs
     // anchored to the app root instead of the current script's directory.
-    $appRootReal = dirname(dirname(__FILE__));
+    $appRootReal = str_replace('\\', '/', dirname(dirname(__FILE__)));
     $docRoot = rtrim(str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
     $appPath = '';
     if ($docRoot !== '' && strpos($appRootReal, $docRoot) === 0) {

@@ -28,17 +28,26 @@ if ($boTeamId > 0) {
     if ($bu) $boUser = (int)$bu['ID'];
 }
 
+$allowedColsResult = mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_LEADS'));
+$allowedCols = [];
+if ($allowedColsResult) {
+    while ($c = mysqli_fetch_assoc($allowedColsResult)) {
+        $allowedCols[] = $c['Field'];
+    }
+}
+
 $cols = ['cust_id','NAME','MOBILE','COMPANY_NAME','OTHER_INFO','CALL_STATUS','PIPELINE_STATUS','NOTE',
     'lead_status','lead_stage','priority','created_by','login_date','net_salary','salary_account',
     'bank_name','loan_amount','loan_tenure','ADDED_BY','promo_code','login_bank_name','login_mode',
     'loan_type','loan_app_no','login_location','bank_rm_name','bt_details','dsa_name','remarks',
     'lost_reason','converted_at'];
 
+$cols = array_values(array_intersect($cols, $allowedCols));
 $colList = '`' . implode('`,`', $cols) . '`';
 $placeholders = rtrim(str_repeat('?,', count($cols)), ',');
 $vals = [];
 foreach ($cols as $c) {
-    $vals[] = $lead[$c];
+    $vals[] = $lead[$c] ?? null;
 }
 
 $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEADS') . " ($colList, lead_status_new, login_status, parent_lead_id, assigned_to, team_id, assigned_by, created_at, updated_at) VALUES ($placeholders, 'LOGIN', 'PENDING', ?, ?, ?, ?, NOW(), NOW())");

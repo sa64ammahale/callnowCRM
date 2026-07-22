@@ -736,7 +736,7 @@ if ($selectedUser) {
                     </form>
                 </div>
                 <div class="col-md-6 d-flex align-items-end">
-                    <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" class="pm-btn-outline"><i class="bi bi-arrow-right"></i> Open in User Management</a>
+                    <a href="<?= url('modules/users/users_view.php') ?>" class="pm-btn-outline"><i class="bi bi-arrow-right"></i> Open in User Management</a>
                 </div>
             </div>
 

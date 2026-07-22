@@ -93,29 +93,29 @@ function navActive($patterns) {
             <?php endif; ?>
         </div>
 
-        <?php if (isSupervisor() || isAdmin() || isManager()): ?>
+        <?php if (can('manage_users')): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Manage</div>
-            <?php if (can('manage_TBL_USERS')): ?>
-            <a class="app-sidebar-link <?= navActive(['TBL_USERS_view.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['users_view.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_view.php') ?>">
                 <i class="bi bi-people"></i>
-                <span class="link-text">App TBL_USERS</span>
+                <span class="link-text">Users</span>
             </a>
-            <a class="app-sidebar-link <?= navActive(['TBL_USERS_add.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['users_add.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_add.php') ?>">
                 <i class="bi bi-person-plus"></i>
                 <span class="link-text">Add User</span>
             </a>
             <?php endif; ?>
-            <a class="app-sidebar-link <?= navActive(['TBL_TEAMS_dashboard.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>">
+            <?php if (can('manage_teams')): ?>
+            <a class="app-sidebar-link <?= navActive(['teams_dashboard.php']) ? 'active' : '' ?>" href="<?= url('modules/users/teams_dashboard.php') ?>">
                 <i class="bi bi-diagram-3"></i>
-                <span class="link-text">TBL_TEAMS</span>
+                <span class="link-text">Teams</span>
             </a>
-            <a class="app-sidebar-link <?= navActive(['team_members.php']) ? 'active' : '' ?>" href="<?= url('modules/TBL_USERS/team_members.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['team_members.php']) ? 'active' : '' ?>" href="<?= url('modules/users/team_members.php') ?>">
                 <i class="bi bi-person-check"></i>
                 <span class="link-text">Team Members</span>
             </a>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
 
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Reports</div>

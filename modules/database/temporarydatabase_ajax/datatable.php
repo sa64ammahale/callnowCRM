@@ -29,7 +29,7 @@ $length = intval($_GET['length'] ?? 10);
 $length = min($length, 2000);
 $search = $_GET['search']['value'] ?? '';
 $order  = $_GET['order'][0] ?? [];
-$col    = $order['column'] ?? 1;
+$col    = (int)($order['column'] ?? 1);
 $dir    = $order['dir'] ?? 'desc';
 
 // Map DataTables column index → DB column (for TBL_TEMP)

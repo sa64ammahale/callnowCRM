@@ -364,6 +364,7 @@ function showToast(title, message, type = 'success') {
     toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
 }
 
+const APP_BASE = <?= json_encode(APP_BASE) ?>;
 const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 
 $(document).ready(function() {
@@ -375,7 +376,7 @@ $(document).ready(function() {
         destroy: true,
         searchDelay: 400,
         ajax: {
-            url: (window.APP_BASE || '') + '/modules/database/maindatabase_ajax/datatable.php',
+            url: APP_BASE + '/modules/database/maindatabase_ajax/datatable.php',
             type: 'GET',
             dataSrc: function (json) {
                 if (json === null || typeof json !== 'object' || !json.data) {
@@ -398,7 +399,7 @@ $(document).ready(function() {
                 text: '<i class="bi bi-cloud-download"></i> Export Full DB (in Parts)',
                 className: 'btn btn-primary btn-sm shadow-sm fw-bold',
                 action: function () {
-                    $.get((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/get_total_count.php', function (total) {
+                    $.get(APP_BASE + '/modules/database/maindatabase_ajax/get_total_count.php', function (total) {
                         total = parseInt(total);
                         if (total === 0) return showToast('Empty', 'No data found', 'info');
             
@@ -406,7 +407,7 @@ $(document).ready(function() {
                             return;
                         }
             
-                        const win = window.open((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/download_bach.php', '_blank');
+                        const win = window.open(APP_BASE + '/modules/database/maindatabase_ajax/download_bach.php', '_blank');
                         if (win) {
                             showToast('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
                         } else {
@@ -476,7 +477,7 @@ $(document).ready(function() {
 
         if (ids.length === 0) return showToast('Warning', 'No records selected', 'warning');
 
-        $.post((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
+        $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 $('#assignModal').modal('hide');
@@ -497,7 +498,7 @@ $(document).ready(function() {
                 ids.push(row[8]);
             }
         });
-        $.post((window.APP_BASE || '') + '/modules/database/maindatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
+        $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showToast('Deleted!', `${ids.length} records removed`, 'danger');

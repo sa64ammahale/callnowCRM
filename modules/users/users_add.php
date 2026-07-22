@@ -14,7 +14,7 @@ if (USER_ROLE === 'Supervisor') {
         $user = mysqli_fetch_assoc($res);
         if (!$user || $user['TEAM_ID'] != USER_TEAM_ID) {
             $_SESSION['error'] = "Access denied! You can only edit your team members.";
-            header("Location: TBL_USERS_view.php"); exit;
+            header("Location: users_view.php"); exit;
         }
     }
 }
@@ -43,15 +43,15 @@ if ($isEdit) {
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     $editUser = mysqli_fetch_assoc($result);
-    if (!$editUser) { header("Location: TBL_USERS_view.php"); exit; }
+        if (!$editUser) { header("Location: users_view.php"); exit; }
     // Protect system accounts from editing (allow self-edit)
     if ((int)$editUser['ID'] === 1) {
         $_SESSION['error'] = 'System Administrator (ID:1) cannot be edited.';
-        header('Location: TBL_USERS_view.php'); exit;
+        header('Location: users_view.php'); exit;
     }
     if ($editUser['ROLE'] === 'Admin' && (int)$editUser['ID'] !== USER_ID) {
         $_SESSION['error'] = 'Other Admin accounts cannot be edited.';
-        header('Location: TBL_USERS_view.php'); exit;
+        header('Location: users_view.php'); exit;
     }
 }
 
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $type = "success";
                     if (!$isEdit) {
                         $_POST = [];
-                        header("Location: TBL_USERS_view.php?created=1"); exit;
+                        header("Location: users_view.php?created=1"); exit;
                     }
                 } else {
                     $Message = "Database error!";
@@ -380,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 <p><?= $isEdit ? 'Update user account details' : 'Create a new app user account' ?></p>
             </div>
             <div class="ua-header-actions">
-                <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" class="btn btn-ua-outline"><i class="bi bi-people"></i> View All TBL_USERS</a>
+                <a href="<?= url('modules/users/users_view.php') ?>" class="btn btn-ua-outline"><i class="bi bi-people"></i> View All TBL_USERS</a>
                 <a href="<?= url('dashboard.php') ?>" class="btn btn-ua-outline"><i class="bi bi-grid"></i> Dashboard</a>
             </div>
         </div>
@@ -537,7 +537,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
 
                         <!-- ── Buttons ── -->
                         <div class="d-flex justify-content-center gap-3 pt-2">
-                            <a href="<?= url('modules/TBL_USERS/TBL_USERS_view.php') ?>" class="ua-btn-secondary">
+                            <a href="<?= url('modules/users/users_view.php') ?>" class="ua-btn-secondary">
                                 <i class="bi bi-arrow-left"></i> Cancel
                             </a>
                             <button type="submit" name="submit" class="ua-btn-primary">

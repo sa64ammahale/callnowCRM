@@ -552,7 +552,7 @@ $totalInactive = $totalRecords - $totalActive;
                 <p><?= number_format($totalRecords) ?> total &middot; Page <?= $page ?> of <?= $totalPages ?></p>
             </div>
             <div class="uv-header-actions">
-                <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>" class="btn btn-uv-primary">
+                <a href="<?= url('modules/users/users_add.php') ?>" class="btn btn-uv-primary">
                     <i class="bi bi-person-plus"></i> Add User
                 </a>
                 <button id="exportBtn" class="btn btn-outline-primary">
@@ -731,7 +731,7 @@ $totalInactive = $totalRecords - $totalActive;
                                                 <i class="bi bi-shield-lock"></i> Protected
                                             </span>
                                         <?php else: ?>
-                                            <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
+                                            <a href="<?= url('modules/users/users_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
                                                 <i class="bi bi-pencil-square"></i> Edit
                                             </a>
                                         <?php endif; ?>
@@ -829,7 +829,7 @@ $totalInactive = $totalRecords - $totalActive;
                                                     <i class="bi bi-shield-lock"></i> Protected
                                                 </span>
                                             <?php else: ?>
-                                                <a href="<?= url('modules/TBL_USERS/TBL_USERS_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
+                                                <a href="<?= url('modules/users/users_add.php') ?>?ID=<?= $u['ID'] ?>" class="uv-action">
                                                     <i class="bi bi-pencil-square"></i> Edit
                                                 </a>
                                             <?php endif; ?>
@@ -846,7 +846,7 @@ $totalInactive = $totalRecords - $totalActive;
 
     <!-- ─── Pagination ─── -->
     <?php if ($totalPages > 1):
-        $baseUrl = url('modules/TBL_USERS/TBL_USERS_view.php');
+        $baseUrl = url('modules/users/users_view.php');
         $q = http_build_query(array_merge($_GET, ['page' => '']));
     ?>
         <div class="uv-pagination">

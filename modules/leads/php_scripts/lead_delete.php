@@ -13,6 +13,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'Invalid session token.']);
+    exit;
+}
+
 $leadId = (int)($_POST['lead_id'] ?? 0);
 if ($leadId <= 0) {
     echo json_encode(['ok' => false, 'message' => 'Invalid lead ID.']);

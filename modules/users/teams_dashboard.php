@@ -108,7 +108,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
         $msg = "Cannot delete team (in use?)";
         $msg_type = "danger";
     }
-    header("Location: TBL_TEAMS_dashboard.php");
+    header("Location: teams_dashboard.php");
     exit;
 }
 
@@ -488,7 +488,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                 <p>Create TBL_TEAMS, assign supervisors &amp; managers, and manage team members</p>
             </div>
             <div class="td-header-actions">
-                <a href="<?= url('modules/TBL_USERS/team_members.php') ?>" class="btn"><i class="bi bi-people"></i> Members</a>
+                <a href="<?= url('modules/users/team_members.php') ?>" class="btn"><i class="bi bi-people"></i> Members</a>
                 <a href="<?= url('dashboard.php') ?>" class="btn"><i class="bi bi-grid"></i> Dashboard</a>
             </div>
         </div>
@@ -595,7 +595,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                             <?= $edit_mode ? 'Update Team' : 'Create Team' ?>
                         </button>
                         <?php if ($edit_mode): ?>
-                            <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>" class="td-btn-outline w-100 mt-2 d-block text-center">
+                            <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="td-btn-outline w-100 mt-2 d-block text-center">
                                 <i class="bi bi-x-circle"></i> Cancel
                             </a>
                         <?php endif; ?>
@@ -663,10 +663,10 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                                                 <span class="td-badge-pill td-badge-member"><?= (int)$t['MEMBER_COUNT'] ?></span>
                                             </td>
                                             <td class="text-end">
-                                                <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>?edit=<?= $t['ID'] ?>" class="td-btn-sm-icon team-action-btn" title="Edit team" style="border-color:#fde68a;color:#92400e;">
+                                                <a href="<?= url('modules/users/teams_dashboard.php') ?>?edit=<?= $t['ID'] ?>" class="td-btn-sm-icon team-action-btn" title="Edit team" style="border-color:#fde68a;color:#92400e;">
                                                     <i class="bi bi-pencil-square"></i> Edit
                                                 </a>
-                                                <a href="<?= url('modules/TBL_USERS/TBL_TEAMS_dashboard.php') ?>?delete=<?= $t['ID'] ?>"
+                                                <a href="<?= url('modules/users/teams_dashboard.php') ?>?delete=<?= $t['ID'] ?>"
                                                    onclick="return confirm('Delete team «<?= htmlspecialchars($t['TEAM_NAME']) ?>»? All members will be unassigned.')"
                                                    class="td-btn-sm-icon team-action-btn"
                                                    title="Delete team"

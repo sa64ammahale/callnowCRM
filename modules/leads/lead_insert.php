@@ -109,9 +109,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 mysqli_stmt_close($stmt);
             }
 
-            $existingLead = mysqli_fetch_assoc(
-                mysqli_query($link, "SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = {$custId} LIMIT 1")
-            );
+            $dupStmt = mysqli_prepare($link, "SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = ? LIMIT 1");
+            mysqli_stmt_bind_param($dupStmt, 'i', $custId);
+            mysqli_stmt_execute($dupStmt);
+            $existingLead = mysqli_stmt_get_result($dupStmt)->fetch_assoc();
+            mysqli_stmt_close($dupStmt);
             if ($existingLead) {
                 throw new RuntimeException(
                     "This mobile number already exists as a lead. <a href='lead_view.php?id=" . (int)$existingLead['lead_id'] . "' class='alert-link'>Open lead</a>"

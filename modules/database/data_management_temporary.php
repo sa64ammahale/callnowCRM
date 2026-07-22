@@ -349,7 +349,7 @@ include __DIR__ . '/../../php_scripts/header.php';
         <div class="td-toolbar-row">
             <div class="btn-group" role="group">
                 <a href="<?= url('modules/database/add_single_number.php') ?>" class="td-btn-success td-btn-sm"><i class="bi bi-upload"></i> Upload Single</a>
-                <button id="deleteSelected" class="td-btn-danger td-btn-sm" disabled><i class="bi bi-trash"></i> Delete Selected</button>
+                <button id="deleteSelected" class="td-btn-danger td-btn-sm" disabled><i class="bi bi-trash"></i> Delete Selected (<span id="selectedCount">0</span>)</button>
                 <button id="transferSelected" class="td-btn-success td-btn-sm" disabled><i class="bi bi-arrow-right-circle"></i> Transfer Selected</button>
                 <button id="deleteAllBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-x-circle"></i> Delete All</button>
             </div>
@@ -466,8 +466,6 @@ include __DIR__ . '/../../php_scripts/header.php';
     </div>
 </div>
 
-<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
-
 <script src="<?= vnd('dt/dataTables.min.js') ?>"></script>
 <script src="<?= vnd('dt/dataTables.bootstrap5.min.js') ?>"></script>
 <script src="<?= vnd('dt/buttons.min.js') ?>"></script>
@@ -497,7 +495,8 @@ include __DIR__ . '/../../php_scripts/header.php';
 </style>
 
 <script>
-const TEMP_URL = (window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/datatable.php';
+const APP_BASE = <?= json_encode(APP_BASE) ?>;
+const TEMP_URL = APP_BASE + '/modules/database/temporarydatabase_ajax/datatable.php';
 const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 
 $(document).ready(function() {
@@ -531,7 +530,7 @@ $(document).ready(function() {
                 text: '<i class="bi bi-cloud-download"></i> Export Full DB (in Parts)',
                 className: 'btn btn-primary btn-sm shadow-sm fw-bold',
                 action: function () {
-                    $.get((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/get_total_count.php', function (total) {
+                    $.get(APP_BASE + '/modules/database/temporarydatabase_ajax/get_total_count.php', function (total) {
                         total = parseInt(total);
                         if (total === 0) return showToast('Empty', 'No data found', 'info');
 
@@ -539,7 +538,7 @@ $(document).ready(function() {
                             return;
                         }
 
-                        const win = window.open((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/download_bach.php', '_blank');
+                        const win = window.open(APP_BASE + '/modules/database/temporarydatabase_ajax/download_bach.php', '_blank');
                         if (win) {
                             showToast('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
                         } else {
@@ -608,21 +607,29 @@ $(document).ready(function() {
         setTimeout(() => $('.toast').last().remove(), 5000);
     }
 
-    $('#doAssign').on('click', function() {
-        const userId = $('#assignUser').val();
-        if (!userId) return showToast('Error', 'Please select a user', 'danger');
+    function getSelectedCount() {
+        return $('#tempTable input[type="checkbox"]:checked').length - ($('#selectAll').is(':checked') ? 1 : 0);
+    }
 
+    function getSelectedIds() {
         const ids = [];
         $('#tempTable input[type="checkbox"]:checked').each(function() {
             if (!$(this).is('#selectAll')) {
                 const row = table.row($(this).closest('tr')).data();
-                ids.push(row[0]);
+                if (row) ids.push(row[0]);
             }
         });
+        return ids;
+    }
 
+    $('#doAssign').on('click', function() {
+        const userId = $('#assignUser').val();
+        if (!userId) return showToast('Error', 'Please select a user', 'danger');
+
+        const ids = getSelectedIds();
         if (ids.length === 0) return showToast('Warning', 'No records selected', 'warning');
 
-        $.post((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
+        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showToast('Success!', `${ids.length} records assigned successfully`, 'success');
@@ -633,15 +640,9 @@ $(document).ready(function() {
     });
 
     window.bulkDelete = function() {
-        const ids = [];
-        $('#tempTable input[type="checkbox"]:checked').each(function() {
-            if (!$(this).is('#selectAll')) {
-                const row = table.row($(this).closest('tr')).data();
-                ids.push(row[0]);
-            }
-        });
+        const ids = getSelectedIds();
         if (!confirm('Delete selected records permanently?')) return;
-        $.post((window.APP_BASE || '') + '/modules/database/temporarydatabase_ajax/bulk_delete.php', { ids: ids }, function(res) {
+        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_delete.php', { ids: ids }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showToast('Deleted!', `${ids.length} records removed`, 'danger');
@@ -708,16 +709,20 @@ $(document).ready(function() {
     });
 
     $('#deleteSelected').on('click', function(){
-        if (!confirm('Delete ' + selected.size + ' selected rows?')) return;
-        $.post(location.href, { action:'delete_selected', ids: Array.from(selected), csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) { alert('Deleted ' + (resp.affected || selected.size)); table.ajax.reload(); }
+        const count = getSelectedCount();
+        if (!confirm('Delete ' + count + ' selected rows?')) return;
+        const ids = getSelectedIds();
+        $.post(location.href, { action:'delete_selected', ids: ids, csrf_token: CSRF_TOKEN }, function(resp){
+            if (resp.success) { alert('Deleted ' + (resp.affected || count)); table.ajax.reload(); }
             else alert('Error: ' + (resp.error || 'unknown'));
         }, 'json');
     });
 
     $('#transferSelected').on('click', function(){
-        if (!confirm('Transfer ' + selected.size + ' selected rows to TBL_MAIN?')) return;
-        $.post(location.href, { action:'transfer_selected', ids: Array.from(selected), csrf_token: CSRF_TOKEN }, function(resp){
+        const count = getSelectedCount();
+        if (!confirm('Transfer ' + count + ' selected rows to TBL_MAIN?')) return;
+        const ids = getSelectedIds();
+        $.post(location.href, { action:'transfer_selected', ids: ids, csrf_token: CSRF_TOKEN }, function(resp){
             if (resp.success) { alert('Transferred (affected: ' + (resp.affected || 'unknown') + ')'); table.ajax.reload(); }
             else alert('Error: ' + (resp.error || 'unknown'));
         }, 'json');
@@ -775,5 +780,4 @@ $(document).ready(function() {
 });
 </script>
 
-</body>
-</html>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
