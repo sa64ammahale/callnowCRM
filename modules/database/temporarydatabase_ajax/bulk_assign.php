@@ -23,7 +23,7 @@ if (!is_array($ids) || count($ids) === 0 || $user_id <= 0) {
 $ids = array_map('intval', $ids);
 $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
-$sql = "UPDATE TBL_TEMP SET CALL_DIALED_TELECALLER = ? WHERE ID IN ($placeholders)";
+$sql = "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_TELECALLER = ? WHERE ID IN ($placeholders)";
 $stmt = mysqli_prepare($link, $sql);
 if (!$stmt) {
     echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . mysqli_error($link)]);

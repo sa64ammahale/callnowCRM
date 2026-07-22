@@ -51,10 +51,10 @@ if (!in_array($callStatus, $validStatuses)) {
 
 // Verify record belongs to user
 if ($source === 'TEMP') {
-    $stmt = $link->prepare("SELECT ID, CALL_DIALED_TELECALLER FROM TBL_TEMP WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
     $stmt->bind_param('i', $recordId);
 } else {
-    $stmt = $link->prepare("SELECT ID, MAINDATABASE_CALL_DIALED_USER FROM TBL_MAIN WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
     $stmt->bind_param('i', $recordId);
 }
 $stmt->execute();

@@ -17,7 +17,7 @@ if ($leadId <= 0 || $note === '') {
     api_error('Lead and note are required', 422);
 }
 
-$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT lead_id, assigned_to, team_id FROM TBL_LEADS WHERE lead_id = $leadId"));
+$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT lead_id, assigned_to, team_id FROM " . tn('TBL_LEADS') . " WHERE lead_id = $leadId"));
 if (!$lead || !canViewLead($link, $lead)) {
     api_error('Lead not found or access denied', 404);
 }
@@ -25,12 +25,12 @@ if (!canEditLead($lead)) {
     api_error('This lead is not in your tray', 403);
 }
 
-$stmt = mysqli_prepare($link, "INSERT INTO TBL_LEAD_NOTES (lead_id, user_id, note, created_at) VALUES (?, ?, ?, NOW())");
+$stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEAD_NOTES') . " (lead_id, user_id, note, created_at) VALUES (?, ?, ?, NOW())");
 mysqli_stmt_bind_param($stmt, 'iis', $leadId, USER_ID, $note);
 if (!mysqli_stmt_execute($stmt)) {
     api_error('Failed to save note', 500);
 }
 
 $logLink = $link;
-logActivity($logLink, USER_ID, 'REMARK', "Added note to lead #$leadId", (string)$leadId, 'TBL_LEADS');
+logActivity($logLink, USER_ID, 'REMARK', "Added note to lead #$leadId", (string)$leadId, tn('TBL_LEADS'));
 api_send_json(['success' => true, 'message' => 'Note added']);

@@ -4,6 +4,6 @@ require_once __DIR__ . '/../../../config.php';
 
 requirePermission('manage_database');
 
-$total = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) AS c FROM TBL_TEMP"))['c'];
+$total = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_TEMP')))['c'];
 echo $total;
 ?>

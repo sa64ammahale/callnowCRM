@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Save general settings
         if ($action === 'save_settings') {
             $keys = ['app_name','company_name','default_lead_status','default_lead_stage','pagination_size','session_timeout','timezone'];
-            $stmt = $link->prepare("INSERT INTO TBL_APP_SETTINGS (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
+            $stmt = $link->prepare("INSERT INTO " . tn('TBL_APP_SETTINGS') . " (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
             $uid = USER_ID;
             foreach ($keys as $k) {
                 $v = $_POST[$k] ?? '';
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
             if (isset($_POST['remove_logo']) && $_POST['remove_logo'] === '1') {
-                $link->query("DELETE FROM TBL_APP_SETTINGS WHERE setting_key = 'logo_path'");
+                $link->query("DELETE FROM " . tn('TBL_APP_SETTINGS') . " WHERE setting_key = 'logo_path'");
                 $msg = 'Logo removed. Default branding restored.';
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'UPDATE', 'Removed application logo');
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         || copy($_FILES['logo_file']['tmp_name'], $target);
                     if ($saved) {
                         $rel = 'uploads/logo/app_logo.' . $ext;
-                        $stmt = $link->prepare("INSERT INTO TBL_APP_SETTINGS (setting_key, setting_value) VALUES ('logo_path', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
+                        $stmt = $link->prepare("INSERT INTO " . tn('TBL_APP_SETTINGS') . " (setting_key, setting_value) VALUES ('logo_path', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
                         $stmt->bind_param('si', $rel, USER_ID);
                         $stmt->execute();
                         $msg = 'Logo uploaded successfully!';
@@ -84,16 +84,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ─── Fetch settings ───
 $settings = [];
-$sr = mysqli_query($link, "SELECT setting_key, setting_value FROM TBL_APP_SETTINGS");
+$sr = mysqli_query($link, "SELECT setting_key, setting_value FROM " . tn('TBL_APP_SETTINGS'));
 if ($sr) while ($s = mysqli_fetch_assoc($sr)) $settings[$s['setting_key']] = $s['setting_value'];
 
 // ─── Fetch TBL_USERS summary ───
-$tu = mysqli_query($link, "SELECT COUNT(*) FROM TBL_USERS");
+$tu = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS'));
 $total_TBL_USERS = $tu ? (int)mysqli_fetch_row($tu)[0] : 0;
-$au = mysqli_query($link, "SELECT COUNT(*) FROM TBL_USERS WHERE STATUS='Active'");
+$au = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active'");
 $active_TBL_USERS = $au ? (int)mysqli_fetch_row($au)[0] : 0;
 $role_counts = [];
-$rc = mysqli_query($link, "SELECT ROLE, COUNT(*) as cnt FROM TBL_USERS GROUP BY ROLE");
+$rc = mysqli_query($link, "SELECT ROLE, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " GROUP BY ROLE");
 if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
 ?>
 <?php $pageTitle = 'Settings - CallNow Admin'; include __DIR__ . '/../../php_scripts/header.php'; ?>

@@ -7,7 +7,7 @@ $userID = $isEdit ? intval($_GET['ID']) : 0;
 
 if (USER_ROLE === 'Supervisor') {
     if ($isEdit) {
-        $check = mysqli_prepare($link, "SELECT TEAM_ID FROM TBL_USERS WHERE ID = ?");
+        $check = mysqli_prepare($link, "SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ?");
         mysqli_stmt_bind_param($check, "i", $userID);
         mysqli_stmt_execute($check);
         $res = mysqli_stmt_get_result($check);
@@ -23,22 +23,22 @@ requirePermission('manage_TBL_USERS');
 $Message = ""; $type = "";
 
 if (USER_ROLE === 'Admin') {
-    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
+    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
 } elseif (USER_TEAM_ID) {
-    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS WHERE ID = " . (int)USER_TEAM_ID);
+    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID = " . (int)USER_TEAM_ID);
 } else {
-    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
+    $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
 }
 $TBL_TEAMS = mysqli_fetch_all($TBL_TEAMS_result, MYSQLI_ASSOC);
 
 // Fetch dynamic TBL_ROLES from DB
 $allTBL_ROLES = [];
-$ar = mysqli_query($link, "SELECT role_name, description FROM TBL_ROLES ORDER BY is_system DESC, id");
+$ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " ORDER BY is_system DESC, id");
 if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allTBL_ROLES[] = $a;
 
 $editUser = null;
 if ($isEdit) {
-    $stmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM TBL_USERS u LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
+    $stmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM " . tn('TBL_USERS') . " u LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
     mysqli_stmt_bind_param($stmt, "i", $userID);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         elseif (!$isEdit && strlen($password) < 6) $Message = "Password must be 6+ characters";
         elseif (empty($role) || empty($team_id) || empty($package)) $Message = "All required fields must be filled";
         else {
-            $checkSql = "SELECT ID FROM TBL_USERS WHERE (MOBILE = ? OR LOGIN_ID = ?) AND ID != ?";
+            $checkSql = "SELECT ID FROM " . tn('TBL_USERS') . " WHERE (MOBILE = ? OR LOGIN_ID = ?) AND ID != ?";
             $stmt = mysqli_prepare($link, $checkSql);
             mysqli_stmt_bind_param($stmt, "ssi", $mobile, $login_id, $userID);
             mysqli_stmt_execute($stmt);
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 $type = "warning";
             } else {
                 if ($isEdit) {
-                    $sql = "UPDATE TBL_USERS SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
+                    $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
                     $params = [$name, $mobile, $login_id, $email_addr, $company_name, $role, $team_id, $package, $status, $company];
                     $types = "ssssssisss";
 
@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $types .= "i";
                 } else {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
-                    $sql = "INSERT INTO TBL_USERS (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
+                    $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                     $params = [$name, $mobile, $login_id, $email_addr, $company_name, $hashed, $role, $team_id, $package, $status, $company];
                     $types = "sssssssisss";

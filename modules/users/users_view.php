@@ -45,7 +45,7 @@ if ($package) {
     $types   .= "s";
 }
 
-$countSql = "SELECT COUNT(*) FROM TBL_USERS u $where";
+$countSql = "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " u $where";
 $stmt = mysqli_prepare($link, $countSql);
 if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
 mysqli_stmt_execute($stmt);
@@ -56,8 +56,8 @@ $sql = "
     SELECT
         u.*,
         t.NAME as TEAM_NAME
-    FROM TBL_USERS u
-    LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
+    FROM " . tn('TBL_USERS') . " u
+    LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
     $where
     ORDER BY
         CASE WHEN u.STATUS = 'Active' THEN 0 ELSE 1 END,
@@ -90,16 +90,16 @@ foreach ($TBL_USERS as $u) {
     }
 }
 
-$TBL_ROLES    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM TBL_USERS WHERE ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
-$TBL_TEAMS    = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME"), MYSQLI_ASSOC);
-$packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM TBL_USERS WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
+$TBL_ROLES    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
+$TBL_TEAMS    = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC);
+$packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM " . tn('TBL_USERS') . " WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
 
 // Build role description lookup from TBL_ROLES table
 $roleDesc = [];
-$rd = mysqli_query($link, "SELECT role_name, description FROM TBL_ROLES");
+$rd = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES'));
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 
-$totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM TBL_USERS WHERE STATUS='Active'"))[0];
+$totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active'"))[0];
 $totalInactive = $totalRecords - $totalActive;
 
 ?>

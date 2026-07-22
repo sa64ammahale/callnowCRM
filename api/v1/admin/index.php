@@ -28,7 +28,7 @@ $segments = array_filter(explode('/', $path));
 
 if ($segments[0] === 'settings') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        $res = $link->query("SELECT setting_key, setting_value, description FROM TBL_API_SETTINGS ORDER BY setting_key");
+        $res = $link->query("SELECT setting_key, setting_value, description FROM " . tn('TBL_API_SETTINGS') . " ORDER BY setting_key");
         $settings = [];
         while ($row = $res->fetch_assoc()) {
             $val = $row['setting_value'];
@@ -52,7 +52,7 @@ if ($segments[0] === 'settings') {
         foreach ($input['settings'] as $key => $value) {
             $desc = $input['descriptions'][$key] ?? null;
             $val = is_array($value) || is_object($value) ? json_encode($value) : (string)$value;
-            $stmt = $link->prepare("INSERT INTO TBL_API_SETTINGS (setting_key, setting_value, description) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = COALESCE(VALUES(description), description)");
+            $stmt = $link->prepare("INSERT INTO " . tn('TBL_API_SETTINGS') . " (setting_key, setting_value, description) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = COALESCE(VALUES(description), description)");
             $stmt->bind_param('sss', $key, $val, $desc);
             $stmt->execute();
         }
@@ -82,8 +82,8 @@ elseif ($segments[0] === 'tokens') {
         }
         
         $sql = "SELECT t.*, u.NAME as user_name, u.EMAIL as user_email, u.ROLE as user_role
-                FROM TBL_API_TOKENS t
-                JOIN TBL_USERS u ON t.user_id = u.ID
+                FROM " . tn('TBL_API_TOKENS') . " t
+                JOIN " . tn('TBL_USERS') . " u ON t.user_id = u.ID
                 $where
                 ORDER BY t.created_at DESC
                 LIMIT ? OFFSET ?";
@@ -96,7 +96,7 @@ elseif ($segments[0] === 'tokens') {
         $tokens = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         
         // Total count
-        $countSql = "SELECT COUNT(*) as total FROM TBL_API_TOKENS t $where";
+        $countSql = "SELECT COUNT(*) as total FROM " . tn('TBL_API_TOKENS') . " t $where";
         $stmt2 = $link->prepare($countSql);
         if ($params) $stmt2->bind_param($types, ...$params);
         $stmt2->execute();
@@ -124,7 +124,7 @@ elseif ($segments[0] === 'tokens') {
         }
         
         // Check user exists and is active
-        $stmt = $link->prepare("SELECT ID, NAME, ROLE, STATUS FROM TBL_USERS WHERE ID = ? AND STATUS = 'Active'");
+        $stmt = $link->prepare("SELECT ID, NAME, ROLE, STATUS FROM " . tn('TBL_USERS') . " WHERE ID = ? AND STATUS = 'Active'");
         $stmt->bind_param('i', $userId);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
@@ -134,7 +134,7 @@ elseif ($segments[0] === 'tokens') {
         $token = bin2hex(random_bytes(32));
         $expiry = $expiryDays > 0 ? date('Y-m-d H:i:s', strtotime("+$expiryDays days")) : null;
         
-        $stmt = $link->prepare("INSERT INTO TBL_API_TOKENS (user_id, token, name, expires_at) VALUES (?, ?, ?, ?)");
+        $stmt = $link->prepare("INSERT INTO " . tn('TBL_API_TOKENS') . " (user_id, token, name, expires_at) VALUES (?, ?, ?, ?)");
         $stmt->bind_param('isss', $userId, $token, $name, $expiry);
         $stmt->execute();
         $tokenId = $link->insert_id;
@@ -157,7 +157,7 @@ elseif ($segments[0] === 'tokens') {
         $tokenId = (int)$segments[1];
         
         if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-            $stmt = $link->prepare("UPDATE TBL_API_TOKENS SET is_active = 0 WHERE id = ?");
+            $stmt = $link->prepare("UPDATE " . tn('TBL_API_TOKENS') . " SET is_active = 0 WHERE id = ?");
             $stmt->bind_param('i', $tokenId);
             $stmt->execute();
             
@@ -192,7 +192,7 @@ elseif ($segments[0] === 'tokens') {
             if ($updates) {
                 $params[] = $tokenId;
                 $types .= 'i';
-                $stmt = $link->prepare("UPDATE TBL_API_TOKENS SET " . implode(', ', $updates) . " WHERE id = ?");
+                $stmt = $link->prepare("UPDATE " . tn('TBL_API_TOKENS') . " SET " . implode(', ', $updates) . " WHERE id = ?");
                 $stmt->bind_param($types, ...$params);
                 $stmt->execute();
             }
@@ -205,9 +205,9 @@ elseif ($segments[0] === 'tokens') {
 elseif ($segments[0] === 'assignments') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $sql = "SELECT a.*, u.NAME as user_name, u.ROLE as user_role, t.NAME as team_name
-                FROM TBL_API_DB_ASSIGNMENTS a
-                JOIN TBL_USERS u ON a.user_id = u.ID
-                LEFT JOIN TBL_TEAMS t ON a.team_id = t.ID
+                FROM " . tn('TBL_API_DB_ASSIGNMENTS') . " a
+                JOIN " . tn('TBL_USERS') . " u ON a.user_id = u.ID
+                LEFT JOIN " . tn('TBL_TEAMS') . " t ON a.team_id = t.ID
                 ORDER BY a.assigned_at DESC";
         $res = $link->query($sql);
         $data = $res->fetch_all(MYSQLI_ASSOC);
@@ -224,20 +224,20 @@ elseif ($segments[0] === 'assignments') {
         if (!in_array($databaseType, ['temporary', 'main', 'leads'])) apiError(400, 'Invalid database_type');
         
         // Check user exists
-        $stmt = $link->prepare("SELECT ID FROM TBL_USERS WHERE ID = ? AND STATUS = 'Active'");
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ID = ? AND STATUS = 'Active'");
         $stmt->bind_param('i', $userId);
         $stmt->execute();
         if (!$stmt->get_result()->fetch_assoc()) apiError(404, 'User not found or inactive');
         
         // Check team if provided
         if ($teamId) {
-            $stmt = $link->prepare("SELECT ID FROM TBL_TEAMS WHERE ID = ?");
+            $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?");
             $stmt->bind_param('i', $teamId);
             $stmt->execute();
             if (!$stmt->get_result()->fetch_assoc()) apiError(404, 'Team not found');
         }
         
-        $stmt = $link->prepare("INSERT INTO TBL_API_DB_ASSIGNMENTS (user_id, database_type, team_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1");
+        $stmt = $link->prepare("INSERT INTO " . tn('TBL_API_DB_ASSIGNMENTS') . " (user_id, database_type, team_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1");
         $stmt->bind_param('isii', $userId, $databaseType, $teamId, $tokenData['user_id'] ?? 0);
         $stmt->execute();
         
@@ -250,7 +250,7 @@ elseif ($segments[0] === 'assignments') {
         $assignId = (int)$segments[1];
         
         if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-            $stmt = $link->prepare("DELETE FROM TBL_API_DB_ASSIGNMENTS WHERE id = ?");
+            $stmt = $link->prepare("DELETE FROM " . tn('TBL_API_DB_ASSIGNMENTS') . " WHERE id = ?");
             $stmt->bind_param('i', $assignId);
             $stmt->execute();
             apiSuccess(['message' => 'Assignment removed']);

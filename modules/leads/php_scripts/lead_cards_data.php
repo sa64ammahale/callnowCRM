@@ -35,9 +35,9 @@ $allowedStatuses = leadStatusOptions();
 $allowedLoginModes = loginModeOptions();
 
 $baseFrom = "
-    FROM TBL_LEADS l
-    LEFT JOIN TBL_MAIN m ON m.ID = l.cust_id
-    LEFT JOIN TBL_USERS u ON u.ID = l.assigned_to
+    FROM " . tn('TBL_LEADS') . " l
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON m.ID = l.cust_id
+    LEFT JOIN " . tn('TBL_USERS') . " u ON u.ID = l.assigned_to
 ";
 
 $conditions = [];

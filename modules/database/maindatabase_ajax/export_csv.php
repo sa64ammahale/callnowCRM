@@ -17,8 +17,8 @@ $sql = "SELECT MAINDATABASE_MOBILE,
                MAINDATABASE_CALL_DIALED_STATUS,
                u.NAME AS assigned,
                DATE_FORMAT(MAINDATABASE_UPLOAD_DATETIME, '%d-%m-%Y %H:%i') AS dt
-        FROM TBL_MAIN 
-        LEFT JOIN TBL_USERS u ON TBL_MAIN.MAINDATABASE_CALL_DIALED_USER = u.ID
+        FROM " . tn('TBL_MAIN') . " 
+        LEFT JOIN " . tn('TBL_USERS') . " u ON " . tn('TBL_MAIN') . ".MAINDATABASE_CALL_DIALED_USER = u.ID
         ORDER BY MAINDATABASE_UPLOAD_DATETIME DESC";
 
 $res = mysqli_query($link, $sql);

@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($action === 'view' && !empty($_POST['id'])) {
         $id = intval($_POST['id']);
-        $stmt = mysqli_prepare($link, "SELECT * FROM TBL_TEMP WHERE ID = ? LIMIT 1");
+        $stmt = mysqli_prepare($link, "SELECT * FROM " . tn('TBL_TEMP') . " WHERE ID = ? LIMIT 1");
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
@@ -58,12 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $mobile = substr($mobile, -10);
 
-        $sql = "UPDATE TBL_TEMP SET CUST_NAME = ?, CUST_MOBILE = ?, CUST_COMPANY = ?, CUST_PACKAGE = ?, CUST_OTHER_INFO = ?, CALL_DIALED_STATUS = ?, CALL_DIALED_TELECALLER = ?, LAST_DIALED_DATE_TIME = ?, LAST_CONNECTED_PERIOD = ? WHERE ID = ?";
+        $sql = "UPDATE " . tn('TBL_TEMP') . " SET CUST_NAME = ?, CUST_MOBILE = ?, CUST_COMPANY = ?, CUST_PACKAGE = ?, CUST_OTHER_INFO = ?, CALL_DIALED_STATUS = ?, CALL_DIALED_TELECALLER = ?, LAST_DIALED_DATE_TIME = ?, LAST_CONNECTED_PERIOD = ? WHERE ID = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "ssssssissi", $name, $mobile, $company, $package, $other, $status, $tele, $last_dialed, $last_conn, $id);
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
-            TBL_ACTIVITY_LOG($link, $current_user_id, 'UPDATE', "Updated row $id", (string)$id, 'TBL_TEMP');
+            logActivity($link, $current_user_id, 'UPDATE', "Updated row $id", (string)$id, tn('TBL_TEMP'));
             respond_json(['success' => true, 'message' => 'Row updated']);
         } else {
             respond_json(['error' => 'Update failed: ' . mysqli_stmt_error($stmt)]);
@@ -75,11 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             respond_json(['error' => 'Admin or Manager access required']);
         }
         $id = intval($_POST['id']);
-        $stmt = mysqli_prepare($link, "DELETE FROM TBL_TEMP WHERE ID = ?");
+        $stmt = mysqli_prepare($link, "DELETE FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
         mysqli_stmt_bind_param($stmt, "i", $id);
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
-            TBL_ACTIVITY_LOG($link, $current_user_id, 'DELETE', "Deleted row $id", (string)$id, 'TBL_TEMP');
+            logActivity($link, $current_user_id, 'DELETE', "Deleted row $id", (string)$id, tn('TBL_TEMP'));
             respond_json(['success' => true]);
         } else {
             respond_json(['error' => 'Delete failed: ' . mysqli_stmt_error($stmt)]);
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (!count($ids)) respond_json(['error' => 'No IDs provided']);
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $types = str_repeat('i', count($ids));
-        $sql = "DELETE FROM TBL_TEMP WHERE ID IN ($placeholders)";
+        $sql = "DELETE FROM " . tn('TBL_TEMP') . " WHERE ID IN ($placeholders)";
         $stmt = mysqli_prepare($link, $sql);
         $bind_names = array_merge([$types], $ids);
         $refs = [];
@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         call_user_func_array([$stmt, 'bind_param'], $refs);
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
-            TBL_ACTIVITY_LOG($link, $current_user_id, 'BULK_DELETE', 'Deleted selected rows', implode(',', $ids), 'TBL_TEMP');
+            logActivity($link, $current_user_id, 'BULK_DELETE', 'Deleted selected rows', implode(',', $ids), tn('TBL_TEMP'));
             respond_json(['success' => true, 'affected' => mysqli_stmt_affected_rows($stmt)]);
         } else {
             respond_json(['error' => 'Delete selected failed: ' . mysqli_stmt_error($stmt)]);
@@ -115,9 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $confirm = $_POST['confirm'] ?? '';
         if ($confirm !== 'YES_DELETE_ALL') respond_json(['error' => 'Operation not confirmed.']);
-        $ok = mysqli_query($link, "TRUNCATE TABLE TBL_TEMP");
+        $ok = mysqli_query($link, "TRUNCATE TABLE " . tn('TBL_TEMP'));
         if ($ok) {
-            TBL_ACTIVITY_LOG($link, $current_user_id, 'BULK_DELETE', 'Truncated TBL_TEMP', 'ALL', 'TBL_TEMP');
+            logActivity($link, $current_user_id, 'BULK_DELETE', 'Truncated TBL_TEMP', 'ALL', tn('TBL_TEMP'));
             respond_json(['success' => true]);
         } else respond_json(['error' => 'Truncate failed: ' . mysqli_error($link)]);
     }
@@ -129,9 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $ids = array_map('intval', $_POST['ids']);
         if (!count($ids)) respond_json(['error' => 'No IDs provided']);
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $sql = "INSERT INTO TBL_MAIN (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, MAINDATABASE_UPLOAD_DATETIME)
+        $sql = "INSERT INTO " . tn('TBL_MAIN') . " (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, MAINDATABASE_UPLOAD_DATETIME)
                 SELECT CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, NOW()
-                FROM TBL_TEMP WHERE ID IN ($placeholders)
+                FROM " . tn('TBL_TEMP') . " WHERE ID IN ($placeholders)
                 ON DUPLICATE KEY UPDATE ID = ID";
         $stmt = mysqli_prepare($link, $sql);
         if (!$stmt) respond_json(['error' => 'Prepare failed: ' . mysqli_error($link)]);
@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $ok = mysqli_stmt_execute($stmt);
         if ($ok) {
             $affected = mysqli_stmt_affected_rows($stmt);
-            TBL_ACTIVITY_LOG($link, $current_user_id, 'TRANSFER', 'Transferred to TBL_MAIN', implode(',', $ids), 'TBL_TEMP');
+            logActivity($link, $current_user_id, 'TRANSFER', 'Transferred to TBL_MAIN', implode(',', $ids), tn('TBL_TEMP'));
             respond_json(['success' => true, 'affected' => $affected]);
         } else {
             respond_json(['error' => 'Transfer failed: ' . mysqli_stmt_error($stmt)]);
@@ -170,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
         $sql = "SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS, CALL_DIALED_TELECALLER, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD
-                FROM TBL_TEMP $where_sql ORDER BY TEMP_UPLOAD_DATETIME DESC LIMIT ?";
+                FROM " . tn('TBL_TEMP') . " $where_sql ORDER BY TEMP_UPLOAD_DATETIME DESC LIMIT ?";
 
         $stmt = mysqli_prepare($link, $sql);
         if (!$stmt) respond_json(['error' => 'Prepare failed: ' . mysqli_error($link)]);
@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'fetch_activity') {
-        $res = mysqli_query($link, "SELECT LOG_ID, USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS FROM TBL_ACTIVITY_LOG ORDER BY LOG_TIME DESC LIMIT 200");
+        $res = mysqli_query($link, "SELECT LOG_ID, USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS FROM " . tn('TBL_ACTIVITY_LOG') . " ORDER BY LOG_TIME DESC LIMIT 200");
         $arr = [];
         while ($r = mysqli_fetch_assoc($res)) $arr[] = $r;
         respond_json(['activities' => $arr]);
@@ -214,14 +214,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Stats
 $totalCount = 0;
-$tc = mysqli_query($link, "SELECT COUNT(*) FROM TBL_TEMP");
+$tc = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP'));
 if ($tc) $totalCount = (int)mysqli_fetch_row($tc)[0];
 $statusCounts = [];
-$sc = mysqli_query($link, "SELECT CALL_DIALED_STATUS, COUNT(*) as cnt FROM TBL_TEMP GROUP BY CALL_DIALED_STATUS ORDER BY cnt DESC");
+$sc = mysqli_query($link, "SELECT CALL_DIALED_STATUS, COUNT(*) as cnt FROM " . tn('TBL_TEMP') . " GROUP BY CALL_DIALED_STATUS ORDER BY cnt DESC");
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
 
 $telecallers = [];
-$tu = mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE STATUS = 'Active' ORDER BY NAME");
+$tu = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY NAME");
 if ($tu) while ($u = mysqli_fetch_assoc($tu)) $telecallers[$u['ID']] = $u['NAME'];
 
 $pageTitle = 'Temporary Database';

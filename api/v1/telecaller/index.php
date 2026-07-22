@@ -50,7 +50,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             COUNT(*) as total,
             SUM(CASE WHEN CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected,
             SUM(CASE WHEN CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS IS NULL THEN 1 ELSE 0 END) as pending
-        FROM TBL_TEMP 
+        FROM " . tn('TBL_TEMP') . " 
         WHERE CALL_DIALED_TELECALLER = ? 
         AND DATE(LAST_DIALED_DATE_TIME) = CURDATE()";
         $stmt = $link->prepare($sql);
@@ -67,7 +67,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $sql = "SELECT 
             COUNT(*) as total,
             SUM(CASE WHEN lead_status_new IN ('LOGIN','INTERNAL_UNDERWRITING','BANK_UNDERWRITING','SANCTIONED','DISBURSED') THEN 1 ELSE 0 END) as converted
-        FROM TBL_LEADS 
+        FROM " . tn('TBL_LEADS') . " 
         WHERE assigned_to = ?";
         $stmt = $link->prepare($sql);
         $stmt->bind_param('i', $tokenData['user_id']);
@@ -90,7 +90,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
             TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS, CALL_DIALED_TELECALLER,
             LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD
-        FROM TBL_TEMP 
+        FROM " . tn('TBL_TEMP') . " 
         WHERE CALL_DIALED_TELECALLER = ?
         AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
         ORDER BY TEMP_UPLOAD_DATETIME ASC
@@ -124,7 +124,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $sql = "SELECT 
             lead_id, NAME, MOBILE, COMPANY_NAME, lead_status_new, pipeline_status,
             next_followup_at, OTHER_INFO, assigned_by, created_at
-        FROM TBL_LEADS 
+        FROM " . tn('TBL_LEADS') . " 
         WHERE assigned_to = ?
         AND lead_status_new IN ('LEAD','FOLLOWUP','LOGIN')
         ORDER BY next_followup_at ASC, created_at ASC
@@ -174,7 +174,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         if (!$dbAccess['temporary']) apiError(403, 'No access to temporary database');
         
         // Verify ownership
-        $stmt = $link->prepare("SELECT ID FROM TBL_TEMP WHERE ID = ? AND CALL_DIALED_TELECALLER = ?");
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE ID = ? AND CALL_DIALED_TELECALLER = ?");
         $stmt->bind_param('ii', $recordId, $tokenData['user_id']);
         $stmt->execute();
         if (!$stmt->get_result()->fetch_assoc()) apiError(404, 'Record not found or not assigned');
@@ -201,7 +201,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $params[] = $recordId;
         $types .= 'i';
         
-        $sql = "UPDATE TBL_TEMP SET " . implode(', ', $updateFields) . " WHERE ID = ?";
+        $sql = "UPDATE " . tn('TBL_TEMP') . " SET " . implode(', ', $updateFields) . " WHERE ID = ?";
         $stmt = $link->prepare($sql);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
@@ -210,7 +210,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $dbAccess = getUserDatabaseAccess($tokenData['user_id']);
         if (!$dbAccess['leads']) apiError(403, 'No access to leads');
         
-        $stmt = $link->prepare("SELECT lead_id FROM TBL_LEADS WHERE lead_id = ? AND assigned_to = ?");
+        $stmt = $link->prepare("SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? AND assigned_to = ?");
         $stmt->bind_param('ii', $recordId, $tokenData['user_id']);
         $stmt->execute();
         if (!$stmt->get_result()->fetch_assoc()) apiError(404, 'Lead not found or not assigned');
@@ -239,7 +239,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $params[] = $tokenData['user_id'];
         $types .= 'i';
         
-        $sql = "UPDATE TBL_LEADS SET " . implode(', ', $updateFields) . " WHERE lead_id = ?";
+        $sql = "UPDATE " . tn('TBL_LEADS') . " SET " . implode(', ', $updateFields) . " WHERE lead_id = ?";
         $params[] = $recordId;
         $types .= 'i';
         
@@ -281,7 +281,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         
         $whereSql = implode(' AND ', $where);
         
-        $sql = "SELECT COUNT(*) as c FROM TBL_TEMP WHERE $whereSql";
+        $sql = "SELECT COUNT(*) as c FROM " . tn('TBL_TEMP') . " WHERE $whereSql";
         $stmt = $link->prepare($sql);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
@@ -293,7 +293,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE,
                 CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD,
                 TEMP_UPLOAD_DATETIME, CALL_DIALED_TELECALLER
-            FROM TBL_TEMP 
+            FROM " . tn('TBL_TEMP') . " 
             WHERE $whereSql
             ORDER BY LAST_DIALED_DATE_TIME DESC
             LIMIT ?, ?";
@@ -326,7 +326,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         
         $whereSql = implode(' AND ', $where);
         
-        $sql = "SELECT COUNT(*) as c FROM TBL_LEADS WHERE $whereSql";
+        $sql = "SELECT COUNT(*) as c FROM " . tn('TBL_LEADS') . " WHERE $whereSql";
         $stmt = $link->prepare($sql);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
@@ -337,7 +337,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             $sql = "SELECT 
                 lead_id, NAME, MOBILE, COMPANY_NAME, lead_status_new, pipeline_status,
                 next_followup_at, REMARKS, created_at
-            FROM TBL_LEADS 
+            FROM " . tn('TBL_LEADS') . " 
             WHERE $whereSql
             ORDER BY created_at DESC
             LIMIT ?, ?";

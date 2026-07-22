@@ -11,7 +11,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 }
 
 $leadId = (int)($_POST['lead_id'] ?? 0);
-$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT * FROM TBL_LEADS WHERE lead_id = $leadId"));
+$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT * FROM " . tn('TBL_LEADS') . " WHERE lead_id = $leadId"));
 if (!$lead || !canViewLead($link, $lead)) {
     api_error('Lead not found or access denied', 404);
 }
@@ -20,11 +20,11 @@ if (!canEditLead($lead)) {
 }
 
 // Resolve Back Office team for assignment
-$boTeam = mysqli_fetch_assoc(mysqli_query($link, "SELECT ID FROM TBL_TEAMS WHERE NAME = 'back_office' LIMIT 1"));
+$boTeam = mysqli_fetch_assoc(mysqli_query($link, "SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE NAME = 'back_office' LIMIT 1"));
 $boTeamId = $boTeam ? (int)$boTeam['ID'] : 0;
 $boUser = 0;
 if ($boTeamId > 0) {
-    $bu = mysqli_fetch_assoc(mysqli_query($link, "SELECT ID FROM TBL_USERS WHERE TEAM_ID = $boTeamId AND STATUS = 'Active' LIMIT 1"));
+    $bu = mysqli_fetch_assoc(mysqli_query($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = $boTeamId AND STATUS = 'Active' LIMIT 1"));
     if ($bu) $boUser = (int)$bu['ID'];
 }
 
@@ -41,7 +41,7 @@ foreach ($cols as $c) {
     $vals[] = $lead[$c];
 }
 
-$stmt = mysqli_prepare($link, "INSERT INTO TBL_LEADS ($colList, lead_status_new, login_status, parent_lead_id, assigned_to, team_id, assigned_by, created_at, updated_at) VALUES ($placeholders, 'LOGIN', 'PENDING', ?, ?, ?, ?, NOW(), NOW())");
+$stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEADS') . " ($colList, lead_status_new, login_status, parent_lead_id, assigned_to, team_id, assigned_by, created_at, updated_at) VALUES ($placeholders, 'LOGIN', 'PENDING', ?, ?, ?, ?, NOW(), NOW())");
 // Build types: all copied cols are strings except cust_id/created_by which may be int/null — treat as string-safe via 's' with nullable
 $types = str_repeat('s', count($cols)) . 'iiiii';
 $params = array_merge($vals, [$leadId, $boUser, $boTeamId, USER_ID]);
@@ -51,5 +51,5 @@ if (!mysqli_stmt_execute($stmt)) {
 }
 $newId = mysqli_insert_id($link);
 
-logActivity($link, USER_ID, 'INSERT', "Cloned lead #$leadId into new bank login #$newId", (string)$newId, 'TBL_LEADS');
+logActivity($link, USER_ID, 'INSERT', "Cloned lead #$leadId into new bank login #$newId", (string)$newId, tn('TBL_LEADS'));
 api_send_json(['success' => true, 'new_lead_id' => $newId, 'message' => "Lead cloned for another bank login (#$newId)"]);

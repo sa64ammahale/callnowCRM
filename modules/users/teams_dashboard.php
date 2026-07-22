@@ -17,7 +17,7 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
             $msg = "Please select a valid target team for reassignment.";
             $msg_type = "warning";
         } else {
-            $check = $link->prepare("SELECT COUNT(*) FROM TBL_TEAMS WHERE ID IN (?, ?)");
+            $check = $link->prepare("SELECT COUNT(*) FROM " . tn('TBL_TEAMS') . " WHERE ID IN (?, ?)");
             $check->bind_param("ii", $from_team_id, $to_team_id);
             $check->execute();
             $count = $check->get_result()->fetch_row()[0] ?? 0;
@@ -25,7 +25,7 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
                 $msg = "Invalid team selection.";
                 $msg_type = "danger";
             } else {
-                $stmt = $link->prepare("UPDATE TBL_USERS SET TEAM_ID = ? WHERE TEAM_ID = ?");
+                $stmt = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = ? WHERE TEAM_ID = ?");
                 $stmt->bind_param("ii", $to_team_id, $from_team_id);
                 $stmt->execute();
                 $affected = $stmt->affected_rows;
@@ -54,14 +54,14 @@ if (($_POST['action'] ?? '') === 'add') {
             $msg = "Team name is required!";
             $msg_type = "danger";
         } else {
-            $check = $link->prepare("SELECT ID FROM TBL_TEAMS WHERE NAME = ?");
+            $check = $link->prepare("SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE NAME = ?");
             $check->bind_param("s", $team_name);
             $check->execute();
             if ($check->get_result()->num_rows > 0) {
                 $msg = "Team name already exists!";
                 $msg_type = "warning";
             } else {
-                $stmt = $link->prepare("INSERT INTO TBL_TEAMS (NAME, SUPERVISOR_ID, MANAGER_ID) VALUES (?, ?, ?)");
+                $stmt = $link->prepare("INSERT INTO " . tn('TBL_TEAMS') . " (NAME, SUPERVISOR_ID, MANAGER_ID) VALUES (?, ?, ?)");
                 $stmt->bind_param("sii", $team_name, $supervisor_id, $manager_id);
                 if ($stmt->execute()) {
                     $msg = "Team created successfully!";
@@ -85,7 +85,7 @@ if (($_POST['action'] ?? '') === 'edit') {
         $team_name     = trim($_POST['team_name']);
         $supervisor_id = $_POST['supervisor_id'] ?: null;
         $manager_id    = $_POST['manager_id'] ?: null;
-        $stmt = $link->prepare("UPDATE TBL_TEAMS SET NAME = ?, SUPERVISOR_ID = ?, MANAGER_ID = ? WHERE ID = ?");
+        $stmt = $link->prepare("UPDATE " . tn('TBL_TEAMS') . " SET NAME = ?, SUPERVISOR_ID = ?, MANAGER_ID = ? WHERE ID = ?");
         $stmt->bind_param("siii", $team_name, $supervisor_id, $manager_id, $id);
         if ($stmt->execute()) {
             $msg = "Team updated!";
@@ -100,8 +100,8 @@ if (($_POST['action'] ?? '') === 'edit') {
 // ==================== DELETE TEAM ====================
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $link->query("UPDATE TBL_USERS SET TEAM_ID = NULL WHERE TEAM_ID = $id");
-    if ($link->query("DELETE FROM TBL_TEAMS WHERE ID = $id")) {
+    $link->query("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = NULL WHERE TEAM_ID = $id");
+    if ($link->query("DELETE FROM " . tn('TBL_TEAMS') . " WHERE ID = $id")) {
         $msg = "Team deleted!";
         $msg_type = "success";
     } else {
@@ -121,10 +121,10 @@ $TBL_TEAMS_query = "
         t.MANAGER_ID,
         sup.NAME as SUP_NAME,
         mgr.NAME as MANAGER_NAME,
-        (SELECT COUNT(*) FROM TBL_USERS WHERE TEAM_ID = t.ID) as MEMBER_COUNT
-    FROM TBL_TEAMS t
-    LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID
-    LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID
+        (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = t.ID) as MEMBER_COUNT
+    FROM " . tn('TBL_TEAMS') . " t
+    LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID
+    LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
     ORDER BY t.NAME
 ";
 $TBL_TEAMS_result = mysqli_query($link, $TBL_TEAMS_query);
@@ -132,21 +132,21 @@ $total_TBL_TEAMS  = mysqli_num_rows($TBL_TEAMS_result);
 
 // Fetch supervisors & managers into arrays once
 $all_supervisors = [];
-$sup_res = mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE ROLE IN ('Supervisor','Manager') ORDER BY NAME");
+$sup_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') ORDER BY NAME");
 while ($s = mysqli_fetch_assoc($sup_res)) $all_supervisors[] = $s;
 
 $all_managers = [];
-$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE ROLE = 'Manager' ORDER BY NAME");
+$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' ORDER BY NAME");
 while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
 
 // All TBL_TEAMS for reassign dropdown
 $all_TBL_TEAMS = [];
-$at_res = mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
+$at_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
 while ($r = mysqli_fetch_assoc($at_res)) $all_TBL_TEAMS[] = $r;
 
 // Members grouped by team
 $team_members = [];
-$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM TBL_USERS u WHERE u.TEAM_ID IS NOT NULL ORDER BY u.TEAM_ID, u.NAME");
+$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM " . tn('TBL_USERS') . " u WHERE u.TEAM_ID IS NOT NULL ORDER BY u.TEAM_ID, u.NAME");
 while ($m = mysqli_fetch_assoc($members_res)) {
     $team_members[$m['TEAM_ID']][] = $m;
 }
@@ -534,7 +534,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
             $edit_team = null;
             if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
                 $edit_id = (int)$_GET['edit'];
-                $res = mysqli_query($link, "SELECT * FROM TBL_TEAMS WHERE ID = $edit_id");
+                $res = mysqli_query($link, "SELECT * FROM " . tn('TBL_TEAMS') . " WHERE ID = $edit_id");
                 $edit_team = mysqli_fetch_assoc($res);
                 $edit_mode = true;
             }

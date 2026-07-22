@@ -9,8 +9,48 @@ function ensureLeadModuleSchema(mysqli $link): void
 
     mysqli_set_charset($link, 'utf8mb4');
 
+    // Ensure lead_notes table exists
+    mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_LEAD_NOTES') . " (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        lead_id int(11) NOT NULL,
+        user_id int(11) DEFAULT NULL,
+        note text NOT NULL,
+        created_at datetime DEFAULT current_timestamp(),
+        PRIMARY KEY (id),
+        KEY idx_lead_id (lead_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+    // Ensure lead_followups table exists
+    mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_LEAD_FOLLOWUPS') . " (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        lead_id int(11) NOT NULL,
+        user_id int(11) DEFAULT NULL,
+        followup_at datetime NOT NULL,
+        note text DEFAULT NULL,
+        status enum('OPEN','DONE','CANCELLED') NOT NULL DEFAULT 'OPEN',
+        created_at datetime DEFAULT current_timestamp(),
+        PRIMARY KEY (id),
+        KEY idx_lead_id (lead_id),
+        KEY idx_followup_at (followup_at),
+        KEY idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+    // Ensure lead_assignments table exists
+    mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_LEAD_ASSIGNMENTS') . " (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        lead_id int(11) NOT NULL,
+        from_user_id int(11) DEFAULT NULL,
+        to_user_id int(11) DEFAULT NULL,
+        from_team_id int(11) DEFAULT NULL,
+        to_team_id int(11) DEFAULT NULL,
+        reason text DEFAULT NULL,
+        created_at datetime DEFAULT current_timestamp(),
+        PRIMARY KEY (id),
+        KEY idx_lead_id (lead_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
     $columns = [];
-    $result = mysqli_query($link, "SHOW COLUMNS FROM TBL_LEADS");
+    $result = mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_LEADS'));
     while ($result && ($row = mysqli_fetch_assoc($result))) {
         $columns[$row['Field']] = $row['Type'];
     }
@@ -19,7 +59,7 @@ function ensureLeadModuleSchema(mysqli $link): void
         if (isset($columns[$name])) {
             return;
         }
-        mysqli_query($link, "ALTER TABLE TBL_LEADS ADD COLUMN {$name} {$definition}");
+        mysqli_query($link, "ALTER TABLE " . tn('TBL_LEADS') . " ADD COLUMN {$name} {$definition}");
         $columns[$name] = $definition;
     };
 
@@ -57,7 +97,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     if (isset($columns['lead_status_new']) && stripos((string)$columns['lead_status_new'], "'REJECT'") === false) {
         mysqli_query(
             $link,
-            "ALTER TABLE TBL_LEADS
+            "ALTER TABLE " . tn('TBL_LEADS') . "
              MODIFY COLUMN lead_status_new
              ENUM('LEAD','FOLLOWUP','INTERNAL_UNDERWRITING','LOGIN','BANK_UNDERWRITING','SANCTIONED','DISBURSED','REJECT')
              NOT NULL DEFAULT 'LEAD'"
@@ -68,14 +108,14 @@ function ensureLeadModuleSchema(mysqli $link): void
     if (isset($columns['salary_bank_name'])) {
         mysqli_query(
             $link,
-            "UPDATE TBL_LEADS SET bank_name = COALESCE(NULLIF(bank_name, ''), salary_bank_name)
+            "UPDATE " . tn('TBL_LEADS') . " SET bank_name = COALESCE(NULLIF(bank_name, ''), salary_bank_name)
              WHERE salary_bank_name IS NOT NULL AND salary_bank_name <> ''"
         );
     }
 
     mysqli_query(
         $link,
-        "UPDATE TBL_LEADS
+        "UPDATE " . tn('TBL_LEADS') . "
          SET lead_status_new = CASE lead_status
              WHEN 'Follow_Up' THEN 'FOLLOWUP'
              WHEN 'In_Progress' THEN 'LOGIN'
@@ -89,7 +129,7 @@ function ensureLeadModuleSchema(mysqli $link): void
     );
 
     $existingIndexes = [];
-    $indexResult = mysqli_query($link, "SHOW INDEX FROM TBL_LEADS");
+    $indexResult = mysqli_query($link, "SHOW INDEX FROM " . tn('TBL_LEADS'));
     while ($indexResult && ($row = mysqli_fetch_assoc($indexResult))) {
         $existingIndexes[$row['Key_name']] = true;
     }
@@ -101,10 +141,10 @@ function ensureLeadModuleSchema(mysqli $link): void
         mysqli_query($link, $sql);
     };
 
-    $addIndex('idx_login_date', "ALTER TABLE TBL_LEADS ADD INDEX idx_login_date (login_date)");
-    $addIndex('idx_lead_status_new', "ALTER TABLE TBL_LEADS ADD INDEX idx_lead_status_new (lead_status_new)");
-    $addIndex('idx_login_bank_name', "ALTER TABLE TBL_LEADS ADD INDEX idx_login_bank_name (login_bank_name)");
-    $addIndex('idx_loan_type', "ALTER TABLE TBL_LEADS ADD INDEX idx_loan_type (loan_type)");
+    $addIndex('idx_login_date', "ALTER TABLE " . tn('TBL_LEADS') . " ADD INDEX idx_login_date (login_date)");
+    $addIndex('idx_lead_status_new', "ALTER TABLE " . tn('TBL_LEADS') . " ADD INDEX idx_lead_status_new (lead_status_new)");
+    $addIndex('idx_login_bank_name', "ALTER TABLE " . tn('TBL_LEADS') . " ADD INDEX idx_login_bank_name (login_bank_name)");
+    $addIndex('idx_loan_type', "ALTER TABLE " . tn('TBL_LEADS') . " ADD INDEX idx_loan_type (loan_type)");
 
     $done = true;
 }
@@ -304,7 +344,7 @@ function getLeadAssignableTBL_USERS(mysqli $link): array
         $whereParts[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     }
 
-    $sql = "SELECT ID, NAME, ROLE, TEAM_ID FROM TBL_USERS WHERE " . implode(' AND ', $whereParts) . " ORDER BY NAME";
+    $sql = "SELECT ID, NAME, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE " . implode(' AND ', $whereParts) . " ORDER BY NAME";
     $result = mysqli_query($link, $sql);
 
     return $result ? mysqli_fetch_all($result, MYSQLI_ASSOC) : [];
@@ -419,7 +459,7 @@ function userBelongsToTeam(int $userId, int $teamId): bool
         return false;
     }
 
-    $stmt = mysqli_prepare($link, "SELECT 1 FROM TBL_USERS WHERE ID = ? AND TEAM_ID = ? LIMIT 1");
+    $stmt = mysqli_prepare($link, "SELECT 1 FROM " . tn('TBL_USERS') . " WHERE ID = ? AND TEAM_ID = ? LIMIT 1");
     if (!$stmt) {
         return false;
     }
@@ -443,7 +483,7 @@ function inLeadManagerChain(mysqli $link, int $ownerUserId): bool
         if (empty($managed)) {
             return true;
         }
-        $stmt = mysqli_prepare($link, "SELECT TEAM_ID FROM TBL_USERS WHERE ID = ? LIMIT 1");
+        $stmt = mysqli_prepare($link, "SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
         if ($stmt) {
             mysqli_stmt_bind_param($stmt, 'i', $ownerUserId);
             mysqli_stmt_execute($stmt);
@@ -458,7 +498,7 @@ function inLeadManagerChain(mysqli $link, int $ownerUserId): bool
     }
 
     if (isSupervisor()) {
-        $stmt = mysqli_prepare($link, "SELECT TEAM_ID FROM TBL_USERS WHERE ID = ? LIMIT 1");
+        $stmt = mysqli_prepare($link, "SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
         if ($stmt) {
             mysqli_stmt_bind_param($stmt, 'i', $ownerUserId);
             mysqli_stmt_execute($stmt);
@@ -492,7 +532,7 @@ function ensureLeadFilterPreferenceSchema(mysqli $link): void
 
     mysqli_query(
         $link,
-        "CREATE TABLE IF NOT EXISTS TBL_USER_PAGE_FILTERS (
+        "CREATE TABLE IF NOT EXISTS " . tn('TBL_USER_PAGE_FILTERS') . " (
             preference_id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
             page_key VARCHAR(100) NOT NULL,
@@ -514,7 +554,7 @@ function getUserPageFilterPreference(mysqli $link, int $userId, string $pageKey)
     $stmt = mysqli_prepare(
         $link,
         "SELECT filter_json
-         FROM TBL_USER_PAGE_FILTERS
+         FROM " . tn('TBL_USER_PAGE_FILTERS') . "
          WHERE user_id = ? AND page_key = ?
          LIMIT 1"
     );
@@ -543,7 +583,7 @@ function saveUserPageFilterPreference(mysqli $link, int $userId, string $pageKey
 
     $stmt = mysqli_prepare(
         $link,
-        "INSERT INTO TBL_USER_PAGE_FILTERS (user_id, page_key, filter_json)
+        "INSERT INTO " . tn('TBL_USER_PAGE_FILTERS') . " (user_id, page_key, filter_json)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE
              filter_json = VALUES(filter_json),

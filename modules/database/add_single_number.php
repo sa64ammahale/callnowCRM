@@ -28,7 +28,7 @@ if (isset($_GET['success']) && $_GET['success'] == '1') {
 // If edit, load the main database row into $rowData
 $rowData = null;
 if ($isEdit) {
-    $sql = "SELECT * FROM " . TBL_MAIN . " WHERE ID = ?";
+    $sql = "SELECT * FROM " . tn('TBL_MAIN') . " WHERE ID = ?";
     if ($stmt = mysqli_prepare($link, $sql)) {
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
@@ -73,7 +73,7 @@ if (isset($_POST['submit'])) {
 
         // If editing: update TBL_MAIN record only
         if ($isEdit) {
-            $sql_update = "UPDATE " . TBL_MAIN . " SET 
+            $sql_update = "UPDATE " . tn('TBL_MAIN') . " SET 
                 MAINDATABASE_NAME = ?, 
                 MAINDATABASE_MOBILE = ?, 
                 MAINDATABASE_COMPANY = ?, 
@@ -90,10 +90,10 @@ if (isset($_POST['submit'])) {
                     $type = "success";
 
                     // log activity
-                    logActivity($link, $userId, "UPDATE", "Updated MAIN record (ID: $id)", (string)$id, TBL_MAIN);
+                    logActivity($link, $userId, "UPDATE", "Updated MAIN record (ID: $id)", (string)$id, tn('TBL_MAIN'));
 
                     // reload rowData
-                    $stmt2 = mysqli_prepare($link, "SELECT * FROM " . TBL_MAIN . " WHERE ID = ?");
+                    $stmt2 = mysqli_prepare($link, "SELECT * FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
                     mysqli_stmt_bind_param($stmt2, "i", $id);
                     mysqli_stmt_execute($stmt2);
                     $res2 = mysqli_stmt_get_result($stmt2);
@@ -126,7 +126,7 @@ if (isset($_POST['submit'])) {
             if ($upload_to === 'main' || $upload_to === 'both') {
 
                 // Duplicate check in MAIN
-                $chk_main_sql = "SELECT ID FROM " . TBL_MAIN . " WHERE MAINDATABASE_MOBILE = ?";
+                $chk_main_sql = "SELECT ID FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_MOBILE = ?";
                 if ($chk_stmt = mysqli_prepare($link, $chk_main_sql)) {
                     mysqli_stmt_bind_param($chk_stmt, "s", $mobile);
                     mysqli_stmt_execute($chk_stmt);
@@ -145,7 +145,7 @@ if (isset($_POST['submit'])) {
 
                 // Insert MAIN if no error
                 if (!$error) {
-                    $ins_main_sql = "INSERT INTO " . TBL_MAIN . " 
+                    $ins_main_sql = "INSERT INTO " . tn('TBL_MAIN') . " 
                         (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_USER, MAINDATABASE_CALL_DIAL_TIME)
                         VALUES (?, ?, ?, ?, ?, ?, NOW())";
                     if ($stmtMain = mysqli_prepare($link, $ins_main_sql)) {
@@ -171,7 +171,7 @@ if (isset($_POST['submit'])) {
             if (!$error && ($upload_to === 'temp' || $upload_to === 'both')) {
 
                 // Duplicate check in TEMP
-                $chk_temp_sql = "SELECT ID FROM " . TBL_TEMP . " WHERE CUST_MOBILE = ?";
+                $chk_temp_sql = "SELECT ID FROM " . tn('TBL_TEMP') . " WHERE CUST_MOBILE = ?";
                 if ($chk_stmt = mysqli_prepare($link, $chk_temp_sql)) {
                     mysqli_stmt_bind_param($chk_stmt, "s", $mobile);
                     mysqli_stmt_execute($chk_stmt);
@@ -189,7 +189,7 @@ if (isset($_POST['submit'])) {
                 }
 
                 if (!$error) {
-                    $ins_temp_sql = "INSERT INTO " . TBL_TEMP . " 
+                    $ins_temp_sql = "INSERT INTO " . tn('TBL_TEMP') . " 
                         (CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, CALL_DIALED_TELECALLER)
                         VALUES (?, ?, ?, ?, ?, ?)";
                     if ($stmtTemp = mysqli_prepare($link, $ins_temp_sql)) {
@@ -223,10 +223,10 @@ if (isset($_POST['submit'])) {
             // If no error, write activity logs for inserted records
             if (!$error) {
                 if ($insertedMainId) {
-                    logActivity($link, $userId, "INSERT", "Inserted into TBL_MAIN", (string)$insertedMainId, TBL_MAIN);
+                    logActivity($link, $userId, "INSERT", "Inserted into TBL_MAIN", (string)$insertedMainId, tn('TBL_MAIN'));
                 }
                 if ($insertedTempId) {
-                    logActivity($link, $userId, "INSERT", "Inserted into TBL_TEMP", (string)$insertedTempId, TBL_TEMP);
+                    logActivity($link, $userId, "INSERT", "Inserted into TBL_TEMP", (string)$insertedTempId, tn('TBL_TEMP'));
                 }
 
                 // Success message and redirect (preserve original behavior)

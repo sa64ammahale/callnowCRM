@@ -64,7 +64,7 @@ function rbacCacheVersion(): int {
     global $link;
     $v = 0;
     try {
-        $res = mysqli_query($link, "SELECT setting_value FROM TBL_APP_SETTINGS WHERE setting_key = 'rbac_cache_version'");
+        $res = mysqli_query($link, "SELECT setting_value FROM " . tn('TBL_APP_SETTINGS') . " WHERE setting_key = 'rbac_cache_version'");
         if ($res && $row = mysqli_fetch_assoc($res)) $v = (int)$row['setting_value'];
     } catch (\Throwable $e) {
         $v = 0;
@@ -75,7 +75,7 @@ function rbacCacheVersion(): int {
 function clearRbacCache(): void {
     global $link;
     $v = rbacCacheVersion() + 1;
-    mysqli_query($link, "INSERT INTO TBL_APP_SETTINGS (setting_key, setting_value) VALUES ('rbac_cache_version', $v) ON DUPLICATE KEY UPDATE setting_value = $v");
+    mysqli_query($link, "INSERT INTO " . tn('TBL_APP_SETTINGS') . " (setting_key, setting_value) VALUES ('rbac_cache_version', $v) ON DUPLICATE KEY UPDATE setting_value = $v");
 }
 
 // Build the effective permission set for the current user:
@@ -163,7 +163,7 @@ function getTeamFilter() {
 // Get TBL_TEAMS current manager can control
 function getManagerTeamIds(mysqli $link, int $managerId): array {
     $ids = [];
-    $stmt = $link->prepare("SELECT ID FROM TBL_TEAMS WHERE MANAGER_ID = ?");
+    $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE MANAGER_ID = ?");
     $stmt->bind_param("i", $managerId);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -205,7 +205,7 @@ function normalizeActivityType($actionType): string {
 function logActivity($link, $userId, $actionType, $actionDetails = null, $affectedIds = null, $targetTable = null) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
     $actionType = normalizeActivityType($actionType);
-    $stmt = mysqli_prepare($link, "INSERT INTO TBL_ACTIVITY_LOG(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
+    $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_ACTIVITY_LOG') . "(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
         VALUES (?, ?, ?, ?, ?, NOW(), ?)");
     mysqli_stmt_bind_param($stmt, "isssss", $userId, $actionType, $actionDetails, $affectedIds, $targetTable, $ip);
     mysqli_stmt_execute($stmt);

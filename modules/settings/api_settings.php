@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         
         foreach ($settings as $key => $value) {
-            $stmt = $link->prepare("INSERT INTO TBL_API_SETTINGS (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+            $stmt = $link->prepare("INSERT INTO " . tn('TBL_API_SETTINGS') . " (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
             $stmt->bind_param('sss', $key, $value, $value);
             $stmt->execute();
         }
@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = bin2hex(random_bytes(32));
         $expiry = $expiryDays > 0 ? date('Y-m-d H:i:s', strtotime("+$expiryDays days")) : null;
         
-        $stmt = $link->prepare("INSERT INTO TBL_API_TOKENS (user_id, token, name, expires_at) VALUES (?, ?, ?, ?)");
+        $stmt = $link->prepare("INSERT INTO " . tn('TBL_API_TOKENS') . " (user_id, token, name, expires_at) VALUES (?, ?, ?, ?)");
         $stmt->bind_param('isss', $userId, $token, $name, $expiry);
         $stmt->execute();
 
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'revoke_token') {
         $tokenId = (int)($_POST['token_id'] ?? 0);
         if ($tokenId) {
-            $link->query("UPDATE TBL_API_TOKENS SET is_active = 0 WHERE id = $tokenId");
+            $link->query("UPDATE " . tn('TBL_API_TOKENS') . " SET is_active = 0 WHERE id = $tokenId");
             logActivity($link, USER_ID, 'API_TOKEN_REVOKED', "Revoked token #$tokenId", '', 'TBL_API_TOKENS');
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Token revoked'];
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         
-        $stmt = $link->prepare("INSERT INTO TBL_API_DB_ASSIGNMENTS (user_id, database_type, team_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1");
+        $stmt = $link->prepare("INSERT INTO " . tn('TBL_API_DB_ASSIGNMENTS') . " (user_id, database_type, team_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1");
         $stmt->bind_param('isii', $userId, $databaseType, $teamId, USER_ID);
         $stmt->execute();
         
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'remove_assignment') {
         $assignId = (int)($_POST['assign_id'] ?? 0);
         if ($assignId) {
-            $link->query("DELETE FROM TBL_API_DB_ASSIGNMENTS WHERE id = $assignId");
+            $link->query("DELETE FROM " . tn('TBL_API_DB_ASSIGNMENTS') . " WHERE id = $assignId");
             logActivity($link, USER_ID, 'API_ASSIGNMENT_REMOVED', "Removed assignment #$assignId", '', 'TBL_API_DB_ASSIGNMENTS');
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Assignment removed'];
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch data
 $settings = [];
-$res = $link->query("SELECT setting_key, setting_value FROM TBL_API_SETTINGS");
+$res = $link->query("SELECT setting_key, setting_value FROM " . tn('TBL_API_SETTINGS'));
 while ($row = $res->fetch_assoc()) {
     $val = $row['setting_value'];
     $decoded = json_decode($val, true);
@@ -126,30 +126,30 @@ while ($row = $res->fetch_assoc()) {
 $tokens = [];
 $res = $link->query("
     SELECT t.*, u.NAME as user_name, u.EMAIL as user_email, u.ROLE as user_role
-    FROM TBL_API_TOKENS t
-    JOIN TBL_USERS u ON t.user_id = u.ID
+    FROM " . tn('TBL_API_TOKENS') . " t
+    JOIN " . tn('TBL_USERS') . " u ON t.user_id = u.ID
     ORDER BY t.created_at DESC
 ");
 while ($row = $res->fetch_assoc()) $tokens[] = $row;
 
 $TBL_USERS = [];
-$res = $link->query("SELECT ID, NAME, EMAIL, ROLE, TEAM_ID FROM TBL_USERS WHERE STATUS = 'Active' ORDER BY ROLE, NAME");
+$res = $link->query("SELECT ID, NAME, EMAIL, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY ROLE, NAME");
 while ($row = $res->fetch_assoc()) $TBL_USERS[] = $row;
 
 $assignments = [];
 $res = $link->query("
     SELECT a.*, u.NAME as user_name, u.ROLE as user_role, u.TEAM_ID as user_team_id, 
            t.NAME as team_name, sup.NAME as assigned_by_name
-    FROM TBL_API_DB_ASSIGNMENTS a
-    JOIN TBL_USERS u ON a.user_id = u.ID
-    LEFT JOIN TBL_TEAMS t ON a.team_id = t.ID
-    LEFT JOIN TBL_USERS sup ON a.assigned_by = sup.ID
+    FROM " . tn('TBL_API_DB_ASSIGNMENTS') . " a
+    JOIN " . tn('TBL_USERS') . " u ON a.user_id = u.ID
+    LEFT JOIN " . tn('TBL_TEAMS') . " t ON a.team_id = t.ID
+    LEFT JOIN " . tn('TBL_USERS') . " sup ON a.assigned_by = sup.ID
     ORDER BY a.assigned_at DESC
 ");
 while ($row = $res->fetch_assoc()) $assignments[] = $row;
 
 $TBL_TEAMS = [];
-$res = $link->query("SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME");
+$res = $link->query("SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
 while ($row = $res->fetch_assoc()) $TBL_TEAMS[] = $row;
 
 $allowedDbs = $settings['allowed_databases'] ?? '["temporary","leads"]';
@@ -398,8 +398,8 @@ include __DIR__ . '/../../php_scripts/header.php';
                         <?php
                         $logs = $link->query("
                             SELECT al.*, u.NAME as user_name
-                            FROM TBL_API_ACCESS_LOGS al
-                            LEFT JOIN TBL_USERS u ON al.user_id = u.ID
+                            FROM " . tn('TBL_API_ACCESS_LOGS') . " al
+                            LEFT JOIN " . tn('TBL_USERS') . " u ON al.user_id = u.ID
                             ORDER BY al.created_at DESC
                             LIMIT 50
                         ");

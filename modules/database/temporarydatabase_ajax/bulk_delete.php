@@ -21,7 +21,7 @@ if (!is_array($ids) || empty($ids)) {
 $ids = array_map('intval', $ids);
 $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
-$sql = "DELETE FROM TBL_TEMP WHERE ID IN ($placeholders)";
+$sql = "DELETE FROM " . tn('TBL_TEMP') . " WHERE ID IN ($placeholders)";
 $stmt = mysqli_prepare($link, $sql);
 if (!$stmt) {
     echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . mysqli_error($link)]);

@@ -31,10 +31,10 @@ $leadSql = "
         m.MAINDATABASE_OTHER_INFO AS other_info,
         u.NAME AS assigned_name,
         t.TEAM_NAME AS team_name
-    FROM TBL_LEADS l
-    LEFT JOIN TBL_MAIN m ON m.ID = l.cust_id
-    LEFT JOIN TBL_USERS u ON u.ID = l.assigned_to
-    LEFT JOIN TBL_TEAMS t ON t.ID = l.team_id
+    FROM " . tn('TBL_LEADS') . " l
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON m.ID = l.cust_id
+    LEFT JOIN " . tn('TBL_USERS') . " u ON u.ID = l.assigned_to
+    LEFT JOIN " . tn('TBL_TEAMS') . " t ON t.ID = l.team_id
     WHERE l.lead_id = ?
     LIMIT 1
 ";
@@ -59,7 +59,7 @@ $canEditAssignment = canEditLeadAssignment();
 
 // Threaded notes
 $notes = [];
-$ns = mysqli_prepare($link, "SELECT n.*, u.NAME AS author FROM TBL_LEAD_NOTES n LEFT JOIN TBL_USERS u ON u.ID = n.user_id WHERE n.lead_id = ? ORDER BY n.created_at ASC");
+$ns = mysqli_prepare($link, "SELECT n.*, u.NAME AS author FROM " . tn('TBL_LEAD_NOTES') . " n LEFT JOIN " . tn('TBL_USERS') . " u ON u.ID = n.user_id WHERE n.lead_id = ? ORDER BY n.created_at ASC");
 if ($ns) {
     mysqli_stmt_bind_param($ns, 'i', $leadId);
     mysqli_stmt_execute($ns);
@@ -70,7 +70,7 @@ if ($ns) {
 
 // Follow-ups
 $followups = [];
-$fs = mysqli_prepare($link, "SELECT * FROM TBL_LEAD_FOLLOWUPS WHERE lead_id = ? ORDER BY followup_at ASC");
+$fs = mysqli_prepare($link, "SELECT * FROM " . tn('TBL_LEAD_FOLLOWUPS') . " WHERE lead_id = ? ORDER BY followup_at ASC");
 if ($fs) {
     mysqli_stmt_bind_param($fs, 'i', $leadId);
     mysqli_stmt_execute($fs);

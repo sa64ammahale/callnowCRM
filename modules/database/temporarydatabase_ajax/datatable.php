@@ -61,11 +61,11 @@ $orderby = $columns[$col] ?? 'TEMP_UPLOAD_DATETIME';
 $orderby .= " " . ($dir === 'asc' ? 'ASC' : 'DESC');
 
 // Total records (without filter)
-$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM TBL_TEMP");
+$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_TEMP'));
 $total = ($totalRes && $row = mysqli_fetch_assoc($totalRes)) ? (int)$row['c'] : 0;
 
 // Filtered records count
-$countQuery = "SELECT COUNT(*) AS c FROM TBL_TEMP $where";
+$countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_TEMP') . " $where";
 $stmt = mysqli_prepare($link, $countQuery);
 if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
 mysqli_stmt_execute($stmt);
@@ -76,7 +76,7 @@ $filtered = ($filteredRes && $row = mysqli_fetch_assoc($filteredRes)) ? (int)$ro
 $sql = "SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, 
                CUST_OTHER_INFO, TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS, 
                CALL_DIALED_TELECALLER, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD
-        FROM TBL_TEMP 
+        FROM " . tn('TBL_TEMP') . " 
         $where
         ORDER BY $orderby
         LIMIT ?, ?";

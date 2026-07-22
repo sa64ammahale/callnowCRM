@@ -23,7 +23,7 @@ if ($ts === false) {
 }
 $atSql = date('Y-m-d H:i:s', $ts);
 
-$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT lead_id, assigned_to, team_id FROM TBL_LEADS WHERE lead_id = $leadId"));
+$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT lead_id, assigned_to, team_id FROM " . tn('TBL_LEADS') . " WHERE lead_id = $leadId"));
 if (!$lead || !canViewLead($link, $lead)) {
     api_error('Lead not found or access denied', 404);
 }
@@ -31,13 +31,13 @@ if (!canEditLead($lead)) {
     api_error('This lead is not in your tray', 403);
 }
 
-$stmt = mysqli_prepare($link, "INSERT INTO TBL_LEAD_FOLLOWUPS (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
+$stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
 mysqli_stmt_bind_param($stmt, 'iiss', $leadId, USER_ID, $atSql, $note);
 if (!mysqli_stmt_execute($stmt)) {
     api_error('Failed to schedule follow-up', 500);
 }
 
-$link->query("UPDATE TBL_LEADS SET next_followup_at = '$atSql', updated_at = NOW() WHERE lead_id = $leadId");
+$link->query("UPDATE " . tn('TBL_LEADS') . " SET next_followup_at = '$atSql', updated_at = NOW() WHERE lead_id = $leadId");
 
-logActivity($link, USER_ID, 'UPDATE', "Scheduled follow-up for lead #$leadId", (string)$leadId, 'TBL_LEADS');
+logActivity($link, USER_ID, 'UPDATE', "Scheduled follow-up for lead #$leadId", (string)$leadId, tn('TBL_LEADS'));
 api_send_json(['success' => true, 'message' => 'Follow-up scheduled']);

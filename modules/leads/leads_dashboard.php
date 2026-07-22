@@ -42,7 +42,7 @@ $countSql = "
         SUM(CASE WHEN l.login_status = 'SUCCESS' THEN 1 ELSE 0 END) AS cnt_login_success,
         SUM(CASE WHEN l.login_status = 'REJECTED' THEN 1 ELSE 0 END) AS cnt_login_rejected,
         SUM(CASE WHEN l.login_status NOT IN ('PENDING','SUCCESS','REJECTED') OR l.login_status IS NULL THEN 1 ELSE 0 END) AS cnt_login_none
-    FROM TBL_LEADS l
+    FROM " . tn('TBL_LEADS') . " l
     {$where}
 ";
 $res = mysqli_query($link, $countSql);

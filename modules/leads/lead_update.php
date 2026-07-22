@@ -24,8 +24,8 @@ $action = trim((string)($_POST['action'] ?? 'save_lead'));
 
 $leadSql = "
     SELECT l.lead_id, l.cust_id, l.assigned_to, m.MAINDATABASE_MOBILE
-    FROM TBL_LEADS l
-    LEFT JOIN TBL_MAIN m ON m.ID = l.cust_id
+    FROM " . tn('TBL_LEADS') . " l
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON m.ID = l.cust_id
     WHERE l.lead_id = ?
     LIMIT 1
 ";
@@ -58,12 +58,12 @@ try {
         if ($remarks !== '') {
             $stmt = mysqli_prepare(
                 $link,
-                "INSERT INTO TBL_LEAD_NOTES (lead_id, user_id, note, created_at) VALUES (?, ?, ?, NOW())"
+                "INSERT INTO " . tn('TBL_LEAD_NOTES') . " (lead_id, user_id, note, created_at) VALUES (?, ?, ?, NOW())"
             );
             mysqli_stmt_bind_param($stmt, 'iis', $leadId, USER_ID, $remarks);
             mysqli_stmt_execute($stmt);
             mysqli_stmt_close($stmt);
-            logActivity($link, USER_ID, 'REMARK', "Added remark on lead {$leadId}", (string)$leadId, 'TBL_LEADS');
+            logActivity($link, USER_ID, 'REMARK', "Added remark on lead {$leadId}", (string)$leadId, tn('TBL_LEADS'));
         }
         $_SESSION['success_message'] = 'Remark added successfully.';
         $_SESSION['flash_class'] = 'success';
@@ -120,7 +120,7 @@ try {
 
     $payload['team_id'] = 0;
     if ($payload['assigned_to'] > 0) {
-        $tu = mysqli_fetch_assoc(mysqli_query($link, "SELECT TEAM_ID FROM TBL_USERS WHERE ID = {$payload['assigned_to']}"));
+        $tu = mysqli_fetch_assoc(mysqli_query($link, "SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = {$payload['assigned_to']}"));
         if ($tu) {
             $payload['team_id'] = (int)$tu['TEAM_ID'];
         }
@@ -160,7 +160,7 @@ try {
     }
 
     $custIdExclude = (int)$leadRow['cust_id'];
-    $stmtDup = mysqli_prepare($link, "SELECT ID FROM TBL_MAIN WHERE MAINDATABASE_MOBILE = ? AND ID <> ? LIMIT 1");
+    $stmtDup = mysqli_prepare($link, "SELECT ID FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_MOBILE = ? AND ID <> ? LIMIT 1");
     mysqli_stmt_bind_param($stmtDup, "si", $payload['mobile'], $custIdExclude);
     mysqli_stmt_execute($stmtDup);
     $resDup = mysqli_stmt_get_result($stmtDup);
@@ -175,7 +175,7 @@ try {
 
     $stmt = mysqli_prepare(
         $link,
-        "UPDATE TBL_MAIN
+        "UPDATE " . tn('TBL_MAIN') . "
          SET MAINDATABASE_NAME = ?, MAINDATABASE_MOBILE = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_OTHER_INFO = ?
          WHERE ID = ?"
     );
@@ -204,13 +204,13 @@ try {
     };
     $stmt = mysqli_prepare(
         $link,
-        "UPDATE TBL_LEADS
+        "UPDATE " . tn('TBL_LEADS') . "
          SET assigned_to = ?, team_id = ?, login_date = ?, net_salary = ?, salary_account = ?, bank_name = ?,
-             loan_amount = ?, loan_tenure = ?, promo_code = ?, login_bank_name = ?, lead_status_new = ?,
-             login_mode = ?, loan_type = ?, loan_app_no = ?, login_location = ?, bank_rm_name = ?,
-             bt_details = ?, remarks = ?, dsa_name = ?, next_followup_at = ?, lead_status = ?,
-             login_status = ?, rework_flag = ?, rework_stage = ?, updated_by = ?, updated_at = NOW()
-         WHERE lead_id = ?"
+              loan_amount = ?, loan_tenure = ?, promo_code = ?, login_bank_name = ?, lead_status_new = ?,
+              login_mode = ?, loan_type = ?, loan_app_no = ?, login_location = ?, bank_rm_name = ?,
+              bt_details = ?, remarks = ?, dsa_name = ?, next_followup_at = ?, lead_status = ?,
+              login_status = ?, rework_flag = ?, rework_stage = ?, updated_by = ?, updated_at = NOW()
+          WHERE lead_id = ?"
     );
     $assignedTo = $payload['assigned_to'];
     $teamId = $payload['team_id'];
@@ -275,7 +275,7 @@ try {
         'UPDATE',
         "Updated lead {$leadId} with status {$payload['lead_status_new']}",
         (string)$leadId,
-        'TBL_LEADS'
+        tn('TBL_LEADS')
     );
 
     mysqli_commit($link);

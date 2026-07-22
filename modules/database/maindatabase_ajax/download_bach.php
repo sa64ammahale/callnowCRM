@@ -9,7 +9,7 @@ if (!isset($link) || !$link) {
 }
 
 $totalRecords = 0;
-$result = mysqli_query($link, "SELECT COUNT(*) as total FROM TBL_MAIN");
+$result = mysqli_query($link, "SELECT COUNT(*) as total FROM " . tn('TBL_MAIN'));
 if ($result) {
     $row = mysqli_fetch_assoc($result);
     $totalRecords = (int)$row['total'];

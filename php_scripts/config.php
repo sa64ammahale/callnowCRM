@@ -87,6 +87,9 @@
         define('TBL_APP_SETTINGS',       'app_settings');
         define('TBL_ENQUIRY',            'enquiry');
         define('TBL_LEADS',              'leads_table');
+        define('TBL_LEAD_NOTES',         'lead_notes');
+        define('TBL_LEAD_FOLLOWUPS',     'lead_followups');
+        define('TBL_LEAD_ASSIGNMENTS',   'lead_assignments');
         define('TBL_MAIN',               'main_database');
         define('TBL_MAIN_ARCHIVE',       'main_database_archive');
         define('TBL_PERMISSIONS',        'permissions');
@@ -111,6 +114,9 @@
         'TBL_APP_SETTINGS'     => 'app_settings',
         'TBL_ENQUIRY'          => 'enquiry',
         'TBL_LEADS'            => 'leads_table',
+        'TBL_LEAD_NOTES'       => 'lead_notes',
+        'TBL_LEAD_FOLLOWUPS'   => 'lead_followups',
+        'TBL_LEAD_ASSIGNMENTS' => 'lead_assignments',
         'TBL_MAIN'             => 'main_database',
         'TBL_MAIN_ARCHIVE'     => 'main_database_archive',
         'TBL_PERMISSIONS'      => 'permissions',

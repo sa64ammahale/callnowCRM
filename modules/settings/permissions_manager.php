@@ -21,14 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ── Role permission matrix ──
         if ($action === 'save_role_perms') {
             $role = $_POST['role'] ?? '';
-            $cs = $link->prepare("SELECT role_name FROM TBL_ROLES WHERE role_name = ?");
+            $cs = $link->prepare("SELECT role_name FROM " . tn('TBL_ROLES') . " WHERE role_name = ?");
             $cs->bind_param('s', $role);
             $cs->execute();
             if (!$cs->get_result()->fetch_assoc()) {
                 $msg = 'Role not found.';
                 $msg_type = 'danger';
             } else {
-                $stmt = $link->prepare("INSERT INTO TBL_ROLE_PERMISSIONS (role, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
+                $stmt = $link->prepare("INSERT INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
                 foreach (array_keys(getTBL_PERMISSIONSeed()) as $pk) {
                     $v = ($role === 'Admin') ? 1 : (isset($_POST["perm_$pk"]) ? 1 : 0);
                     $stmt->bind_param('ssi', $role, $pk, $v);
@@ -46,14 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'save_user_perms') {
             $uid = (int)($_POST['user_id'] ?? 0);
             $role = $_POST['role'] ?? '';
-            $us = $link->prepare("SELECT ID FROM TBL_USERS WHERE ID = ?");
+            $us = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ID = ?");
             $us->bind_param('i', $uid);
             $us->execute();
             if (!$us->get_result()->fetch_assoc()) {
                 $msg = 'User not found.';
                 $msg_type = 'danger';
             } else {
-                $stmt = $link->prepare("INSERT INTO TBL_USER_PERMISSIONS (user_id, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
+                $stmt = $link->prepare("INSERT INTO " . tn('TBL_USER_PERMISSIONS') . " (user_id, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
                 foreach (array_keys(getTBL_PERMISSIONSeed()) as $pk) {
                     $v = isset($_POST["uperm_$pk"]) ? 1 : 0;
                     $stmt->bind_param('iis', $uid, $pk, $v);
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ── Clear per-user overrides ──
         if ($action === 'clear_user_perms') {
             $uid = (int)($_POST['user_id'] ?? 0);
-            $link->query("DELETE FROM TBL_USER_PERMISSIONS WHERE user_id = $uid");
+            $link->query("DELETE FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = $uid");
             clearRbacCache();
             $msg = "Overrides cleared; user #$uid now inherits role TBL_PERMISSIONS.";
             $msg_type = 'success';
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'assign_role') {
             $uid = (int)($_POST['user_id'] ?? 0);
             $role = $_POST['role'] ?? '';
-            $cs = $link->prepare("SELECT role_name, id FROM TBL_ROLES WHERE role_name = ?");
+            $cs = $link->prepare("SELECT role_name, id FROM " . tn('TBL_ROLES') . " WHERE role_name = ?");
             $cs->bind_param('s', $role);
             $cs->execute();
             $cr = $cs->get_result()->fetch_assoc();
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'Role not found.';
                 $msg_type = 'danger';
             } else {
-                $up = $link->prepare("UPDATE TBL_USERS SET ROLE = ?, role_id = ? WHERE ID = ?");
+                $up = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET ROLE = ?, role_id = ? WHERE ID = ?");
                 $up->bind_param('sii', $role, $cr['id'], $uid);
                 $up->execute();
                 clearRbacCache();
@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg_type = 'danger';
             } else {
                 if ($roleId > 0) {
-                    $cs = $link->prepare("SELECT role_name, is_system FROM TBL_ROLES WHERE id = ?");
+                    $cs = $link->prepare("SELECT role_name, is_system FROM " . tn('TBL_ROLES') . " WHERE id = ?");
                     $cs->bind_param('i', $roleId);
                     $cs->execute();
                     $cr = $cs->get_result()->fetch_assoc();
@@ -120,13 +120,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $msg_type = 'danger';
                     } else {
                         $oldName = $cr['role_name'];
-                        $s = $link->prepare("UPDATE TBL_ROLES SET role_name = ?, description = ? WHERE id = ?");
+                        $s = $link->prepare("UPDATE " . tn('TBL_ROLES') . " SET role_name = ?, description = ? WHERE id = ?");
                         $s->bind_param('ssi', $roleName, $roleDesc, $roleId);
                         $s->execute();
-                        $up1 = $link->prepare("UPDATE TBL_ROLE_PERMISSIONS SET role = ? WHERE role = ?");
+                        $up1 = $link->prepare("UPDATE " . tn('TBL_ROLE_PERMISSIONS') . " SET role = ? WHERE role = ?");
                         $up1->bind_param('ss', $roleName, $oldName);
                         $up1->execute();
-                        $up2 = $link->prepare("UPDATE TBL_USERS SET ROLE = ? WHERE ROLE = ?");
+                        $up2 = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET ROLE = ? WHERE ROLE = ?");
                         $up2->bind_param('ss', $roleName, $oldName);
                         $up2->execute();
                         clearRbacCache();
@@ -135,10 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         logActivity($link, USER_ID, 'UPDATE', "Renamed role $oldName to $roleName");
                     }
                 } else {
-                    $s = $link->prepare("INSERT INTO TBL_ROLES (role_name, description, is_system) VALUES (?, ?, 0)");
+                    $s = $link->prepare("INSERT INTO " . tn('TBL_ROLES') . " (role_name, description, is_system) VALUES (?, ?, 0)");
                     $s->bind_param('ss', $roleName, $roleDesc);
                     if ($s->execute()) {
-                        $is2 = $link->prepare("INSERT IGNORE INTO TBL_ROLE_PERMISSIONS (role, permission_key, permission_value) VALUES (?, ?, 0)");
+                        $is2 = $link->prepare("INSERT IGNORE INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, 0)");
                         foreach (array_keys(getTBL_PERMISSIONSeed()) as $pk) {
                             $is2->bind_param('ss', $roleName, $pk);
                             $is2->execute();
@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ── Delete role ──
         if ($action === 'delete_role') {
             $roleId = (int)($_POST['role_id'] ?? 0);
-            $cs = $link->prepare("SELECT role_name, is_system FROM TBL_ROLES WHERE id = ?");
+            $cs = $link->prepare("SELECT role_name, is_system FROM " . tn('TBL_ROLES') . " WHERE id = ?");
             $cs->bind_param('i', $roleId);
             $cs->execute();
             $cr = $cs->get_result()->fetch_assoc();
@@ -170,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg_type = 'danger';
             } else {
                 $roleName = $cr['role_name'];
-                $uc = $link->prepare("SELECT COUNT(*) as c FROM TBL_USERS WHERE ROLE = ?");
+                $uc = $link->prepare("SELECT COUNT(*) as c FROM " . tn('TBL_USERS') . " WHERE ROLE = ?");
                 $uc->bind_param('s', $roleName);
                 $uc->execute();
                 $ucr = $uc->get_result()->fetch_assoc();
@@ -178,10 +178,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $msg = "Cannot delete: {$ucr['c']} user(s) still have this role. Reassign them first.";
                     $msg_type = 'danger';
                 } else {
-                    $dp = $link->prepare("DELETE FROM TBL_ROLE_PERMISSIONS WHERE role = ?");
+                    $dp = $link->prepare("DELETE FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = ?");
                     $dp->bind_param('s', $roleName);
                     $dp->execute();
-                    $dr = $link->prepare("DELETE FROM TBL_ROLES WHERE id = ?");
+                    $dr = $link->prepare("DELETE FROM " . tn('TBL_ROLES') . " WHERE id = ?");
                     $dr->bind_param('i', $roleId);
                     $dr->execute();
                     clearRbacCache();
@@ -208,12 +208,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = "Permission key '$pkey' already exists.";
                 $msg_type = 'danger';
             } else {
-                $stmt = $link->prepare("INSERT INTO TBL_PERMISSIONS (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, 0)");
+                $stmt = $link->prepare("INSERT INTO " . tn('TBL_PERMISSIONS') . " (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, 0)");
                 $stmt->bind_param('ssss', $pkey, $plabel, $pcat, $pdesc);
                 $stmt->execute();
                 // Backfill a row for every existing role (default 0)
-                $ins = $link->prepare("INSERT IGNORE INTO TBL_ROLE_PERMISSIONS (role, permission_key, permission_value) VALUES (?, ?, 0)");
-                $rr = mysqli_query($link, "SELECT role_name FROM TBL_ROLES");
+                $ins = $link->prepare("INSERT IGNORE INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, 0)");
+                $rr = mysqli_query($link, "SELECT role_name FROM " . tn('TBL_ROLES'));
                 while ($rr && $x = mysqli_fetch_assoc($rr)) {
                     $ins->bind_param('ss', $x['role_name'], $pkey);
                     $ins->execute();
@@ -231,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $plabel = trim($_POST['perm_label'] ?? '');
             $pcat = trim($_POST['perm_category'] ?? 'General');
             $pdesc = trim($_POST['perm_description'] ?? '');
-            $cs = $link->prepare("SELECT permission_key, is_system FROM TBL_PERMISSIONS WHERE id = ?");
+            $cs = $link->prepare("SELECT permission_key, is_system FROM " . tn('TBL_PERMISSIONS') . " WHERE id = ?");
             $id = (int)($_POST['perm_id'] ?? 0);
             $cs->bind_param('i', $id);
             $cs->execute();
@@ -243,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'Label is required.';
                 $msg_type = 'danger';
             } else {
-                $s = $link->prepare("UPDATE TBL_PERMISSIONS SET label = ?, category = ?, description = ? WHERE id = ?");
+                $s = $link->prepare("UPDATE " . tn('TBL_PERMISSIONS') . " SET label = ?, category = ?, description = ? WHERE id = ?");
                 $s->bind_param('sssi', $plabel, $pcat, $pdesc, $id);
                 $s->execute();
                 $msg = 'Permission updated.';
@@ -255,7 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ── Delete feature ──
         if ($action === 'delete_feature') {
             $id = (int)($_POST['perm_id'] ?? 0);
-            $cs = $link->prepare("SELECT permission_key, is_system FROM TBL_PERMISSIONS WHERE id = ?");
+            $cs = $link->prepare("SELECT permission_key, is_system FROM " . tn('TBL_PERMISSIONS') . " WHERE id = ?");
             $cs->bind_param('i', $id);
             $cs->execute();
             $cr = $cs->get_result()->fetch_assoc();
@@ -266,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'System permission keys cannot be deleted.';
                 $msg_type = 'danger';
             } else {
-                $dp = $link->prepare("DELETE FROM TBL_PERMISSIONS WHERE id = ?");
+                $dp = $link->prepare("DELETE FROM " . tn('TBL_PERMISSIONS') . " WHERE id = ?");
                 $dp->bind_param('i', $id);
                 $dp->execute();
                 clearRbacCache();
@@ -280,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ─── Fetch data ───
 $allTBL_ROLES = [];
-$ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM TBL_USERS WHERE ROLE = r.role_name) as user_count FROM TBL_ROLES r ORDER BY r.is_system DESC, r.id");
+$ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ROLE = r.role_name) as user_count FROM " . tn('TBL_ROLES') . " r ORDER BY r.is_system DESC, r.id");
 if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allTBL_ROLES[] = $a;
 
 $allTBL_PERMISSIONS = getAllTBL_PERMISSIONS($link);
@@ -293,13 +293,13 @@ if ($selectedRole === null && !empty($allTBL_ROLES)) {
 }
 $rolePerms = [];
 if ($selectedRole) {
-    $rp = mysqli_query($link, "SELECT permission_key, permission_value FROM TBL_ROLE_PERMISSIONS WHERE role = '" . mysqli_real_escape_string($link, $selectedRole) . "'");
+    $rp = mysqli_query($link, "SELECT permission_key, permission_value FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = '" . mysqli_real_escape_string($link, $selectedRole) . "'");
     while ($rp && $row = mysqli_fetch_assoc($rp)) $rolePerms[$row['permission_key']] = (int)$row['permission_value'];
 }
 
 // TBL_USERS for access tab
 $allTBL_USERS = [];
-$ur = mysqli_query($link, "SELECT ID, NAME, ROLE FROM TBL_USERS ORDER BY NAME");
+$ur = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " ORDER BY NAME");
 if ($ur) while ($u = mysqli_fetch_assoc($ur)) $allTBL_USERS[] = $u;
 
 if ($selectedUser === null && !empty($allTBL_USERS)) {
@@ -309,15 +309,15 @@ $userInfo = null;
 $userPerms = [];
 $effectivePerms = [];
 if ($selectedUser) {
-    $us = $link->prepare("SELECT ID, NAME, ROLE FROM TBL_USERS WHERE ID = ?");
+    $us = $link->prepare("SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ID = ?");
     $us->bind_param('i', $selectedUser);
     $us->execute();
     $userInfo = $us->get_result()->fetch_assoc();
-    $up = mysqli_query($link, "SELECT permission_key, permission_value FROM TBL_USER_PERMISSIONS WHERE user_id = $selectedUser");
+    $up = mysqli_query($link, "SELECT permission_key, permission_value FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = $selectedUser");
     while ($up && $row = mysqli_fetch_assoc($up)) $userPerms[$row['permission_key']] = (int)$row['permission_value'];
     // effective perms for this user (reuse can() logic approximation)
     if ($userInfo) {
-        $rp = mysqli_query($link, "SELECT permission_key, permission_value FROM TBL_ROLE_PERMISSIONS WHERE role = '" . mysqli_real_escape_string($link, $userInfo['ROLE']) . "'");
+        $rp = mysqli_query($link, "SELECT permission_key, permission_value FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = '" . mysqli_real_escape_string($link, $userInfo['ROLE']) . "'");
         $userRolePerms = [];
         while ($rp && $row = mysqli_fetch_assoc($rp)) $userRolePerms[$row['permission_key']] = (int)$row['permission_value'];
         foreach ($seedKeys as $pk) {

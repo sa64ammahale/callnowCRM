@@ -27,7 +27,7 @@ if ($_POST['action'] === 'assign_member') {
         $team_id = ($_POST['team_id'] ?? '') !== '' ? (int)$_POST['team_id'] : null;
         if ($user_id <= 0) { $msg = "Invalid member."; $msg_type = "danger"; }
         else {
-            $stmt = $link->prepare("SELECT TEAM_ID FROM TBL_USERS WHERE ID = ?");
+            $stmt = $link->prepare("SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ?");
             $stmt->bind_param("i", $user_id); $stmt->execute();
             $userRow = $stmt->get_result()->fetch_assoc();
             if (!$userRow) { $msg = "User not found."; $msg_type = "danger"; }
@@ -43,8 +43,8 @@ if ($_POST['action'] === 'assign_member') {
                 }
                 if (empty($msg)) {
                     $upd = $team_id === null
-                        ? $link->prepare("UPDATE TBL_USERS SET TEAM_ID = NULL WHERE ID = ?")
-                        : $link->prepare("UPDATE TBL_USERS SET TEAM_ID = ? WHERE ID = ?");
+                        ? $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = NULL WHERE ID = ?")
+                        : $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = ? WHERE ID = ?");
                     if ($team_id === null) $upd->bind_param("i", $user_id);
                     else $upd->bind_param("ii", $team_id, $user_id);
                     if ($upd->execute()) { $msg = "Member assignment updated."; $msg_type = "success"; }
@@ -65,11 +65,11 @@ if ($_POST['action'] === 'change_supervisor') {
         elseif (isManager() && !in_array($team_id, $managerTeamIds, true)) { $msg = "Not allowed."; $msg_type = "danger"; }
         else {
             if ($supervisor_id !== null) {
-                $check = $link->prepare("SELECT ID FROM TBL_USERS WHERE ID = ? AND ROLE IN ('Supervisor','Manager') AND STATUS = 'Active'");
+                $check = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ID = ? AND ROLE IN ('Supervisor','Manager') AND STATUS = 'Active'");
                 $check->bind_param("i", $supervisor_id); $check->execute();
                 if ($check->get_result()->num_rows === 0) { $msg = "User is not an active Supervisor/Manager."; $msg_type = "danger"; }
                 if (empty($msg)) {
-                    $checkTeam = $link->prepare("SELECT ID, NAME FROM TBL_TEAMS WHERE SUPERVISOR_ID = ? AND ID != ? LIMIT 1");
+                    $checkTeam = $link->prepare("SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = ? AND ID != ? LIMIT 1");
                     $checkTeam->bind_param("ii", $supervisor_id, $team_id); $checkTeam->execute();
                     $existing = $checkTeam->get_result()->fetch_assoc();
                     if ($existing) { $msg = "Supervisor already assigned to \"{$existing['NAME']}\"."; $msg_type = "danger"; }
@@ -77,17 +77,17 @@ if ($_POST['action'] === 'change_supervisor') {
             }
             if (empty($msg)) {
                 if ($supervisor_id === null) {
-                    $sql = "UPDATE TBL_TEAMS SET SUPERVISOR_ID = NULL WHERE ID = ?";
+                    $sql = "UPDATE " . tn('TBL_TEAMS') . " SET SUPERVISOR_ID = NULL WHERE ID = ?";
                     if (isManager()) $sql .= " AND ID IN (" . implode(',', array_map('intval', $managerTeamIds)) . ")";
                     $stmt = $link->prepare($sql); $stmt->bind_param("i", $team_id);
                 } else {
-                    $sql = "UPDATE TBL_TEAMS SET SUPERVISOR_ID = ? WHERE ID = ?";
+                    $sql = "UPDATE " . tn('TBL_TEAMS') . " SET SUPERVISOR_ID = ? WHERE ID = ?";
                     if (isManager()) $sql .= " AND ID IN (" . implode(',', array_map('intval', $managerTeamIds)) . ")";
                     $stmt = $link->prepare($sql); $stmt->bind_param("ii", $supervisor_id, $team_id);
                 }
                 if ($stmt->execute() && $stmt->affected_rows >= 0) {
                     if ($supervisor_id !== null) {
-                        $upd = $link->prepare("UPDATE TBL_USERS SET TEAM_ID = ? WHERE ID = ?");
+                        $upd = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = ? WHERE ID = ?");
                         $upd->bind_param("ii", $team_id, $supervisor_id); $upd->execute();
                     }
                     $msg = "Supervisor updated."; $msg_type = "success";
@@ -100,24 +100,24 @@ if ($_POST['action'] === 'change_supervisor') {
 // ─── Fetch data ───
 if (isAdmin()) {
     $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
-        FROM TBL_TEAMS t LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID ORDER BY t.NAME";
+        FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID ORDER BY t.NAME";
 } elseif (isManager()) {
     $ids_str = implode(',', array_map('intval', $managerTeamIds));
     $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
-        FROM TBL_TEAMS t LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID
+        FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID IN ($ids_str) ORDER BY t.NAME";
 } else { // Supervisor
     $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
-        FROM TBL_TEAMS t LEFT JOIN TBL_USERS sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN TBL_USERS mgr ON t.MANAGER_ID = mgr.ID
+        FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID = " . (int)USER_TEAM_ID . " ORDER BY t.NAME";
 }
 $TBL_TEAMS = mysqli_fetch_all(mysqli_query($link, $TBL_TEAMS_sql), MYSQLI_ASSOC);
 
-$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' ORDER BY NAME"), MYSQLI_ASSOC);
+$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' ORDER BY NAME"), MYSQLI_ASSOC);
 
 // Member count per team
 $memberCounts = [];
-$mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM TBL_USERS WHERE TEAM_ID IS NOT NULL GROUP BY TEAM_ID");
+$mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IS NOT NULL GROUP BY TEAM_ID");
 if ($mc) while ($m = mysqli_fetch_assoc($mc)) $memberCounts[(int)$m['TEAM_ID']] = (int)$m['cnt'];
 $totalMembers = 0;
 
@@ -136,7 +136,7 @@ if ($search_name !== '') { $where .= " AND u.NAME LIKE ?"; $types .= 's'; $param
 if ($filter_role !== '') { $where .= " AND u.ROLE = ?"; $types .= 's'; $params[] = $filter_role; }
 if ($filter_status !== '') { $where .= " AND u.STATUS = ?"; $types .= 's'; $params[] = $filter_status; }
 $TBL_USERS_sql = "SELECT u.ID, u.NAME, u.MOBILE, u.LOGIN_ID, u.ROLE, u.STATUS, u.TEAM_ID, t.NAME AS TEAM_NAME
-    FROM TBL_USERS u LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID WHERE $where ORDER BY t.NAME, u.NAME";
+    FROM " . tn('TBL_USERS') . " u LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE $where ORDER BY t.NAME, u.NAME";
 $stmt = $link->prepare($TBL_USERS_sql);
 if ($types !== '') $stmt->bind_param($types, ...$params);
 $stmt->execute();
@@ -151,7 +151,7 @@ foreach ($TBL_USERSList as $u) { if (!$u['TEAM_ID']) $unassignedCount++; }
 
 // Role description lookup
 $roleDesc = [];
-$rd = mysqli_query($link, "SELECT role_name, description FROM TBL_ROLES");
+$rd = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES'));
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 ?>
 <?php $pageTitle = 'Team Members - CallNow'; include '../../php_scripts/header.php'; ?>

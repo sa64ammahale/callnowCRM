@@ -45,7 +45,7 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
     // Seed the TBL_PERMISSIONS table (idempotent). Call after the table exists.
     function seedTBL_PERMISSIONS(mysqli $link): int {
         $seed = getTBL_PERMISSIONSeed();
-        $stmt = mysqli_prepare($link, "INSERT IGNORE INTO TBL_PERMISSIONS (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, ?)");
+        $stmt = mysqli_prepare($link, "INSERT IGNORE INTO " . tn('TBL_PERMISSIONS') . " (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, ?)");
         $count = 0;
         foreach ($seed as $key => $d) {
             mysqli_stmt_bind_param($stmt, 'ssssi', $key, $d['label'], $d['category'], $d['description'], $d['is_system']);
@@ -57,7 +57,7 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
     // Fetch all TBL_PERMISSIONS from DB (runtime source of truth).
     function getAllTBL_PERMISSIONS(mysqli $link): array {
         $out = [];
-        $res = mysqli_query($link, "SELECT id, permission_key, label, category, description, is_system FROM TBL_PERMISSIONS ORDER BY category, label");
+        $res = mysqli_query($link, "SELECT id, permission_key, label, category, description, is_system FROM " . tn('TBL_PERMISSIONS') . " ORDER BY category, label");
         if ($res) while ($r = mysqli_fetch_assoc($res)) $out[] = $r;
         return $out;
     }
@@ -72,7 +72,7 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
     }
 
     function permissionExists(mysqli $link, string $key): bool {
-        $stmt = mysqli_prepare($link, "SELECT 1 FROM TBL_PERMISSIONS WHERE permission_key = ?");
+        $stmt = mysqli_prepare($link, "SELECT 1 FROM " . tn('TBL_PERMISSIONS') . " WHERE permission_key = ?");
         mysqli_stmt_bind_param($stmt, 's', $key);
         mysqli_stmt_execute($stmt);
         return (bool) mysqli_stmt_num_rows($stmt);

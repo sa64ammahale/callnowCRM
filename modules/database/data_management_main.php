@@ -4,15 +4,15 @@ require_once __DIR__ . '/../../config.php';     // CRITICAL: establishes databas
 requirePermission('manage_database');
 
 // Get total count for header
-$total_records = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as total FROM TBL_MAIN"))['total'] ?? 0;
-$unused = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as c FROM TBL_MAIN WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called'"))['c'] ?? 0;
+$total_records = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as total FROM " . tn('TBL_MAIN')))['total'] ?? 0;
+$unused = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as c FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called'"))['c'] ?? 0;
 
 $statusCounts = [];
-$sc = mysqli_query($link, "SELECT MAINDATABASE_CALL_DIALED_STATUS, COUNT(*) as cnt FROM TBL_MAIN GROUP BY MAINDATABASE_CALL_DIALED_STATUS ORDER BY cnt DESC");
+$sc = mysqli_query($link, "SELECT MAINDATABASE_CALL_DIALED_STATUS, COUNT(*) as cnt FROM " . tn('TBL_MAIN') . " GROUP BY MAINDATABASE_CALL_DIALED_STATUS ORDER BY cnt DESC");
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
 
 // Get all active assignees for assign dropdown
-$TBL_USERS_result = mysqli_query($link, "SELECT ID, NAME FROM TBL_USERS WHERE STATUS = 'Active' ORDER BY NAME");
+$TBL_USERS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY NAME");
 $telecallers = [];
 while ($u = mysqli_fetch_assoc($TBL_USERS_result)) {
     $telecallers[$u['ID']] = $u['NAME'];
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($action === 'view' && !empty($_POST['id'])) {
         $id = intval($_POST['id']);
-        $stmt = mysqli_prepare($link, "SELECT * FROM TBL_MAIN WHERE ID = ? LIMIT 1");
+        $stmt = mysqli_prepare($link, "SELECT * FROM " . tn('TBL_MAIN') . " WHERE ID = ? LIMIT 1");
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $mobile = substr($mobile, -10);
 
-        $sql = "UPDATE TBL_MAIN SET MAINDATABASE_NAME = ?, MAINDATABASE_MOBILE = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_PACKAGE = ?, MAINDATABASE_OTHER_INFO = ?, MAINDATABASE_CALL_DIALED_STATUS = ?, MAINDATABASE_CALL_DIALED_USER = ? WHERE ID = ?";
+        $sql = "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_NAME = ?, MAINDATABASE_MOBILE = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_PACKAGE = ?, MAINDATABASE_OTHER_INFO = ?, MAINDATABASE_CALL_DIALED_STATUS = ?, MAINDATABASE_CALL_DIALED_USER = ? WHERE ID = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "ssssssii", $name, $mobile, $company, $package, $other, $status, $assigned, $id);
         $ok = mysqli_stmt_execute($stmt);

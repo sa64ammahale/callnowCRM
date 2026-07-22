@@ -60,12 +60,12 @@ $orderby = $columns[$col] ?? 'MAINDATABASE_UPLOAD_DATETIME';
 $orderby .= " " . ($dir === 'asc' ? 'ASC' : 'DESC');
 
 // Total records (without filter)
-$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM TBL_MAIN");
+$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN'));
 $total = ($totalRes && $row = mysqli_fetch_assoc($totalRes)) ? (int)$row['c'] : 0;
 
 // Filtered records count
-$countQuery = "SELECT COUNT(*) AS c FROM TBL_MAIN 
-               LEFT JOIN TBL_USERS u ON TBL_MAIN.MAINDATABASE_CALL_DIALED_USER = u.ID 
+$countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " 
+               LEFT JOIN " . tn('TBL_USERS') . " u ON " . tn('TBL_MAIN') . ".MAINDATABASE_CALL_DIALED_USER = u.ID 
                $where";
 $stmt = mysqli_prepare($link, $countQuery);
 if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
@@ -82,8 +82,8 @@ $sql = "SELECT maindb.ID,
                MAINDATABASE_CALL_DIALED_STATUS,
                u.NAME AS assigned_name,
                DATE_FORMAT(MAINDATABASE_UPLOAD_DATETIME, '%d-%b-%Y %h:%i %p') AS upload_dt
-        FROM TBL_MAIN maindb
-        LEFT JOIN TBL_USERS u ON maindb.MAINDATABASE_CALL_DIALED_USER = u.ID
+        FROM " . tn('TBL_MAIN') . " maindb
+        LEFT JOIN " . tn('TBL_USERS') . " u ON maindb.MAINDATABASE_CALL_DIALED_USER = u.ID
         $where
         ORDER BY $orderby
         LIMIT ?, ?";

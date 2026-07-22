@@ -182,6 +182,14 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Major Fix (2026-07-21): `tn()` Safe Table Resolver
+- **Root cause of HTTP 500s**: Stale config.php on Hostinger (missing new `TBL_*` constants) + opcache. Global `mysqli_report(MYSQLI_REPORT_ERROR)` added to prevent PHP 8.2 from throwing exceptions on query failures.
+- **`tn()` function**: Defined in `config.php` — resolves table names safely via constant, falls back to a global override map. All ~40+ PHP files converted to use `tn('TBL_*')` instead of bare constants.
+- **Missing table constants added**: `TBL_LEAD_NOTES`, `TBL_LEAD_FOLLOWUPS`, `TBL_LEAD_ASSIGNMENTS`, `TBL_USER_PAGE_FILTERS` — defined in config.php with self-heal guard.
+- **Auto-creation**: `ensureLeadModuleSchema()` now creates `lead_notes`, `lead_followups`, `lead_assignments` tables on first call.
+- **Scope of conversion**: All core files (`auth.php`, `team_auth.php`, `api_auth.php`, `permissions.php`, `header.php`, `profile.php`, index, dashboard, forgot-password), all lead module files (30+ scripts), all AJAX endpoints, all API endpoints, all settings/users/teams pages, all data management pages.
+- **Verification**: All PHP files pass `php -l` syntax check across entire repo.
+
 ## Remaining Known Issues (not yet fixed)
 - `data_management_main.php` references `bulk_assign.php` which doesn't exist
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.

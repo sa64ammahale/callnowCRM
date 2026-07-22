@@ -45,8 +45,8 @@ if (isset($_POST['archive_action']) && isset($_POST['archive_months'])) {
     } else {
     $months = intval($_POST['archive_months']);
     if ($months < 1) $months = 12;
-    $source_table = 'TBL_MAIN';
-    $archive_table = 'TBL_MAIN_ARCHIVE';
+    $source_table = tn('TBL_MAIN');
+    $archive_table = tn('TBL_MAIN_ARCHIVE');
 
     $create_sql = "CREATE TABLE IF NOT EXISTS `$archive_table` LIKE `$source_table`";
     if (!mysqli_query($link, $create_sql)) {
@@ -197,7 +197,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
                     $targets = [];
                     if ($target === 'temporary' || $target === 'both') {
                         $targets['temporary'] = [
-                            'table' => 'TBL_TEMP',
+                            'table' => tn('TBL_TEMP'),
                             'cols' => [
                                 'name' => 'CUST_NAME',
                                 'mobile' => 'CUST_MOBILE',
@@ -210,7 +210,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
                     }
                     if ($target === 'main' || $target === 'both') {
                         $targets['main'] = [
-                            'table' => 'TBL_MAIN',
+                            'table' => tn('TBL_MAIN'),
                             'cols' => [
                                 'name' => 'MAINDATABASE_NAME',
                                 'mobile' => 'MAINDATABASE_MOBILE',

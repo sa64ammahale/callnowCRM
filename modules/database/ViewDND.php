@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         } else {
             $delId = intval($_POST['id'] ?? 0);
             if ($delId > 0) {
-                $delSql = "DELETE FROM TBL_MAIN WHERE ID = ?";
+                $delSql = "DELETE FROM " . tn('TBL_MAIN') . " WHERE ID = ?";
                 if ($ds = mysqli_prepare($link, $delSql)) {
                     mysqli_stmt_bind_param($ds, "i", $delId);
                     if (mysqli_stmt_execute($ds)) {
@@ -72,7 +72,7 @@ if ($search !== '') {
 $whereSql = implode(' AND ', $whereClauses);
 
 // --- Count total
-$countSql = "SELECT COUNT(*) AS cnt FROM TBL_MAIN WHERE $whereSql";
+$countSql = "SELECT COUNT(*) AS cnt FROM " . tn('TBL_MAIN') . " WHERE $whereSql";
 $totalRecords = 0;
 if ($stmt = mysqli_prepare($link, $countSql)) {
     if ($types !== '') {
@@ -95,7 +95,7 @@ if ($page > $totalPages) $page = $totalPages; // guard
 
 // --- Fetch current page data
 $selectSql = "SELECT ID, MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_CALL_DIAL_TIME
-              FROM TBL_MAIN
+              FROM " . tn('TBL_MAIN') . "
               WHERE $whereSql
               ORDER BY MAINDATABASE_CALL_DIAL_TIME DESC
               LIMIT ? OFFSET ?";

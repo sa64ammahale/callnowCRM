@@ -135,7 +135,7 @@ $unionSubquery = "
         CUST_MOBILE            AS cust_mobile,
         CUST_COMPANY           AS cust_company,
         'TEMP'                 AS source
-    FROM TBL_TEMP
+    FROM " . tn('TBL_TEMP') . "
 
     UNION ALL
 
@@ -148,7 +148,7 @@ $unionSubquery = "
         MAINDATABASE_MOBILE  AS cust_mobile,
         MAINDATABASE_COMPANY AS cust_company,
         'MAIN'               AS source
-    FROM TBL_MAIN
+    FROM " . tn('TBL_MAIN') . "
 ";
 
 /**
@@ -233,7 +233,7 @@ $grand_rate = $grand_total ? round($grand_connected / $grand_total * 100, 1) : 0
 
 // TBL_TEAMS for filter dropdown
 $TBL_TEAMS = in_array(USER_ROLE, ['Admin','Manager'])
-    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM TBL_TEAMS ORDER BY NAME"), MYSQLI_ASSOC)
+    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC)
     : [];
 
 /**
@@ -306,7 +306,7 @@ if ($selected_user_id !== null) {
     $selected_user_name = $TBL_USERS_index[$selected_user_id] ?? null;
 
     if ($selected_user_name === null) {
-        $resUser = mysqli_query($link, "SELECT NAME FROM TBL_USERS WHERE ID = " . (int)$selected_user_id);
+        $resUser = mysqli_query($link, "SELECT NAME FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)$selected_user_id);
         if ($resUser && mysqli_num_rows($resUser) === 1) {
             $selected_user_name = mysqli_fetch_assoc($resUser)['NAME'];
         }

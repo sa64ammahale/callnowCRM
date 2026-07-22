@@ -43,9 +43,9 @@ $sql = "
         COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') AS company_name,
         COALESCE(NULLIF(m.MAINDATABASE_MOBILE, ''), NULLIF(l.MOBILE, ''), 'N/A') AS mobile,
         COALESCE(u.NAME, 'Unassigned') AS assigned_name
-    FROM TBL_LEADS l
-    LEFT JOIN TBL_MAIN m ON m.ID = l.cust_id
-    LEFT JOIN TBL_USERS u ON u.ID = l.assigned_to
+    FROM " . tn('TBL_LEADS') . " l
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON m.ID = l.cust_id
+    LEFT JOIN " . tn('TBL_USERS') . " u ON u.ID = l.assigned_to
     {$where}
     ORDER BY FIELD(l.lead_status_new, 'LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'),
              l.updated_at DESC, l.lead_id DESC
