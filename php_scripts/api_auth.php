@@ -50,7 +50,11 @@ function apiRequireAuth(): array {
 function apiRequirePermission(string $permission): void {
     $tokenData = $GLOBALS['api_token_data'] ?? null;
     if (!$tokenData) apiError(401, 'Authentication required');
-    
+
+    if ($tokenData['user_role'] === 'Admin' || (int)$tokenData['user_id'] === 1) {
+        return;
+    }
+
     global $link;
     $stmt = $link->prepare("
         SELECT 1 FROM " . tn('TBL_ROLE_PERMISSIONS') . " rp

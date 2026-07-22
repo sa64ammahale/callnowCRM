@@ -218,4 +218,62 @@
         }
     }
 
+    if (!function_exists('ensureApiSchema')) {
+        function ensureApiSchema(mysqli $link): void {
+            static $done = false;
+            if ($done) return;
+
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_API_SETTINGS') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(100) NOT NULL,
+                setting_value TEXT DEFAULT NULL,
+                description TEXT DEFAULT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_setting_key (setting_key)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_API_TOKENS') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                token VARCHAR(128) NOT NULL,
+                name VARCHAR(100) DEFAULT 'Mobile App',
+                expires_at DATETIME DEFAULT NULL,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                last_used_at DATETIME DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_token (token),
+                KEY idx_user_id (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_API_DB_ASSIGNMENTS') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                database_type ENUM('temporary','main','leads') NOT NULL,
+                team_id INT DEFAULT NULL,
+                assigned_by INT DEFAULT NULL,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_user_db (user_id, database_type),
+                KEY idx_team_id (team_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_API_ACCESS_LOGS') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                token_id INT DEFAULT NULL,
+                user_id INT DEFAULT NULL,
+                endpoint VARCHAR(255) DEFAULT NULL,
+                method VARCHAR(10) DEFAULT NULL,
+                ip_address VARCHAR(45) DEFAULT NULL,
+                user_agent VARCHAR(255) DEFAULT NULL,
+                response_code INT DEFAULT 200,
+                execution_time_ms INT DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_token_id (token_id),
+                KEY idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            $done = true;
+        }
+    }
+
 ?>

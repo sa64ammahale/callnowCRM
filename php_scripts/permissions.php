@@ -42,6 +42,16 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
         ];
     }
 
+    function seedApiPermission(mysqli $link): void {
+        $perm = 'manage_api';
+        if (!permissionExists($link, $perm)) {
+            $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_PERMISSIONS') . " (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, ?)");
+            mysqli_stmt_bind_param($stmt, 'ssssi', $perm, 'Manage API Access', 'Integration', 'Create and manage API tokens and database assignments', 1);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
+        }
+    }
+
     // Seed the TBL_PERMISSIONS table (idempotent). Call after the table exists.
     function seedTBL_PERMISSIONS(mysqli $link): int {
         $seed = getTBL_PERMISSIONSeed();

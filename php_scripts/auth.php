@@ -53,6 +53,7 @@ function isOfficer() { return USER_ROLE === 'Officer'; }
 function requireRole($TBL_ROLES) {
     $TBL_ROLES = is_array($TBL_ROLES) ? $TBL_ROLES : [$TBL_ROLES];
     if (!in_array(USER_ROLE, $TBL_ROLES)) {
+        $_SESSION['access_denied_message'] = "Access denied: your role does not permit access to this page.";
         appRedirect('dashboard.php');
     }
 }
@@ -141,7 +142,10 @@ function can(string $permissionKey): bool {
 
 // Gate a page/action: redirect to dashboard if the user lacks the permission.
 function requirePermission(string $key): void {
-    if (!can($key)) appRedirect('dashboard.php');
+    if (!can($key)) {
+        $_SESSION['access_denied_message'] = "Access denied: you do not have permission to view this page.";
+        appRedirect('dashboard.php');
+    }
 }
 
 // Gate a page/action: redirect unless the user has at least one of the keys.
@@ -149,6 +153,7 @@ function requireAnyPermission(array $keys): void {
     foreach ($keys as $k) {
         if (can($k)) return;
     }
+    $_SESSION['access_denied_message'] = "Access denied: you do not have permission to view this page.";
     appRedirect('dashboard.php');
 }
 

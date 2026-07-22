@@ -317,7 +317,7 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
                 <p>Manage application settings and TBL_USERS</p>
             </div>
             <div class="st-header-right">
-                <a href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>" class="st-btn-primary" style="text-decoration:none;font-size:0.8125rem!important;padding:0.5rem 1.1rem!important;display:inline-flex;align-items:center;gap:0.4rem;">
+                <a href="<?= url('modules/settings/permissions_manager.php') ?>" class="st-btn-primary" style="text-decoration:none;font-size:0.8125rem!important;padding:0.5rem 1.1rem!important;display:inline-flex;align-items:center;gap:0.4rem;">
                     <i class="bi bi-shield-lock"></i> Manage TBL_ROLES &amp; TBL_PERMISSIONS
                 </a>
             </div>
@@ -340,7 +340,7 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
         <a href="<?= url('modules/settings/settings.php') ?>?tab=TBL_USERS" class="st-tab <?= $tab==='TBL_USERS'?'active':'' ?>">
             <i class="bi bi-people"></i> TBL_USERS
         </a>
-        <a href="<?= url('modules/settings/TBL_API_SETTINGS.php') ?>" class="st-tab <?= $tab==='api'?'active':'' ?>">
+        <a href="<?= url('modules/settings/api_settings.php') ?>" class="st-tab <?= $tab==='api'?'active':'' ?>">
             <i class="bi bi-phone"></i> API Access
         </a>
     </div>

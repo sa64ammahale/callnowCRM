@@ -93,7 +93,7 @@ function navActive($patterns) {
             <?php endif; ?>
         </div>
 
-        <?php if (can('manage_users')): ?>
+        <?php if (can('manage_TBL_USERS')): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Manage</div>
             <a class="app-sidebar-link <?= navActive(['users_view.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_view.php') ?>">
@@ -105,7 +105,7 @@ function navActive($patterns) {
                 <span class="link-text">Add User</span>
             </a>
             <?php endif; ?>
-            <?php if (can('manage_teams')): ?>
+            <?php if (can('manage_TBL_TEAMS')): ?>
             <a class="app-sidebar-link <?= navActive(['teams_dashboard.php']) ? 'active' : '' ?>" href="<?= url('modules/users/teams_dashboard.php') ?>">
                 <i class="bi bi-diagram-3"></i>
                 <span class="link-text">Teams</span>
@@ -131,7 +131,7 @@ function navActive($patterns) {
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">System</div>
             <?php if (isAdmin()): ?>
-            <a class="app-sidebar-link <?= navActive(['TBL_PERMISSIONS_manager.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['permissions_manager.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>">
                 <i class="bi bi-shield-lock"></i>
                 <span class="link-text">Access Control</span>
             </a>
@@ -140,7 +140,7 @@ function navActive($patterns) {
                 <span class="link-text">Settings</span>
             </a>
             <?php if (can('manage_api')): ?>
-            <a class="app-sidebar-link <?= navActive(['TBL_API_SETTINGS.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/TBL_API_SETTINGS.php') ?>">
+            <a class="app-sidebar-link <?= navActive(['api_settings.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/api_settings.php') ?>">
                 <i class="bi bi-key"></i>
                 <span class="link-text">API Access</span>
             </a>

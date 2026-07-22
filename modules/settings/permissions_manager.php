@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
-require_once __DIR__ . '/../../php_scripts/TBL_PERMISSIONS.php';
+require_once __DIR__ . '/../../php_scripts/permissions.php';
 requireRole('Admin');
 
 $msg = '';
@@ -408,10 +408,10 @@ if ($selectedUser) {
     <?php endif; ?>
 
     <div class="pm-tabs">
-        <a href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>?tab=features" class="pm-tab <?= $tab==='features'?'active':'' ?>"><i class="bi bi-key"></i> Features</a>
-        <a href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>?tab=TBL_ROLES" class="pm-tab <?= $tab==='TBL_ROLES'?'active':'' ?>"><i class="bi bi-diagram-3"></i> TBL_ROLES</a>
-        <a href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>?tab=role_perms" class="pm-tab <?= $tab==='role_perms'?'active':'' ?>"><i class="bi bi-shield-check"></i> Role TBL_PERMISSIONS</a>
-        <a href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>?tab=user_access" class="pm-tab <?= $tab==='user_access'?'active':'' ?>"><i class="bi bi-person-gear"></i> User Access</a>
+        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=features" class="pm-tab <?= $tab==='features'?'active':'' ?>"><i class="bi bi-key"></i> Features</a>
+        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=TBL_ROLES" class="pm-tab <?= $tab==='TBL_ROLES'?'active':'' ?>"><i class="bi bi-diagram-3"></i> TBL_ROLES</a>
+        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=role_perms" class="pm-tab <?= $tab==='role_perms'?'active':'' ?>"><i class="bi bi-shield-check"></i> Role TBL_PERMISSIONS</a>
+        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=user_access" class="pm-tab <?= $tab==='user_access'?'active':'' ?>"><i class="bi bi-person-gear"></i> User Access</a>
     </div>
 
     <?php if ($tab === 'features'): ?>
@@ -647,7 +647,7 @@ if ($selectedUser) {
 
             <div class="pm-role-pills">
                 <?php foreach ($allTBL_ROLES as $role): ?>
-                    <a href="<?= url('modules/settings/TBL_PERMISSIONS_manager.php') ?>?tab=role_perms&role=<?= urlencode($role['role_name']) ?>" class="pm-role-pill <?= $selectedRole===$role['role_name']?'active':'' ?>"><?= htmlspecialchars($role['role_name']) ?></a>
+                    <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=role_perms&role=<?= urlencode($role['role_name']) ?>" class="pm-role-pill <?= $selectedRole===$role['role_name']?'active':'' ?>"><?= htmlspecialchars($role['role_name']) ?></a>
                 <?php endforeach; ?>
             </div>
 

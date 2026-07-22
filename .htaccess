@@ -36,6 +36,13 @@ DirectoryIndex index.php
     # Public self-signup is disabled in production (CRM is invite/admin-provisioned)
     RewriteCond %{REMOTE_ADDR} !^(127\.0\.0\.1|::1)$
     RewriteRule ^CallNowSignUp\.php$ - [F,L]
+
+    # Route API requests to index.php routers when no physical file matches
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/v1/auth/(.*)$ api/v1/auth/index.php [L,QSA]
+    RewriteRule ^api/v1/admin/(.*)$ api/v1/admin/index.php [L,QSA]
+    RewriteRule ^api/v1/telecaller/(.*)$ api/v1/telecaller/index.php [L,QSA]
 </IfModule>
 
 # ── Deny direct web access to PHP inside upload / private directories ──

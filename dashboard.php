@@ -54,6 +54,14 @@ $unused_numbers = (int)($row5['unused'] ?? 0);
 ?>
 
 <div class="container py-4">
+    <?php if (!empty($_SESSION['access_denied_message'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-shield-exclamation"></i> <?= htmlspecialchars($_SESSION['access_denied_message']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php unset($_SESSION['access_denied_message']); ?>
+    <?php endif; ?>
+
     <!-- Welcome -->
     <div class="welcome-card mb-4">
         <div class="row align-items-center">

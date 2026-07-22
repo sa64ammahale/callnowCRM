@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../php_scripts/auth.php';
 requirePermission('manage_api');
 
 global $link;
+ensureApiSchema($link);
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -178,6 +179,157 @@ include __DIR__ . '/../../php_scripts/header.php';
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
+
+    <!-- ═══ API INTEGRATION TOUR GUIDE ═══ -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#apiTourGuide" aria-expanded="true">
+            <h5 class="mb-0"><i class="bi bi-book-half me-2"></i>API Integration Guide</h5>
+            <i class="bi bi-chevron-down"></i>
+        </div>
+        <div id="apiTourGuide" class="collapse show">
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="flex-shrink-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;font-weight:700;">1</div>
+                            <div>
+                                <h6 class="mb-1">Create API Token</h6>
+                                <p class="text-muted small mb-0">Click <strong>Create API Token</strong>, select the mobile app user, set expiry days, and copy the generated token immediately. Tokens are shown only once.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="flex-shrink-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;font-weight:700;">2</div>
+                            <div>
+                                <h6 class="mb-1">Assign Database Access</h6>
+                                <p class="text-muted small mb-0">In <strong>Database Assignments</strong>, click <strong>Add Assignment</strong> and choose which databases the app can access: Temporary, Main, and/or Leads. Optionally restrict by team.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="flex-shrink-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;font-weight:700;">3</div>
+                            <div>
+                                <h6 class="mb-1">Connect Your App</h6>
+                                <p class="text-muted small mb-0">Use the token in the <code>Authorization</code> header as <code>Bearer &lt;token&gt;</code>. Base URL: <code><?= htmlspecialchars((APP_BASE ?? '') . '/api/v1') ?></code></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <h6 class="fw-bold mb-3"><i class="bi bi-code-slash me-2"></i>Available Endpoints</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Method</th>
+                                <th>Endpoint</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge bg-success">POST</span></td>
+                                <td><code>/api/v1/auth/login</code></td>
+                                <td>Exchange email + password for a Bearer token and DB access list</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info">GET</span></td>
+                                <td><code>/api/v1/auth/me</code></td>
+                                <td>Get current user profile and database access</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info">GET</span></td>
+                                <td><code>/api/v1/auth/refresh</code></td>
+                                <td>Extend token expiry by configured days</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info">GET</span></td>
+                                <td><code>/api/v1/telecaller/dashboard</code></td>
+                                <td>Dashboard stats: today's calls, connected, pending, assigned total</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info">GET</span></td>
+                                <td><code>/api/v1/telecaller/calls</code></td>
+                                <td>Paginated call history with filters: source, status, date range, search</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info">GET</span></td>
+                                <td><code>/api/v1/telecaller/next-call</code></td>
+                                <td>Get the next pending call for the telecaller</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-success">POST</span></td>
+                                <td><code>/api/v1/telecaller/calls/{id}/complete</code></td>
+                                <td>Submit call result: status, notes, duration, next follow-up</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-success">POST</span></td>
+                                <td><code>/api/v1/telecaller/submit_call.php</code></td>
+                                <td>Alternative direct endpoint for submitting call outcomes</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info">GET</span></td>
+                                <td><code>/api/v1/admin/settings</code></td>
+                                <td>List all API settings (requires <code>manage_api</code>)</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-info">GET</span></td>
+                                <td><code>/api/v1/admin/tokens</code></td>
+                                <td>List all API tokens with pagination (requires <code>manage_api</code>)</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-success">POST</span></td>
+                                <td><code>/api/v1/admin/tokens</code></td>
+                                <td>Create a new API token (requires <code>manage_api</code>)</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-danger">DELETE</span></td>
+                                <td><code>/api/v1/admin/tokens/{id}</code></td>
+                                <td>Revoke an API token (requires <code>manage_api</code>)</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-success">POST</span></td>
+                                <td><code>/api/v1/admin/assignments</code></td>
+                                <td>Assign database access to a user (requires <code>manage_api</code>)</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-danger">DELETE</span></td>
+                                <td><code>/api/v1/admin/assignments/{id}</code></td>
+                                <td>Remove a database assignment (requires <code>manage_api</code>)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <hr class="my-4">
+
+                <h6 class="fw-bold mb-3"><i class="bi bi-lightbulb me-2"></i>Quick Example (cURL)</h6>
+                <pre class="bg-dark text-light p-3 rounded small mb-0" style="overflow-x:auto;"><code># 1. Login and get token
+curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/auth/login') ?> \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"your_password"}'
+
+# 2. Call telecaller dashboard
+curl -X GET <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/dashboard') ?> \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+# 3. Submit a call result
+curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/calls/123/complete') ?> \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"temporary","call_status":"Connected","notes":"Customer interested","duration_seconds":180}'</code></pre>
+
+                <div class="alert alert-info mt-3 mb-0 small">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Note:</strong> All API responses are JSON. Non-admins see only their own data. Unauthorized access returns <code>403</code>, missing token returns <code>401</code>. Rate limits apply per API settings.
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Settings Card -->
     <div class="card mb-4">
