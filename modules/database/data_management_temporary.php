@@ -642,7 +642,7 @@ $(document).ready(function() {
     window.bulkDelete = function() {
         const ids = getSelectedIds();
         if (!confirm('Delete selected records permanently?')) return;
-        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_delete.php', { ids: ids }, function(res) {
+        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showToast('Deleted!', `${ids.length} records removed`, 'danger');

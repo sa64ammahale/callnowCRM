@@ -22,11 +22,17 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 $leadId = (int)$_POST['lead_id'];
 $action = trim((string)($_POST['action'] ?? 'save_lead'));
 
+$accessibleUserIds = getAccessibleUserIds($link);
+$accessWhere = '';
+if (!isAdmin() && !empty($accessibleUserIds)) {
+    $accessWhere = ' AND l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+}
+
 $leadSql = "
-    SELECT l.lead_id, l.cust_id, l.assigned_to, m.MAINDATABASE_MOBILE
+    SELECT l.lead_id, l.cust_id, l.assigned_to, l.team_id, m.MAINDATABASE_MOBILE
     FROM " . tn('TBL_LEADS') . " l
     LEFT JOIN " . tn('TBL_MAIN') . " m ON m.ID = l.cust_id
-    WHERE l.lead_id = ?
+    WHERE l.lead_id = ?{$accessWhere}
     LIMIT 1
 ";
 $stmt = mysqli_prepare($link, $leadSql);

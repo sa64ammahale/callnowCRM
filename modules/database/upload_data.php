@@ -582,9 +582,15 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
             <?php if (empty($logs)): ?>
               <div class="alert alert-light small mb-0">No logs yet.</div>
             <?php else: ?>
+              <?php
+              $logPerPage = 20;
+              $logPage = max(1, (int)($_GET['log_page'] ?? 1));
+              $allLogs = array_reverse(array_slice($logs, -200));
+              $totalLogPages = max(1, (int)ceil(count($allLogs) / $logPerPage));
+              $pageLogs = array_slice($allLogs, ($logPage - 1) * $logPerPage, $logPerPage);
+              ?>
               <div class="accordion" id="logsAccordion" style="max-height:45vh; overflow:auto;">
-                <?php foreach (array_reverse(array_slice($logs, -200)) as $idx => $l): 
-                    // very simple severity inference for visual badges
+                <?php foreach ($pageLogs as $idx => $l): 
                     $lc = strtolower($l);
                     if (strpos($lc,'error')!==false || strpos($lc,'failed')!==false) { $sev='danger'; $label='ERR'; }
                     elseif (strpos($lc,'invalid')!==false || strpos($lc,'skip')!==false) { $sev='warning'; $label='WARN'; }
@@ -607,6 +613,20 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
                   </div>
                 <?php endforeach; ?>
               </div>
+              <?php if ($totalLogPages > 1): ?>
+              <div class="d-flex justify-content-between align-items-center mt-2">
+                <small class="text-muted">Page <?= $logPage ?> of <?= $totalLogPages ?></small>
+                <nav>
+                  <ul class="pagination pagination-sm mb-0">
+                    <?php for ($p = 1; $p <= $totalLogPages; $p++): ?>
+                      <li class="page-item <?= $p == $logPage ? 'active' : '' ?>">
+                        <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['log_page' => $p]))) ?>"><?= $p ?></a>
+                      </li>
+                    <?php endfor; ?>
+                  </ul>
+                </nav>
+              </div>
+              <?php endif; ?>
             <?php endif; ?>
           </div>
 

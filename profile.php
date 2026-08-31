@@ -57,25 +57,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
                     $types  .= "s";
                 }
 
-                $params[] = USER_ID;
-                $types    .= "i";
-
-                $sql = "UPDATE " . tn('TBL_USERS') . " SET " . implode(", ", $updateFields) . " WHERE ID = ?";
-                $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, $types, ...$params);
-
-                if (mysqli_stmt_execute($stmt)) {
-                    $_SESSION['name']     = $name;
-                    $_SESSION['mobile']   = $mobile;
-                    $_SESSION['login_id'] = $login_id;
-                    $Message = "Profile updated successfully!";
-                    $type = "success";
-                    logActivity($link, USER_ID, "UPDATE", "Updated own profile", (string)USER_ID, "TBL_USERS");
-                } else {
-                    $Message = "Database error: " . mysqli_error($link);
-                    $type = "danger";
+                // Handle profile photo removal
+                if (!empty($_POST['remove_photo'])) {
+                    $oldPhoto = $profile['profile_photo'] ?? '';
+                    if ($oldPhoto && file_exists(__DIR__ . '/uploads/profile_photos/' . $oldPhoto)) {
+                        @unlink(__DIR__ . '/uploads/profile_photos/' . $oldPhoto);
+                    }
+                    $updateFields[] = "profile_photo = NULL";
                 }
-                mysqli_stmt_close($stmt);
+
+                // Handle profile photo upload
+                $newName = '';
+                if (!empty($_FILES['profile_photo']['name']) && $_FILES['profile_photo']['error'] === UPLOAD_ERR_OK) {
+                    $file = $_FILES['profile_photo'];
+                    $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+                    $maxSize = 2 * 1024 * 1024; // 2MB
+
+                    if (!in_array($file['type'], $allowed, true)) {
+                        $Message = "Invalid image format. Use JPG, PNG, WebP or GIF.";
+                        $type = "danger";
+                    } elseif ($file['size'] > $maxSize) {
+                        $Message = "Image must be under 2MB.";
+                        $type = "danger";
+                    } else {
+                        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                        $newName = 'user_' . USER_ID . '_' . time() . '.' . $ext;
+                        $dest = __DIR__ . '/uploads/profile_photos/' . $newName;
+
+                        if (move_uploaded_file($file['tmp_name'], $dest)) {
+                            $updateFields[] = "profile_photo = ?";
+                            $params[] = $newName;
+                            $types  .= "s";
+
+                            // Delete old photo if exists
+                            $oldPhoto = $profile['profile_photo'] ?? '';
+                            if ($oldPhoto && file_exists(__DIR__ . '/uploads/profile_photos/' . $oldPhoto)) {
+                                @unlink(__DIR__ . '/uploads/profile_photos/' . $oldPhoto);
+                            }
+                        } else {
+                            $Message = "Failed to upload image.";
+                            $type = "danger";
+                        }
+                    }
+                }
+
+                if ($Message === '') {
+                    $params[] = USER_ID;
+                    $types    .= "i";
+
+                    $sql = "UPDATE " . tn('TBL_USERS') . " SET " . implode(", ", $updateFields) . " WHERE ID = ?";
+                    $stmt = mysqli_prepare($link, $sql);
+                    mysqli_stmt_bind_param($stmt, $types, ...$params);
+
+                    if (mysqli_stmt_execute($stmt)) {
+                        $_SESSION['name']     = $name;
+                        $_SESSION['mobile']   = $mobile;
+                        $_SESSION['login_id'] = $login_id;
+                        if (!empty($newName)) {
+                            $_SESSION['profile_photo'] = $newName;
+                        } elseif (!empty($_POST['remove_photo'])) {
+                            $_SESSION['profile_photo'] = '';
+                        }
+                        $Message = "Profile updated successfully!";
+                        $type = "success";
+                        logActivity($link, USER_ID, "UPDATE", "Updated own profile", (string)USER_ID, "TBL_USERS");
+                    } else {
+                        $Message = "Database error: " . mysqli_error($link);
+                        $type = "danger";
+                    }
+                    mysqli_stmt_close($stmt);
+                }
             }
         }
     }
@@ -90,6 +141,7 @@ $profile = [
     'TEAM_ID'  => $_SESSION['team_id']  ?? '',
     'COMPANY'  => $_SESSION['company']  ?? '',
     'JOIN_DATE'=> $_SESSION['join_date']?? '',
+    'profile_photo' => $_SESSION['profile_photo'] ?? '',
 ];
 ?>
 <?php $pageTitle = 'My Profile'; ?>
@@ -98,7 +150,28 @@ $profile = [
 <style>
     .hero-card { background: var(--accent); color: #fff; border-radius: var(--radius-xl); padding: 2rem; box-shadow: var(--shadow-md); position: relative; overflow: hidden; }
     .hero-card > * { position: relative; z-index: 1; }
-    .avatar-ring { width: 90px; height: 90px; border-radius: 50%; background: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; color: #fff; border: 3px solid rgba(255,255,255,0.5); flex-shrink: 0; }
+    .avatar-ring { 
+        width: 90px; 
+        height: 90px; 
+        border-radius: 50%; 
+        background: rgba(255,255,255,0.25); 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        font-size: 2rem; 
+        font-weight: 700; 
+        color: #fff; 
+        border: 3px solid rgba(255,255,255,0.5); 
+        flex-shrink: 0; 
+        overflow: hidden; 
+        padding: 0;
+    }
+    .avatar-ring img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
     .role-badge { display: inline-flex; align-items: center; gap: 0.375rem; background: rgba(255,255,255,0.2); padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; border: 1px solid rgba(255,255,255,0.3); }
     .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.125rem; box-shadow: var(--shadow); transition: border-color 0.12s ease, box-shadow 0.12s ease; }
     .info-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
@@ -113,7 +186,57 @@ $profile = [
     .password-wrapper { position: relative; }
     .password-wrapper .toggle-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--ink-muted); cursor: pointer; font-size: 0.9375rem; transition: color 0.12s; }
     .password-wrapper .toggle-btn:hover { color: var(--accent); }
-    @media (max-width: 576px) { .hero-card { padding: 1.5rem; } .avatar-ring { width: 72px; height: 72px; font-size: 1.75rem; } }
+    .btn-save-profile {
+        background: linear-gradient(135deg, var(--accent), var(--accent-hover, #4f46e5));
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        padding: 0.65rem 1.5rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+        transition: all 0.15s ease;
+    }
+    .btn-save-profile:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+        color: #fff;
+    }
+    .btn-back-profile {
+        background: #fff;
+        border: 1px solid var(--border);
+        color: var(--ink-soft);
+        font-weight: 500;
+        padding: 0.65rem 1.25rem;
+        border-radius: 0.5rem;
+        transition: all 0.15s ease;
+    }
+    .btn-back-profile:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--surface);
+    }
+    .photo-preview {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 3px solid var(--border);
+    }
+    .photo-preview {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 3px solid var(--border);
+    }
+    @media (max-width: 576px) { 
+        .hero-card { padding: 1.5rem; } 
+        .avatar-ring { width: 72px; height: 72px; font-size: 1.75rem; } 
+        .btn-save-profile, .btn-back-profile {
+            width: 100%;
+            text-align: center;
+        }
+    }
 </style>
 
 <div class="container py-4">
@@ -124,8 +247,14 @@ $profile = [
             <!-- Hero / Identity card -->
             <div class="hero-card mb-4">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="avatar-ring">
-                        <?= strtoupper(mb_substr($profile['NAME'], 0, 1)) ?>
+                    <div class="avatar-ring" style="background: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; color: #fff; border: 3px solid rgba(255,255,255,0.5); flex-shrink: 0; overflow: hidden; padding: 0;">
+                        <?php if (!empty($profile['profile_photo']) && file_exists(__DIR__ . '/uploads/profile_photos/' . $profile['profile_photo'])): ?>
+                            <img src="<?= htmlspecialchars(APP_BASE . '/uploads/profile_photos/' . $profile['profile_photo']) ?>" 
+                                 alt="Profile" 
+                                 style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                        <?php else: ?>
+                            <?= strtoupper(mb_substr($profile['NAME'], 0, 1)) ?>
+                        <?php endif; ?>
                     </div>
                     <div>
                         <h4 class="fw-bold mb-1"><?= htmlspecialchars($profile['NAME']) ?></h4>
@@ -214,9 +343,47 @@ $profile = [
                         </div>
                     <?php endif; ?>
 
-                    <form method="POST" novalidate>
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        <div class="row g-3">
+                        <form method="POST" novalidate enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <div class="row g-3">
+
+                                <!-- Profile Photo -->
+                                <div class="col-12">
+                                    <label class="form-label-custom" for="profile_photo">
+                                        <i class="bi bi-camera me-1"></i>Profile Photo
+                                    </label>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div style="width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 3px solid var(--border); flex-shrink: 0; background: var(--accent); display: flex; align-items: center; justify-content: center;">
+                                            <?php if (!empty($profile['profile_photo']) && file_exists(__DIR__ . '/uploads/profile_photos/' . $profile['profile_photo'])): ?>
+                                                <img src="<?= htmlspecialchars(APP_BASE . '/uploads/profile_photos/' . $profile['profile_photo']) ?>" 
+                                                     alt="Profile" 
+                                                     class="photo-preview"
+                                                     style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                                            <?php else: ?>
+                                                <span style="font-size: 2rem; font-weight: 700; color: #fff;">
+                                                    <?= strtoupper(mb_substr($profile['NAME'], 0, 1)) ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <input type="file" 
+                                                   class="form-control form-control-custom" 
+                                                   id="profile_photo" 
+                                                   name="profile_photo" 
+                                                   accept="image/jpeg,image/png,image/webp,image/gif">
+                                            <small class="text-muted">JPG, PNG, WebP or GIF. Max 2MB.</small>
+                                            <?php if (!empty($profile['profile_photo'])): ?>
+                                                <br>
+                                                <label class="text-danger small" style="cursor: pointer;">
+                                                    <input type="checkbox" name="remove_photo" value="1" class="form-check-input me-1">
+                                                    Remove current photo
+                                                </label>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr class="my-3 text-muted opacity-25" />
 
                             <div class="col-md-6">
                                 <label class="form-label-custom" for="name">
@@ -300,13 +467,13 @@ $profile = [
                                 </div>
                             </div>
 
-                            <div class="col-12 mt-2 d-flex flex-wrap gap-2">
+                            <div class="col-12 mt-4 d-flex flex-wrap gap-2">
                                 <button type="submit" name="update_profile"
-                                        class="btn btn-energy">
+                                        class="btn btn-save-profile">
                                     <i class="bi bi-check2-circle me-2"></i>Save Changes
                                 </button>
                                 <a href="dashboard.php"
-                                   class="btn btn-energy-outline">
+                                   class="btn btn-back-profile">
                                     <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
                                 </a>
                             </div>

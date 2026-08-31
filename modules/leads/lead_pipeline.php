@@ -120,7 +120,7 @@ $totalAll = count($rows);
             <input type="text" id="plSearchInput" placeholder="Filter cards by name, company, mobile, assigned…">
         </div>
         <div class="pl-filter-total">
-            <span id="plVisibleCount"><?= number_format($totalAll) ?></span> / <?= number_format($totalAll) ?> shown
+            <span id="plVisibleCount"><?= number_format($totalAll) ?></span> of <?= number_format($totalAll) ?> leads
         </div>
     </div>
 

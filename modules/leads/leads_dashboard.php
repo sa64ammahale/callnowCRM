@@ -78,7 +78,7 @@ $pipelineSteps = [
     ['key' => 'DISBURSED',    'icon' => 'bi-cash-coin',     'color' => '#059669'],
 ];
 $pipelineMax = max(1, max(array_map(function($s) use ($statusCounts) { return $statusCounts[$s['key']] ?? 0; }, $pipelineSteps)));
-$userName = (is_array($user) && isset($user['NAME'])) ? $user['NAME'] : 'User';
+$userName = $_SESSION['name'] ?? 'User';
 ?>
 <?php $pageTitle = 'Lead Dashboard - CallNow'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 

@@ -98,15 +98,22 @@ if (($_POST['action'] ?? '') === 'edit') {
 }
 
 // ==================== DELETE TEAM ====================
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    $link->query("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = NULL WHERE TEAM_ID = $id");
-    if ($link->query("DELETE FROM " . tn('TBL_TEAMS') . " WHERE ID = $id")) {
-        $msg = "Team deleted!";
-        $msg_type = "success";
-    } else {
-        $msg = "Cannot delete team (in use?)";
+if (($_POST['action'] ?? '') === 'delete') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $msg = "Invalid session token";
         $msg_type = "danger";
+    } else {
+        $id = (int)($_POST['team_id'] ?? 0);
+        if ($id > 0) {
+            $link->query("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = NULL WHERE TEAM_ID = " . $id);
+            if ($link->query("DELETE FROM " . tn('TBL_TEAMS') . " WHERE ID = " . $id)) {
+                $msg = "Team deleted!";
+                $msg_type = "success";
+            } else {
+                $msg = "Cannot delete team (in use?)";
+                $msg_type = "danger";
+            }
+        }
     }
     header("Location: teams_dashboard.php");
     exit;
@@ -666,13 +673,14 @@ while ($m = mysqli_fetch_assoc($members_res)) {
                                                 <a href="<?= url('modules/users/teams_dashboard.php') ?>?edit=<?= $t['ID'] ?>" class="td-btn-sm-icon team-action-btn" title="Edit team" style="border-color:#fde68a;color:#92400e;">
                                                     <i class="bi bi-pencil-square"></i> Edit
                                                 </a>
-                                                <a href="<?= url('modules/users/teams_dashboard.php') ?>?delete=<?= $t['ID'] ?>"
-                                                   onclick="return confirm('Delete team «<?= htmlspecialchars($t['TEAM_NAME']) ?>»? All members will be unassigned.')"
-                                                   class="td-btn-sm-icon team-action-btn"
-                                                   title="Delete team"
-                                                   style="border-color:#fecaca;color:#991b1b;">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
+                                                <form method="POST" class="d-inline" onsubmit="return confirm('Delete team «<?= htmlspecialchars($t['TEAM_NAME']) ?>»? All members will be unassigned.');">
+                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                                    <input type="hidden" name="action" value="delete">
+                                                    <input type="hidden" name="team_id" value="<?= $t['ID'] ?>">
+                                                    <button type="submit" class="td-btn-sm-icon team-action-btn" title="Delete team" style="border-color:#fecaca;color:#991b1b;background:none;cursor:pointer;">
+                                                        <i class="bi bi-trash"></i> Delete
+                                                    </button>
+                                                </form>
                                             </td>
                                         </tr>
                                     <?php endwhile; ?>

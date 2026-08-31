@@ -5,19 +5,6 @@ require_once '../../php_scripts/team_auth.php';
 $isEdit = isset($_GET['ID']);
 $userID = $isEdit ? intval($_GET['ID']) : 0;
 
-if (USER_ROLE === 'Supervisor') {
-    if ($isEdit) {
-        $check = mysqli_prepare($link, "SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ?");
-        mysqli_stmt_bind_param($check, "i", $userID);
-        mysqli_stmt_execute($check);
-        $res = mysqli_stmt_get_result($check);
-        $user = mysqli_fetch_assoc($res);
-        if (!$user || $user['TEAM_ID'] != USER_TEAM_ID) {
-            $_SESSION['error'] = "Access denied! You can only edit your team members.";
-            header("Location: users_view.php"); exit;
-        }
-    }
-}
 requirePermission('manage_TBL_USERS');
 
 $Message = ""; $type = "";

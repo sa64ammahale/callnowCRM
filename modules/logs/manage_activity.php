@@ -9,9 +9,6 @@ requirePermission('view_activity');
 $userId = intval($_SESSION['id']);
 $userRole = defined('USER_ROLE') ? USER_ROLE : ($_SESSION['role'] ?? '');
 
-define('TBL_ACTIVITY', 'activity_log');
-define('TBL_USERS', 'users');
-
 /* CSRF */
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
 $csrf = $_SESSION['csrf_token'];
@@ -29,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $alertType = "danger";
     } else if ($action === 'delete_single' && isset($_POST['id'], $_POST['csrf']) && hash_equals($csrf, $_POST['csrf'])) {
         $deleteId = intval($_POST['id']);
-        $sql = "DELETE FROM " . TBL_ACTIVITY . " WHERE LOG_ID = ?";
+        $sql = "DELETE FROM " . tn('TBL_ACTIVITY_LOG') . " WHERE LOG_ID = ?";
         if ($stmt = mysqli_prepare($link, $sql)) {
             mysqli_stmt_bind_param($stmt, "i", $deleteId);
             if (mysqli_stmt_execute($stmt)) {
@@ -49,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (count($ids) > 0) {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
             $types = str_repeat('i', count($ids));
-            $sql = "DELETE FROM " . TBL_ACTIVITY . " WHERE LOG_ID IN ($placeholders)";
+            $sql = "DELETE FROM " . tn('TBL_ACTIVITY_LOG') . " WHERE LOG_ID IN ($placeholders)";
             if ($stmt = mysqli_prepare($link, $sql)) {
                 $bind_names = [];
                 $bind_names[] = $types;
@@ -110,6 +107,16 @@ if ($q !== '') {
 if ($date_from !== '') { $where[] = "a.LOG_TIME >= ?"; $types .= 's'; $params[] = $date_from . " 00:00:00"; }
 if ($date_to !== '') { $where[] = "a.LOG_TIME <= ?"; $types .= 's'; $params[] = $date_to . " 23:59:59"; }
 
+if (isSupervisor()) {
+    $where[] = "a.USER_ID IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+    $types .= 'i';
+    $params[] = USER_TEAM_ID;
+} elseif (isOfficer()) {
+    $where[] = "a.USER_ID = ?";
+    $types .= 'i';
+    $params[] = USER_ID;
+}
+
 $where_sql = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $allowedSort = ['LOG_TIME','USER_ID','ACTION_TYPE','LOG_ID'];
@@ -118,8 +125,8 @@ $sort = in_array($rawSort, $allowedSort) ? $rawSort : 'LOG_TIME';
 $dir = (isset($_GET['dir']) && strtoupper($_GET['dir']) === 'ASC') ? 'ASC' : 'DESC';
 $sort_col = '`' . $sort . '`';
 
-/* Count total (JOIN TBL_USERS for name filter correctness) */
-$count_sql = "SELECT COUNT(*) FROM " . TBL_ACTIVITY . " a LEFT JOIN " . TBL_USERS . " u ON a.USER_ID = u.ID $where_sql";
+/* Count total (JOIN users for name filter correctness) */
+$count_sql = "SELECT COUNT(*) FROM " . tn('TBL_ACTIVITY_LOG') . " a LEFT JOIN " . tn('TBL_USERS') . " u ON a.USER_ID = u.ID $where_sql";
 $total = 0;
 if ($stmt = mysqli_prepare($link, $count_sql)) {
     if ($types !== '') {
@@ -136,8 +143,8 @@ if ($stmt = mysqli_prepare($link, $count_sql)) {
 /* Fetch page rows with user join */
 $select_sql = "SELECT a.LOG_ID, a.USER_ID, u.NAME AS USER_NAME, u.ROLE AS USER_ROLE,
                       a.ACTION_TYPE, a.ACTION_DETAILS, a.AFFECTED_IDS, a.TARGET_TABLE, a.LOG_TIME, a.IP_ADDRESS
-               FROM " . TBL_ACTIVITY . " a
-               LEFT JOIN " . TBL_USERS . " u ON a.USER_ID = u.ID
+               FROM " . tn('TBL_ACTIVITY_LOG') . " a
+               LEFT JOIN " . tn('TBL_USERS') . " u ON a.USER_ID = u.ID
                $where_sql
                ORDER BY $sort_col $dir
                LIMIT ? OFFSET ?";
@@ -165,11 +172,11 @@ if ($stmt = mysqli_prepare($link, $select_sql)) {
 /* CSV export */
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $export_sql = "SELECT a.LOG_ID, a.USER_ID, u.NAME AS USER_NAME, u.ROLE AS USER_ROLE,
-                          a.ACTION_TYPE, a.ACTION_DETAILS, a.AFFECTED_IDS, a.TARGET_TABLE, a.LOG_TIME, a.IP_ADDRESS
-                   FROM " . TBL_ACTIVITY . " a
-                   LEFT JOIN " . TBL_USERS . " u ON a.USER_ID = u.ID
-                   $where_sql
-                   ORDER BY $sort_col $dir";
+                           a.ACTION_TYPE, a.ACTION_DETAILS, a.AFFECTED_IDS, a.TARGET_TABLE, a.LOG_TIME, a.IP_ADDRESS
+                    FROM " . tn('TBL_ACTIVITY_LOG') . " a
+                    LEFT JOIN " . tn('TBL_USERS') . " u ON a.USER_ID = u.ID
+                    $where_sql
+                    ORDER BY $sort_col $dir";
     if ($stmt = mysqli_prepare($link, $export_sql)) {
         if ($types !== '') {
             $bind_names = []; $bind_names[] = $types; foreach ($params as $p) $bind_names[] = $p;
@@ -197,21 +204,21 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     }
 }
 
-/* Build filter dropdown values (TBL_USERS with names) */
+/* Build filter dropdown values (users with names) */
 $TBL_USERSList = [];
-$res = mysqli_query($link, "SELECT ID, NAME FROM " . TBL_USERS . " ORDER BY NAME ASC");
+$res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " ORDER BY NAME ASC");
 if ($res) {
     while ($r = mysqli_fetch_assoc($res)) $TBL_USERSList[$r['ID']] = $r['NAME'];
     mysqli_free_result($res);
 }
 $actionTypes = [];
-$res = mysqli_query($link, "SELECT DISTINCT ACTION_TYPE FROM " . TBL_ACTIVITY . " ORDER BY ACTION_TYPE ASC");
+$res = mysqli_query($link, "SELECT DISTINCT ACTION_TYPE FROM " . tn('TBL_ACTIVITY_LOG') . " ORDER BY ACTION_TYPE ASC");
 if ($res) {
     while ($r = mysqli_fetch_assoc($res)) $actionTypes[] = $r['ACTION_TYPE'];
     mysqli_free_result($res);
 }
 $targetTables = [];
-$res = mysqli_query($link, "SELECT DISTINCT TARGET_TABLE FROM " . TBL_ACTIVITY . " ORDER BY TARGET_TABLE ASC");
+$res = mysqli_query($link, "SELECT DISTINCT TARGET_TABLE FROM " . tn('TBL_ACTIVITY_LOG') . " ORDER BY TARGET_TABLE ASC");
 if ($res) {
     while ($r = mysqli_fetch_assoc($res)) $targetTables[] = $r['TARGET_TABLE'];
     mysqli_free_result($res);

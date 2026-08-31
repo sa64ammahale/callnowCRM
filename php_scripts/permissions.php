@@ -38,7 +38,7 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
                 'export_data' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
             'Officer'    => [
-                'manage_leads' => 1, 'view_reports' => 1,
+                'manage_leads' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
         ];
     }

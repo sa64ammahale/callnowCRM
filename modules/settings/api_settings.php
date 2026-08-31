@@ -99,7 +99,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'revoke_token') {
         $tokenId = (int)($_POST['token_id'] ?? 0);
         if ($tokenId) {
-            @$link->query("UPDATE " . tn('TBL_API_TOKENS') . " SET is_active = 0 WHERE id = $tokenId");
+            $stmt = $link->prepare("UPDATE " . tn('TBL_API_TOKENS') . " SET is_active = 0 WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $tokenId);
+                $stmt->execute();
+            }
             logActivity($link, USER_ID, 'API_TOKEN_REVOKED', "Revoked token #$tokenId", '', 'TBL_API_TOKENS');
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Token revoked'];
@@ -133,7 +137,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'remove_assignment') {
         $assignId = (int)($_POST['assign_id'] ?? 0);
         if ($assignId) {
-            $link->query("DELETE FROM " . tn('TBL_API_DB_ASSIGNMENTS') . " WHERE id = $assignId");
+            $stmt = $link->prepare("DELETE FROM " . tn('TBL_API_DB_ASSIGNMENTS') . " WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $assignId);
+                $stmt->execute();
+            }
             logActivity($link, USER_ID, 'API_ASSIGNMENT_REMOVED', "Removed assignment #$assignId", '', 'TBL_API_DB_ASSIGNMENTS');
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Assignment removed'];
@@ -141,6 +149,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+
+// Pagination setup
+$perPage = 10;
+$page = max(1, (int)($_GET['page'] ?? 1));
+$offset = ($page - 1) * $perPage;
 
 // Fetch data
 $settings = [];
@@ -155,11 +168,17 @@ if ($res) {
 }
 
 $tokens = [];
+$totalTokens = 0;
+$res = @$link->query("SELECT COUNT(*) FROM " . tn('TBL_API_TOKENS'));
+if ($res) {
+    $totalTokens = (int)$res->fetch_row()[0];
+}
 $res = @$link->query("
     SELECT t.*, u.NAME as user_name, u.EMAIL as user_email, u.ROLE as user_role
     FROM " . tn('TBL_API_TOKENS') . " t
     JOIN " . tn('TBL_USERS') . " u ON t.user_id = u.ID
     ORDER BY t.created_at DESC
+    LIMIT $perPage OFFSET $offset
 ");
 if ($res) {
     while ($row = $res->fetch_assoc()) $tokens[] = $row;
@@ -172,6 +191,11 @@ if ($res) {
 }
 
 $assignments = [];
+$totalAssignments = 0;
+$res = @$link->query("SELECT COUNT(*) FROM " . tn('TBL_API_DB_ASSIGNMENTS'));
+if ($res) {
+    $totalAssignments = (int)$res->fetch_row()[0];
+}
 $res = @$link->query("
     SELECT a.*, u.NAME as user_name, u.ROLE as user_role, u.TEAM_ID as user_team_id, 
            t.NAME as team_name, sup.NAME as assigned_by_name
@@ -180,6 +204,7 @@ $res = @$link->query("
     LEFT JOIN " . tn('TBL_TEAMS') . " t ON a.team_id = t.ID
     LEFT JOIN " . tn('TBL_USERS') . " sup ON a.assigned_by = sup.ID
     ORDER BY a.assigned_at DESC
+    LIMIT $perPage OFFSET $offset
 ");
 if ($res) {
     while ($row = $res->fetch_assoc()) $assignments[] = $row;
@@ -198,6 +223,16 @@ if (is_string($allowedDbs)) {
 $allowedDbs = is_array($allowedDbs) ? $allowedDbs : [];
 $flash = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
+
+// Activity logs pagination
+$logPerPage = 20;
+$logPage = max(1, (int)($_GET['log_page'] ?? 1));
+$logOffset = ($logPage - 1) * $logPerPage;
+$totalLogs = 0;
+$res = @$link->query("SELECT COUNT(*) FROM " . tn('TBL_API_ACCESS_LOGS'));
+if ($res) {
+    $totalLogs = (int)$res->fetch_row()[0];
+}
 
 $pageTitle = 'API Access Management';
 include __DIR__ . '/../../php_scripts/header.php';
@@ -506,6 +541,20 @@ curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/calls/1
                     </table>
                 </div>
             <?php endif; ?>
+            <?php if ($totalTokens > $perPage): ?>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted">Showing <?= number_format($offset + 1) ?> - <?= number_format(min($offset + $perPage, $totalTokens)) ?> of <?= number_format($totalTokens) ?> tokens</small>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <?php for ($p = 1; $p <= max(1, (int)ceil($totalTokens / $perPage)); $p++): ?>
+                            <li class="page-item <?= $p == $page ? 'active' : '' ?>">
+                                <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['page' => $p]))) ?>"><?= $p ?></a>
+                            </li>
+                        <?php endfor; ?>
+                    </ul>
+                </nav>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -564,6 +613,20 @@ curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/calls/1
                     </table>
                 </div>
             <?php endif; ?>
+            <?php if ($totalAssignments > $perPage): ?>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted">Showing <?= number_format($offset + 1) ?> - <?= number_format(min($offset + $perPage, $totalAssignments)) ?> of <?= number_format($totalAssignments) ?> assignments</small>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <?php for ($p = 1; $p <= max(1, (int)ceil($totalAssignments / $perPage)); $p++): ?>
+                            <li class="page-item <?= $p == $page ? 'active' : '' ?>">
+                                <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['page' => $p]))) ?>"><?= $p ?></a>
+                            </li>
+                        <?php endfor; ?>
+                    </ul>
+                </nav>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -586,12 +649,21 @@ curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/calls/1
                     </thead>
                     <tbody>
                         <?php
+                        $logPage = max(1, (int)($_GET['log_page'] ?? 1));
+                        $logPerPage = 20;
+                        $logOffset = ($logPage - 1) * $logPerPage;
+                        $totalLogs = 0;
+                        $resCount = @$link->query("SELECT COUNT(*) FROM " . tn('TBL_API_ACCESS_LOGS'));
+                        if ($resCount) {
+                            $totalLogs = (int)$resCount->fetch_row()[0];
+                        }
+                        $totalLogPages = max(1, (int)ceil($totalLogs / $logPerPage));
                         $logs = $link->query("
                             SELECT al.*, u.NAME as user_name
                             FROM " . tn('TBL_API_ACCESS_LOGS') . " al
                             LEFT JOIN " . tn('TBL_USERS') . " u ON al.user_id = u.ID
                             ORDER BY al.created_at DESC
-                            LIMIT 50
+                            LIMIT $logPerPage OFFSET $logOffset
                         ");
                         while ($log = $logs->fetch_assoc()):
                         ?>
@@ -614,6 +686,20 @@ curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/calls/1
                     </tbody>
                 </table>
             </div>
+            <?php if ($totalLogPages > 1): ?>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted">Showing <?= number_format($logOffset + 1) ?> - <?= number_format(min($logOffset + $logPerPage, $totalLogs)) ?> of <?= number_format($totalLogs) ?> logs</small>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <?php for ($p = 1; $p <= $totalLogPages; $p++): ?>
+                            <li class="page-item <?= $p == $logPage ? 'active' : '' ?>">
+                                <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['log_page' => $p]))) ?>"><?= $p ?></a>
+                            </li>
+                        <?php endfor; ?>
+                    </ul>
+                </nav>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>

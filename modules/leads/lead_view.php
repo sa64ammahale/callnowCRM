@@ -35,7 +35,7 @@ $leadSql = "
     LEFT JOIN " . tn('TBL_MAIN') . " m ON m.ID = l.cust_id
     LEFT JOIN " . tn('TBL_USERS') . " u ON u.ID = l.assigned_to
     LEFT JOIN " . tn('TBL_TEAMS') . " t ON t.ID = l.team_id
-    WHERE l.lead_id = ?
+    WHERE l.lead_id = ?{$accessWhere}
     LIMIT 1
 ";
 $stmt = mysqli_prepare($link, $leadSql);

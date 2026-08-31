@@ -81,8 +81,8 @@ function computeRange(string $preset, string &$from, string &$to): void {
 
 if ($range === 'custom') {
     if (!$from || !$to) {
-        $range = 'today';
-        computeRange('today', $from, $to);
+        $from = '';
+        $to   = '';
     }
 } else {
     computeRange($range, $from, $to);
@@ -91,6 +91,8 @@ if ($range === 'custom') {
 $rangeLabel = $rangeLabels[$range] ?? 'Today';
 $spanDays   = (new DateTime($to))->diff(new DateTime($from))->days + 1;
 $bucket     = $spanDays > 31 ? 'month' : 'day';
+$missingCustom = ($range === 'custom' && (!$from || !$to));
+$runQueries = !$missingCustom;
 
 
 // ──────────────────────────────────────────────────────────────
@@ -181,16 +183,6 @@ LEFT JOIN " . tn('TBL_USERS') . " s ON t.SUPERVISOR_ID = s.ID
     ORDER BY t.NAME, u.NAME
 ";
 
-$stmt = mysqli_prepare($link, $sqlSummary);
-if ($stmt === false) {
-    die("Prepare failed: " . mysqli_error($link));
-}
-if ($typesBase !== "") {
-    mysqli_stmt_bind_param($stmt, $typesBase, ...$paramsBase);
-}
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-
 $data          = [];
 $grand_total   = 0;
 $grand_connected = 0;
@@ -202,32 +194,44 @@ $grand_pending = 0;
 $grand_not_called = 0;
 $TBL_USERS_index   = [];
 
-while ($row = mysqli_fetch_assoc($result)) {
-    $row['rate'] = $row['total'] ? round($row['connected'] / $row['total'] * 100, 1) : 0;
-
-    $team_name = $row['team_name'] ?: 'No Team';
-    if (!isset($data[$team_name])) {
-        $data[$team_name] = [
-            'team_id'         => $row['team_id'],
-            'supervisor_id'   => $row['SUPERVISOR_ID'],
-            'supervisor_name' => $row['supervisor_name'],
-            'TBL_USERS'           => []
-        ];
+if ($runQueries) {
+    $stmt = mysqli_prepare($link, $sqlSummary);
+    if ($stmt === false) {
+        die("Prepare failed: " . mysqli_error($link));
     }
-    $data[$team_name]['TBL_USERS'][] = $row;
+    if ($typesBase !== "") {
+        mysqli_stmt_bind_param($stmt, $typesBase, ...$paramsBase);
+    }
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
 
-    $grand_total      += (int)$row['total'];
-    $grand_connected  += (int)$row['connected'];
-    $grand_dialed     += (int)$row['dialed'];
-    $grand_busy       += (int)$row['busy'];
-    $grand_no_ans     += (int)$row['no_answer'];
-    $grand_dnc        += (int)$row['dnc'];
-    $grand_pending    += (int)$row['pending'];
-    $grand_not_called += (int)$row['not_called'];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $row['rate'] = $row['total'] ? round($row['connected'] / $row['total'] * 100, 1) : 0;
 
-    $TBL_USERS_index[$row['user_id']] = $row['user_name'];
+        $team_name = $row['team_name'] ?: 'No Team';
+        if (!isset($data[$team_name])) {
+            $data[$team_name] = [
+                'team_id'         => $row['team_id'],
+                'supervisor_id'   => $row['SUPERVISOR_ID'],
+                'supervisor_name' => $row['supervisor_name'],
+                'TBL_USERS'           => []
+            ];
+        }
+        $data[$team_name]['TBL_USERS'][] = $row;
+
+        $grand_total      += (int)$row['total'];
+        $grand_connected  += (int)$row['connected'];
+        $grand_dialed     += (int)$row['dialed'];
+        $grand_busy       += (int)$row['busy'];
+        $grand_no_ans     += (int)$row['no_answer'];
+        $grand_dnc        += (int)$row['dnc'];
+        $grand_pending    += (int)$row['pending'];
+        $grand_not_called += (int)$row['not_called'];
+
+        $TBL_USERS_index[$row['user_id']] = $row['user_name'];
+    }
+    mysqli_stmt_close($stmt);
 }
-mysqli_stmt_close($stmt);
 
 $grand_rate = $grand_total ? round($grand_connected / $grand_total * 100, 1) : 0;
 
@@ -257,28 +261,30 @@ LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
     GROUP BY bucket
     ORDER BY bucket
 ";
-$stmtT = mysqli_prepare($link, $sqlTrend);
-if ($stmtT === false) {
-    die("Prepare failed (trend): " . mysqli_error($link));
-}
-if ($typesBase !== "") {
-    mysqli_stmt_bind_param($stmtT, $typesBase, ...$paramsBase);
-}
-mysqli_stmt_execute($stmtT);
-$resT = mysqli_stmt_get_result($stmtT);
-while ($r = mysqli_fetch_assoc($resT)) {
-    if ($bucket === 'month') {
-        $label = (new DateTime($r['bucket']))->format('M Y');
-    } else {
-        $label = (new DateTime($r['bucket']))->format('d M');
+if ($runQueries) {
+    $stmtT = mysqli_prepare($link, $sqlTrend);
+    if ($stmtT === false) {
+        die("Prepare failed (trend): " . mysqli_error($link));
     }
-    $trend[] = [
-        'label'     => $label,
-        'total'     => (int)$r['total'],
-        'connected' => (int)$r['connected'],
-    ];
+    if ($typesBase !== "") {
+        mysqli_stmt_bind_param($stmtT, $typesBase, ...$paramsBase);
+    }
+    mysqli_stmt_execute($stmtT);
+    $resT = mysqli_stmt_get_result($stmtT);
+    while ($r = mysqli_fetch_assoc($resT)) {
+        if ($bucket === 'month') {
+            $label = (new DateTime($r['bucket']))->format('M Y');
+        } else {
+            $label = (new DateTime($r['bucket']))->format('d M');
+        }
+        $trend[] = [
+            'label'     => $label,
+            'total'     => (int)$r['total'],
+            'connected' => (int)$r['connected'],
+        ];
+    }
+    mysqli_stmt_close($stmtT);
 }
-mysqli_stmt_close($stmtT);
 
 // Per-user series (for bar chart)
 $userLabels = [];
@@ -339,20 +345,22 @@ LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
         ORDER BY m.call_time DESC
     ";
 
-    $stmt2 = mysqli_prepare($link, $sqlDetail);
-    if ($stmt2 === false) {
-        die("Prepare failed (detail): " . mysqli_error($link));
-    }
-    if ($typesDetail !== "") {
-        mysqli_stmt_bind_param($stmt2, $typesDetail, ...$paramsDetail);
-    }
-    mysqli_stmt_execute($stmt2);
-    $resDetail = mysqli_stmt_get_result($stmt2);
+    if ($runQueries) {
+        $stmt2 = mysqli_prepare($link, $sqlDetail);
+        if ($stmt2 === false) {
+            die("Prepare failed (detail): " . mysqli_error($link));
+        }
+        if ($typesDetail !== "") {
+            mysqli_stmt_bind_param($stmt2, $typesDetail, ...$paramsDetail);
+        }
+        mysqli_stmt_execute($stmt2);
+        $resDetail = mysqli_stmt_get_result($stmt2);
 
-    while ($r = mysqli_fetch_assoc($resDetail)) {
-        $detail_rows[] = $r;
+        while ($r = mysqli_fetch_assoc($resDetail)) {
+            $detail_rows[] = $r;
+        }
+        mysqli_stmt_close($stmt2);
     }
-    mysqli_stmt_close($stmt2);
 }
 
 // Build a query-string helper that preserves current filters.
@@ -534,7 +542,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
         <form method="GET" class="row g-3 align-items-end">
             <div class="col-auto">
                 <label class="form-label d-block">Time Range</label>
-                <select name="range" class="form-select" onchange="this.form.submit()">
+                <select name="range" class="form-select" id="rangeSelect">
                     <option value="today"        <?= $range==='today'?'selected':'' ?>>Today</option>
                     <option value="yesterday"    <?= $range==='yesterday'?'selected':'' ?>>Yesterday</option>
                     <option value="last7"        <?= $range==='last7'?'selected':'' ?>>Last 7 Days</option>
@@ -549,7 +557,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                 </select>
             </div>
 
-            <?php if ($range === 'custom'): ?>
+            <div id="customDateRange" class="row g-3 <?= $range === 'custom' ? '' : 'd-none' ?>">
                 <div class="col-auto">
                     <label class="form-label d-block">From</label>
                     <input type="date" name="from" class="form-control" value="<?= htmlspecialchars($from) ?>" required>
@@ -557,6 +565,12 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                 <div class="col-auto">
                     <label class="form-label d-block">To</label>
                     <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($to) ?>" required>
+                </div>
+            </div>
+
+            <?php if ($missingCustom): ?>
+                <div class="col-12">
+                    <div class="alert alert-danger py-2 mb-0">Please select both From and To dates.</div>
                 </div>
             <?php endif; ?>
 
@@ -585,6 +599,18 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
             </div>
         </form>
     </div>
+
+    <script>
+    document.getElementById('rangeSelect').addEventListener('change', function() {
+        var el = document.getElementById('customDateRange');
+        if (this.value === 'custom') {
+            el.classList.remove('d-none');
+        } else {
+            el.classList.add('d-none');
+            this.form.submit();
+        }
+    });
+    </script>
 
     <!-- Charts -->
     <?php if ($grand_total > 0): ?>
@@ -718,7 +744,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                     <tbody>
                         <?php foreach ($detail_rows as $r): ?>
                             <tr>
-                                <td><?= htmlspecialchars($r['call_time']) ?></td>
+                                <td><?= $r['call_time'] ? htmlspecialchars(date('d M Y, h:i A', strtotime($r['call_time']))) : '—' ?></td>
                                 <td><?= htmlspecialchars($r['cust_name'] ?: '—') ?></td>
                                 <td><?= htmlspecialchars($r['cust_mobile']) ?></td>
                                 <td><?= htmlspecialchars($r['cust_company'] ?: '—') ?></td>
