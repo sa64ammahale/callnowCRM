@@ -16,6 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+ensureApiSchema($GLOBALS['link']);
+
 $tokenData = apiRequireAuth();
 apiRequirePermission('manage_api');
 

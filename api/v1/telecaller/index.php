@@ -11,6 +11,8 @@ require_once __DIR__ . '/../../../php_scripts/api_auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+ensureApiSchema($GLOBALS['link']);
+
 $tokenData = $GLOBALS['api_token_data'];
 $userId = (int)$tokenData['user_id'];
 $userRole = $tokenData['user_role'];

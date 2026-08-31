@@ -337,6 +337,9 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
         <a href="<?= url('modules/settings/settings.php') ?>?tab=general" class="st-tab <?= $tab==='general'?'active':'' ?>">
             <i class="bi bi-sliders"></i> General
         </a>
+        <a href="<?= url('modules/settings/settings.php') ?>?tab=branding" class="st-tab <?= $tab==='branding'?'active':'' ?>">
+            <i class="bi bi-palette"></i> Branding
+        </a>
         <a href="<?= url('modules/settings/settings.php') ?>?tab=TBL_USERS" class="st-tab <?= $tab==='TBL_USERS'?'active':'' ?>">
             <i class="bi bi-people"></i> TBL_USERS
         </a>
@@ -399,36 +402,46 @@ if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt
                 </div>
 
                 <hr style="border-color:var(--st-border);margin:1.25rem 0;">
-
-                <!-- ══ Application Logo ══ -->
-                <form method="POST" enctype="multipart/form-data" class="mb-0">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="settings_action" value="upload_logo">
-                    <div class="row g-3 align-items-center">
-                        <div class="col-md-2 text-center">
-                            <?php if (!empty($settings['logo_path'])): ?>
-                                <img src="<?= htmlspecialchars((defined('APP_BASE') ? APP_BASE : '') . '/' . ltrim($settings['logo_path'], '/')) ?>" alt="App Logo" style="max-height:64px;max-width:140px;object-fit:contain;border:1px solid var(--st-border);border-radius:0.5rem;padding:0.25rem;background:#fff;">
-                            <?php else: ?>
-                                <div style="width:64px;height:64px;border:1px dashed var(--st-border);border-radius:0.5rem;display:flex;align-items:center;justify-content:center;color:var(--st-ink-soft);margin:0 auto;"><i class="bi bi-image" style="font-size:1.5rem;"></i></div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="col-md-7">
-                            <label class="st-label">Application Logo</label>
-                            <input type="file" name="logo_file" class="form-control st-input" accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp">
-                            <div class="st-hint">Shown in the sidebar and browser tab. PNG/SVG/JPG/WebP, max 2 MB. Recommended: square, transparent background.</div>
-                        </div>
-                        <div class="col-md-3 d-flex gap-2">
-                            <button type="submit" class="st-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;"><i class="bi bi-upload"></i> Upload</button>
-                            <?php if (!empty($settings['logo_path'])): ?>
-                                <button type="submit" name="remove_logo" value="1" class="st-btn-danger" onclick="return confirm('Remove the current logo and restore the default branding?');"><i class="bi bi-trash"></i></button>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </form>
-
-                <hr style="border-color:var(--st-border);margin:1.25rem 0;">
                 <div class="text-end">
                     <button type="submit" class="st-btn-primary"><i class="bi bi-check-lg"></i> Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <?php elseif ($tab === 'branding'): ?>
+    <!-- ═══ Branding / Logo ═══ -->
+    <div class="st-card">
+        <div class="st-card-body">
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                <input type="hidden" name="settings_action" value="upload_logo">
+
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-2 text-center">
+                        <?php if (!empty($settings['logo_path'])): ?>
+                            <img src="<?= htmlspecialchars((defined('APP_BASE') ? APP_BASE : '') . '/' . ltrim($settings['logo_path'], '/')) ?>" alt="App Logo" style="max-height:64px;max-width:140px;object-fit:contain;border:1px solid var(--st-border);border-radius:0.5rem;padding:0.25rem;background:#fff;">
+                        <?php else: ?>
+                            <div style="width:64px;height:64px;border:1px dashed var(--st-border);border-radius:0.5rem;display:flex;align-items:center;justify-content:center;color:var(--st-ink-soft);margin:0 auto;"><i class="bi bi-image" style="font-size:1.5rem;"></i></div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-md-7">
+                        <label class="st-label">Application Logo</label>
+                        <input type="file" name="logo_file" class="form-control st-input" accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp">
+                        <div class="st-hint">Shown in the sidebar and browser tab. PNG/SVG/JPG/WebP, max 2 MB. Recommended: square, transparent background.</div>
+                    </div>
+                    <div class="col-md-3 d-flex gap-2">
+                        <button type="submit" class="st-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;"><i class="bi bi-upload"></i> Upload</button>
+                        <?php if (!empty($settings['logo_path'])): ?>
+                            <button type="submit" name="remove_logo" value="1" class="st-btn-danger" onclick="return confirm('Remove the current logo and restore the default branding?');"><i class="bi bi-trash"></i></button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--st-border);margin:1.25rem 0;">
+                <div class="st-hint">
+                    <i class="bi bi-info-circle"></i>
+                    The logo is cached by the browser. After uploading, use Ctrl+F5 to refresh the browser tab icon immediately.
                 </div>
             </form>
         </div>

@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+ensureApiSchema($GLOBALS['link']);
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     apiError(405, 'Method not allowed');
 }
@@ -90,7 +92,7 @@ foreach ($updateFields as $col => $val) {
 $types .= 'i';
 $values[] = $recordId;
 
-$table = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
+$table = $source === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN');
 $sql = "UPDATE $table SET " . implode(', ', $setClause) . " WHERE ID = ?";
 
 $stmt = $link->prepare($sql);

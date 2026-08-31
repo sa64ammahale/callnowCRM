@@ -252,13 +252,17 @@ function logApiAccess(array $tokenData, string $endpoint, string $method, int $r
     $stmt->close();
 }
 
-// Auto-execute middleware
-$GLOBALS['api_token_data'] = apiRequireAuth();
-checkRateLimit($GLOBALS['api_token_data']);
-$startTime = microtime(true);
+// Auto-execute middleware for protected API endpoints.
+// Auth routers (login/logout/refresh/me) define API_SKIP_AUTO_AUTH
+// before including this file so public endpoints stay reachable.
+if (!defined('API_SKIP_AUTO_AUTH')) {
+    $GLOBALS['api_token_data'] = apiRequireAuth();
+    checkRateLimit($GLOBALS['api_token_data']);
+    $startTime = microtime(true);
 
-register_shutdown_function(function() use ($startTime) {
-    $execTime = round((microtime(true) - $startTime) * 1000);
-    $responseCode = http_response_code();
-    logApiAccess($GLOBALS['api_token_data'], $_SERVER['REQUEST_URI'], $_SERVER['REQUEST_METHOD'], $responseCode, $execTime);
-});
+    register_shutdown_function(function() use ($startTime) {
+        $execTime = round((microtime(true) - $startTime) * 1000);
+        $responseCode = http_response_code();
+        logApiAccess($GLOBALS['api_token_data'], $_SERVER['REQUEST_URI'], $_SERVER['REQUEST_METHOD'], $responseCode, $execTime);
+    });
+}

@@ -1,4 +1,5 @@
 <?php
+define('API_SKIP_AUTO_AUTH', true);
 require_once __DIR__ . '/../../../php_scripts/api_auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -10,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
+
+ensureApiSchema($GLOBALS['link']);
 
 // Allow GET for /me and /refresh endpoints
 $isGetEndpoint = in_array($_SERVER['REQUEST_URI'], ['/api/v1/auth/me', '/api/v1/auth/refresh']);

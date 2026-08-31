@@ -173,9 +173,9 @@ $sqlSummary = "
     FROM (
         $unionSubquery
     ) AS m
-    JOIN TBL_USERS u ON m.user_id = u.ID
-    LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
-    LEFT JOIN TBL_USERS s ON t.SUPERVISOR_ID = s.ID
+    JOIN " . tn('TBL_USERS') . " u ON m.user_id = u.ID
+LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
+LEFT JOIN " . tn('TBL_USERS') . " s ON t.SUPERVISOR_ID = s.ID
     $whereSql
     GROUP BY u.ID, t.ID
     ORDER BY t.NAME, u.NAME
@@ -251,8 +251,8 @@ $sqlTrend = "
     FROM (
         $unionSubquery
     ) AS m
-    JOIN TBL_USERS u ON m.user_id = u.ID
-    LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
+    JOIN " . tn('TBL_USERS') . " u ON m.user_id = u.ID
+LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
     $whereSql
     GROUP BY bucket
     ORDER BY bucket
@@ -333,8 +333,8 @@ if ($selected_user_id !== null) {
         FROM (
             $unionSubquery
         ) AS m
-        JOIN TBL_USERS u ON m.user_id = u.ID
-        LEFT JOIN TBL_TEAMS t ON u.TEAM_ID = t.ID
+        JOIN " . tn('TBL_USERS') . " u ON m.user_id = u.ID
+LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
         $whereDetailSql
         ORDER BY m.call_time DESC
     ";
