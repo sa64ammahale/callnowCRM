@@ -85,6 +85,7 @@
         define('TBL_API_SETTINGS',       'api_settings');
         define('TBL_API_TOKENS',         'api_tokens');
         define('TBL_APP_SETTINGS',       'app_settings');
+        define('TBL_CALL_LOGS',          'call_logs');
         define('TBL_ENQUIRY',            'enquiry');
         define('TBL_LEADS',              'leads_table');
         define('TBL_LEAD_NOTES',         'lead_notes');
@@ -107,11 +108,12 @@
     // or equal to their own name, e.g. TBL_USERS === 'TBL_USERS') ──
     $__cn_tbl = [
         'TBL_ACTIVITY_LOG'      => 'activity_log',
-        'TBL_API_ACCESS_LOGS'  => 'api_access_logs',
+        'TBL_API_ACCESS_LOGS'   => 'api_access_logs',
         'TBL_API_DB_ASSIGNMENTS'=> 'api_database_assignments',
-        'TBL_API_SETTINGS'     => 'api_settings',
-        'TBL_API_TOKENS'       => 'api_tokens',
-        'TBL_APP_SETTINGS'     => 'app_settings',
+        'TBL_API_SETTINGS'      => 'api_settings',
+        'TBL_API_TOKENS'        => 'api_tokens',
+        'TBL_APP_SETTINGS'      => 'app_settings',
+        'TBL_CALL_LOGS'         => 'call_logs',
         'TBL_ENQUIRY'          => 'enquiry',
         'TBL_LEADS'            => 'leads_table',
         'TBL_LEAD_NOTES'       => 'lead_notes',

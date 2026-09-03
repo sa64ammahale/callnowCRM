@@ -1,16 +1,14 @@
 <?php
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/../config.php';
 
-// Show errors on POST so login failures don't produce a blank 500
 ini_set('display_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
 ini_set('display_startup_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
 
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 ensureCsrfToken();
 
-// Resolve the application logo for the login screen
 $loginLogo = '';
 if (isset($link) && $link) {
     try {
@@ -23,19 +21,22 @@ if (isset($link) && $link) {
     }
 }
 
-$username = $password = $CompanyName = "";
+if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true) {
+    header("Location: " . APP_BASE . "/modules/settings/super_admin_panel.php");
+    exit;
+}
+
+$username = $password = "";
 $ErrorMessage = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $ErrorMessage = "Error: Invalid session token. Please try again.";
     } else {
-        $CompanyName = trim($_POST["CompanyName"] ?? '');
-        $username    = trim($_POST["username"] ?? '');
-        $password    = trim($_POST["password"] ?? '');
+        $username = trim($_POST["username"] ?? '');
+        $password = trim($_POST["password"] ?? '');
 
-        if (!empty($username) && !empty($password) && !empty($CompanyName)) {
+        if (!empty($username) && !empty($password)) {
             try {
                 $tblUsers = tn('TBL_USERS');
                 $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM $tblUsers WHERE LOGIN_ID = ?";
@@ -48,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         if (mysqli_stmt_num_rows($stmt) == 1) {
                             mysqli_stmt_bind_result($stmt, $id, $name, $mobile, $company, $package, $status, $join_date, $role, $team, $hashed_password, $login_id, $device_id);
                             if (mysqli_stmt_fetch($stmt)) {
-                                if ($company == $CompanyName && $status == 'Active') {
+                                if ($status == 'Active') {
                                     if (password_verify($password, $hashed_password)) {
                                         session_regenerate_id(true);
                                         $_SESSION["loggedin"]    = true;
@@ -64,13 +65,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         $_SESSION["login_id"]    = $login_id;
                                         $_SESSION["device_id"]   = $device_id;
                                         $_SESSION['LAST_ACTIVITY'] = time();
-                                        header("Location: dashboard.php");
+                                        header("Location: " . APP_BASE . "/modules/settings/super_admin_panel.php");
                                         exit;
                                     } else {
                                         $ErrorMessage = "Error: The password you entered is not valid.";
                                     }
                                 } else {
-                                    $ErrorMessage = "Error: The Company Name is not valid OR your account is not active.";
+                                    $ErrorMessage = "Error: Your account is not active.";
                                 }
                             }
                         } else {
@@ -86,25 +87,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } catch (\Throwable $e) {
                 $ErrorMessage = "Error: " . $e->getMessage();
             }
+        } else {
+            $ErrorMessage = "Please enter both username and password.";
         }
     }
 
     if ($link) @mysqli_close($link);
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="<?= ($_SESSION['theme'] ?? 'light') === 'dark' ? 'dark' : 'light' ?>">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CallNow | Professional Communication Platform</title>
+    <title>CallNow | Super Admin Login</title>
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
     <link rel="stylesheet" href="<?= vnd('css/bootstrap-icons.css') ?>">
     <style>
         .login-header {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%);
             color: #fff;
             padding: 1.25rem 1rem;
             text-align: center;
@@ -119,37 +121,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .links-section a { font-weight: 500; transition: color 0.2s; }
         .links-section a:hover { text-decoration: underline; }
         .password-toggle { cursor: pointer; transition: color 0.2s; }
+        .sa-login-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            margin-top: 0.5rem;
+        }
     </style>
 </head>
 <body>
     <div class="login-shell">
         <div class="login-card">
             <div class="login-header">
-                <?php if ($loginLogo): ?>
+                <?php if ($loginLogo ?? ''): ?>
                     <img src="<?= htmlspecialchars($loginLogo, ENT_QUOTES, 'UTF-8') ?>" alt="CallNow" class="logo-container">
                 <?php else: ?>
-                    <i class="bi bi-telephone-fill" style="font-size:2.25rem;"></i>
+                    <i class="bi bi-shield-lock-fill" style="font-size:2.25rem;"></i>
                 <?php endif; ?>
-                <h1>CallNow V5.00</h1>
+                <h1>Super Admin Login</h1>
+                <div class="sa-login-badge"><i class="bi bi-lock-fill"></i> Restricted Access</div>
             </div>
             <div class="p-4">
                 <form action="<?= htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
                     <div class="mb-3">
-                        <label for="company" class="form-label">Company Name</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-building"></i></span>
-                            <input type="text" id="company" class="form-control" name="CompanyName"
-                                   placeholder="Enter your registered company name" required
-                                   value="<?= htmlspecialchars($CompanyName) ?>">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username / Email</label>
+                        <label for="username" class="form-label">Super Admin Email</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-person"></i></span>
                             <input type="text" id="username" class="form-control" name="username"
-                                   placeholder="Enter your registered email" required
+                                   placeholder="Enter super admin email" required
                                    value="<?= htmlspecialchars($username) ?>">
                         </div>
                     </div>
@@ -177,21 +184,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <?php endif; ?>
                     <div class="d-grid mb-4">
                         <button type="submit" class="btn btn-primary btn-lg w-100">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>Log In
+                            <i class="bi bi-shield-lock-fill me-2"></i>Super Admin Login
                         </button>
                     </div>
                     <div class="links-section text-center">
                         <div class="mb-2">
-                            <a href="forgot-password.php"><i class="bi bi-key me-1"></i>Forgot Password?</a>
-                        </div>
-                        <div class="mb-2">
-                            <a href="<?= htmlspecialchars(APP_BASE) ?>/super_admin_login.php" class="text-primary fw-semibold">
-                                <i class="bi bi-shield-lock-fill me-1"></i>Super Admin Login
-                            </a>
-                        </div>
-                        <div>
-                            <p class="mb-1">Don't have an account?</p>
-                            <a href="CallNowSignUp.php" class="fw-bold"><i class="bi bi-person-plus me-1"></i>Sign Up Now</a>
+                            <a href="<?= htmlspecialchars(APP_BASE) ?>/index.php"><i class="bi bi-arrow-left me-1"></i>Back to Regular Login</a>
                         </div>
                     </div>
                 </form>

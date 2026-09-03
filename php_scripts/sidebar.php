@@ -120,6 +120,10 @@ function navActive($patterns) {
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Reports</div>
             <?php if (can('view_reports')): ?>
+            <a class="app-sidebar-link <?= navActive(['call_history.php']) ? 'active' : '' ?>" href="<?= url('modules/logs/call_history.php') ?>">
+                <i class="bi bi-telephone-inbound"></i>
+                <span class="link-text">Call History</span>
+            </a>
             <a class="app-sidebar-link <?= navActive(['Reports.php']) ? 'active' : '' ?>" href="<?= url('modules/logs/Reports.php') ?>">
                 <i class="bi bi-bar-chart"></i>
                 <span class="link-text">Reports</span>

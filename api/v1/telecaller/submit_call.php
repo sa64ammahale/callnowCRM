@@ -39,6 +39,7 @@ $callDuration = isset($input['call_duration']) ? (int)$input['call_duration'] : 
 $notes = $input['notes'] ?? '';
 $nextFollowup = $input['next_followup'] ?? null;
 $recordingUrl = $input['recording_url'] ?? null;
+$callTime = $input['call_time'] ?? null;
 
 // Validate source
 if (!in_array($source, ['TEMP', 'MAIN'])) {
@@ -71,6 +72,26 @@ $recordUserId = (int)($record['CALL_DIALED_TELECALLER'] ?? $record['MAINDATABASE
 if ($recordUserId !== $userId && $userRole !== 'Admin' && $userRole !== 'Manager') {
     apiError(403, 'Not authorized to update this record');
 }
+
+$logStmt = $link->prepare("
+    INSERT INTO " . tn('TBL_CALL_LOGS') . "
+        (record_id, source, user_id, call_status, call_duration, notes, next_followup, recording_url, call_time)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+");
+$logStmt->bind_param(
+    'isisissis',
+    $recordId,
+    $source,
+    $userId,
+    $callStatus,
+    $callDuration,
+    $notes,
+    $nextFollowup,
+    $recordingUrl,
+    $callTime
+);
+$logStmt->execute();
+$logStmt->close();
 
 $updateFields = [
     'CALL_DIALED_STATUS' => $callStatus,

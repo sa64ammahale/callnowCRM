@@ -254,6 +254,30 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     apiSuccess(['message' => 'Call result saved successfully']);
     
+} elseif (preg_match('#^/call-history/(\d+)$#', $relativePath, $matches)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
+    
+    $recordId = (int)$matches[1];
+    $source = $_GET['source'] ?? '';
+    if (!in_array($source, ['TEMP', 'MAIN', 'LEADS'])) apiError(400, 'Invalid source');
+    
+    $dbAccess = getUserDatabaseAccess($userId);
+    if (!$dbAccess[strtolower($source === 'TEMP' ? 'temporary' : ($source === 'MAIN' ? 'main' : 'leads'))]) {
+        apiError(403, 'No access to requested database');
+    }
+    
+    $sql = "SELECT id, record_id, source, user_id, call_status, call_duration, notes, next_followup, recording_url, call_time, created_at
+            FROM " . tn('TBL_CALL_LOGS') . "
+            WHERE record_id = ? AND source = ?
+            ORDER BY created_at DESC";
+    $stmt = $link->prepare($sql);
+    $stmt->bind_param('is', $recordId, $source);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    apiSuccess(['data' => $rows, 'total' => count($rows)]);
+    
 } elseif ($relativePath === '/calls' || $relativePath === '/calls/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     

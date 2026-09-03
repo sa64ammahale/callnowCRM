@@ -74,6 +74,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . $_SERVER['REQUEST_URI']);
             exit;
         }
+
+        require_once __DIR__ . '/../../php_scripts/super_admin.php';
+        $tokenLimitMsg = checkApiTokenLimit($link, USER_ID);
+        if ($tokenLimitMsg) {
+            $_SESSION['flash'] = ['type' => 'danger', 'msg' => $tokenLimitMsg];
+            header('Location: ' . $_SERVER['REQUEST_URI']);
+            exit;
+        }
         
         $token = bin2hex(random_bytes(32));
         $expiry = $expiryDays > 0 ? date('Y-m-d H:i:s', strtotime("+$expiryDays days")) : null;
@@ -97,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if ($action === 'revoke_token') {
-        $tokenId = (int)($_POST['token_id'] ?? 0);
+        $tokenId = (int)$_POST['token_id'] ?? 0;
         if ($tokenId) {
             $stmt = $link->prepare("UPDATE " . tn('TBL_API_TOKENS') . " SET is_active = 0 WHERE id = ?");
             if ($stmt) {
@@ -107,6 +115,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logActivity($link, USER_ID, 'API_TOKEN_REVOKED', "Revoked token #$tokenId", '', 'TBL_API_TOKENS');
         }
         $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Token revoked'];
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    }
+    
+    if ($action === 'delete_token') {
+        $tokenId = (int)$_POST['token_id'] ?? 0;
+        if ($tokenId) {
+            $stmt = $link->prepare("DELETE FROM " . tn('TBL_API_TOKENS') . " WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $tokenId);
+                $stmt->execute();
+            }
+            logActivity($link, USER_ID, 'API_TOKEN_DELETED', "Deleted token #$tokenId", '', 'TBL_API_TOKENS');
+        }
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Token permanently deleted'];
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
     }
@@ -294,107 +317,154 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <hr class="my-4">
 
                 <h6 class="fw-bold mb-3"><i class="bi bi-code-slash me-2"></i>Available Endpoints</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Method</th>
-                                <th>Endpoint</th>
-                                <th>Description</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><span class="badge bg-success">POST</span></td>
-                                <td><code>/api/v1/auth/login</code></td>
-                                <td>Exchange email + password for a Bearer token and DB access list</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-info">GET</span></td>
-                                <td><code>/api/v1/auth/me</code></td>
-                                <td>Get current user profile and database access</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-info">GET</span></td>
-                                <td><code>/api/v1/auth/refresh</code></td>
-                                <td>Extend token expiry by configured days</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-info">GET</span></td>
-                                <td><code>/api/v1/telecaller/dashboard</code></td>
-                                <td>Dashboard stats: today's calls, connected, pending, assigned total</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-info">GET</span></td>
-                                <td><code>/api/v1/telecaller/calls</code></td>
-                                <td>Paginated call history with filters: source, status, date range, search</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-info">GET</span></td>
-                                <td><code>/api/v1/telecaller/next-call</code></td>
-                                <td>Get the next pending call for the telecaller</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-success">POST</span></td>
-                                <td><code>/api/v1/telecaller/calls/{id}/complete</code></td>
-                                <td>Submit call result: status, notes, duration, next follow-up</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-success">POST</span></td>
-                                <td><code>/api/v1/telecaller/submit_call.php</code></td>
-                                <td>Alternative direct endpoint for submitting call outcomes</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-info">GET</span></td>
-                                <td><code>/api/v1/admin/settings</code></td>
-                                <td>List all API settings (requires <code>manage_api</code>)</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-info">GET</span></td>
-                                <td><code>/api/v1/admin/tokens</code></td>
-                                <td>List all API tokens with pagination (requires <code>manage_api</code>)</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-success">POST</span></td>
-                                <td><code>/api/v1/admin/tokens</code></td>
-                                <td>Create a new API token (requires <code>manage_api</code>)</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-danger">DELETE</span></td>
-                                <td><code>/api/v1/admin/tokens/{id}</code></td>
-                                <td>Revoke an API token (requires <code>manage_api</code>)</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-success">POST</span></td>
-                                <td><code>/api/v1/admin/assignments</code></td>
-                                <td>Assign database access to a user (requires <code>manage_api</code>)</td>
-                            </tr>
-                            <tr>
-                                <td><span class="badge bg-danger">DELETE</span></td>
-                                <td><code>/api/v1/admin/assignments/{id}</code></td>
-                                <td>Remove a database assignment (requires <code>manage_api</code>)</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="accordion" id="apiEndpointsAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingLogin"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLogin" aria-expanded="true">POST /api/v1/auth/login</button></h2>
+                        <div id="collapseLogin" class="accordion-collapse collapse show" aria-labelledby="headingLogin"><div class="accordion-body">
+                            <strong>Description:</strong> Exchange email + password for a Bearer token and DB access list.<br>
+                            <strong>Headers:</strong> <code>Content-Type: application/json</code><br>
+                            <strong>Body:</strong> <code>{"email":"user@example.com","password":"your_password"}</code><br>
+                            <strong>Response:</strong> <code>{"success":true,"data":{"token":"...","user":{...},"expires_at":"..."}}</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingMe"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMe" aria-expanded="false">GET /api/v1/auth/me</button></h2>
+                        <div id="collapseMe" class="accordion-collapse collapse" aria-labelledby="headingMe"><div class="accordion-body">
+                            <strong>Description:</strong> Get current user profile and database access.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingRefresh"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRefresh" aria-expanded="false">GET /api/v1/auth/refresh</button></h2>
+                        <div id="collapseRefresh" class="accordion-collapse collapse" aria-labelledby="headingRefresh"><div class="accordion-body">
+                            <strong>Description:</strong> Extend token expiry by configured days.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingDashboard"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDashboard" aria-expanded="false">GET /api/v1/telecaller/dashboard</button></h2>
+                        <div id="collapseDashboard" class="accordion-collapse collapse" aria-labelledby="headingDashboard"><div class="accordion-body">
+                            <strong>Description:</strong> Dashboard stats: today's calls, connected, pending, assigned total.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code><br>
+                            <strong>Response:</strong> <code>{"success":true,"data":{"today_calls":10,"today_connected":3,"today_pending":2,"total_assigned":50}}</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingNextCall"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNextCall" aria-expanded="false">GET /api/v1/telecaller/next-call</button></h2>
+                        <div id="collapseNextCall" class="accordion-collapse collapse" aria-labelledby="headingNextCall"><div class="accordion-body">
+                            <strong>Description:</strong> Get the next pending call for the telecaller.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingCalls"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCalls" aria-expanded="false">GET /api/v1/telecaller/calls</button></h2>
+                        <div id="collapseCalls" class="accordion-collapse collapse" aria-labelledby="headingCalls"><div class="accordion-body">
+                            <strong>Description:</strong> Paginated call history with filters: source, status, date range, search.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code><br>
+                            <strong>Query Params:</strong> <code>?source=temporary&status=Connected&date_from=2026-01-01&page=1&limit=20</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingCallHistory"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCallHistory" aria-expanded="false">GET /api/v1/telecaller/call-history/{record_id}</button></h2>
+                        <div id="collapseCallHistory" class="accordion-collapse collapse" aria-labelledby="headingCallHistory"><div class="accordion-body">
+                            <strong>Description:</strong> Get full call history for a specific customer record.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code><br>
+                            <strong>Example:</strong> <code>/api/v1/telecaller/call-history/123?source=TEMP</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingComplete"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseComplete" aria-expanded="false">POST /api/v1/telecaller/calls/{id}/complete</button></h2>
+                        <div id="collapseComplete" class="accordion-collapse collapse" aria-labelledby="headingComplete"><div class="accordion-body">
+                            <strong>Description:</strong> Submit call result: status, notes, duration, next follow-up.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code><br>
+                            <strong>Body:</strong> <code>{"source":"temporary","status":"Connected","notes":"Customer interested","duration_seconds":180,"next_followup_at":"2026-09-15"}</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingSubmit"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSubmit" aria-expanded="false">POST /api/v1/telecaller/submit_call.php</button></h2>
+                        <div id="collapseSubmit" class="accordion-collapse collapse" aria-labelledby="headingSubmit"><div class="accordion-body">
+                            <strong>Description:</strong> Alternative direct endpoint for submitting call outcomes with full details.<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code><br>
+                            <strong>Body:</strong> <code>{"record_id":123,"source":"TEMP","call_status":"Connected","call_duration":180,"notes":"Interested","next_followup":"2026-09-15","recording_url":"https://..."}</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingAdminSettings"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdminSettings" aria-expanded="false">GET /api/v1/admin/settings</button></h2>
+                        <div id="collapseAdminSettings" class="accordion-collapse collapse" aria-labelledby="headingAdminSettings"><div class="accordion-body">
+                            <strong>Description:</strong> List all API settings (requires <code>manage_api</code>).<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingAdminTokens"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdminTokens" aria-expanded="false">GET /api/v1/admin/tokens</button></h2>
+                        <div id="collapseAdminTokens" class="accordion-collapse collapse" aria-labelledby="headingAdminTokens"><div class="accordion-body">
+                            <strong>Description:</strong> List all API tokens with pagination (requires <code>manage_api</code>).<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingCreateToken"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCreateToken" aria-expanded="false">POST /api/v1/admin/tokens</button></h2>
+                        <div id="collapseCreateToken" class="accordion-collapse collapse" aria-labelledby="headingCreateToken"><div class="accordion-body">
+                            <strong>Description:</strong> Create a new API token (requires <code>manage_api</code>).<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingDeleteToken"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDeleteToken" aria-expanded="false">DELETE /api/v1/admin/tokens/{id}</button></h2>
+                        <div id="collapseDeleteToken" class="accordion-collapse collapse" aria-labelledby="headingDeleteToken"><div class="accordion-body">
+                            <strong>Description:</strong> Permanently delete an API token (requires <code>manage_api</code>).<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingAssignments"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAssignments" aria-expanded="false">POST /api/v1/admin/assignments</button></h2>
+                        <div id="collapseAssignments" class="accordion-collapse collapse" aria-labelledby="headingAssignments"><div class="accordion-body">
+                            <strong>Description:</strong> Assign database access to a user (requires <code>manage_api</code>).<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingRemoveAssignment"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRemoveAssignment" aria-expanded="false">DELETE /api/v1/admin/assignments/{id}</button></h2>
+                        <div id="collapseRemoveAssignment" class="accordion-collapse collapse" aria-labelledby="headingRemoveAssignment"><div class="accordion-body">
+                            <strong>Description:</strong> Remove a database assignment (requires <code>manage_api</code>).<br>
+                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
+                        </div></div>
+                    </div>
                 </div>
 
                 <hr class="my-4">
 
-                <h6 class="fw-bold mb-3"><i class="bi bi-lightbulb me-2"></i>Quick Example (cURL)</h6>
-                <pre class="bg-dark text-light p-3 rounded small mb-0" style="overflow-x:auto;"><code># 1. Login and get token
-curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/auth/login') ?> \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"your_password"}'
+                <h6 class="fw-bold mb-3"><i class="bi bi-lightbulb me-2"></i>Quick Example (Flutter / Dart)</h6>
+                <pre class="bg-dark text-light p-3 rounded small mb-0" style="overflow-x:auto;"><code>import 'package:http/http.dart' as http;
 
-# 2. Call telecaller dashboard
-curl -X GET <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/dashboard') ?> \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Future<void> loginExample() async {
+  final baseUrl = '<?= htmlspecialchars((APP_BASE ?? '') . '/api/v1') ?>';
+  
+  // 1. Login and get token
+  final loginResponse = await http.post(
+    Uri.parse('$baseUrl/auth/login'),
+    headers: {'Content-Type': 'application/json'},
+    body: '{"email":"user@example.com","password":"your_password"}',
+  );
+  final loginData = jsonDecode(loginResponse.body);
+  final token = loginData['data']['token'];
 
-# 3. Submit a call result
-curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/calls/123/complete') ?> \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-  -H "Content-Type: application/json" \
-  -d '{"source":"temporary","call_status":"Connected","notes":"Customer interested","duration_seconds":180}'</code></pre>
+  // 2. Call telecaller dashboard
+  final dashboardResponse = await http.get(
+    Uri.parse('$baseUrl/telecaller/dashboard'),
+    headers: {'Authorization': 'Bearer $token'},
+  );
+
+  // 3. Submit a call result
+  final callResponse = await http.post(
+    Uri.parse('$baseUrl/telecaller/calls/123/complete'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+    body: '{"source":"temporary","call_status":"Connected","notes":"Customer interested","duration_seconds":180}',
+  );
+}</code></pre>
 
                 <div class="alert alert-info mt-3 mb-0 small">
                     <i class="bi bi-info-circle me-2"></i>
@@ -531,7 +601,13 @@ curl -X POST <?= htmlspecialchars((APP_BASE ?? '') . '/api/v1/telecaller/calls/1
                                                 <input type="hidden" name="action" value="revoke_token">
                                                 <input type="hidden" name="token_id" value="<?= $t['id'] ?>">
                                                 <?= csrfField() ?>
-                                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Revoke</button>
+                                                <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-x-circle"></i> Revoke</button>
+                                            </form>
+                                            <form method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this token?');">
+                                                <input type="hidden" name="action" value="delete_token">
+                                                <input type="hidden" name="token_id" value="<?= $t['id'] ?>">
+                                                <?= csrfField() ?>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Delete</button>
                                             </form>
                                         <?php endif; ?>
                                     </td>

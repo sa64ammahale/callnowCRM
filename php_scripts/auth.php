@@ -1,5 +1,7 @@
 <?php
 date_default_timezone_set('Asia/Kolkata');
+ini_set('session.gc_maxlifetime', 14400);
+session_set_cookie_params(14400);
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
@@ -15,7 +17,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     appRedirect('index.php');
 }
 
-if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 1800)) {
+if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 14400)) {
     session_unset(); session_destroy();
     appRedirect('index.php');
 }

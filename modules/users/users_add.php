@@ -1,11 +1,20 @@
 <?php
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
+require_once '../../php_scripts/super_admin.php';
 
 $isEdit = isset($_GET['ID']);
 $userID = $isEdit ? intval($_GET['ID']) : 0;
 
 requirePermission('manage_TBL_USERS');
+
+if (!$isEdit) {
+    $limitMsg = checkUserLimit($link, USER_ID);
+    if ($limitMsg) {
+        $_SESSION['access_denied_message'] = $limitMsg;
+        appRedirect('dashboard.php');
+    }
+}
 
 $Message = ""; $type = "";
 

@@ -409,6 +409,10 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
 .rp-kpi-value.text-success { color: #d1fae5 !important; }
 .rp-kpi-value.text-danger  { color: #fee2e2 !important; }
 
+/* ── Summary table ──────────────────────────────────── */
+.rp-table thead th { white-space: nowrap; }
+.rp-avatar-sm { flex-shrink: 0; }
+
 /* ── Card base ─────────────────────────────────────── */
 .rp-card {
     background: var(--surface); border: 1px solid var(--border);
@@ -518,20 +522,23 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                     · <?= htmlspecialchars($from) ?> → <?= htmlspecialchars($to) ?>
                 </div>
             </div>
-            <div class="rp-kpis">
-                <div class="rp-kpi">
-                    <span class="rp-kpi-label">Total Calls</span>
-                    <span class="rp-kpi-value"><?= number_format($grand_total) ?></span>
+                <div class="rp-kpis">
+                    <div class="rp-kpi">
+                        <span class="rp-kpi-label">Total Calls</span>
+                        <span class="rp-kpi-value"><?= number_format($grand_total) ?></span>
+                    </div>
+                    <div class="rp-kpi">
+                        <span class="rp-kpi-label">Connected</span>
+                        <span class="rp-kpi-value text-success"><?= number_format($grand_connected) ?></span>
+                    </div>
+                    <div class="rp-kpi">
+                        <span class="rp-kpi-label">Connect Rate</span>
+                        <span class="rp-kpi-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?>"><?= $grand_rate ?>%</span>
+                    </div>
+                    <a href="<?= htmlspecialchars(url('modules/logs/call_history.php')) ?>" class="btn btn-light btn-sm ms-auto" style="align-self:center;">
+                        <i class="bi bi-telephone-inbound"></i> View Full Call History
+                    </a>
                 </div>
-                <div class="rp-kpi">
-                    <span class="rp-kpi-label">Connected</span>
-                    <span class="rp-kpi-value text-success"><?= number_format($grand_connected) ?></span>
-                </div>
-                <div class="rp-kpi">
-                    <span class="rp-kpi-label">Connect Rate</span>
-                    <span class="rp-kpi-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?>"><?= $grand_rate ?>%</span>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -639,74 +646,94 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
     <!-- Team & Telecaller Summary -->
     <div id="exportArea">
     <?php if (!empty($data)): ?>
-        <div class="rp-grid">
-        <?php foreach ($data as $team_name => $block):
-            $team_total = 0;
-            $team_connected = 0;
-            foreach ($block['TBL_USERS'] as $u) {
-                $team_total     += $u['total'];
-                $team_connected += $u['connected'];
-            }
-            $team_rate = $team_total ? round($team_connected / $team_total * 100, 1) : 0;
-            $sup = $block['supervisor_name'] ?? '—';
-        ?>
-            <div class="rp-team">
-                <div class="rp-team-head">
-                    <div>
-                        <div class="rp-team-name"><?= htmlspecialchars($team_name) ?></div>
-                        <div class="rp-team-sub">Supervisor: <?= htmlspecialchars($sup ?: '—') ?></div>
-                    </div>
-                    <div class="text-end">
-                        <div class="rp-team-total"><?= number_format($team_total) ?><span>calls</span></div>
-                        <div class="rp-team-rate <?= $team_rate >= 40 ? 'text-success' : 'text-danger' ?>">
-                            <?= $team_rate ?>% connected
-                        </div>
-                    </div>
-                </div>
-                <div class="rp-team-body">
-                    <?php foreach ($block['TBL_USERS'] as $u):
-                        $rate = $u['rate'];
-                        $rateClass = $rate >= 40 ? 'rate-good' : 'rate-poor';
-                        $isSelected = $selected_user_id && $selected_user_id == $u['user_id'];
-                    ?>
-                        <div class="rp-user <?= $isSelected ? 'is-selected' : '' ?>">
-                            <div class="rp-user-id">
-                                <div class="rp-avatar">
-                                    <?= strtoupper(substr($u['user_name'] ?? '?', 0, 2)) ?>
-                                </div>
-                                <div>
-                                    <div class="rp-user-name">
-                                        <?= htmlspecialchars($u['user_name'] ?? 'Unknown') ?>
-                                        <?php if ($isSelected): ?>
-                                            <span class="badge bg-info ms-1">Selected</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="rp-pills">
-                                        <span class="rp-pill">Total <b><?= (int)$u['total'] ?></b></span>
-                                        <span class="rp-pill rp-pill-ok">Connected <b><?= (int)$u['connected'] ?></b></span>
-                                        <span class="rp-pill">Busy <b><?= (int)$u['busy'] ?></b></span>
-                                        <span class="rp-pill">No Ans <b><?= (int)$u['no_answer'] ?></b></span>
-                                        <span class="rp-pill rp-pill-danger">DNC <b><?= (int)$u['dnc'] ?></b></span>
-                                        <span class="rp-pill">Pending <b><?= (int)$u['pending'] ?></b></span>
-                                        <span class="rp-pill">Not Called <b><?= (int)$u['not_called'] ?></b></span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="rp-user-act">
-                                <div class="text-end">
-                                    <div class="rp-rate <?= $rateClass ?>"><?= $rate ?>%</div>
-                                    <small class="text-muted">connect rate</small>
-                                </div>
-                                <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => $u['user_id']])) ?>"
-                                   class="btn btn-outline-primary btn-sm">
-                                    <i class="bi bi-person-lines-fill"></i> Details
-                                </a>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-people me-2"></i>Team & Telecaller Summary</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 rp-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Team</th>
+                                <th>Supervisor</th>
+                                <th>Telecaller</th>
+                                <th class="text-center">Total Calls</th>
+                                <th class="text-center">Connected</th>
+                                <th class="text-center">Busy</th>
+                                <th class="text-center">No Answer</th>
+                                <th class="text-center">DNC</th>
+                                <th class="text-center">Pending</th>
+                                <th class="text-center">Not Called</th>
+                                <th class="text-center">Connect Rate</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($data as $team_name => $block):
+                                $team_total = 0;
+                                $team_connected = 0;
+                                $team_busy = 0;
+                                $team_no_ans = 0;
+                                $team_dnc = 0;
+                                $team_pending = 0;
+                                $team_not_called = 0;
+                                foreach ($block['TBL_USERS'] as $u) {
+                                    $team_total     += (int)$u['total'];
+                                    $team_connected += (int)$u['connected'];
+                                    $team_busy      += (int)$u['busy'];
+                                    $team_no_ans    += (int)$u['no_answer'];
+                                    $team_dnc       += (int)$u['dnc'];
+                                    $team_pending   += (int)$u['pending'];
+                                    $team_not_called+= (int)$u['not_called'];
+                                }
+                                $team_rate = $team_total ? round($team_connected / $team_total * 100, 1) : 0;
+                                $sup = $block['supervisor_name'] ?? '—';
+                            ?>
+                                <?php foreach ($block['TBL_USERS'] as $u):
+                                    $rate = $u['rate'];
+                                    $rateClass = $rate >= 40 ? 'text-success' : 'text-danger';
+                                    $isSelected = $selected_user_id && $selected_user_id == $u['user_id'];
+                                ?>
+                                    <tr class="<?= $isSelected ? 'table-info' : '' ?>">
+                                        <td><?= htmlspecialchars($team_name) ?></td>
+                                        <td><?= htmlspecialchars($sup ?: '—') ?></td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="rp-avatar-sm rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:32px;height:32px;background:var(--accent);font-size:.75rem;">
+                                                    <?= strtoupper(substr($u['user_name'] ?? '?', 0, 2)) ?>
+                                                </div>
+                                                <div>
+                                                    <div class="fw-semibold"><?= htmlspecialchars($u['user_name'] ?? 'Unknown') ?></div>
+                                                    <?php if ($isSelected): ?>
+                                                        <span class="badge bg-info ms-1">Selected</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center"><?= number_format($u['total']) ?></td>
+                                        <td class="text-center text-success"><?= number_format($u['connected']) ?></td>
+                                        <td class="text-center"><?= number_format($u['busy']) ?></td>
+                                        <td class="text-center"><?= number_format($u['no_answer']) ?></td>
+                                        <td class="text-center text-danger"><?= number_format($u['dnc']) ?></td>
+                                        <td class="text-center"><?= number_format($u['pending']) ?></td>
+                                        <td class="text-center"><?= number_format($u['not_called']) ?></td>
+                                        <td class="text-center">
+                                            <span class="fw-bold <?= $rateClass ?>"><?= $rate ?>%</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => $u['user_id']])) ?>"
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-person-lines-fill"></i> Details
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        <?php endforeach; ?>
         </div>
     <?php endif; ?>
 

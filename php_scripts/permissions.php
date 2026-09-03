@@ -24,6 +24,7 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
             'manage_leads'        => ['label' => 'Manage Leads',      'category' => 'Leads', 'description' => 'Create and edit leads', 'is_system' => 1],
             'delete_leads'        => ['label' => 'Delete Leads',      'category' => 'Leads', 'description' => 'Delete lead records', 'is_system' => 1],
             'view_reports'        => ['label' => 'View Reports',      'category' => 'Reporting', 'description' => 'Access call-performance reports', 'is_system' => 1],
+            'manage_super_admin'  => ['label' => 'Manage Super Admin Panel', 'category' => 'Administration', 'description' => 'Access the super admin panel for limits, plans, and payment settings', 'is_system' => 1],
         ];
     }
 

@@ -2,10 +2,23 @@
 
 // Require authentication file (should create $link mysqli connection and maybe check user)
 require_once '../../php_scripts/auth.php';
+require_once '../../php_scripts/super_admin.php';
 
 requirePermission('manage_database');
 
 $userId = intval($_SESSION["id"]);
+
+// ---- Initialize -------------------------------------------------------------
+$isEdit = isset($_GET['ID']);
+$id = $isEdit ? intval($_GET['ID']) : 0;
+
+if (!$isEdit) {
+    $storageCheck = checkStorageLimit($link, 1, USER_ID);
+    if ($storageCheck) {
+        $Message = $storageCheck;
+        $type = "danger";
+    }
+}
 
 // ---- Initialize -------------------------------------------------------------
 $isEdit = isset($_GET['ID']);

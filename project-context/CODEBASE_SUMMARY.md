@@ -32,6 +32,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 |---|---|
 | `auth.php` | Core auth bootstrap: session, timeouts, role constants, `can($key)`, `requirePermission()`, `requireAnyPermission()`, `clearRbacCache()`, `logActivity()`, `getAccessibleUserIds()`, `requireRole()` (convenience only), `getTeamFilter()` |
 | `header.php` | Full HTML `<head>` (Bootstrap CSS, Bootstrap Icons, app-theme.css), sidebar, topbar, opens `<main>`; `url()` helper. Pages set `$pageTitle` before including. |
+| `super_admin.php` | Super admin limit helpers: `ensureSuperAdminSchema()`, `getCurrentPlan()`, `getEffectivePlan()`, `checkUserLimit()`, `checkApiTokenLimit()`, `checkStorageLimit()`, `getLimitUsageSummary()`, `logLimitViolation()` |
 | `footer.php` | Closes layout, loads Bootstrap JS bundle, theme.js, sidebar.js, APP_BASE, APP_CSRF |
 | `team_auth.php` | Team-scoped helpers: `canViewAllTeams()`, `getTeamFilterSQL()`, `requireTeamAccess()` |
 | `lead_ajax_check.php` | Stale duplicate (superseded by modules/leads/php_scripts/) |
@@ -42,6 +43,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `settings.php` | Settings page (gated by `manage_settings`): General + Users tabs only | Roles/Permissions moved to `permissions_manager.php` |
 | `permissions_manager.php` | **Access Control** hub (gated by `manage_settings`): 4 tabs — Features (permission keys CRUD), Roles (CRUD), Role Permissions (per-role matrix), User Access (role assignment + per-user override matrix) | Uses `permissions`, `roles`, `role_permissions`, `user_permissions` tables |
 | `setup_permissions.php` | Run once (CLI or Admin) to create `permissions`/`user_permissions` tables, seed 11 system keys + system-role defaults | Idempotent; guarded by `rbac_initialized` flag |
+| `super_admin_panel.php` | **Super Admin Panel** (gated by `manage_super_admin`): 5 tabs — Overview (usage dashboard), Plans (CRUD plans for payment integration), Limits (configure user/API/storage limits), Access Control (toggle features on/off), Limit Logs | Uses `super_admin_plans`, `super_admin_account`, `super_admin_limit_logs` tables. Enforces limits in `users_add.php`, `upload_data.php`, `api_settings.php`. |
 
 ### modules/users/
 | File | Purpose | Notes |
@@ -103,6 +105,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose |
 |---|---|
 | `setup_callnow_crm.sql` | Full schema + seed data |
+| `migrate_super_admin_limits.sql` | Migration for super admin plans, account, and limit logs tables + seed data |
 
 ## Security Fixes Applied (Priority Actions)
 
@@ -173,6 +176,11 @@ Column mapping applied:
 
 **IMPORTANT**: Do NOT run `setup_callnow_crm.sql` — it uses `DROP TABLE IF EXISTS` and will wipe all live data. The live DB is now the source of truth.
 
+**Super Admin limits tables (added 2026-09-03)**:
+- `super_admin_plans` — subscription plans with configurable limits (max users, API tokens, API calls, DB records, storage MB) and pricing fields for future payment integration.
+- `super_admin_account` — single-row account config (current plan, company, billing email, payment status, trial/period dates).
+- `super_admin_limit_logs` — audit trail of limit violations (users, API tokens, API calls, storage, access).
+
 **RBAC tables (added 2026-07-16)**:
 - `permissions` (id, permission_key UNIQUE, label, category, description, is_system, created_at) — DB-backed permission keys; 11 system keys seeded, admins can add custom.
 - `roles` (id, role_name UNIQUE, description, is_system) — Admin/Manager/Supervisor/Officer (system) + custom roles.
@@ -209,6 +217,7 @@ Column mapping applied:
 - **Activity logging**: `logActivity($link, $type, $description)` from auth.php
 - **URLs**: use `url('path')` helper from header.php or `APP_BASE . 'path'`
 - **Charset**: utf8mb4 is set globally in config.php — no need to set per-page
+- **Super admin limits**: call `ensureSuperAdminSchema($link)` before any limit check; use `checkUserLimit()`, `checkApiTokenLimit()`, `checkStorageLimit()` before destructive actions; use `getLimitUsageSummary()` for dashboard stats; log violations via `logLimitViolation()`. Gate the panel with `requirePermission('manage_super_admin')`.
 - **Debug**: `display_errors` only on when `APP_DEBUG=1` env var set
 - **CSS architecture**: `header.php` includes Bootstrap CSS, Bootstrap Icons, and `app-theme.css` centrally. Module pages should NOT include their own `<link>` tags for these. Only add minimal page-specific `<style>` blocks when needed. Standalone pages (index.php, forgot-password.php, CallNowSignUp.php) keep their own `<head>` but should use theme classes.
 - **Page pattern**: Protected pages set `$pageTitle` then `include header.php` at top, `include footer.php` at bottom. No `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags in module pages.

@@ -1,6 +1,7 @@
 <?php
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
+require_once '../../php_scripts/super_admin.php';
 
 requirePermission('upload_data');
 
@@ -222,6 +223,25 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
                         ];
                     }
 
+                    $estimatedRows = 0;
+                    if (!$dryrun) {
+                        rewind($handle);
+                        while (fgetcsv($handle, 4000, ",") !== false) $estimatedRows++;
+                        rewind($handle);
+                        if ($has_header && $estimatedRows > 0) $estimatedRows--;
+                        $storageCheck = checkStorageLimit($link, max(1, $estimatedRows), USER_ID);
+                        if ($storageCheck) {
+                            $summary = $storageCheck;
+                            $summaryType = "danger";
+                            logLine($logs, "Storage limit check failed: " . $storageCheck);
+                            fclose($handle);
+                            @unlink($path);
+                            $handle = null;
+                        }
+                    }
+
+                    if ($handle) {
+
                     $rownum = 0;
                     while (($row = fgetcsv($handle, 4000, ",")) !== false) {
                         $rownum++;
@@ -336,22 +356,25 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
                         }
                     }
 
-                    fclose($handle);
-                    @unlink($path);
+                    if ($handle) {
+                        fclose($handle);
+                        @unlink($path);
 
-                    if ($dryrun) {
-                        $summaryType = "info";
-                        $summary = "DRY-RUN complete. Would-insert: {$stats['would_insert']} | Would-update/duplicates: {$stats['would_update']} | Invalid: {$stats['invalid']}";
-                        logLine($logs, "DRY-RUN finished. No DB writes performed.");
-                    } else {
-                        $summaryType = ($stats['inserted'] > 0) ? "success" : (($stats['duplicates'] > 0 && $stats['inserted'] == 0) ? "warning" : "info");
-                        $summary = "Import finished. Inserted: {$stats['inserted']} | Duplicates skipped: {$stats['duplicates']} | Invalid: {$stats['invalid']}";
+                        if ($dryrun) {
+                            $summaryType = "info";
+                            $summary = "DRY-RUN complete. Would-insert: {$stats['would_insert']} | Would-update/duplicates: {$stats['would_update']} | Invalid: {$stats['invalid']}";
+                            logLine($logs, "DRY-RUN finished. No DB writes performed.");
+                        } else {
+                            $summaryType = ($stats['inserted'] > 0) ? "success" : (($stats['duplicates'] > 0 && $stats['inserted'] == 0) ? "warning" : "info");
+                            $summary = "Import finished. Inserted: {$stats['inserted']} | Duplicates skipped: {$stats['duplicates']} | Invalid: {$stats['invalid']}";
+                        }
                     }
                 } // end handle valid
             }
         }
     }
     }
+}
 }
 ?>
 <?php $pageTitle = 'Upload Customer Database'; include '../../php_scripts/header.php'; ?>
