@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/php_scripts/config.php';
 
 ini_set('display_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
 ini_set('display_startup_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');

@@ -208,7 +208,7 @@ if ($res) {
 }
 
 $TBL_USERS = [];
-$res = @$link->query("SELECT ID, NAME, EMAIL, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY ROLE, NAME");
+$res = @$link->query("SELECT ID, NAME, EMAIL, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY ROLE, NAME");
 if ($res) {
     while ($row = $res->fetch_assoc()) $TBL_USERS[] = $row;
 }

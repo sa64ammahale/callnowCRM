@@ -1,3 +1,6 @@
 superuser : 
 
- sa64ammahale@gmail.com / Sangam@12345
+Email	sangammahale02@gmail.com
+Password	Sangam@12345
+Role	Admin
+Status	Active

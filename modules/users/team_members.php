@@ -113,11 +113,11 @@ if (isAdmin()) {
 }
 $TBL_TEAMS = mysqli_fetch_all(mysqli_query($link, $TBL_TEAMS_sql), MYSQLI_ASSOC);
 
-$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' ORDER BY NAME"), MYSQLI_ASSOC);
+$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY NAME"), MYSQLI_ASSOC);
 
 // Member count per team
 $memberCounts = [];
-$mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IS NOT NULL GROUP BY TEAM_ID");
+$mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IS NOT NULL AND ROLE != 'Super Admin' GROUP BY TEAM_ID");
 if ($mc) while ($m = mysqli_fetch_assoc($mc)) $memberCounts[(int)$m['TEAM_ID']] = (int)$m['cnt'];
 $totalMembers = 0;
 
@@ -136,7 +136,7 @@ if ($search_name !== '') { $where .= " AND u.NAME LIKE ?"; $types .= 's'; $param
 if ($filter_role !== '') { $where .= " AND u.ROLE = ?"; $types .= 's'; $params[] = $filter_role; }
 if ($filter_status !== '') { $where .= " AND u.STATUS = ?"; $types .= 's'; $params[] = $filter_status; }
 $TBL_USERS_sql = "SELECT u.ID, u.NAME, u.MOBILE, u.LOGIN_ID, u.ROLE, u.STATUS, u.TEAM_ID, t.NAME AS TEAM_NAME
-    FROM " . tn('TBL_USERS') . " u LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE $where ORDER BY t.NAME, u.NAME";
+    FROM " . tn('TBL_USERS') . " u LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE $where AND u.ROLE != 'Super Admin' ORDER BY t.NAME, u.NAME";
 $stmt = $link->prepare($TBL_USERS_sql);
 if ($types !== '') $stmt->bind_param($types, ...$params);
 $stmt->execute();

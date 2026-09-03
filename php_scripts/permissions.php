@@ -29,16 +29,17 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
     }
 
     // Default permission matrix for SYSTEM TBL_ROLES. Custom TBL_ROLES default to ALL OFF (secure by default).
-    // Admin/Manager are treated as superTBL_USERS in can(); listed here for seed completeness.
+    // Admin/Manager/Super Admin are treated as superTBL_USERS in can(); listed here for seed completeness.
     function getSystemRoleDefaults(): array {
         return [
-            'Admin'      => ['*' => 1],
-            'Manager'    => ['*' => 1],
-            'Supervisor' => [
+            'Super Admin' => ['*' => 1],
+            'Admin'       => ['*' => 1],
+            'Manager'     => ['*' => 1],
+            'Supervisor'  => [
                 'manage_TBL_TEAMS' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
                 'export_data' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
-            'Officer'    => [
+            'Officer'     => [
                 'manage_leads' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
         ];

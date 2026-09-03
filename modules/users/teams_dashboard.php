@@ -128,7 +128,7 @@ $TBL_TEAMS_query = "
         t.MANAGER_ID,
         sup.NAME as SUP_NAME,
         mgr.NAME as MANAGER_NAME,
-        (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = t.ID) as MEMBER_COUNT
+        (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = t.ID AND ROLE != 'Super Admin') as MEMBER_COUNT
     FROM " . tn('TBL_TEAMS') . " t
     LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID
     LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
@@ -139,11 +139,11 @@ $total_TBL_TEAMS  = mysqli_num_rows($TBL_TEAMS_result);
 
 // Fetch supervisors & managers into arrays once
 $all_supervisors = [];
-$sup_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') ORDER BY NAME");
+$sup_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin' ORDER BY NAME");
 while ($s = mysqli_fetch_assoc($sup_res)) $all_supervisors[] = $s;
 
 $all_managers = [];
-$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' ORDER BY NAME");
+$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND ROLE != 'Super Admin' ORDER BY NAME");
 while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
 
 // All TBL_TEAMS for reassign dropdown
@@ -153,7 +153,7 @@ while ($r = mysqli_fetch_assoc($at_res)) $all_TBL_TEAMS[] = $r;
 
 // Members grouped by team
 $team_members = [];
-$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM " . tn('TBL_USERS') . " u WHERE u.TEAM_ID IS NOT NULL ORDER BY u.TEAM_ID, u.NAME");
+$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM " . tn('TBL_USERS') . " u WHERE u.TEAM_ID IS NOT NULL AND u.ROLE != 'Super Admin' ORDER BY u.TEAM_ID, u.NAME");
 while ($m = mysqli_fetch_assoc($members_res)) {
     $team_members[$m['TEAM_ID']][] = $m;
 }

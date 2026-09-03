@@ -88,12 +88,12 @@ $sr = mysqli_query($link, "SELECT setting_key, setting_value FROM " . tn('TBL_AP
 if ($sr) while ($s = mysqli_fetch_assoc($sr)) $settings[$s['setting_key']] = $s['setting_value'];
 
 // ─── Fetch TBL_USERS summary ───
-$tu = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS'));
+$tu = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin'");
 $total_TBL_USERS = $tu ? (int)mysqli_fetch_row($tu)[0] : 0;
-$au = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active'");
+$au = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active' AND ROLE != 'Super Admin'");
 $active_TBL_USERS = $au ? (int)mysqli_fetch_row($au)[0] : 0;
 $role_counts = [];
-$rc = mysqli_query($link, "SELECT ROLE, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " GROUP BY ROLE");
+$rc = mysqli_query($link, "SELECT ROLE, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin' GROUP BY ROLE");
 if ($rc) while ($r = mysqli_fetch_assoc($rc)) $role_counts[$r['ROLE']] = $r['cnt'];
 ?>
 <?php $pageTitle = 'Settings - CallNow Admin'; include __DIR__ . '/../../php_scripts/header.php'; ?>

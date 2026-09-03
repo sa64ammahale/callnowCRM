@@ -1,7 +1,6 @@
 <?php
 // manage_activity.php - fixed delete-on-view bug + compact mobile-friendly UI
 
-if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../../php_scripts/auth.php';
 
 requirePermission('view_activity');
@@ -206,7 +205,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
 /* Build filter dropdown values (users with names) */
 $TBL_USERSList = [];
-$res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " ORDER BY NAME ASC");
+$res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin' ORDER BY NAME ASC");
 if ($res) {
     while ($r = mysqli_fetch_assoc($res)) $TBL_USERSList[$r['ID']] = $r['NAME'];
     mysqli_free_result($res);

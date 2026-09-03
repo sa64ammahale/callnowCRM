@@ -14,7 +14,7 @@ $role    = $_GET['role'] ?? '';
 $team_id = $_GET['team'] ?? '';
 $package = $_GET['package'] ?? '';
 
-$where  = "WHERE 1=1";
+$where  = "WHERE 1=1 AND u.ID != 1 AND u.ROLE != 'Super Admin'";
 $params = [];
 $types  = "";
 
@@ -90,7 +90,7 @@ foreach ($TBL_USERS as $u) {
     }
 }
 
-$TBL_ROLES    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
+$TBL_ROLES    = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IS NOT NULL AND ROLE != 'Super Admin' ORDER BY ROLE"), MYSQLI_ASSOC);
 $TBL_TEAMS    = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC);
 $packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM " . tn('TBL_USERS') . " WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
 
@@ -99,7 +99,7 @@ $roleDesc = [];
 $rd = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES'));
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 
-$totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active'"))[0];
+$totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active' AND ROLE != 'Super Admin'"))[0];
 $totalInactive = $totalRecords - $totalActive;
 
 ?>
@@ -726,7 +726,7 @@ $totalInactive = $totalRecords - $totalActive;
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ((int)$u['ID'] === 1 || ($u['ROLE'] === 'Admin' && (int)$u['ID'] !== USER_ID)): ?>
+                                            <?php if ((int)$u['ID'] === 1 || (in_array($u['ROLE'], ['Admin', 'Super Admin']) && (int)$u['ID'] !== USER_ID)): ?>
                                             <span style="font-size:0.6875rem;color:#a3a3a3;display:flex;align-items:center;gap:0.3rem;">
                                                 <i class="bi bi-shield-lock"></i> Protected
                                             </span>
@@ -824,7 +824,7 @@ $totalInactive = $totalRecords - $totalActive;
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <?php if ((int)$u['ID'] === 1 || ($u['ROLE'] === 'Admin' && (int)$u['ID'] !== USER_ID)): ?>
+                                        <?php if ((int)$u['ID'] === 1 || (in_array($u['ROLE'], ['Admin', 'Super Admin']) && (int)$u['ID'] !== USER_ID)): ?>
                                                 <span style="font-size:0.6875rem;color:#a3a3a3;display:flex;align-items:center;gap:0.3rem;">
                                                     <i class="bi bi-shield-lock"></i> Protected
                                                 </span>

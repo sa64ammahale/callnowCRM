@@ -12,7 +12,7 @@ $sc = mysqli_query($link, "SELECT MAINDATABASE_CALL_DIALED_STATUS, COUNT(*) as c
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
 
 // Get all active assignees for assign dropdown
-$TBL_USERS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY NAME");
+$TBL_USERS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY NAME");
 $telecallers = [];
 while ($u = mysqli_fetch_assoc($TBL_USERS_result)) {
     $telecallers[$u['ID']] = $u['NAME'];

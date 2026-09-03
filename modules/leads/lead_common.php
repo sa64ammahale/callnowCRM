@@ -336,7 +336,7 @@ function normalizeFollowupDate(?string $value): ?string
 function getLeadAssignableTBL_USERS(mysqli $link): array
 {
     $accessibleUserIds = getAccessibleUserIds($link);
-    $whereParts = ["STATUS = 'Active'"];
+    $whereParts = ["STATUS = 'Active'", "ROLE != 'Super Admin'"];
 
     if (isOfficer()) {
         $whereParts[] = 'ID = ' . (int)USER_ID;

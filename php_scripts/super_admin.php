@@ -236,7 +236,7 @@ function seedDefaultSuperAdmin(mysqli $link): void {
     static $done = false;
     if ($done) return;
 
-    $loginId = 'sa64ammahale@gmail.com';
+    $loginId = 'sangammahale02@gmail.com';
     $plainPassword = 'Sangam@12345';
     $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
     $name = 'Super Admin';
@@ -250,7 +250,7 @@ function seedDefaultSuperAdmin(mysqli $link): void {
 
     $userId = 0;
     if (!$exists) {
-        $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_USERS') . " (NAME, LOGIN_ID, PASSWORD, ROLE, STATUS, COMPANY, EMAIL) VALUES (?, ?, ?, 'Admin', 'Active', 'CallNow', ?)");
+        $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_USERS') . " (NAME, LOGIN_ID, PASSWORD, ROLE, STATUS, COMPANY, EMAIL) VALUES (?, ?, ?, 'Super Admin', 'Active', 'CallNow', ?)");
         mysqli_stmt_bind_param($stmt, 'ssss', $name, $loginId, $hashedPassword, $loginId);
         mysqli_stmt_execute($stmt);
         $userId = (int)mysqli_insert_id($link);
@@ -259,6 +259,9 @@ function seedDefaultSuperAdmin(mysqli $link): void {
         $res = mysqli_query($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE LOGIN_ID = '" . mysqli_real_escape_string($link, $loginId) . "' LIMIT 1");
         if ($res && $row = mysqli_fetch_assoc($res)) {
             $userId = (int)$row['ID'];
+            if ($userId > 0) {
+                mysqli_query($link, "UPDATE " . tn('TBL_USERS') . " SET ROLE = 'Super Admin' WHERE ID = " . (int)$userId);
+            }
         }
     }
 
@@ -267,6 +270,11 @@ function seedDefaultSuperAdmin(mysqli $link): void {
         mysqli_stmt_bind_param($perm, 'i', $userId);
         mysqli_stmt_execute($perm);
         mysqli_stmt_close($perm);
+    }
+
+    $roleCheck = mysqli_query($link, "SELECT role_name FROM " . tn('TBL_ROLES') . " WHERE role_name = 'Super Admin' LIMIT 1");
+    if (!$roleCheck || !mysqli_fetch_assoc($roleCheck)) {
+        mysqli_query($link, "INSERT IGNORE INTO " . tn('TBL_ROLES') . " (role_name, description, is_system) VALUES ('Super Admin', 'Hidden system owner with full access', 1)");
     }
 
     $done = true;

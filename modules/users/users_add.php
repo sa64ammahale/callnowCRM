@@ -29,7 +29,7 @@ $TBL_TEAMS = mysqli_fetch_all($TBL_TEAMS_result, MYSQLI_ASSOC);
 
 // Fetch dynamic TBL_ROLES from DB
 $allTBL_ROLES = [];
-$ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " ORDER BY is_system DESC, id");
+$ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " WHERE role_name != 'Super Admin' ORDER BY is_system DESC, id");
 if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allTBL_ROLES[] = $a;
 
 $editUser = null;
@@ -41,8 +41,8 @@ if ($isEdit) {
     $editUser = mysqli_fetch_assoc($result);
         if (!$editUser) { header("Location: users_view.php"); exit; }
     // Protect system accounts from editing (allow self-edit)
-    if ((int)$editUser['ID'] === 1) {
-        $_SESSION['error'] = 'System Administrator (ID:1) cannot be edited.';
+    if ((int)$editUser['ID'] === 1 || $editUser['ROLE'] === 'Super Admin') {
+        $_SESSION['error'] = 'System Administrator cannot be edited.';
         header('Location: users_view.php'); exit;
     }
     if ($editUser['ROLE'] === 'Admin' && (int)$editUser['ID'] !== USER_ID) {

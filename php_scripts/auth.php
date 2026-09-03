@@ -1,8 +1,8 @@
 <?php
 date_default_timezone_set('Asia/Kolkata');
-ini_set('session.gc_maxlifetime', 14400);
-session_set_cookie_params(14400);
-if (session_status() !== PHP_SESSION_ACTIVE) {
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.gc_maxlifetime', 14400);
+    session_set_cookie_params(14400);
     session_start();
 }
 require_once __DIR__ . '/../config.php';
@@ -46,7 +46,8 @@ if (!defined('THEME')) define('THEME', ($_SESSION['theme'] ?? 'light') === 'dark
 
 
 // Helpers
-function isAdmin() { return USER_ROLE === 'Admin'; }
+function isAdmin() { return USER_ROLE === 'Admin' || USER_ROLE === 'Super Admin'; }
+function isSuperAdmin() { return USER_ROLE === 'Super Admin' || USER_ID === 1; }
 function isManager() { return USER_ROLE === 'Manager'; }
 function isSupervisor() { return USER_ROLE === 'Supervisor'; }
 function isOfficer() { return USER_ROLE === 'Officer'; }
@@ -82,7 +83,7 @@ function clearRbacCache(): void {
 }
 
 // Build the effective permission set for the current user:
-//   - Admin role OR System Admin (USER_ID===1) => everything (handled in can())
+//   - Admin/Super Admin role OR System Admin (USER_ID===1) => everything (handled in can())
 //   - starts from TBL_ROLE_PERMISSIONS for the user's role
 //   - TBL_USER_PERMISSIONS overrides win over role level
 function loadEffectiveTBL_PERMISSIONS(): array {
@@ -135,9 +136,9 @@ function loadEffectiveTBL_PERMISSIONS(): array {
     return $perms;
 }
 
-// Authoritative permission check. Admin role and System Admin always pass.
+// Authoritative permission check. Admin role, Super Admin role, and System Admin always pass.
 function can(string $permissionKey): bool {
-    if (USER_ROLE === 'Admin' || USER_ID === 1) return true;
+    if (USER_ROLE === 'Admin' || USER_ROLE === 'Super Admin' || USER_ID === 1) return true;
     $perms = loadEffectiveTBL_PERMISSIONS();
     return !empty($perms[$permissionKey]);
 }

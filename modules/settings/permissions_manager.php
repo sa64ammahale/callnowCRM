@@ -280,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ─── Fetch data ───
 $allTBL_ROLES = [];
-$ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ROLE = r.role_name) as user_count FROM " . tn('TBL_ROLES') . " r ORDER BY r.is_system DESC, r.id");
+$ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ROLE = r.role_name AND ROLE != 'Super Admin') as user_count FROM " . tn('TBL_ROLES') . " r WHERE r.role_name != 'Super Admin' ORDER BY r.is_system DESC, r.id");
 if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allTBL_ROLES[] = $a;
 
 $allTBL_PERMISSIONS = getAllTBL_PERMISSIONS($link);
@@ -299,7 +299,7 @@ if ($selectedRole) {
 
 // TBL_USERS for access tab
 $allTBL_USERS = [];
-$ur = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " ORDER BY NAME");
+$ur = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin' ORDER BY NAME");
 if ($ur) while ($u = mysqli_fetch_assoc($ur)) $allTBL_USERS[] = $u;
 
 if ($selectedUser === null && !empty($allTBL_USERS)) {
