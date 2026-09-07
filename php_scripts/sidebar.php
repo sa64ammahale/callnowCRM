@@ -158,6 +158,15 @@ function navActive($patterns) {
             <?php endif; ?>
         </div>
         <?php endif; ?>
+        <?php if (isSuperAdmin()): ?>
+        <div class="app-sidebar-section">
+            <div class="app-sidebar-section-label">Administration</div>
+            <a class="app-sidebar-link <?= navActive(['super_admin_panel.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>">
+                <i class="bi bi-shield-lock-fill"></i>
+                <span class="link-text">Super Admin</span>
+            </a>
+        </div>
+        <?php endif; ?>
     </nav>
 
     <div class="app-sidebar-footer">

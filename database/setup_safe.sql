@@ -618,6 +618,13 @@ CREATE TABLE IF NOT EXISTS `users` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `users`
+--
+
+INSERT IGNORE INTO `users` (`NAME`, `MOBILE`, `EMAIL`, `COMPANY`, `STATUS`, `ROLE`, `role_id`, `PASSWORD`, `LOGIN_ID`)
+VALUES ('System Administrator', '9999999999', 'admin@callnow.com', 'CallNow', 'Active', 'Super Admin', 1, '$2y$10$mp33ADcNyz9KvGqQfsiOpO40xynqmZ3tsruRcFhUJn7pULBeFnVZW', 'admin@callnow.com');
+
+--
 -- Dumping routines for database 'callnow_incredit'
 --
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

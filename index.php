@@ -184,11 +184,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <div class="mb-2">
                             <a href="forgot-password.php"><i class="bi bi-key me-1"></i>Forgot Password?</a>
                         </div>
-                        <div class="mb-2">
-                            <a href="<?= htmlspecialchars(APP_BASE) ?>/super_admin_login.php" class="text-primary fw-semibold">
-                                <i class="bi bi-shield-lock-fill me-1"></i>Super Admin Login
-                            </a>
-                        </div>
                         <div>
                             <p class="mb-1">Don't have an account?</p>
                             <a href="CallNowSignUp.php" class="fw-bold"><i class="bi bi-person-plus me-1"></i>Sign Up Now</a>

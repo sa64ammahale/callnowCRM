@@ -8,7 +8,9 @@ seedDefaultPlan($link);
 seedManageSuperAdminPermission($link);
 seedDefaultSuperAdmin($link);
 
-requirePermission('manage_super_admin');
+if (!isSuperAdmin()) {
+    appRedirect('dashboard.php');
+}
 
 $msg = '';
 $msg_type = '';

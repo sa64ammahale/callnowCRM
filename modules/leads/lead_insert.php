@@ -159,7 +159,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $dsaName = $form['dsa_name'];
             mysqli_stmt_bind_param(
                 $stmt,
-                'iiisiissssssssssssssssss',
+                'iiisisssssssssssssssssss',
                 $custId,
                 $assignedTo,
                 $assignedBy,
@@ -514,3 +514,7 @@ document.getElementById('mobile').addEventListener('blur', function () {
     .li-grid { grid-template-columns: 1fr; }
 }
 </style>
+
+
+
+

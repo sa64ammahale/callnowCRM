@@ -94,7 +94,15 @@ function ensureLeadModuleSchema(mysqli $link): void
     $addColumn('sent_backward_flag', "TINYINT(1) NOT NULL DEFAULT 0 AFTER forwarded_flag");
     $addColumn('parent_lead_id', "INT DEFAULT NULL AFTER sent_backward_flag");
 
-    if (isset($columns['lead_status_new']) && stripos((string)$columns['lead_status_new'], "'REJECT'") === false) {
+    $requiredEnum = ["LEAD","FOLLOWUP","INTERNAL_UNDERWRITING","LOGIN","BANK_UNDERWRITING","SANCTIONED","DISBURSED","REJECT"];
+    $hasAll = true;
+    foreach ($requiredEnum as $v) {
+        if (stripos((string)($columns['lead_status_new'] ?? ''), "'" . $v . "'") === false) {
+            $hasAll = false;
+            break;
+        }
+    }
+    if (isset($columns['lead_status_new']) && !$hasAll) {
         mysqli_query(
             $link,
             "ALTER TABLE " . tn('TBL_LEADS') . "
