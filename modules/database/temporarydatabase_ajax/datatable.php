@@ -34,13 +34,14 @@ $dir    = $order['dir'] ?? 'desc';
 
 // Map DataTables column index → DB column (for TBL_TEMP)
 $columns = [
-    0 => 'ID', // hidden checkbox
-    1 => 'CUST_MOBILE',
-    2 => 'CUST_NAME',
-    3 => 'CUST_COMPANY',
-    4 => 'CUST_PACKAGE',
-    5 => 'CALL_DIALED_STATUS',
-    6 => 'TEMP_UPLOAD_DATETIME'
+    0 => 'ID',
+    1 => 'ID',
+    2 => 'CUST_MOBILE',
+    3 => 'CUST_NAME',
+    4 => 'CUST_COMPANY',
+    5 => 'CUST_PACKAGE',
+    6 => 'CALL_DIALED_STATUS',
+    7 => 'TEMP_UPLOAD_DATETIME'
 ];
 
 // Build WHERE
@@ -93,14 +94,14 @@ $data = [];
 while ($row = mysqli_fetch_assoc($result)) {
     $data[] = [
         '<input type="checkbox" class="row-checkbox" value="'.$row['ID'].'">', // 0 – checkbox
-        $row['CUST_MOBILE'],                                                    // 1
-        $row['CUST_NAME'] ?: '-',                                               // 2
-        $row['CUST_COMPANY'] ?: '-',                                            // 3
-        $row['CUST_PACKAGE'] ?: '-',                                            // 4
-        $row['CALL_DIALED_STATUS'] ?: 'Not Called',                             // 5
-        $row['TEMP_UPLOAD_DATETIME'],                                           // 6
-        '',                                                                     // 7 – empty actions column
-        $row['ID']                                                              // 8 – raw ID for JS
+        $row['ID'],                                                            // 1 – ID
+        $row['CUST_MOBILE'],                                                   // 2 – Mobile
+        $row['CUST_NAME'] ?: '-',                                              // 3 – Name
+        $row['CUST_COMPANY'] ?: '-',                                           // 4 – Company
+        $row['CUST_PACKAGE'] ?: '-',                                           // 5 – Package
+        $row['CALL_DIALED_STATUS'] ?: 'Not Called',                            // 6 – Status
+        $row['TEMP_UPLOAD_DATETIME'],                                          // 7 – Uploaded
+        ''                                                                     // 8 – Actions (empty, row-click opens modal)
     ];
 }
 

@@ -67,24 +67,12 @@ The app also reads these from PHP environment variables if set in hosting contro
 
 1. Go to **Hostinger hPanel** → **Databases** → **phpMyAdmin**
 2. Select your database
-3. Click **Import** → Choose file `database/setup_safe.sql`
+3. Click **Import** → Choose file `database/hostinger_schema.sql`
 4. Click **Go**
 
-> `setup_safe.sql` uses `CREATE TABLE IF NOT EXISTS` and will not delete existing data.
+> `hostinger_schema.sql` uses `CREATE TABLE IF NOT EXISTS` and `INSERT IGNORE`, so it is safe to re-run. It includes the default Super Admin user.
 
-### 5. Seed initial data
-
-After importing the schema, a default **Super Admin** user is created automatically:
-
-| Role | Login ID | Password |
-|------|----------|----------|
-| **Super Admin** | `admin@callnow.com` | `Admin@123` |
-
-> **Important:** The Super Admin account is hidden from all normal user views and has full system access. Change the default password immediately after first login.
-
-If you need to create additional users, log in as Super Admin and use the **Users** page.
-
-### 6. Set permissions
+### 5. Set permissions
 
 Ensure `config.php` and `.env` are not publicly accessible. On Hostinger, sensitive files are typically protected by default.
 
@@ -182,10 +170,8 @@ Visit: `https://yourdomain.com/callnowCRM/`
 │   └── admin/index.php             # Admin API endpoints
 │
 ├── database/
-│   ├── setup_safe.sql              # Safe schema import (no DROP TABLE)
-│   ├── schema.sql                  # Full schema with seed data
-│   ├── migrate_lead_management.sql # Lead module migration
-│   └── migrate_super_admin_limits.sql # Super Admin limits migration
+│   ├── hostinger_schema.sql          # Recommended for Hostinger deployment (includes default Super Admin user)
+│   └── schema.sql                    # Full schema dump from development database
 │
 └── project-context/
     ├── CODEBASE_SUMMARY.md         # Canonical project reference

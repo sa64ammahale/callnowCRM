@@ -615,8 +615,7 @@ $(document).ready(function() {
         const ids = [];
         $('#tempTable input[type="checkbox"]:checked').each(function() {
             if (!$(this).is('#selectAll')) {
-                const row = table.row($(this).closest('tr')).data();
-                if (row) ids.push(row[0]);
+                ids.push($(this).val());
             }
         });
         return ids;
@@ -681,7 +680,7 @@ $(document).ready(function() {
         if ($(this).find('input[type="checkbox"]').length) return;
         if ($(this).find('.btn-edit, .btn-del').length) return;
         const row = table.row($(this).closest('tr')).data();
-        if (row && row[8]) loadEditModal(row[8]);
+        if (row && row[1]) loadEditModal(row[1]);
     });
 
     $('#editForm').on('submit', function(e){
