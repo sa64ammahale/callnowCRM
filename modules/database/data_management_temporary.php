@@ -150,6 +150,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    if ($action === 'transfer_all') {
+        if (!isAdmin() && !isManager()) {
+            respond_json(['error' => 'Admin or Manager access required']);
+        }
+
+        $countRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP'));
+        $total = ($countRes && $row = mysqli_fetch_row($countRes)) ? (int)$row[0] : 0;
+
+        if ($total === 0) {
+            respond_json(['error' => 'Temporary database is empty']);
+        }
+
+        mysqli_autocommit($link, false);
+
+        try {
+            $sql = "INSERT INTO " . tn('TBL_MAIN') . " (
+                MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY,
+                MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO,
+                MAINDATABASE_CALL_DIALED_STATUS, MAINDATABASE_CALL_DIALED_USER,
+                LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD,
+                MAINDATABASE_UPLOAD_DATETIME, MAINDATABASE_CALL_DIAL_TIME
+            ) SELECT
+                CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
+                CALL_DIALED_STATUS, CALL_DIALED_TELECALLER,
+                LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD,
+                TEMP_UPLOAD_DATETIME, NOW()
+            FROM " . tn('TBL_TEMP') . "
+            ON DUPLICATE KEY UPDATE
+                MAINDATABASE_NAME = VALUES(MAINDATABASE_NAME),
+                MAINDATABASE_COMPANY = VALUES(MAINDATABASE_COMPANY),
+                MAINDATABASE_PACKAGE = VALUES(MAINDATABASE_PACKAGE),
+                MAINDATABASE_OTHER_INFO = VALUES(MAINDATABASE_OTHER_INFO),
+                MAINDATABASE_CALL_DIALED_STATUS = VALUES(MAINDATABASE_CALL_DIALED_STATUS),
+                MAINDATABASE_CALL_DIALED_USER = VALUES(MAINDATABASE_CALL_DIALED_USER),
+                LAST_DIALED_DATE_TIME = VALUES(LAST_DIALED_DATE_TIME),
+                LAST_CONNECTED_PERIOD = VALUES(LAST_CONNECTED_PERIOD),
+                MAINDATABASE_UPLOAD_DATETIME = VALUES(MAINDATABASE_UPLOAD_DATETIME),
+                MAINDATABASE_CALL_DIAL_TIME = NOW()";
+
+            $stmt = mysqli_prepare($link, $sql);
+            if (!$stmt) throw new Exception('Prepare failed: ' . mysqli_error($link));
+            mysqli_stmt_execute($stmt);
+            $affected = mysqli_stmt_affected_rows($stmt);
+            mysqli_stmt_close($stmt);
+
+            $callLogsMigrated = 0;
+            $tblCallLogs = tn('TBL_CALL_LOGS');
+            $checkTable = mysqli_query($link, "SHOW TABLES LIKE '" . mysqli_real_escape_string($link, $tblCallLogs) . "'");
+            if ($checkTable && mysqli_num_rows($checkTable) > 0) {
+                $migrateSql = "UPDATE " . $tblCallLogs . " cl
+                    JOIN " . tn('TBL_TEMP') . " t ON cl.record_id = t.ID AND cl.source = 'TEMP'
+                    JOIN " . tn('TBL_MAIN') . " m ON t.CUST_MOBILE = m.MAINDATABASE_MOBILE
+                    SET cl.record_id = m.ID, cl.source = 'MAIN'";
+                $migrateStmt = mysqli_prepare($link, $migrateSql);
+                if ($migrateStmt) {
+                    mysqli_stmt_execute($migrateStmt);
+                    $callLogsMigrated = mysqli_stmt_affected_rows($migrateStmt);
+                    mysqli_stmt_close($migrateStmt);
+                }
+            }
+
+            $delSql = "DELETE FROM " . tn('TBL_TEMP');
+            $delStmt = mysqli_prepare($link, $delSql);
+            if (!$delStmt) throw new Exception('Delete prepare failed: ' . mysqli_error($link));
+            mysqli_stmt_execute($delStmt);
+            $deleted = mysqli_stmt_affected_rows($delStmt);
+            mysqli_stmt_close($delStmt);
+
+            mysqli_commit($link);
+
+            logActivity($link, $current_user_id, 'TRANSFER_ALL',
+                "Transferred all from TBL_TEMP to TBL_MAIN. Affected: $affected, Call logs migrated: $callLogsMigrated, Deleted: $deleted",
+                'ALL', tn('TBL_TEMP'));
+
+            respond_json([
+                'success' => true,
+                'affected' => $affected,
+                'call_logs_migrated' => $callLogsMigrated,
+                'deleted' => $deleted,
+                'message' => "Transferred $total records. Updated $affected rows in main DB. Migrated $callLogsMigrated call logs."
+            ]);
+
+        } catch (Exception $e) {
+            mysqli_rollback($link);
+            respond_json(['error' => 'Transfer failed: ' . $e->getMessage()]);
+        }
+    }
+
     if ($action === 'export_csv') {
         $limit = min(intval($_POST['limit'] ?? $EXPORT_MAX), $EXPORT_MAX);
 
@@ -351,6 +439,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <a href="<?= url('modules/database/add_single_number.php') ?>" class="td-btn-success td-btn-sm"><i class="bi bi-upload"></i> Upload Single</a>
                 <button id="deleteSelected" class="td-btn-danger td-btn-sm" disabled><i class="bi bi-trash"></i> Delete Selected (<span id="selectedCount">0</span>)</button>
                 <button id="transferSelected" class="td-btn-success td-btn-sm" disabled><i class="bi bi-arrow-right-circle"></i> Transfer Selected</button>
+                <button id="transferAllBtn" class="td-btn-primary td-btn-sm" <?= $totalCount > 0 ? '' : 'disabled' ?>><i class="bi bi-arrow-down-circle"></i> Transfer All to Main DB</button>
                 <button id="deleteAllBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-x-circle"></i> Delete All</button>
             </div>
             <div class="ms-auto d-flex gap-2 align-items-center">
@@ -724,6 +813,20 @@ $(document).ready(function() {
         $.post(location.href, { action:'transfer_selected', ids: ids, csrf_token: CSRF_TOKEN }, function(resp){
             if (resp.success) { alert('Transferred (affected: ' + (resp.affected || 'unknown') + ')'); table.ajax.reload(); }
             else alert('Error: ' + (resp.error || 'unknown'));
+        }, 'json');
+    });
+
+    const TOTAL_TEMP_COUNT = <?= (int)$totalCount ?>;
+    $('#transferAllBtn').on('click', function(){
+        if (TOTAL_TEMP_COUNT === 0) return showToast('Empty', 'No records to transfer', 'warning');
+        if (!confirm(`Transfer ALL ${TOTAL_TEMP_COUNT.toLocaleString()} records from Temporary to Main DB?\n\nExisting records in Main DB will be updated with Temporary data.\nCall history will be preserved and migrated.`)) return;
+        $.post(location.href, { action:'transfer_all', csrf_token: CSRF_TOKEN }, function(resp){
+            if (resp.success) {
+                showToast('Transfer Complete', resp.message || 'All records transferred', 'success');
+                table.ajax.reload();
+            } else {
+                showToast('Error', resp.error || 'Transfer failed', 'danger');
+            }
         }, 'json');
     });
 
