@@ -375,7 +375,7 @@ function canAssignLeadToUserId(mysqli $link, int $targetUserId): bool
 
 function canEditLeadAssignment(): bool
 {
-    return isAdmin() || isManager() || isSupervisor();
+    return isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
 }
 
 function getLeadAccessCondition(mysqli $link, string $alias = 'l'): ?string

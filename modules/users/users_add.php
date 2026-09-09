@@ -18,7 +18,7 @@ if (!$isEdit) {
 
 $Message = ""; $type = "";
 
-if (USER_ROLE === 'Admin') {
+if (isAdmin()) {
     $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
 } elseif (USER_TEAM_ID) {
     $TBL_TEAMS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID = " . (int)USER_TEAM_ID);
@@ -469,7 +469,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="ua-label">Role <span class="required">*</span></label>
-                                <?php if (USER_ROLE === 'Admin'): ?>
+                                <?php if (isAdmin()): ?>
                                     <select name="role" class="form-select ua-select" required>
                                         <option value="">-- Select Role --</option>
                                         <?php foreach ($allTBL_ROLES as $r): ?>

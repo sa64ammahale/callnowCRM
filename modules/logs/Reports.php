@@ -114,7 +114,7 @@ if (USER_ROLE === 'Supervisor') {
     $whereParts[] = "u.ID = ?";
     $paramsBase[] = USER_ID;
     $typesBase   .= "i";
-} elseif ($team_filter !== '' && is_numeric($team_filter) && in_array(USER_ROLE, ['Admin','Manager'])) {
+} elseif ($team_filter !== '' && is_numeric($team_filter) && (in_array(USER_ROLE, ['Admin','Manager']) || USER_ROLE === 'Super Admin')) {
     $whereParts[] = "u.TEAM_ID = ?";
     $paramsBase[] = (int)$team_filter;
     $typesBase   .= "i";
@@ -236,7 +236,7 @@ if ($runQueries) {
 $grand_rate = $grand_total ? round($grand_connected / $grand_total * 100, 1) : 0;
 
 // TBL_TEAMS for filter dropdown
-$TBL_TEAMS = in_array(USER_ROLE, ['Admin','Manager'])
+$TBL_TEAMS = (in_array(USER_ROLE, ['Admin','Manager']) || USER_ROLE === 'Super Admin')
     ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC)
     : [];
 
@@ -581,7 +581,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                 </div>
             <?php endif; ?>
 
-            <?php if (in_array(USER_ROLE, ['Admin','Manager'])): ?>
+            <?php if (in_array(USER_ROLE, ['Admin','Manager']) || USER_ROLE === 'Super Admin'): ?>
                 <div class="col-auto">
                     <label class="form-label d-block">Team</label>
                     <select name="team" class="form-select" onchange="this.form.submit()">

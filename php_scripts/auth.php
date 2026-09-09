@@ -55,7 +55,7 @@ function isOfficer() { return USER_ROLE === 'Officer'; }
 // Require role
 function requireRole($TBL_ROLES) {
     $TBL_ROLES = is_array($TBL_ROLES) ? $TBL_ROLES : [$TBL_ROLES];
-    if (!in_array(USER_ROLE, $TBL_ROLES)) {
+    if (!in_array(USER_ROLE, $TBL_ROLES) && !isSuperAdmin()) {
         $_SESSION['access_denied_message'] = "Access denied: your role does not permit access to this page.";
         appRedirect('dashboard.php');
     }
