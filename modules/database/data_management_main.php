@@ -156,10 +156,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     </div>
 </div>
 
-<!-- Toast Container -->
-<div class="toast-container"></div>
+<div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--md-border);">
+            <div class="modal-body text-center py-4">
+                <div id="notifIcon" class="mb-2" style="font-size:2.5rem;"></div>
+                <h5 id="notifTitle" class="fw-bold mb-1"></h5>
+                <p id="notifMessage" class="text-muted small mb-3"></p>
+                <button type="button" class="btn btn-primary btn-sm px-4" data-bs-dismiss="modal" style="border-radius:0.5rem;">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
 
-<!-- Assign Modal -->
+<!-- Notification Modal -->
 <div class="modal fade" id="assignModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--md-border);">
@@ -331,6 +341,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 .info-item span { color: #1e1b4b; }
 .main-input { border: 1px solid #e2e4f0 !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; color: #1e1b4b !important; padding: 0.35rem 0.65rem !important; background: #fff !important; }
 .main-input:focus { border-color: #4f46e5 !important; box-shadow: 0 0 0 3px rgba(79,70,229,0.12) !important; outline: none; }
+#notificationModal .modal-content { border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
 </style>
 
 <!-- Scripts -->
@@ -346,22 +357,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <script src="<?= vnd('dt/buttons.print.min.js') ?>"></script>
 
 <script>
-// Toast Function
-function showToast(title, message, type = 'success') {
-    const toast = `
-    <div class="toast align-items-center text-white bg-${type} border-0" role="alert">
-        <div class="d-flex">
-            <div class="toast-body">
-                <strong>${title}</strong><br><small>${message}</small>
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>
-    </div>`;
-    $('.toast-container').append(toast);
-    const toastEl = $('.toast').last()[0];
-    const bsToast = new bootstrap.Toast(toastEl, { delay: 5000 });
-    bsToast.show();
-    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+// Notification Modal
+function showNotification(title, message, type = 'success') {
+    const iconMap = {
+        success: '<i class="bi bi-check-circle-fill text-success"></i>',
+        danger: '<i class="bi bi-x-circle-fill text-danger"></i>',
+        warning: '<i class="bi bi-exclamation-triangle-fill text-warning"></i>',
+        info: '<i class="bi bi-info-circle-fill text-info"></i>'
+    };
+    const icon = iconMap[type] || iconMap.info;
+    $('#notifIcon').html(icon);
+    $('#notifTitle').text(title);
+    $('#notifMessage').text(message || '');
+    new bootstrap.Modal(document.getElementById('notificationModal')).show();
 }
 
 const APP_BASE = <?= json_encode(APP_BASE) ?>;
@@ -401,7 +409,7 @@ $(document).ready(function() {
                 action: function () {
                     $.get(APP_BASE + '/modules/database/maindatabase_ajax/get_total_count.php', function (total) {
                         total = parseInt(total);
-                        if (total === 0) return showToast('Empty', 'No data found', 'info');
+                        if (total === 0) return showNotification('Empty', 'No data found', 'info');
             
                         if (total > 100000 && !confirm(`Warning: ${total.toLocaleString()} records!\n\nThis will download in multiple large CSV files.\n\nContinue?`)) {
                             return;
@@ -409,9 +417,9 @@ $(document).ready(function() {
             
                         const win = window.open(APP_BASE + '/modules/database/maindatabase_ajax/download_bach.php', '_blank');
                         if (win) {
-                            showToast('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
+                            showNotification('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
                         } else {
-                            showToast('Popup Blocked!', 'Please allow popups', 'danger');
+                            showNotification('Popup Blocked!', 'Please allow popups', 'danger');
                         }
                     });
                 }
@@ -465,7 +473,7 @@ $(document).ready(function() {
     // Bulk Assign
     $('#doAssign').on('click', function() {
         const userId = $('#assignUser').val();
-        if (!userId) return showToast('Error', 'Please select a user', 'danger');
+        if (!userId) return showNotification('Error', 'Please select a user', 'danger');
 
         const ids = [];
         $('#mainTable input[type="checkbox"]:checked').each(function() {
@@ -475,15 +483,15 @@ $(document).ready(function() {
             }
         });
 
-        if (ids.length === 0) return showToast('Warning', 'No records selected', 'warning');
+        if (ids.length === 0) return showNotification('Warning', 'No records selected', 'warning');
 
         $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 $('#assignModal').modal('hide');
-                showToast('Success!', `${ids.length} leads assigned successfully`, 'success');
+                showNotification('Success!', `${ids.length} leads assigned successfully`, 'success');
             } else {
-                showToast('Error', res.message || 'Failed', 'danger');
+                showNotification('Error', res.message || 'Failed', 'danger');
             }
         }, 'json');
     });
@@ -501,14 +509,14 @@ $(document).ready(function() {
         $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
-                showToast('Deleted!', `${ids.length} records removed`, 'danger');
+                showNotification('Deleted!', `${ids.length} records removed`, 'danger');
             }
         }, 'json');
     };
 
     function loadEditModal(id) {
         $.post(location.href, { action:'view', id: id, csrf_token: CSRF_TOKEN }, function(resp){
-            if (!resp.row) return alert('Row not found');
+            if (!resp.row) return showNotification('Error', 'Row not found', 'danger');
             const r = resp.row;
             $('#editId').val(r.ID);
             $('#editName').val(r.MAINDATABASE_NAME);
@@ -544,7 +552,7 @@ $(document).ready(function() {
             if (resp.success) {
                 bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
                 table.ajax.reload();
-                showToast('Updated', 'Record saved', 'success');
+                showNotification('Updated', 'Record saved', 'success');
             } else {
                 $('#editError').show().text(resp.error || 'Update failed');
             }
@@ -557,7 +565,7 @@ $(document).ready(function() {
 
     $('#refreshBtn').on('click', function() {
         table.ajax.reload();
-        showToast('Refreshed', 'Table data reloaded', 'info');
+        showNotification('Refreshed', 'Table data reloaded', 'info');
     });
 });
 </script>

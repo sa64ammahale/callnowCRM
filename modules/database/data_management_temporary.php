@@ -131,8 +131,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $sql = "INSERT INTO " . tn('TBL_MAIN') . " (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, MAINDATABASE_UPLOAD_DATETIME)
                 SELECT CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD, NOW()
-                FROM " . tn('TBL_TEMP') . " WHERE ID IN ($placeholders)
-                ON DUPLICATE KEY UPDATE ID = ID";
+                FROM " . tn('TBL_TEMP') . " AS td WHERE td.ID IN ($placeholders)
+                ON DUPLICATE KEY UPDATE
+                    MAINDATABASE_NAME = VALUES(MAINDATABASE_NAME),
+                    MAINDATABASE_COMPANY = VALUES(MAINDATABASE_COMPANY),
+                    MAINDATABASE_PACKAGE = VALUES(MAINDATABASE_PACKAGE),
+                    MAINDATABASE_OTHER_INFO = VALUES(MAINDATABASE_OTHER_INFO),
+                    MAINDATABASE_CALL_DIALED_STATUS = VALUES(MAINDATABASE_CALL_DIALED_STATUS),
+                    LAST_DIALED_DATE_TIME = VALUES(LAST_DIALED_DATE_TIME),
+                    LAST_CONNECTED_PERIOD = VALUES(LAST_CONNECTED_PERIOD),
+                    MAINDATABASE_UPLOAD_DATETIME = VALUES(MAINDATABASE_UPLOAD_DATETIME)";
         $stmt = mysqli_prepare($link, $sql);
         if (!$stmt) respond_json(['error' => 'Prepare failed: ' . mysqli_error($link)]);
         $types = str_repeat('i', count($ids));
@@ -155,28 +163,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             respond_json(['error' => 'Admin or Manager access required']);
         }
 
-        $countRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP'));
-        $total = ($countRes && $row = mysqli_fetch_row($countRes)) ? (int)$row[0] : 0;
+        $transferId = $_POST['transfer_id'] ?? '';
+        $progressFile = sys_get_temp_dir() . '/callnow_xfr_' . md5($transferId) . '.json';
 
-        if ($total === 0) {
-            respond_json(['error' => 'Temporary database is empty']);
+        if (!$transferId || !file_exists($progressFile)) {
+            $totalRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP'));
+            $total = ($totalRes && $row = mysqli_fetch_row($totalRes)) ? (int)$row[0] : 0;
+            if ($total === 0) {
+                respond_json(['success' => false, 'error' => 'Temporary database is empty']);
+            }
+            $transferId = uniqid('xfr_', true);
+            $progressFile = sys_get_temp_dir() . '/callnow_xfr_' . md5($transferId) . '.json';
+            file_put_contents($progressFile, json_encode([
+                'transfer_id' => $transferId,
+                'status' => 'running',
+                'percent' => 0,
+                'processed' => 0,
+                'total' => $total,
+                'last_id' => 0,
+                'message' => 'Starting transfer...'
+            ]));
+            respond_json(['transfer_id' => $transferId, 'total' => $total, 'status' => 'started']);
         }
 
-        mysqli_autocommit($link, false);
+        $progress = json_decode(file_get_contents($progressFile), true) ?: [];
+        if (($progress['status'] ?? '') === 'complete') {
+            respond_json(['status' => 'complete', 'percent' => 100, 'result' => $progress['result']]);
+        }
 
-        try {
-            $sql = "INSERT INTO " . tn('TBL_MAIN') . " (
+        $batchSize = 500;
+        $lastId = (int)($progress['last_id'] ?? 0);
+
+        $idsResult = mysqli_query($link, "SELECT ID FROM " . tn('TBL_TEMP') . " WHERE ID > $lastId ORDER BY ID LIMIT $batchSize");
+        $ids = [];
+        while ($row = mysqli_fetch_row($idsResult)) {
+            $ids[] = $row[0];
+        }
+
+        if (empty($ids)) {
+            mysqli_autocommit($link, false);
+            try {
+                $callLogsMigrated = 0;
+                $tblCallLogs = tn('TBL_CALL_LOGS');
+                $checkTable = mysqli_query($link, "SHOW TABLES LIKE '" . mysqli_real_escape_string($link, $tblCallLogs) . "'");
+                if ($checkTable && mysqli_num_rows($checkTable) > 0) {
+                    $migrateSql = "UPDATE " . $tblCallLogs . " cl
+                        JOIN " . tn('TBL_TEMP') . " t ON cl.record_id = t.ID AND cl.source = 'TEMP'
+                        JOIN " . tn('TBL_MAIN') . " m ON t.CUST_MOBILE = m.MAINDATABASE_MOBILE
+                        SET cl.record_id = m.ID, cl.source = 'MAIN'";
+                    $migrateStmt = mysqli_prepare($link, $migrateSql);
+                    if ($migrateStmt) {
+                        mysqli_stmt_execute($migrateStmt);
+                        $callLogsMigrated = mysqli_stmt_affected_rows($migrateStmt);
+                        mysqli_stmt_close($migrateStmt);
+                    }
+                }
+
+                $delSql = "DELETE FROM " . tn('TBL_TEMP');
+                $delStmt = mysqli_prepare($link, $delSql);
+                if (!$delStmt) throw new Exception('Delete prepare failed: ' . mysqli_error($link));
+                mysqli_stmt_execute($delStmt);
+                $deleted = mysqli_stmt_affected_rows($delStmt);
+                mysqli_stmt_close($delStmt);
+
+                mysqli_commit($link);
+
+                $result = [
+                    'affected' => $progress['processed'],
+                    'call_logs_migrated' => $callLogsMigrated,
+                    'deleted' => $deleted,
+                    'message' => "Transferred {$progress['total']} records. Updated {$progress['processed']} rows in main DB. Migrated $callLogsMigrated call logs."
+                ];
+
+                logActivity($link, $current_user_id, 'TRANSFER_ALL',
+                    "Transferred all from TBL_TEMP to TBL_MAIN. Affected: {$progress['processed']}, Call logs migrated: $callLogsMigrated, Deleted: $deleted",
+                    'ALL', tn('TBL_TEMP'));
+
+                file_put_contents($progressFile, json_encode([
+                    'status' => 'complete',
+                    'percent' => 100,
+                    'result' => $result
+                ]));
+
+                respond_json(['status' => 'complete', 'percent' => 100, 'result' => $result]);
+
+            } catch (Exception $e) {
+                mysqli_rollback($link);
+                file_put_contents($progressFile, json_encode([
+                    'status' => 'error',
+                    'percent' => $progress['percent'],
+                    'error' => $e->getMessage()
+                ]));
+                respond_json(['status' => 'error', 'error' => 'Transfer failed: ' . $e->getMessage()]);
+            }
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "INSERT INTO " . tn('TBL_MAIN') . " (
                 MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY,
                 MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO,
                 MAINDATABASE_CALL_DIALED_STATUS, MAINDATABASE_CALL_DIALED_USER,
                 LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD,
                 MAINDATABASE_UPLOAD_DATETIME, MAINDATABASE_CALL_DIAL_TIME
             ) SELECT
-                CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
-                CALL_DIALED_STATUS, CALL_DIALED_TELECALLER,
-                LAST_DIALED_DATE_TIME, LAST_CONNECTED_PERIOD,
-                TEMP_UPLOAD_DATETIME, NOW()
-            FROM " . tn('TBL_TEMP') . "
+                td.CUST_NAME, td.CUST_MOBILE, td.CUST_COMPANY, td.CUST_PACKAGE, td.CUST_OTHER_INFO,
+                td.CALL_DIALED_STATUS, td.CALL_DIALED_TELECALLER,
+                td.LAST_DIALED_DATE_TIME, td.LAST_CONNECTED_PERIOD,
+                td.TEMP_UPLOAD_DATETIME, NOW()
+            FROM " . tn('TBL_TEMP') . " AS td
+            WHERE td.ID IN ($placeholders)
             ON DUPLICATE KEY UPDATE
                 MAINDATABASE_NAME = VALUES(MAINDATABASE_NAME),
                 MAINDATABASE_COMPANY = VALUES(MAINDATABASE_COMPANY),
@@ -189,53 +284,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 MAINDATABASE_UPLOAD_DATETIME = VALUES(MAINDATABASE_UPLOAD_DATETIME),
                 MAINDATABASE_CALL_DIAL_TIME = NOW()";
 
-            $stmt = mysqli_prepare($link, $sql);
-            if (!$stmt) throw new Exception('Prepare failed: ' . mysqli_error($link));
-            mysqli_stmt_execute($stmt);
-            $affected = mysqli_stmt_affected_rows($stmt);
-            mysqli_stmt_close($stmt);
-
-            $callLogsMigrated = 0;
-            $tblCallLogs = tn('TBL_CALL_LOGS');
-            $checkTable = mysqli_query($link, "SHOW TABLES LIKE '" . mysqli_real_escape_string($link, $tblCallLogs) . "'");
-            if ($checkTable && mysqli_num_rows($checkTable) > 0) {
-                $migrateSql = "UPDATE " . $tblCallLogs . " cl
-                    JOIN " . tn('TBL_TEMP') . " t ON cl.record_id = t.ID AND cl.source = 'TEMP'
-                    JOIN " . tn('TBL_MAIN') . " m ON t.CUST_MOBILE = m.MAINDATABASE_MOBILE
-                    SET cl.record_id = m.ID, cl.source = 'MAIN'";
-                $migrateStmt = mysqli_prepare($link, $migrateSql);
-                if ($migrateStmt) {
-                    mysqli_stmt_execute($migrateStmt);
-                    $callLogsMigrated = mysqli_stmt_affected_rows($migrateStmt);
-                    mysqli_stmt_close($migrateStmt);
-                }
-            }
-
-            $delSql = "DELETE FROM " . tn('TBL_TEMP');
-            $delStmt = mysqli_prepare($link, $delSql);
-            if (!$delStmt) throw new Exception('Delete prepare failed: ' . mysqli_error($link));
-            mysqli_stmt_execute($delStmt);
-            $deleted = mysqli_stmt_affected_rows($delStmt);
-            mysqli_stmt_close($delStmt);
-
-            mysqli_commit($link);
-
-            logActivity($link, $current_user_id, 'TRANSFER_ALL',
-                "Transferred all from TBL_TEMP to TBL_MAIN. Affected: $affected, Call logs migrated: $callLogsMigrated, Deleted: $deleted",
-                'ALL', tn('TBL_TEMP'));
-
-            respond_json([
-                'success' => true,
-                'affected' => $affected,
-                'call_logs_migrated' => $callLogsMigrated,
-                'deleted' => $deleted,
-                'message' => "Transferred $total records. Updated $affected rows in main DB. Migrated $callLogsMigrated call logs."
-            ]);
-
-        } catch (Exception $e) {
-            mysqli_rollback($link);
-            respond_json(['error' => 'Transfer failed: ' . $e->getMessage()]);
+        $stmt = mysqli_prepare($link, $sql);
+        if (!$stmt) {
+            file_put_contents($progressFile, json_encode([
+                'status' => 'error',
+                'percent' => $progress['percent'],
+                'error' => 'Prepare failed: ' . mysqli_error($link)
+            ]));
+            respond_json(['status' => 'error', 'error' => 'Prepare failed: ' . mysqli_error($link)]);
         }
+
+        $types = str_repeat('i', count($ids));
+        $bind_names = array_merge([$types], $ids);
+        $refs = [];
+        foreach ($bind_names as $k => $v) $refs[$k] = &$bind_names[$k];
+        call_user_func_array([$stmt, 'bind_param'], $refs);
+
+        if (!mysqli_stmt_execute($stmt)) {
+            $err = mysqli_stmt_error($stmt);
+            mysqli_stmt_close($stmt);
+            file_put_contents($progressFile, json_encode([
+                'status' => 'error',
+                'percent' => $progress['percent'],
+                'error' => 'Execute failed: ' . $err
+            ]));
+            respond_json(['status' => 'error', 'error' => 'Transfer failed: ' . $err]);
+        }
+
+        $affected = mysqli_stmt_affected_rows($stmt);
+        mysqli_stmt_close($stmt);
+
+        $newLastId = max($ids);
+        $processed = $progress['processed'] + count($ids);
+        $percent = min(100, (int) round($processed / max(1, $progress['total']) * 100));
+
+        file_put_contents($progressFile, json_encode([
+            'transfer_id' => $transferId,
+            'status' => 'running',
+            'percent' => $percent,
+            'processed' => $processed,
+            'total' => $progress['total'],
+            'last_id' => $newLastId,
+            'message' => "Processed $processed of {$progress['total']} records..."
+        ]));
+
+        respond_json([
+            'status' => 'running',
+            'percent' => $percent,
+            'processed' => $processed,
+            'total' => $progress['total'],
+            'has_more' => count($ids) >= $batchSize
+        ]);
     }
 
     if ($action === 'export_csv') {
@@ -387,6 +486,7 @@ include __DIR__ . '/../../php_scripts/header.php';
 .td-btn-outline:hover { border-color: var(--td-accent) !important; color: var(--td-accent) !important; }
 
 .td-alert { border-radius: 0.625rem; font-size: 0.8125rem; padding: 0.65rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+#notificationModal .modal-content { border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
 
 .td-modal-header { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border-radius: 0.75rem 0.75rem 0 0; padding: 1rem 1.25rem; }
 .td-modal-header .btn-close { filter: brightness(0) invert(1); }
@@ -401,6 +501,19 @@ include __DIR__ . '/../../php_scripts/header.php';
 </style>
 
 <div class="container page-wrapper">
+
+    <div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--td-border);">
+                <div class="modal-body text-center py-4">
+                    <div id="notifIcon" class="mb-2" style="font-size:2.5rem;"></div>
+                    <h5 id="notifTitle" class="fw-bold mb-1"></h5>
+                    <p id="notifMessage" class="text-muted small mb-3"></p>
+                    <button type="button" class="btn btn-primary btn-sm px-4" data-bs-dismiss="modal" style="border-radius:0.5rem;">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="td-header">
         <div class="td-header-content">
@@ -437,14 +550,17 @@ include __DIR__ . '/../../php_scripts/header.php';
         <div class="td-toolbar-row">
             <div class="btn-group" role="group">
                 <a href="<?= url('modules/database/add_single_number.php') ?>" class="td-btn-success td-btn-sm"><i class="bi bi-upload"></i> Upload Single</a>
-                <button id="deleteSelected" class="td-btn-danger td-btn-sm" disabled><i class="bi bi-trash"></i> Delete Selected (<span id="selectedCount">0</span>)</button>
                 <button id="transferSelected" class="td-btn-success td-btn-sm" disabled><i class="bi bi-arrow-right-circle"></i> Transfer Selected</button>
-                <button id="transferAllBtn" class="td-btn-primary td-btn-sm" <?= $totalCount > 0 ? '' : 'disabled' ?>><i class="bi bi-arrow-down-circle"></i> Transfer All to Main DB</button>
+                <button id="transferAllBtn" class="td-btn-primary td-btn-sm" <?= $totalCount > 0 ? '' : 'disabled' ?>><i class="bi bi-arrow-down-circle"></i> Transfer All</button>
+            </div>
+            <div class="btn-group ms-2" role="group">
+                <button id="deleteSelected" class="td-btn-outline-danger td-btn-sm" disabled><i class="bi bi-trash"></i> Delete Selected (<span id="selectedCount">0</span>)</button>
                 <button id="deleteAllBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-x-circle"></i> Delete All</button>
             </div>
             <div class="ms-auto d-flex gap-2 align-items-center">
                 <button id="refreshBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-                <button id="exportBtn" class="td-btn-primary td-btn-sm"><i class="bi bi-download"></i> Export CSV</button>
+                <button id="exportBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-download"></i> Export CSV</button>
+                <button id="exportFullBtn" class="td-btn-primary td-btn-sm"><i class="bi bi-cloud-arrow-down"></i> Export Full DB</button>
             </div>
         </div>
         <div class="td-toolbar-row">
@@ -573,14 +689,27 @@ include __DIR__ . '/../../php_scripts/header.php';
 .td-dt-table tbody tr:hover { background: #f8f9ff; }
 .badge-status { padding: 0.2rem 0.5rem; font-size: 0.68rem; font-weight: 600; border-radius: 0.3rem; }
 .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter { margin-bottom: 0.4rem; }
-.dataTables_wrapper .dataTables_length select { border: 1px solid #e2e4f0; border-radius: 0.5rem; padding: 0.2rem 0.5rem; font-size: 0.75rem; }
-.dataTables_wrapper .dataTables_filter input { border: 1px solid #e2e4f0; border-radius: 0.5rem; padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+.dataTables_wrapper .dataTables_length { display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
+.dataTables_wrapper .dataTables_length label { margin-bottom: 0; }
+.dataTables_wrapper .dataTables_filter { display: flex; align-items: center; justify-content: flex-end; }
+.dataTables_wrapper .dataTables_filter label { margin-bottom: 0; display: flex; align-items: center; gap: 0.5rem; }
+.dataTables_wrapper .dataTables_length select { border: 1px solid #e2e4f0; border-radius: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+.dataTables_wrapper .dataTables_filter input { border: 1px solid #e2e4f0; border-radius: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; }
 .dataTables_wrapper .dataTables_info { font-size: 0.75rem; color: #6b6890; padding-top: 0.4rem; }
 .dataTables_wrapper .dataTables_paginate { padding-top: 0.4rem; }
 .dataTables_wrapper .dataTables_paginate .paginate_button { padding: 0.2rem 0.6rem; font-size: 0.75rem; border-radius: 0.3rem; }
 .dataTables_wrapper .dataTables_paginate .paginate_button.current { background: #6366f1 !important; border-color: #6366f1 !important; color: #fff !important; }
 .dataTables_wrapper .dataTables_paginate .paginate_button:hover { background: #f0f2ff; border-color: #d4d6e8; }
-.buttons-copy, .buttons-csv, .buttons-excel { font-size: 0.75rem !important; padding: 0.3rem 0.65rem !important; border-radius: 0.5rem !important; }
+.buttons-collection { font-size: 0.75rem !important; padding: 0.3rem 0.65rem !important; border-radius: 0.5rem !important; }
+.dropdown-menu .dropdown-item { font-size: 0.75rem; padding: 0.35rem 0.75rem; border-radius: 0.35rem; margin: 0.15rem 0.25rem; width: calc(100% - 0.5rem); }
+.btn-group .btn { margin-right: 0.25rem; }
+.btn-group .btn:last-child { margin-right: 0; }
+.td-toolbar .btn-group + .btn-group { margin-left: 0.5rem; }
+.td-toolbar .btn-group + .ms-auto { margin-left: auto; }
+@media (max-width: 768px) {
+    .td-toolbar .btn-group { margin-bottom: 0.5rem; }
+    .td-toolbar .ms-auto { margin-left: 0 !important; width: 100%; justify-content: flex-start; }
+}
 </style>
 
 <script>
@@ -609,32 +738,17 @@ $(document).ready(function() {
         pageLength: 2500,
         lengthMenu: [ 250, 500, 1000, 1500, 2000 ],
         order: [[6, 'desc']],
-        dom: '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4 text-center"B><"col-sm-12 col-md-4"f>>rtip',
+        dom: '<"row align-items-center"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rtip',
         buttons: [
-            { extend: 'copy', text: '<i class="bi bi-copy"></i> Copy', className: 'btn btn-outline-secondary btn-sm' },
-            { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet"></i> CSV', className: 'btn btn-success btn-sm', title: 'TemporaryDatabase_Export_' + new Date().toISOString().slice(0,10) },
-            { extend: 'excel', text: '<i class="bi bi-file-excel"></i> Excel', className: 'btn btn-info btn-sm' },
-            { text: '<i class="bi bi-trash3"></i> Delete Selected', className: 'btn btn-danger btn-sm', action: function() { bulkDelete(); }},
             {
-                text: '<i class="bi bi-cloud-download"></i> Export Full DB (in Parts)',
-                className: 'btn btn-primary btn-sm shadow-sm fw-bold',
-                action: function () {
-                    $.get(APP_BASE + '/modules/database/temporarydatabase_ajax/get_total_count.php', function (total) {
-                        total = parseInt(total);
-                        if (total === 0) return showToast('Empty', 'No data found', 'info');
-
-                        if (total > 100000 && !confirm(`Warning: ${total.toLocaleString()} records!\n\nThis will download in multiple large CSV files.\n\nContinue?`)) {
-                            return;
-                        }
-
-                        const win = window.open(APP_BASE + '/modules/database/temporarydatabase_ajax/download_bach.php', '_blank');
-                        if (win) {
-                            showToast('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
-                        } else {
-                            showToast('Popup Blocked!', 'Please allow popups', 'danger');
-                        }
-                    });
-                }
+                text: '<i class="bi bi-download"></i> Export',
+                className: 'btn btn-outline-primary btn-sm dropdown-toggle',
+                extend: 'collection',
+                buttons: [
+                    { extend: 'copy', text: '<i class="bi bi-clipboard me-1"></i> Copy', className: 'btn btn-outline-secondary btn-sm dropdown-item' },
+                    { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-outline-success btn-sm dropdown-item', title: 'TemporaryDatabase_Export_' + new Date().toISOString().slice(0,10) },
+                    { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-outline-info btn-sm dropdown-item' }
+                ]
             }
         ],
         columnDefs: [
@@ -681,23 +795,28 @@ $(document).ready(function() {
         $('#selectedCount').text(count);
     }
 
-    function showToast(title, message, type = 'success') {
-        const toast = `
-        <div class="toast align-items-center text-white bg-${type} border-0" role="alert">
-            <div class="d-flex">
-                <div class="toast-body">
-                    <strong>${title}</strong><br><small>${message}</small>
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        </div>`;
-        $('.toast-container').append(toast);
-        $('.toast').last()[0].show();
-        setTimeout(() => $('.toast').last().remove(), 5000);
+    function showNotification(title, message, type = 'success') {
+        const iconMap = {
+            success: '<i class="bi bi-check-circle-fill text-success"></i>',
+            danger: '<i class="bi bi-x-circle-fill text-danger"></i>',
+            warning: '<i class="bi bi-exclamation-triangle-fill text-warning"></i>',
+            info: '<i class="bi bi-info-circle-fill text-info"></i>'
+        };
+        const icon = iconMap[type] || iconMap.info;
+        $('#notifIcon').html(icon);
+        $('#notifTitle').text(title);
+        $('#notifMessage').text(message || '');
+        new bootstrap.Modal(document.getElementById('notificationModal')).show();
     }
 
     function getSelectedCount() {
         return $('#tempTable input[type="checkbox"]:checked').length - ($('#selectAll').is(':checked') ? 1 : 0);
+    }
+
+    function updateSelectedCount() {
+        const count = getSelectedCount();
+        $('#selectedCount').text(count);
+        $('#deleteSelected, #transferSelected').prop('disabled', count === 0);
     }
 
     function getSelectedIds() {
@@ -712,35 +831,41 @@ $(document).ready(function() {
 
     $('#doAssign').on('click', function() {
         const userId = $('#assignUser').val();
-        if (!userId) return showToast('Error', 'Please select a user', 'danger');
+        if (!userId) return showNotification('Error', 'Please select a user', 'danger');
 
         const ids = getSelectedIds();
-        if (ids.length === 0) return showToast('Warning', 'No records selected', 'warning');
+        if (ids.length === 0) return showNotification('Warning', 'No records selected', 'warning');
 
         $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
-                showToast('Success!', `${ids.length} records assigned successfully`, 'success');
+                showNotification('Success!', `${ids.length} records assigned successfully`, 'success');
             } else {
-                showToast('Error', res.message || 'Failed', 'danger');
+                showNotification('Error', res.message || 'Failed', 'danger');
             }
         }, 'json');
     });
 
-    window.bulkDelete = function() {
+    function bulkDelete() {
         const ids = getSelectedIds();
+        if (!ids.length) return showNotification('No Selection', 'Please select at least one record to delete.', 'warning');
         if (!confirm('Delete selected records permanently?')) return;
+        const loadingToast = showNotification('Deleting...', 'Please wait while records are deleted.', 'info');
         $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
-                showToast('Deleted!', `${ids.length} records removed`, 'danger');
+                showNotification('Deleted!', `${ids.length} records removed`, 'danger');
+            } else {
+                showNotification('Error', res.error || 'Failed', 'danger');
             }
-        }, 'json');
-    };
+        }, 'json').fail(function() {
+            showNotification('Error', 'Network error. Please try again.', 'danger');
+        });
+    }
 
     function loadEditModal(id) {
         $.post(location.href, { action:'view', id: id, csrf_token: CSRF_TOKEN }, function(resp){
-            if (!resp.row) return alert('Row not found');
+            if (!resp.row) return showNotification('Error', 'Row not found', 'danger');
             const r = resp.row;
             $('#editId').val(r.ID);
             $('#editName').val(r.CUST_NAME);
@@ -791,53 +916,156 @@ $(document).ready(function() {
         const id = $(this).data('id');
         if (!confirm('Delete row ' + id + '?')) return;
         $.post(location.href, { action:'delete', id: id, csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) { table.ajax.reload(); alert('Deleted'); }
-            else alert('Error: ' + (resp.error || 'unknown'));
+            if (resp.success) { table.ajax.reload(); showNotification('Deleted', 'Record removed', 'success'); }
+            else showNotification('Error', resp.error || 'unknown', 'danger');
         }, 'json');
     });
 
     $('#deleteSelected').on('click', function(){
         const count = getSelectedCount();
         if (!confirm('Delete ' + count + ' selected rows?')) return;
+        const btn = $(this);
+        const originalText = btn.html();
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Deleting...');
         const ids = getSelectedIds();
         $.post(location.href, { action:'delete_selected', ids: ids, csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) { alert('Deleted ' + (resp.affected || count)); table.ajax.reload(); }
-            else alert('Error: ' + (resp.error || 'unknown'));
-        }, 'json');
+            if (resp.success) {
+                showNotification('Deleted', 'Deleted ' + (resp.affected || count) + ' records', 'success');
+                table.ajax.reload();
+            } else {
+                showNotification('Error', resp.error || 'unknown', 'danger');
+            }
+        }, 'json').fail(function() {
+            showNotification('Network Error', 'Please try again.', 'danger');
+        }).always(function() {
+            btn.prop('disabled', false).html(originalText);
+        });
     });
 
     $('#transferSelected').on('click', function(){
         const count = getSelectedCount();
+        if (count === 0) return showNotification('No Selection', 'Please select at least one record to transfer.', 'warning');
         if (!confirm('Transfer ' + count + ' selected rows to TBL_MAIN?')) return;
+        const btn = $(this);
+        const originalText = btn.html();
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Transferring...');
         const ids = getSelectedIds();
         $.post(location.href, { action:'transfer_selected', ids: ids, csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) { alert('Transferred (affected: ' + (resp.affected || 'unknown') + ')'); table.ajax.reload(); }
-            else alert('Error: ' + (resp.error || 'unknown'));
-        }, 'json');
+            if (resp.success) { showNotification('Transferred', 'Affected: ' + (resp.affected || 'unknown'), 'success'); table.ajax.reload(); }
+            else showNotification('Error', resp.error || 'unknown', 'danger');
+        }, 'json').fail(function() {
+            showNotification('Network Error', 'Please try again.', 'danger');
+        }).always(function() {
+            btn.prop('disabled', false).html(originalText);
+        });
     });
 
     const TOTAL_TEMP_COUNT = <?= (int)$totalCount ?>;
     $('#transferAllBtn').on('click', function(){
-        if (TOTAL_TEMP_COUNT === 0) return showToast('Empty', 'No records to transfer', 'warning');
-        if (!confirm(`Transfer ALL ${TOTAL_TEMP_COUNT.toLocaleString()} records from Temporary to Main DB?\n\nExisting records in Main DB will be updated with Temporary data.\nCall history will be preserved and migrated.`)) return;
+        if (TOTAL_TEMP_COUNT === 0) return showNotification('Empty', 'No records to transfer', 'warning');
+
+    const modal = new bootstrap.Modal(document.getElementById('transferProgressModal'), { backdrop: 'static', keyboard: false });
+    const modalEl = document.getElementById('transferProgressModal');
+    const progressBar = $('#transferProgressBar');
+    const percentText = $('#transferPercent');
+    const messageText = $('#transferMessage');
+    const resultDiv = $('#transferResult');
+
+    $(modalEl).on('hidden.bs.modal', function() {
+        resultDiv.hide().removeClass('alert-success alert-danger').empty();
+        progressBar.css('width', '0%').removeClass('bg-success bg-danger').addClass('bg-primary');
+        percentText.text('0%');
+        messageText.text('Initializing transfer...');
+        btn.prop('disabled', false).html(originalText);
+    });
+
+        modal.show();
+        progressBar.css('width', '0%').removeClass('bg-success bg-danger').addClass('bg-primary');
+        percentText.text('0%');
+        messageText.text('Initializing transfer...');
+        resultDiv.hide();
+
+        const btn = $(this);
+        const originalText = btn.html();
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Transferring all...');
+
         $.post(location.href, { action:'transfer_all', csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) {
-                showToast('Transfer Complete', resp.message || 'All records transferred', 'success');
-                table.ajax.reload();
-            } else {
-                showToast('Error', resp.error || 'Transfer failed', 'danger');
+            if (!resp.transfer_id) {
+                modal.hide();
+                btn.prop('disabled', false).html(originalText);
+                showNotification('Error', resp.error || 'Failed to start transfer', 'danger');
+                return;
             }
-        }, 'json');
+
+            const transferId = resp.transfer_id;
+
+            function processNextBatch() {
+                $.post(location.href, {
+                    action: 'transfer_all',
+                    transfer_id: transferId,
+                    csrf_token: CSRF_TOKEN
+                }, function(resp){
+                    if (resp.status === 'complete') {
+                        progressBar.css('width', '100%').removeClass('bg-primary bg-danger').addClass('bg-success');
+                        percentText.text('100%');
+                        messageText.text('Transfer complete!');
+                        resultDiv.show().addClass('alert-success').html(
+                            '<strong>Success!</strong> ' + (resp.result?.message || 'All records transferred.') +
+                            '<br><button class="btn btn-sm btn-outline-success mt-2 close-modal-btn">Close</button>'
+                        );
+                        btn.prop('disabled', false).html(originalText);
+                        showNotification('Transfer Complete', resp.result?.message || 'All records transferred', 'success');
+                    } else if (resp.status === 'error') {
+                        progressBar.css('width', resp.percent + '%').removeClass('bg-primary bg-success').addClass('bg-danger');
+                        messageText.text('Transfer failed');
+                        resultDiv.show().addClass('alert-danger').html(
+                            '<strong>Error:</strong> ' + (resp.error || 'Unknown error') +
+                            '<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>'
+                        );
+                        btn.prop('disabled', false).html(originalText);
+                        showNotification('Transfer Failed', resp.error || 'Unknown error', 'danger');
+                    } else {
+                        progressBar.css('width', resp.percent + '%').removeClass('bg-success bg-danger').addClass('bg-primary');
+                        percentText.text(resp.percent + '%');
+                        messageText.text(resp.message || 'Processing...');
+                        setTimeout(processNextBatch, 10);
+                    }
+                }, 'json').fail(function(){
+                    progressBar.addClass('bg-danger');
+                    messageText.text('Network error');
+                    resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error during transfer.<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                    btn.prop('disabled', false).html(originalText);
+                    showNotification('Error', 'Network error during transfer', 'danger');
+                });
+            }
+
+            processNextBatch();
+        }, 'json').fail(function(){
+            modal.hide();
+            btn.prop('disabled', false).html(originalText);
+            showNotification('Error', 'Failed to start transfer', 'danger');
+        });
+    });
+
+    $(document).on('click', '.close-modal-btn', function() {
+        bootstrap.Modal.getInstance(document.getElementById('transferProgressModal'))?.hide();
     });
 
     $('#deleteAllBtn').on('click', function(){
         if (!confirm('This will DELETE ALL rows in TBL_TEMP - are you sure?')) return;
         const token = prompt('Type YES_DELETE_ALL to confirm');
-        if (token !== 'YES_DELETE_ALL') return alert('Not confirmed');
+        if (token !== 'YES_DELETE_ALL') return showNotification('Cancelled', 'Operation not confirmed.', 'warning');
+        const btn = $(this);
+        const originalText = btn.html();
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Deleting all...');
         $.post(location.href, { action:'delete_all', confirm: token, csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) { alert('All deleted'); table.ajax.reload(); }
-            else alert('Error: ' + (resp.error || 'unknown'));
-        }, 'json');
+            if (resp.success) { showNotification('Deleted', 'All records removed', 'success'); table.ajax.reload(); }
+            else showNotification('Error', resp.error || 'unknown', 'danger');
+        }, 'json').fail(function() {
+            showNotification('Network Error', 'Please try again.', 'danger');
+        }).always(function() {
+            btn.prop('disabled', false).html(originalText);
+        });
     });
 
     $('#exportBtn').on('click', function(){
@@ -850,6 +1078,24 @@ $(document).ready(function() {
         form.append('<input type="hidden" name="limit" value="20000">');
         form.append('<input type="hidden" name="csrf_token" value="' + CSRF_TOKEN + '">');
         form.appendTo('body').submit().remove();
+    });
+
+    $('#exportFullBtn').on('click', function(){
+        $.get(APP_BASE + '/modules/database/temporarydatabase_ajax/get_total_count.php', function (total) {
+            total = parseInt(total);
+            if (total === 0) return showNotification('Empty', 'No data found', 'info');
+
+            if (total > 100000 && !confirm(`Warning: ${total.toLocaleString()} records!\n\nThis will download in multiple large CSV files.\n\nContinue?`)) {
+                return;
+            }
+
+            const win = window.open(APP_BASE + '/modules/database/temporarydatabase_ajax/download_bach.php', '_blank');
+            if (win) {
+                showNotification('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
+            } else {
+                showNotification('Popup Blocked!', 'Please allow popups', 'danger');
+            }
+        });
     });
 
     $('#activityModal').on('show.bs.modal', function(){
@@ -881,5 +1127,27 @@ $(document).ready(function() {
 
 });
 </script>
+
+<div class="modal fade" id="transferProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-down-circle me-2"></i>Transfer to Main Database</h5>
+                <button type="button" class="btn-close close-modal-btn" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="small text-muted">Progress</span>
+                    <span id="transferPercent" class="small fw-semibold">0%</span>
+                </div>
+                <div class="progress mb-3" style="height: 20px;">
+                    <div id="transferProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+                <p class="mb-2 small text-muted" id="transferMessage">Initializing transfer...</p>
+                <div id="transferResult" class="mt-3 alert" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

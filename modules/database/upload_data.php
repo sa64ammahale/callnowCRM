@@ -108,276 +108,345 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
     if (empty($_POST['terms_agreed'])) {
         $summary = "You must agree to the Terms & Conditions before uploading.";
         $summaryType = "danger";
-        return;
+        echo json_encode(['success' => false, 'error' => $summary]);
+        exit;
     }
-
 
     $target = $_POST['target_database'] ?? 'temporary';
     if (!in_array($target, ['temporary','main','both'])) $target = 'temporary';
     $dryrun = isset($_POST['dryrun']) && $_POST['dryrun'] === '1';
-    $has_header = isset($_POST['has_header']) && $_POST['has_header'] === '1'; // new toggle
+    $has_header = isset($_POST['has_header']) && $_POST['has_header'] === '1';
     $file = $_FILES['file'];
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 
     if ($file['size'] > 10 * 1024 * 1024 || $ext !== 'csv') {
         $summary = "Invalid file: only CSV ≤ 10MB allowed.";
         $summaryType = "danger";
-        logLine($logs, "Rejected file due to size/extension.");
+        echo json_encode(['success' => false, 'error' => $summary]);
+        exit;
+    }
+
+    $safe = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file['name']);
+    $path = 'uploads/' . $safe;
+    if (!move_uploaded_file($file['tmp_name'], $path)) {
+        echo json_encode(['success' => false, 'error' => 'Failed to save upload - check permissions.']);
+        exit;
+    }
+
+    if (($handle = fopen($path, 'r')) === false) {
+        echo json_encode(['success' => false, 'error' => 'Cannot open CSV file for reading.']);
+        exit;
+    }
+
+    $first = null;
+    if ($has_header) {
+        $first = fgetcsv($handle, 4000, ",");
+        if ($first === false) {
+            fclose($handle);
+            @unlink($path);
+            echo json_encode(['success' => false, 'error' => 'CSV seems empty or unreadable.']);
+            exit;
+        }
+        $detected_headers = array_map('canonicalHeader', $first);
     } else {
-        $safe = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file['name']);
-        $path = 'uploads/' . $safe;
-        if (!move_uploaded_file($file['tmp_name'], $path)) {
-            $summary = "Failed to save upload - check TBL_PERMISSIONS.";
-            $summaryType = "danger";
-            logLine($logs, "move_uploaded_file() failed.");
-        } else {
-            if (($handle = fopen($path, 'r')) === false) {
-                $summary = "Cannot open CSV file for reading.";
-                $summaryType = "danger";
-                logLine($logs, "fopen() failed for $path.");
-            } else {
-                 $first = null;
-                /* If header is present — parse it. If not, rewind and treat by positions. */
-                if ($has_header) {
-                    $first = fgetcsv($handle, 4000, ",");
-                    if ($first === false) {
-                        $summary = "CSV seems empty or unreadable.";
-                        $summaryType = "danger";
-                        fclose($handle);
-                        @unlink($path);
-                        $first = false;
-                    } else {
-                        $detected_headers = array_map('canonicalHeader', $first);
-                    }
-                } else {
-                    // no header mode => don't consume first line; rewind to start and mark detected_headers empty
-                    rewind($handle);
-                    $detected_headers = [];
-                }
+        rewind($handle);
+        $detected_headers = [];
+    }
 
-                if ($first === false && $has_header) {
-                    // already handled above - skip further processing
-                } else {
-                    // Build header mapping only if has_header
-                    $header_aliases = [
-                        'name' => ['name','customer name','full name','cust name'],
-                        'mobile' => ['mobile','phone','mobile number','phone number','contact'],
-                        'company' => ['company','organisation','organization','company name'],
-                        'package' => ['package','plan'],
-                        'other info' => ['other info','other','notes','remarks']
-                    ];
-                    $header_index_map = [];
-                    if ($has_header) {
-                        foreach ($header_aliases as $canon => $alts) {
-                            $found = null;
-                            foreach ($alts as $alt) {
-                                $altc = canonicalHeader($alt);
-                                $idx = array_search($altc, $detected_headers, true);
-                                if ($idx !== false) { $found = $idx; break; }
-                            }
-                            $header_index_map[$canon] = $found;
-                        }
-                        // require mobile header only when has_header checked
-                        if ($header_index_map['mobile'] === null) {
-                            $summary = "CSV header missing required 'Mobile' column. Detected headers: " . implode(', ', $detected_headers);
-                            $summaryType = "danger";
-                            $stats['header_errors']++;
-                            logLine($logs, "Header validation failed: missing mobile column.");
-                            fclose($handle);
-                            @unlink($path);
-                            $handle = null;
-                        }
-                    } else {
-                        // headerless: use positional mapping (0..4). We'll not validate headers.
-                        $header_index_map = ['name'=>0,'mobile'=>1,'company'=>2,'package'=>3,'other info'=>4];
-                    }
-                }
-
-                /* if handle still valid, process rows */
-                if ($handle) {
-                    $targets = [];
-                    if ($target === 'temporary' || $target === 'both') {
-                        $targets['temporary'] = [
-                            'table' => tn('TBL_TEMP'),
-                            'cols' => [
-                                'name' => 'CUST_NAME',
-                                'mobile' => 'CUST_MOBILE',
-                                'company' => 'CUST_COMPANY',
-                                'package' => 'CUST_PACKAGE',
-                                'other' => 'CUST_OTHER_INFO',
-                                'dt' => 'TEMP_UPLOAD_DATETIME'
-                            ]
-                        ];
-                    }
-                    if ($target === 'main' || $target === 'both') {
-                        $targets['main'] = [
-                            'table' => tn('TBL_MAIN'),
-                            'cols' => [
-                                'name' => 'MAINDATABASE_NAME',
-                                'mobile' => 'MAINDATABASE_MOBILE',
-                                'company' => 'MAINDATABASE_COMPANY',
-                                'package' => 'MAINDATABASE_PACKAGE',
-                                'other' => 'MAINDATABASE_OTHER_INFO',
-                                'dt' => 'MAINDATABASE_UPLOAD_DATETIME'
-                            ]
-                        ];
-                    }
-
-                    $estimatedRows = 0;
-                    if (!$dryrun) {
-                        rewind($handle);
-                        while (fgetcsv($handle, 4000, ",") !== false) $estimatedRows++;
-                        rewind($handle);
-                        if ($has_header && $estimatedRows > 0) $estimatedRows--;
-                        $storageCheck = checkStorageLimit($link, max(1, $estimatedRows), USER_ID);
-                        if ($storageCheck) {
-                            $summary = $storageCheck;
-                            $summaryType = "danger";
-                            logLine($logs, "Storage limit check failed: " . $storageCheck);
-                            fclose($handle);
-                            @unlink($path);
-                            $handle = null;
-                        }
-                    }
-
-                    if ($handle) {
-
-                    $rownum = 0;
-                    while (($row = fgetcsv($handle, 4000, ",")) !== false) {
-                        $rownum++;
-                        // If has_header true, first data row begins after header; if headerless, first row is data row 1.
-                        $stats['rows_processed']++;
-
-                        $name_raw   = isset($row[$header_index_map['name']]) ? $row[$header_index_map['name']] : ($row[0] ?? '');
-                        $mobile_raw = isset($row[$header_index_map['mobile']]) ? $row[$header_index_map['mobile']] : ($row[1] ?? '');
-                        $company_raw = isset($row[$header_index_map['company']]) ? $row[$header_index_map['company']] : ($row[2] ?? '');
-                        $package_raw = isset($row[$header_index_map['package']]) ? $row[$header_index_map['package']] : ($row[3] ?? '');
-                        $other_raw   = isset($row[$header_index_map['other info']]) ? $row[$header_index_map['other info']] : ($row[4] ?? '');
-
-                        $name_raw = trim($name_raw);
-                        $mobile_raw = trim($mobile_raw);
-                        $company_raw = trim($company_raw);
-                        $package_raw = trim($package_raw);
-                        $other_raw = trim($other_raw);
-
-                        $digits = preg_replace('/\D/', '', $mobile_raw);
-                        if (strlen($digits) > 10) $digits = substr($digits, -10);
-
-                        if (!preg_match('/^[6-9]\d{9}$/', $digits)) {
-                            $stats['invalid']++;
-                            logLine($logs, "Row $rownum: Invalid mobile '$mobile_raw' -> normalized '$digits'. Skipped.");
-                            continue;
-                        }
-
-                        $name_val = ($name_raw === '' ? null : $name_raw);
-                        $mobile_val = $digits;
-                        $company_val = ($company_raw === '' ? null : $company_raw);
-                        $package_val = ($package_raw === '' ? null : $package_raw);
-                        $other_val = ($other_raw === '' ? null : $other_raw);
-
-                        foreach ($targets as $tkey => $tinfo) {
-                            $table = $tinfo['table'];
-                            $cols = $tinfo['cols'];
-
-                            $fields = [$cols['name'], $cols['mobile'], $cols['company'], $cols['package'], $cols['other'], $cols['dt']];
-                            $placeholders = [];
-                            $bind_types = '';
-                            $bind_values = [];
-
-                            if ($name_val === null) { $placeholders[] = "NULL"; }
-                            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $name_val; }
-
-                            $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $mobile_val;
-
-                            if ($company_val === null) { $placeholders[] = "NULL"; }
-                            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $company_val; }
-
-                            if ($package_val === null) { $placeholders[] = "NULL"; }
-                            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $package_val; }
-
-                            if ($other_val === null) { $placeholders[] = "NULL"; }
-                            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $other_val; }
-
-                            $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $upload_time;
-
-                            $sql = "INSERT INTO `$table` (" . implode(',', array_map(function($c){return "`$c`";}, $fields)) . ")
-                                    VALUES (" . implode(',', $placeholders) . ")
-                                    ON DUPLICATE KEY UPDATE ID = ID";
-
-                            if ($dryrun) {
-                                $sel = "SELECT ID FROM `$table` WHERE `{$cols['mobile']}` = ? LIMIT 1";
-                                $sel_stmt = mysqli_prepare($link, $sel);
-                                if ($sel_stmt) {
-                                    mysqli_stmt_bind_param($sel_stmt, "s", $mobile_val);
-                                    mysqli_stmt_execute($sel_stmt);
-                                    mysqli_stmt_store_result($sel_stmt);
-                                    $exists = mysqli_stmt_num_rows($sel_stmt) > 0;
-                                    mysqli_stmt_close($sel_stmt);
-                                    if ($exists) {
-                                        $stats['would_update']++;
-                                        logLine($logs, "Row $rownum: DRY-RUN would skip (duplicate) in $table for mobile $mobile_val.");
-                                    } else {
-                                        $stats['would_insert']++;
-                                        logLine($logs, "Row $rownum: DRY-RUN would insert into $table (mobile $mobile_val).");
-                                    }
-                                } else {
-                                    logLine($logs, "Row $rownum: DRY-RUN select prepare failed for $table.");
-                                }
-                            } else {
-                                $stmt = mysqli_prepare($link, $sql);
-                                if (!$stmt) {
-                                    logLine($logs, "Row $rownum: Prepare failed for $table: " . mysqli_error($link));
-                                    continue;
-                                }
-                                if ($bind_types !== '') {
-                                    $bind_names = [];
-                                    $bind_names[] = $bind_types;
-                                    for ($i = 0; $i < count($bind_values); $i++) {
-                                        $bind_names[] = &$bind_values[$i];
-                                    }
-                                    call_user_func_array(array($stmt, 'bind_param'), $bind_names);
-                                }
-                                if (mysqli_stmt_execute($stmt)) {
-                                    $affected = mysqli_stmt_affected_rows($stmt);
-                                    if ($affected === 1) {
-                                        $stats['inserted']++;
-                                        logLine($logs, "Row $rownum: Inserted into $table (mobile $mobile_val).");
-                                    } else {
-                                        $stats['duplicates']++;
-                                        logLine($logs, "Row $rownum: Duplicate detected in $table (mobile $mobile_val). Skipped.");
-                                    }
-                                } else {
-                                    $err = mysqli_stmt_error($stmt);
-                                    logLine($logs, "Row $rownum: Insert failed into $table: $err");
-                                    $stats['invalid']++;
-                                }
-                                mysqli_stmt_close($stmt);
-                            }
-                        }
-                    }
-
-                    if ($handle) {
-                        fclose($handle);
-                        @unlink($path);
-
-                        if ($dryrun) {
-                            $summaryType = "info";
-                            $summary = "DRY-RUN complete. Would-insert: {$stats['would_insert']} | Would-update/duplicates: {$stats['would_update']} | Invalid: {$stats['invalid']}";
-                            logLine($logs, "DRY-RUN finished. No DB writes performed.");
-                        } else {
-                            $summaryType = ($stats['inserted'] > 0) ? "success" : (($stats['duplicates'] > 0 && $stats['inserted'] == 0) ? "warning" : "info");
-                            $summary = "Import finished. Inserted: {$stats['inserted']} | Duplicates skipped: {$stats['duplicates']} | Invalid: {$stats['invalid']}";
-                        }
-                    }
-                } // end handle valid
+    $header_aliases = [
+        'name' => ['name','customer name','full name','cust name'],
+        'mobile' => ['mobile','phone','mobile number','phone number','contact'],
+        'company' => ['company','organisation','organization','company name'],
+        'package' => ['package','plan'],
+        'other info' => ['other info','other','notes','remarks']
+    ];
+    $header_index_map = [];
+    if ($has_header) {
+        foreach ($header_aliases as $canon => $alts) {
+            $found = null;
+            foreach ($alts as $alt) {
+                $altc = canonicalHeader($alt);
+                $idx = array_search($altc, $detected_headers, true);
+                if ($idx !== false) { $found = $idx; break; }
             }
+            $header_index_map[$canon] = $found;
+        }
+        if ($header_index_map['mobile'] === null) {
+            fclose($handle);
+            @unlink($path);
+            echo json_encode(['success' => false, 'error' => "CSV header missing required 'Mobile' column. Detected: " . implode(', ', $detected_headers)]);
+            exit;
+        }
+    } else {
+        $header_index_map = ['name'=>0,'mobile'=>1,'company'=>2,'package'=>3,'other info'=>4];
+    }
+
+    $estimatedRows = 0;
+    if (!$dryrun) {
+        rewind($handle);
+        while (fgetcsv($handle, 4000, ",") !== false) $estimatedRows++;
+        rewind($handle);
+        if ($has_header && $estimatedRows > 0) $estimatedRows--;
+        $storageCheck = checkStorageLimit($link, max(1, $estimatedRows), USER_ID);
+        if ($storageCheck) {
+            fclose($handle);
+            @unlink($path);
+            echo json_encode(['success' => false, 'error' => $storageCheck]);
+            exit;
         }
     }
-    }
+
+    $task_id = uniqid('upl_', true);
+    $progress_file = sys_get_temp_dir() . '/callnow_upload_' . md5($task_id) . '.json';
+    $task_meta = [
+        'task_id' => $task_id,
+        'status' => 'uploaded',
+        'percent' => 0,
+        'processed' => 0,
+        'total' => $estimatedRows,
+        'message' => 'File uploaded. Starting import...',
+        'path' => $path,
+        'target' => $target,
+        'dryrun' => $dryrun ? 1 : 0,
+        'has_header' => $has_header ? 1 : 0,
+        'header_index_map' => $header_index_map,
+        'stats' => [
+            'inserted' => 0,
+            'duplicates' => 0,
+            'invalid' => 0,
+            'rows_processed' => 0,
+            'would_insert' => 0,
+            'would_update' => 0
+        ],
+        'logs' => []
+    ];
+    file_put_contents($progress_file, json_encode($task_meta));
+    echo json_encode(['success' => true, 'task_id' => $task_id, 'total' => $estimatedRows]);
+    exit;
 }
+}
+
+if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
+    $task_id = $_POST['task_id'];
+    $progress_file = sys_get_temp_dir() . '/callnow_upload_' . md5($task_id) . '.json';
+    if (!file_exists($progress_file)) {
+        echo json_encode(['success' => false, 'error' => 'Task not found']);
+        exit;
+    }
+
+    $meta = json_decode(file_get_contents($progress_file), true);
+    if (($meta['status'] ?? '') === 'complete' || ($meta['status'] ?? '') === 'error') {
+        echo json_encode(['status' => $meta['status'], 'percent' => $meta['percent'], 'result' => $meta]);
+        exit;
+    }
+
+    $path = $meta['path'];
+    $target = $meta['target'];
+    $dryrun = (bool)($meta['dryrun'] ?? 0);
+    $has_header = ($meta['has_header'] ?? 1) === '1';
+    $header_index_map = $meta['header_index_map'] ?? [];
+    $stats = $meta['stats'];
+    $logs = $meta['logs'];
+    $upload_time = date('Y-m-d H:i:s');
+
+    if (!file_exists($path)) {
+        $meta['status'] = 'error';
+        $meta['message'] = 'Uploaded file not found.';
+        file_put_contents($progress_file, json_encode($meta));
+        echo json_encode(['status' => 'error', 'error' => 'Uploaded file not found.']);
+        exit;
+    }
+
+    $handle = fopen($path, 'r');
+    if ($has_header) {
+        fgetcsv($handle, 4000, ","); // skip header
+        $meta['message'] = 'Importing data...';
+    }
+
+    $targets = [];
+    if ($target === 'temporary' || $target === 'both') {
+        $targets['temporary'] = [
+            'table' => tn('TBL_TEMP'),
+            'cols' => ['name'=>'CUST_NAME','mobile'=>'CUST_MOBILE','company'=>'CUST_COMPANY','package'=>'CUST_PACKAGE','other'=>'CUST_OTHER_INFO','dt'=>'TEMP_UPLOAD_DATETIME']
+        ];
+    }
+    if ($target === 'main' || $target === 'both') {
+        $targets['main'] = [
+            'table' => tn('TBL_MAIN'),
+            'cols' => ['name'=>'MAINDATABASE_NAME','mobile'=>'MAINDATABASE_MOBILE','company'=>'MAINDATABASE_COMPANY','package'=>'MAINDATABASE_PACKAGE','other'=>'MAINDATABASE_OTHER_INFO','dt'=>'MAINDATABASE_UPLOAD_DATETIME']
+        ];
+    }
+
+    $batch_size = 200;
+    $rows_processed = 0;
+    $max_rows = 200;
+
+    while (($row = fgetcsv($handle, 4000, ",")) !== false && $rows_processed < $batch_size) {
+        $meta['stats']['rows_processed']++;
+        $rownum = $meta['stats']['rows_processed'];
+
+        $name_raw   = isset($row[$header_index_map['name']]) ? $row[$header_index_map['name']] : ($row[0] ?? '');
+        $mobile_raw = isset($row[$header_index_map['mobile']]) ? $row[$header_index_map['mobile']] : ($row[1] ?? '');
+        $company_raw = isset($row[$header_index_map['company']]) ? $row[$header_index_map['company']] : ($row[2] ?? '');
+        $package_raw = isset($row[$header_index_map['package']]) ? $row[$header_index_map['package']] : ($row[3] ?? '');
+        $other_raw   = isset($row[$header_index_map['other info']]) ? $row[$header_index_map['other info']] : ($row[4] ?? '');
+
+        $name_raw = trim($name_raw);
+        $mobile_raw = trim($mobile_raw);
+        $company_raw = trim($company_raw);
+        $package_raw = trim($package_raw);
+        $other_raw = trim($other_raw);
+
+        $digits = preg_replace('/\D/', '', $mobile_raw);
+        if (strlen($digits) > 10) $digits = substr($digits, -10);
+
+        if (!preg_match('/^[6-9]\d{9}$/', $digits)) {
+            $stats['invalid']++;
+            $logs[] = "Row $rownum: Invalid mobile '$mobile_raw' -> normalized '$digits'. Skipped.";
+            $rows_processed++;
+            continue;
+        }
+
+        $name_val = ($name_raw === '' ? null : $name_raw);
+        $mobile_val = $digits;
+        $company_val = ($company_raw === '' ? null : $company_raw);
+        $package_val = ($package_raw === '' ? null : $package_raw);
+        $other_val = ($other_raw === '' ? null : $other_raw);
+
+        foreach ($targets as $tkey => $tinfo) {
+            $table = $tinfo['table'];
+            $cols = $tinfo['cols'];
+            $fields = [$cols['name'], $cols['mobile'], $cols['company'], $cols['package'], $cols['other'], $cols['dt']];
+            $placeholders = [];
+            $bind_types = '';
+            $bind_values = [];
+
+            if ($name_val === null) { $placeholders[] = "NULL"; }
+            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $name_val; }
+
+            $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $mobile_val;
+
+            if ($company_val === null) { $placeholders[] = "NULL"; }
+            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $company_val; }
+
+            if ($package_val === null) { $placeholders[] = "NULL"; }
+            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $package_val; }
+
+            if ($other_val === null) { $placeholders[] = "NULL"; }
+            else { $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $other_val; }
+
+            $placeholders[] = "?"; $bind_types .= "s"; $bind_values[] = $upload_time;
+
+            if ($dryrun) {
+                $sel = "SELECT ID FROM `$table` WHERE `{$cols['mobile']}` = ? LIMIT 1";
+                $sel_stmt = mysqli_prepare($link, $sel);
+                if ($sel_stmt) {
+                    mysqli_stmt_bind_param($sel_stmt, "s", $mobile_val);
+                    mysqli_stmt_execute($sel_stmt);
+                    mysqli_stmt_store_result($sel_stmt);
+                    $exists = mysqli_stmt_num_rows($sel_stmt) > 0;
+                    mysqli_stmt_close($sel_stmt);
+                    if ($exists) {
+                        $stats['would_update']++;
+                        $logs[] = "Row $rownum: DRY-RUN would skip (duplicate) in $table for mobile $mobile_val.";
+                    } else {
+                        $stats['would_insert']++;
+                        $logs[] = "Row $rownum: DRY-RUN would insert into $table (mobile $mobile_val).";
+                    }
+                }
+            } else {
+                $sql = "INSERT INTO `$table` (" . implode(',', array_map(function($c){return "`$c`";}, $fields)) . ")
+                        VALUES (" . implode(',', $placeholders) . ")
+                        ON DUPLICATE KEY UPDATE ID = ID";
+                $stmt = mysqli_prepare($link, $sql);
+                if ($stmt) {
+                    if ($bind_types !== '') {
+                        $bind_names = [$bind_types];
+                        for ($i = 0; $i < count($bind_values); $i++) $bind_names[] = &$bind_values[$i];
+                        call_user_func_array(array($stmt, 'bind_param'), $bind_names);
+                    }
+                    if (mysqli_stmt_execute($stmt)) {
+                        $affected = mysqli_stmt_affected_rows($stmt);
+                        if ($affected === 1) {
+                            $stats['inserted']++;
+                            $logs[] = "Row $rownum: Inserted into $table (mobile $mobile_val).";
+                        } else {
+                            $stats['duplicates']++;
+                            $logs[] = "Row $rownum: Duplicate detected in $table (mobile $mobile_val). Skipped.";
+                        }
+                    } else {
+                        $err = mysqli_stmt_error($stmt);
+                        $logs[] = "Row $rownum: Insert failed into $table: $err";
+                        $stats['invalid']++;
+                    }
+                    mysqli_stmt_close($stmt);
+                }
+            }
+        }
+        $rows_processed++;
+    }
+
+    fclose($handle);
+    $meta['processed'] += $rows_processed;
+    $meta['stats'] = $stats;
+    $meta['logs'] = $logs;
+
+    if ($meta['total'] > 0) {
+        $meta['percent'] = min(100, (int) round($meta['processed'] / $meta['total'] * 100));
+    } else {
+        $meta['percent'] = 100;
+    }
+
+    $has_more = false;
+    $test_handle = fopen($path, 'r');
+    if ($test_handle) {
+        if ($has_header) fgetcsv($test_handle, 4000, ",");
+        for ($i = 0; $i < $meta['processed']; $i++) fgetcsv($test_handle, 4000, ",");
+        $peek = fgetcsv($test_handle, 4000, ",");
+        $has_more = ($peek !== false);
+        fclose($test_handle);
+    }
+
+    if (!$has_more) {
+        @unlink($path);
+        $meta['status'] = 'complete';
+        $meta['message'] = "Import finished. Inserted: {$stats['inserted']} | Duplicates skipped: {$stats['duplicates']} | Invalid: {$stats['invalid']}";
+    } else {
+        $meta['message'] = "Processed {$meta['processed']} of {$meta['total']} rows...";
+    }
+
+    file_put_contents($progress_file, json_encode($meta));
+    echo json_encode([
+        'status' => $meta['status'],
+        'percent' => $meta['percent'],
+        'processed' => $meta['processed'],
+        'total' => $meta['total'],
+        'message' => $meta['message'],
+        'has_more' => $has_more,
+        'stats' => $stats,
+        'logs' => $logs
+    ]);
+    exit;
+}
+
+if (isset($_GET['upload_progress']) && !empty($_GET['task_id'])) {
+    $task_id = $_GET['task_id'];
+    $progress_file = sys_get_temp_dir() . '/callnow_upload_' . md5($task_id) . '.json';
+    if (!file_exists($progress_file)) {
+        echo json_encode(['status' => 'error', 'error' => 'Task not found']);
+        exit;
+    }
+    $meta = json_decode(file_get_contents($progress_file), true);
+    echo json_encode($meta);
+    exit;
 }
 ?>
 <?php $pageTitle = 'Upload Customer Database'; include '../../php_scripts/header.php'; ?>
+
+<style>
+#uploadProgressModal .modal-content { border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
+#notificationModal .modal-content { border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
+</style>
 
 <div class="container py-3">
   <div class="row mb-3 align-items-center">
@@ -747,6 +816,41 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
   </div>
 </div>
 
+<div class="modal fade" id="uploadProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-cloud-upload me-2"></i>Uploading & Importing</h5>
+                <button type="button" class="btn-close" id="uploadModalCloseBtn" data-bs-dismiss="modal" aria-label="Close" disabled></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="small text-muted">Upload Progress</span>
+                    <span id="uploadPercent" class="small fw-semibold">0%</span>
+                </div>
+                <div class="progress mb-3" style="height: 20px;">
+                    <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+                <p class="mb-2 small text-muted" id="uploadMessage">Uploading file...</p>
+                <div id="uploadResult" class="mt-3 alert" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content" style="border-radius:0.75rem;border:1px solid #e2e4f0;">
+            <div class="modal-body text-center py-4">
+                <div id="notifIcon" class="mb-2" style="font-size:2.5rem;"></div>
+                <h5 id="notifTitle" class="fw-bold mb-1"></h5>
+                <p id="notifMessage" class="text-muted small mb-3"></p>
+                <button type="button" class="btn btn-primary btn-sm px-4" data-bs-dismiss="modal" style="border-radius:0.5rem;">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php include '../../php_scripts/footer.php'; ?>
 
 <script>
@@ -771,8 +875,8 @@ dropZone.addEventListener('click', ()=> fileInput.click());
 fileInput.addEventListener('change', ()=> {
   if (!fileInput.files.length) return;
   const f = fileInput.files[0];
-  if (f.size > 10*1024*1024) { alert('File > 10MB not allowed'); fileInput.value=''; return; }
-  if (!f.name.toLowerCase().endsWith('.csv')) { alert('Only CSV allowed'); fileInput.value=''; return; }
+  if (f.size > 10*1024*1024) { showNotification('Error', 'File > 10MB not allowed', 'danger'); fileInput.value=''; return; }
+  if (!f.name.toLowerCase().endsWith('.csv')) { showNotification('Error', 'Only CSV allowed', 'danger'); fileInput.value=''; return; }
   setDropInfo(f);
   handlePreview(f);
   uploadBtn.disabled = false;
@@ -800,32 +904,6 @@ function setDropInfo(file) {
       <div class="small text-muted">${(file.size/1024/1024).toFixed(2)} MB</div>
     </div>`;
 }
-
-/* ensure hidden import set and prevent submit if no file selected */
-document.getElementById('uploadForm').addEventListener('submit', function(e){
-  importHidden.value = '1';
-  // Defensive: block submit when no file selected, show friendly message
-  if (!fileInput.files || fileInput.files.length === 0) {
-    e.preventDefault();
-    alert('Please select a CSV file before importing.');
-    return false;
-  }
-  
-      if (!terms.checked) {
-        e.preventDefault();
-        alert("Please agree to the Terms & Conditions before uploading.");
-        return false;
-    }
-  
-  // ensure has_header value is present
-  if (hasHeaderCheckbox.checked) {
-    hasHeaderCheckbox.value = '1';
-  } else {
-    // ensure unchecked submits nothing (we keep it checked/unchecked), or we can set value to ''.
-    hasHeaderCheckbox.value = '0';
-  }
-  return true;
-});
 
 /* preview reader — respects hasHeader toggle */
 function handlePreview(file) {
@@ -907,6 +985,176 @@ downloadExampleBtn.addEventListener('click', function(e){
   a.remove();
   URL.revokeObjectURL(url);
 });
+
+function showNotification(title, message, type = 'success') {
+    const iconMap = {
+        success: '<i class="bi bi-check-circle-fill text-success"></i>',
+        danger: '<i class="bi bi-x-circle-fill text-danger"></i>',
+        warning: '<i class="bi bi-exclamation-triangle-fill text-warning"></i>',
+        info: '<i class="bi bi-info-circle-fill text-info"></i>'
+    };
+    const icon = iconMap[type] || iconMap.info;
+    $('#notifIcon').html(icon);
+    $('#notifTitle').text(title);
+    $('#notifMessage').text(message || '');
+    new bootstrap.Modal(document.getElementById('notificationModal')).show();
+}
+
+$(document).on('click', '.close-modal-btn', function() {
+    bootstrap.Modal.getInstance(document.getElementById('uploadProgressModal'))?.hide();
+});
+
+function updateUploadProgress(percent, message) {
+    $('#uploadPercent').text(percent + '%');
+    $('#uploadProgressBar').css('width', percent + '%');
+    if (message) $('#uploadMessage').text(message);
+}
+
+function setModalClosable(closable) {
+    const btn = document.getElementById('uploadModalCloseBtn');
+    if (!btn) return;
+    btn.disabled = !closable;
+    if (closable) {
+        btn.removeAttribute('disabled');
+    } else {
+        btn.setAttribute('disabled', 'disabled');
+    }
+}
+
+document.getElementById('uploadForm').addEventListener('submit', function(e){
+    importHidden.value = '1';
+    if (!fileInput.files || fileInput.files.length === 0) {
+        e.preventDefault();
+        showNotification('Error', 'Please select a CSV file before importing.', 'danger');
+        return false;
+    }
+    if (!terms.checked) {
+        e.preventDefault();
+        showNotification('Error', 'Please agree to the Terms & Conditions before uploading.', 'danger');
+        return false;
+    }
+    if (hasHeaderCheckbox.checked) {
+        hasHeaderCheckbox.value = '1';
+    } else {
+        hasHeaderCheckbox.value = '0';
+    }
+
+    e.preventDefault();
+
+    const modal = new bootstrap.Modal(document.getElementById('uploadProgressModal'), { backdrop: 'static', keyboard: false });
+    const progressBar = $('#uploadProgressBar');
+    const percentText = $('#uploadPercent');
+    const messageText = $('#uploadMessage');
+    const resultDiv = $('#uploadResult');
+
+    modal.show();
+    setModalClosable(false);
+    progressBar.css('width', '0%').removeClass('bg-success bg-danger').addClass('bg-primary');
+    percentText.text('0%');
+    messageText.text('Uploading file...');
+    resultDiv.hide();
+
+    const formData = new FormData(this);
+    formData.set('import', '1');
+    formData.set('ajax_upload', '1');
+
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', function(evt) {
+        if (evt.lengthComputable) {
+            const percent = Math.round((evt.loaded / evt.total) * 100);
+            updateUploadProgress(percent, 'Uploading file...');
+        }
+    });
+
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                try {
+                    const resp = JSON.parse(xhr.responseText);
+                    if (resp.success && resp.task_id) {
+                        messageText.text('Processing data...');
+                        processUploadBatch(resp.task_id);
+                    } else {
+                        throw new Error(resp.error || 'Upload failed');
+                    }
+                } catch (err) {
+                    progressBar.addClass('bg-danger');
+                    messageText.text('Upload failed');
+                    resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> ' + (err.message || 'Failed to start upload.') + '<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                    setModalClosable(true);
+                    showNotification('Error', err.message || 'Failed to start upload', 'danger');
+                }
+            } else {
+                progressBar.addClass('bg-danger');
+                messageText.text('Server error');
+                resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Server error (HTTP ' + xhr.status + ').<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                setModalClosable(true);
+                showNotification('Error', 'Server error during upload', 'danger');
+            }
+        }
+    };
+
+    xhr.onerror = function() {
+        progressBar.addClass('bg-danger');
+        messageText.text('Network error');
+        resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error during upload.<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+        setModalClosable(true);
+        showNotification('Error', 'Network error during upload', 'danger');
+    };
+
+    xhr.open('POST', location.href, true);
+    xhr.send(formData);
+});
+
+function processUploadBatch(task_id) {
+    const progressBar = $('#uploadProgressBar');
+    const percentText = $('#uploadPercent');
+    const messageText = $('#uploadMessage');
+    const resultDiv = $('#uploadResult');
+
+    const formData = new FormData();
+    formData.set('process_upload_batch', '1');
+    formData.set('task_id', task_id);
+
+    $.ajax({
+        type: 'POST',
+        url: location.href,
+        data: formData,
+        processData: false,
+        contentType: false,
+        dataType: 'json',
+        success: function(resp) {
+            if (resp.status === 'complete') {
+                progressBar.css('width', '100%').removeClass('bg-primary bg-danger').addClass('bg-success');
+                percentText.text('100%');
+                messageText.text('Upload complete!');
+                resultDiv.show().addClass('alert-success').html('<strong>Success!</strong> ' + (resp.message || 'Import completed') + '<br><button class="btn btn-sm btn-outline-success mt-2 close-modal-btn">Close</button>');
+                setModalClosable(true);
+                showNotification('Upload Complete', resp.message || 'Import completed', 'success');
+            } else if (resp.status === 'error') {
+                progressBar.addClass('bg-danger');
+                messageText.text('Upload failed');
+                resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> ' + (resp.message || resp.error || 'Unknown error') + '<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                setModalClosable(true);
+                showNotification('Error', resp.message || resp.error || 'Unknown error', 'danger');
+            } else {
+                progressBar.css('width', resp.percent + '%').removeClass('bg-success bg-danger').addClass('bg-primary');
+                percentText.text(resp.percent + '%');
+                messageText.text(resp.message || 'Processing...');
+                setTimeout(function() { processUploadBatch(task_id); }, 400);
+            }
+        },
+        error: function() {
+            progressBar.addClass('bg-danger');
+            messageText.text('Network error');
+            resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error while checking progress.<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+            setModalClosable(true);
+            showNotification('Error', 'Network error while checking progress', 'danger');
+        }
+    });
+}
 </script>
+
+
 
 
