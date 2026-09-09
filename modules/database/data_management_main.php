@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'update' && !empty($_POST['id'])) {
-        if (!isAdmin() && !isManager()) {
+        if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             header('Content-Type: application/json');
             echo json_encode(['error' => 'Admin or Manager access required']);
             exit;

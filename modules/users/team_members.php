@@ -122,7 +122,7 @@ if ($mc) while ($m = mysqli_fetch_assoc($mc)) $memberCounts[(int)$m['TEAM_ID']] 
 $totalMembers = 0;
 
 $where = '';
-if (isAdmin()) {
+if (isAdmin() || isSuperAdmin()) {
     $where = "1=1";
 } elseif (isManager()) {
     $ids_str = implode(',', array_map('intval', $managerTeamIds));

@@ -31,7 +31,7 @@ $userInitial = mb_strtoupper(mb_substr($userName, 0, 1));
             <ul class="dropdown-menu dropdown-menu-end">
                 <li class="dropdown-header"><?= htmlspecialchars($userRole, ENT_QUOTES, 'UTF-8') ?></li>
                 <li><a class="dropdown-item" href="<?= url('profile.php') ?>"><i class="bi bi-person"></i>My Profile</a></li>
-                <?php if (isAdmin()): ?>
+                <?php if (isAdmin() || isSuperAdmin()): ?>
                 <li><a class="dropdown-item" href="<?= url('modules/logs/manage_activity.php') ?>"><i class="bi bi-activity"></i>Activity Log</a></li>
                 <?php endif; ?>
                 <li><hr class="dropdown-divider"></li>

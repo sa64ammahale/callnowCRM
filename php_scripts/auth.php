@@ -221,7 +221,7 @@ function logActivity($link, $userId, $actionType, $actionDetails = null, $affect
 
 // Return array of user IDs accessible to current user (for filtering queries)
 function getAccessibleUserIds($link) : array {
-    if (isAdmin()) {
+    if (isAdmin() || isSuperAdmin()) {
         return []; // empty meaning "no restriction" for usage below
     }
     if (isManager()) {

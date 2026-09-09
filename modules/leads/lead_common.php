@@ -348,7 +348,7 @@ function getLeadAssignableTBL_USERS(mysqli $link): array
 
     if (isOfficer()) {
         $whereParts[] = 'ID = ' . (int)USER_ID;
-    } elseif (!isAdmin() && !empty($accessibleUserIds)) {
+    } elseif (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
         $whereParts[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     }
 
@@ -380,7 +380,7 @@ function canEditLeadAssignment(): bool
 
 function getLeadAccessCondition(mysqli $link, string $alias = 'l'): ?string
 {
-    if (isAdmin()) {
+    if (isAdmin() || isSuperAdmin()) {
         return null;
     }
 
@@ -409,7 +409,7 @@ function getLeadTrayOwner(array $lead): array
 
 function canEditLead(array $lead): bool
 {
-    if (isAdmin() || isManager()) {
+    if (isAdmin() || isManager() || isSuperAdmin()) {
         return true;
     }
 
@@ -430,7 +430,7 @@ function canEditLead(array $lead): bool
 
 function canViewLead(mysqli $link, array $lead): bool
 {
-    if (isAdmin()) {
+    if (isAdmin() || isSuperAdmin()) {
         return true;
     }
 
@@ -449,7 +449,7 @@ function canViewLead(mysqli $link, array $lead): bool
 
 function canPullToTray(array $lead): bool
 {
-    if (isAdmin() || isManager()) {
+    if (isAdmin() || isManager() || isSuperAdmin()) {
         return true;
     }
 

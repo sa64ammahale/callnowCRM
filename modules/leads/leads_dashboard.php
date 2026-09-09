@@ -13,7 +13,7 @@ mysqli_set_charset($link, 'utf8mb4');
 
 $where = '';
 $accessibleUserIds = getAccessibleUserIds($link);
-if (!isAdmin() && !empty($accessibleUserIds)) {
+if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
     $inIds = implode(',', array_map('intval', $accessibleUserIds));
     $where = "WHERE l.assigned_to IN ($inIds)";
 }

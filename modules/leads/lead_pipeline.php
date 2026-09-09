@@ -27,7 +27,7 @@ $stageColors = [
 
 $where = '';
 $accessibleUserIds = getAccessibleUserIds($link);
-if (!isAdmin() && !empty($accessibleUserIds)) {
+if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
     $where = 'WHERE l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
 }
 

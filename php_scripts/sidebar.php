@@ -134,7 +134,7 @@ function navActive($patterns) {
         <?php if (can('manage_settings') || can('view_activity')): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">System</div>
-            <?php if (isAdmin()): ?>
+            <?php if (isAdmin() || isSuperAdmin()): ?>
             <a class="app-sidebar-link <?= navActive(['permissions_manager.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>">
                 <i class="bi bi-shield-lock"></i>
                 <span class="link-text">Access Control</span>

@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'update' && !empty($_POST['id'])) {
-        if (!isAdmin() && !isManager()) {
+        if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
         }
         $id = intval($_POST['id']);
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'delete' && !empty($_POST['id'])) {
-        if (!isAdmin() && !isManager()) {
+        if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
         }
         $id = intval($_POST['id']);
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'delete_selected' && !empty($_POST['ids']) && is_array($_POST['ids'])) {
-        if (!isAdmin() && !isManager()) {
+        if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
         }
         $ids = array_map('intval', $_POST['ids']);
@@ -96,6 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $types = str_repeat('i', count($ids));
         $sql = "DELETE FROM " . tn('TBL_TEMP') . " WHERE ID IN ($placeholders)";
         $stmt = mysqli_prepare($link, $sql);
+        if (!$stmt) {
+            respond_json(['error' => 'Prepare failed: ' . mysqli_error($link)]);
+        }
         $bind_names = array_merge([$types], $ids);
         $refs = [];
         foreach ($bind_names as $k => $v) $refs[$k] = &$bind_names[$k];
@@ -110,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'delete_all') {
-        if (!isAdmin()) {
+        if (!isAdmin() && !isSuperAdmin()) {
             respond_json(['error' => 'Admin access required']);
         }
         $confirm = $_POST['confirm'] ?? '';
@@ -123,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'transfer_selected' && !empty($_POST['ids']) && is_array($_POST['ids'])) {
-        if (!isAdmin() && !isManager()) {
+        if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
         }
         $ids = array_map('intval', $_POST['ids']);
@@ -159,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'transfer_all') {
-        if (!isAdmin() && !isManager()) {
+        if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
         }
 
