@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/lead_common.php';
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    header("Location: lead_list.php");
+    header("Location: lead_list");
     exit;
 }
 
@@ -47,7 +47,7 @@ mysqli_stmt_close($stmt);
 if (!$lead || !canViewLead($link, $lead)) {
     $_SESSION['success_message'] = 'Lead not found or access denied.';
     $_SESSION['flash_class'] = 'danger';
-    header('Location: lead_list.php');
+    header('Location: lead_list');
     exit;
 }
 
@@ -558,7 +558,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
             lvPost('php_scripts/lead_clone_bank.php', {
                 csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>', lead_id: <?= $leadId ?>
             }, function (j) {
-                if (j.new_lead_id) location.href = 'lead_view.php?id=' + j.new_lead_id;
+                if (j.new_lead_id) location.href = 'lead_view?id=' + j.new_lead_id;
                 else location.reload();
             });
         });

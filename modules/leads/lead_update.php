@@ -8,14 +8,14 @@ requirePermission('manage_leads');
 ensureLeadModuleSchema($link);
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || !isset($_POST['lead_id'])) {
-    header("Location: lead_list.php");
+    header("Location: lead_list");
     exit;
 }
 
 if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
     $_SESSION['success_message'] = 'Invalid session token';
     $_SESSION['flash_class'] = 'danger';
-    header("Location: lead_list.php");
+    header("Location: lead_list");
     exit;
 }
 
@@ -43,7 +43,7 @@ mysqli_stmt_close($stmt);
 
 if (!$leadRow) {
     $_SESSION['success_message'] = 'Lead not found.';
-    header("Location: lead_list.php");
+    header("Location: lead_list");
     exit;
 }
 
@@ -52,7 +52,7 @@ $leadForCheck = ['assigned_to' => (int)$leadRow['assigned_to'], 'team_id' => (in
 if (!canEditLead($leadForCheck)) {
     $_SESSION['success_message'] = 'This lead is not in your tray. Pull it into your tray first.';
     $_SESSION['flash_class'] = 'danger';
-    header("Location: lead_view.php?id={$leadId}");
+    header("Location: lead_view?id={$leadId}");
     exit;
 }
 
@@ -73,7 +73,7 @@ try {
         }
         $_SESSION['success_message'] = 'Remark added successfully.';
         $_SESSION['flash_class'] = 'success';
-        header("Location: lead_view.php?id={$leadId}");
+        header("Location: lead_view?id={$leadId}");
         exit;
     }
 
@@ -296,5 +296,5 @@ try {
     $_SESSION['flash_class'] = 'danger';
 }
 
-header("Location: lead_view.php?id={$leadId}");
+header("Location: lead_view?id={$leadId}");
 exit;

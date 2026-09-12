@@ -4,7 +4,7 @@ require_once __DIR__ . '/lead_common.php';
 
 $allowedTBL_ROLES = ['Admin', 'Manager', 'Supervisor', 'Officer', 'Super Admin'];
 if (!in_array(USER_ROLE, $allowedTBL_ROLES, true) && !isSuperAdmin()) {
-    header('Location: leads_dashboard.php');
+    header('Location: leads_dashboard');
     exit;
 }
 

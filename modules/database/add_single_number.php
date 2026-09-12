@@ -245,7 +245,7 @@ if (isset($_POST['submit'])) {
                 // Success message and redirect (preserve original behavior)
                 $Message = "New record added successfully!";
                 $type = "success";
-                header("Location: add_single_number.php?success=1");
+                header("Location: add_single_number?success=1");
                 exit;
             }
         }

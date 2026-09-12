@@ -43,6 +43,16 @@ DirectoryIndex index.php
     RewriteRule ^api/v1/auth/(.*)$ api/v1/auth/index.php [L,QSA]
     RewriteRule ^api/v1/admin/(.*)$ api/v1/admin/index.php [L,QSA]
     RewriteRule ^api/v1/telecaller/(.*)$ api/v1/telecaller/index.php [L,QSA]
+
+    # Hide .php extension
+    RewriteCond %{THE_REQUEST} \s/([^.]+)\.php[\s?] [NC]
+    RewriteCond %{REQUEST_METHOD} GET
+    RewriteRule ^ %1 [R=301,L]
+
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME}.php -f
+    RewriteRule ^(.*)$ $1.php [L]
 </IfModule>
 
 # ── Deny direct web access to PHP inside upload / private directories ──

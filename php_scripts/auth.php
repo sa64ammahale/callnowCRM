@@ -14,12 +14,12 @@ function appRedirect(string $path): void {
 }
 
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    appRedirect('index.php');
+    appRedirect('index');
 }
 
 if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 14400)) {
     session_unset(); session_destroy();
-    appRedirect('index.php');
+    appRedirect('index');
 }
 $_SESSION['LAST_ACTIVITY'] = time();
 
@@ -28,7 +28,7 @@ ensureCsrfToken();
 
 
 $user_id = (int)($_SESSION['id'] ?? 0);
-if ($user_id <= 0) { appRedirect('index.php'); }
+if ($user_id <= 0) { appRedirect('index'); }
 
 
 $stmt = mysqli_prepare($link, "SELECT ID, NAME, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ?");
@@ -57,7 +57,7 @@ function requireRole($TBL_ROLES) {
     $TBL_ROLES = is_array($TBL_ROLES) ? $TBL_ROLES : [$TBL_ROLES];
     if (!in_array(USER_ROLE, $TBL_ROLES) && !isSuperAdmin()) {
         $_SESSION['access_denied_message'] = "Access denied: your role does not permit access to this page.";
-        appRedirect('dashboard.php');
+        appRedirect('dashboard');
     }
 }
 
@@ -147,7 +147,7 @@ function can(string $permissionKey): bool {
 function requirePermission(string $key): void {
     if (!can($key)) {
         $_SESSION['access_denied_message'] = "Access denied: you do not have permission to view this page.";
-        appRedirect('dashboard.php');
+        appRedirect('dashboard');
     }
 }
 
@@ -157,7 +157,7 @@ function requireAnyPermission(array $keys): void {
         if (can($k)) return;
     }
     $_SESSION['access_denied_message'] = "Access denied: you do not have permission to view this page.";
-    appRedirect('dashboard.php');
+    appRedirect('dashboard');
 }
 
 // Team filter for queries

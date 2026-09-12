@@ -39,15 +39,15 @@ if ($isEdit) {
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     $editUser = mysqli_fetch_assoc($result);
-        if (!$editUser) { header("Location: users_view.php"); exit; }
+        if (!$editUser) { header("Location: users_view"); exit; }
     // Protect system accounts from editing (allow self-edit)
     if ((int)$editUser['ID'] === 1 || $editUser['ROLE'] === 'Super Admin') {
         $_SESSION['error'] = 'System Administrator cannot be edited.';
-        header('Location: users_view.php'); exit;
+        header('Location: users_view'); exit;
     }
     if ($editUser['ROLE'] === 'Admin' && (int)$editUser['ID'] !== USER_ID) {
         $_SESSION['error'] = 'Other Admin accounts cannot be edited.';
-        header('Location: users_view.php'); exit;
+        header('Location: users_view'); exit;
     }
 }
 
@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $type = "success";
                     if (!$isEdit) {
                         $_POST = [];
-                        header("Location: users_view.php?created=1"); exit;
+                        header("Location: users_view?created=1"); exit;
                     }
                 } else {
                     $Message = "Database error!";

@@ -208,7 +208,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                     </div>
                                 <?php endif; ?>
                                 <div class="mt-3">
-                                    <a href="index.php" class="btn btn-primary w-100">
+                                    <a href="index" class="btn btn-primary w-100">
                                         <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
                                     </a>
                                 </div>
@@ -292,7 +292,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         
                         <!-- Back to Login -->
                         <div class="d-grid">
-                            <a href="index.php" class="btn btn-secondary w-100">
+                            <a href="index" class="btn btn-secondary w-100">
                                 <i class="bi bi-arrow-left me-2"></i>Back to Login
                             </a>
                         </div>

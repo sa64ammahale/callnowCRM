@@ -64,7 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         $_SESSION["login_id"]    = $login_id;
                                         $_SESSION["device_id"]   = $device_id;
                                         $_SESSION['LAST_ACTIVITY'] = time();
-                                        header("Location: dashboard.php");
+                                        header("Location: dashboard");
                                         exit;
                                     } else {
                                         $ErrorMessage = "Error: The password you entered is not valid.";

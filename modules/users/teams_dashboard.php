@@ -115,7 +115,7 @@ if (($_POST['action'] ?? '') === 'delete') {
             }
         }
     }
-    header("Location: teams_dashboard.php");
+    header("Location: teams_dashboard");
     exit;
 }
 

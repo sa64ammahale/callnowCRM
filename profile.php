@@ -472,7 +472,7 @@ $profile = [
                                         class="btn btn-save-profile">
                                     <i class="bi bi-check2-circle me-2"></i>Save Changes
                                 </button>
-                                <a href="dashboard.php"
+                                <a href="dashboard"
                                    class="btn btn-back-profile">
                                     <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
                                 </a>
