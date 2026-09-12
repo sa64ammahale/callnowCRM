@@ -182,11 +182,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                     <div class="links-section text-center">
                         <div class="mb-2">
-                            <a href="forgot-password.php"><i class="bi bi-key me-1"></i>Forgot Password?</a>
+                            <a href="forgot-password"><i class="bi bi-key me-1"></i>Forgot Password?</a>
                         </div>
                         <div>
                             <p class="mb-1">Don't have an account?</p>
-                            <a href="CallNowSignUp.php" class="fw-bold"><i class="bi bi-person-plus me-1"></i>Sign Up Now</a>
+                            <a href="CallNowSignUp" class="fw-bold"><i class="bi bi-person-plus me-1"></i>Sign Up Now</a>
                         </div>
                     </div>
                 </form>

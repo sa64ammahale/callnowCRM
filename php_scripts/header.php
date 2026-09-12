@@ -2,7 +2,7 @@
 require_once __DIR__ . '/auth.php';
 
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    header("location: " . (defined('APP_BASE') ? APP_BASE . '/' : '') . "index.php");
+    header("location: " . (defined('APP_BASE') ? APP_BASE . '/' : '') . "index");
     exit;
 }
 

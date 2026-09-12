@@ -987,8 +987,8 @@ async function loadDashboardLists() {
     const base = APP_BASE_URL + '/modules/leads/php_scripts/';
     try {
         const [todayRes, recentRes] = await Promise.all([
-            fetch(base + 'lead_cards_data.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ quickStatus: 'PIPELINE', followupMonth: 'current', perPage: '8', page: '1' }) }),
-            fetch(base + 'lead_cards_data.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ perPage: '3', page: '1' }) })
+            fetch(base + 'lead_cards_data', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ quickStatus: 'PIPELINE', followupMonth: 'current', perPage: '8', page: '1' }) }),
+            fetch(base + 'lead_cards_data', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ perPage: '3', page: '1' }) })
         ]);
         const today = await todayRes.json();
         const recent = await recentRes.json();

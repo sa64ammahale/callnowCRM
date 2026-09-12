@@ -384,7 +384,7 @@ $(document).ready(function() {
         destroy: true,
         searchDelay: 400,
         ajax: {
-            url: APP_BASE + '/modules/database/maindatabase_ajax/datatable.php',
+            url: APP_BASE + '/modules/database/maindatabase_ajax/datatable',
             type: 'GET',
             dataSrc: function (json) {
                 if (json === null || typeof json !== 'object' || !json.data) {
@@ -407,7 +407,7 @@ $(document).ready(function() {
                 text: '<i class="bi bi-cloud-download"></i> Export Full DB (in Parts)',
                 className: 'btn btn-primary btn-sm shadow-sm fw-bold',
                 action: function () {
-                    $.get(APP_BASE + '/modules/database/maindatabase_ajax/get_total_count.php', function (total) {
+                    $.get(APP_BASE + '/modules/database/maindatabase_ajax/get_total_count', function (total) {
                         total = parseInt(total);
                         if (total === 0) return showNotification('Empty', 'No data found', 'info');
             
@@ -415,7 +415,7 @@ $(document).ready(function() {
                             return;
                         }
             
-                        const win = window.open(APP_BASE + '/modules/database/maindatabase_ajax/download_bach.php', '_blank');
+                        const win = window.open(APP_BASE + '/modules/database/maindatabase_ajax/download_bach', '_blank');
                         if (win) {
                             showNotification('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
                         } else {
@@ -485,7 +485,7 @@ $(document).ready(function() {
 
         if (ids.length === 0) return showNotification('Warning', 'No records selected', 'warning');
 
-        $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
+        $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_assign', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 $('#assignModal').modal('hide');
@@ -506,7 +506,7 @@ $(document).ready(function() {
                 ids.push(row[8]);
             }
         });
-        $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
+        $.post(APP_BASE + '/modules/database/maindatabase_ajax/bulk_delete', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showNotification('Deleted!', `${ids.length} records removed`, 'danger');

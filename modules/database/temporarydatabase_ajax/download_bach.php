@@ -69,7 +69,7 @@ $(document).ready(function() {
 const CSRF_TOKEN = '<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>';
 
 function getTotalCount() {
-    $.get('get_total_count.php', function(total) {
+    $.get('get_total_count', function(total) {
         total = parseInt(total);
         if (total === 0) {
             $('#exportStatus').html('<div class="alert alert-warning"><strong>No data found!</strong> Your database is empty.</div>');
@@ -91,7 +91,7 @@ $('#startExport').on('click', function() {
 
 function startExport(offset) {
     const batchSize = <?= $batchSize ?>;
-    $.post('export_batch.php', { offset: offset, limit: batchSize, csrf_token: CSRF_TOKEN }, function(res) {
+    $.post('export_batch', { offset: offset, limit: batchSize, csrf_token: CSRF_TOKEN }, function(res) {
         if (res.success) {
             const current = offset + res.count;
             const total = parseInt($('#total').text().replace(/,/g, ''));

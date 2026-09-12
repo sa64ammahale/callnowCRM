@@ -195,7 +195,7 @@ $('#startExport').on('click', function() {
 });
 
 function startExport(offset, batchSize) {
-    $.post(ajaxBase + 'export_batch.php', { 
+    $.post(ajaxBase + 'export_batch', { 
         offset: offset, 
         limit: batchSize, 
         csrf_token: CSRF_TOKEN 

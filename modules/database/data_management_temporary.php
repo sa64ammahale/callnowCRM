@@ -717,7 +717,7 @@ include __DIR__ . '/../../php_scripts/header.php';
 
 <script>
 const APP_BASE = <?= json_encode(APP_BASE) ?>;
-const TEMP_URL = APP_BASE + '/modules/database/temporarydatabase_ajax/datatable.php';
+const TEMP_URL = APP_BASE + '/modules/database/temporarydatabase_ajax/datatable';
 const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 
 $(document).ready(function() {
@@ -839,7 +839,7 @@ $(document).ready(function() {
         const ids = getSelectedIds();
         if (ids.length === 0) return showNotification('Warning', 'No records selected', 'warning');
 
-        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_assign.php', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
+        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_assign', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showNotification('Success!', `${ids.length} records assigned successfully`, 'success');
@@ -854,7 +854,7 @@ $(document).ready(function() {
         if (!ids.length) return showNotification('No Selection', 'Please select at least one record to delete.', 'warning');
         if (!confirm('Delete selected records permanently?')) return;
         const loadingToast = showNotification('Deleting...', 'Please wait while records are deleted.', 'info');
-        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_delete.php', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
+        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_delete', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
             if (res.success) {
                 table.ajax.reload();
                 showNotification('Deleted!', `${ids.length} records removed`, 'danger');
@@ -1084,7 +1084,7 @@ $(document).ready(function() {
     });
 
     $('#exportFullBtn').on('click', function(){
-        $.get(APP_BASE + '/modules/database/temporarydatabase_ajax/get_total_count.php', function (total) {
+        $.get(APP_BASE + '/modules/database/temporarydatabase_ajax/get_total_count', function (total) {
             total = parseInt(total);
             if (total === 0) return showNotification('Empty', 'No data found', 'info');
 
@@ -1092,7 +1092,7 @@ $(document).ready(function() {
                 return;
             }
 
-            const win = window.open(APP_BASE + '/modules/database/temporarydatabase_ajax/download_bach.php', '_blank');
+            const win = window.open(APP_BASE + '/modules/database/temporarydatabase_ajax/download_bach', '_blank');
             if (win) {
                 showNotification('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
             } else {

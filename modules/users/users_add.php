@@ -12,7 +12,7 @@ if (!$isEdit) {
     $limitMsg = checkUserLimit($link, USER_ID);
     if ($limitMsg) {
         $_SESSION['access_denied_message'] = $limitMsg;
-        appRedirect('dashboard.php');
+        appRedirect('dashboard');
     }
 }
 

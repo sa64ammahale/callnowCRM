@@ -410,7 +410,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 document.getElementById('mobile').addEventListener('blur', function () {
     const mobile = this.value.trim();
     if (mobile.length < 10) return;
-    fetch('php_scripts/lead_ajax_check_mobile.php?mobile=' + encodeURIComponent(mobile))
+    fetch('php_scripts/lead_ajax_check_mobile?mobile=' + encodeURIComponent(mobile))
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.exists) return;
