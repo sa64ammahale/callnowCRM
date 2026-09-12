@@ -367,13 +367,12 @@ CREATE TABLE `main_database` (
   `archived_by` int(11) DEFAULT NULL,
   `archive_reason` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`ID`),
-  KEY `idx_mobile` (`MAINDATABASE_MOBILE`),
+  UNIQUE KEY `idx_mobile` (`MAINDATABASE_MOBILE`),
   KEY `idx_status` (`MAINDATABASE_CALL_DIALED_STATUS`),
   KEY `idx_call_by` (`CALL_BY`),
   KEY `idx_added_by` (`ADDED_BY`),
   KEY `idx_called_at` (`MAINDATABASE_CALL_DIAL_TIME`),
   KEY `idx_upload_dt` (`MAINDATABASE_UPLOAD_DATETIME`),
-  KEY `idx_user` (`CALL_BY`),
   FULLTEXT KEY `idx_search` (`MAINDATABASE_NAME`,`MAINDATABASE_MOBILE`,`MAINDATABASE_COMPANY`,`MAINDATABASE_OTHER_INFO`)
 ) ENGINE=InnoDB AUTO_INCREMENT=383953 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -523,11 +522,10 @@ CREATE TABLE `temporary_database` (
   `TEMP_UPLOAD_DATETIME` datetime DEFAULT current_timestamp(),
   `TEMP_LAST_CALLED_AT` datetime DEFAULT NULL,
   PRIMARY KEY (`ID`),
-  KEY `idx_cust_mobile` (`CUST_MOBILE`),
+  UNIQUE KEY `idx_cust_mobile` (`CUST_MOBILE`),
   KEY `idx_dial_status` (`CALL_DIALED_STATUS`),
   KEY `idx_telecaller` (`CALL_DIALED_TELECALLER`),
   KEY `idx_last_dialed` (`LAST_DIALED_DATE_TIME`),
-  KEY `idx_temp_mobile` (`CUST_MOBILE`),
   KEY `idx_temp_status` (`CALL_DIALED_STATUS`),
   KEY `idx_temp_upload_dt` (`TEMP_UPLOAD_DATETIME`),
   FULLTEXT KEY `idx_search` (`CUST_NAME`,`CUST_MOBILE`,`CUST_COMPANY`,`CUST_OTHER_INFO`)
