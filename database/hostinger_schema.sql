@@ -51,9 +51,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   KEY `idx_login_id` (`LOGIN_ID`),
   KEY `idx_mobile` (`MOBILE`),
   KEY `idx_team_role` (`TEAM_ID`,`ROLE`),
-  KEY `fk_user_role` (`role_id`),
-  CONSTRAINT `fk_user_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_users_team` FOREIGN KEY (`TEAM_ID`) REFERENCES `teams` (`ID`) ON DELETE SET NULL
+  KEY `fk_user_role` (`role_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT IGNORE INTO `users` (`NAME`, `MOBILE`, `EMAIL`, `COMPANY`, `STATUS`, `ROLE`, `role_id`, `PASSWORD`, `LOGIN_ID`)
@@ -122,28 +120,23 @@ CREATE TABLE IF NOT EXISTS `role_permissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT IGNORE INTO `role_permissions` (`role`, `permission_key`, `permission_value`) VALUES
--- Super Admin: all permissions
 ('Super Admin','manage_TBL_USERS',1),('Super Admin','manage_TBL_TEAMS',1),('Super Admin','manage_settings',1),
 ('Super Admin','view_activity',1),('Super Admin','manage_database',1),('Super Admin','upload_data',1),
 ('Super Admin','export_data',1),('Super Admin','assign_leads',1),('Super Admin','manage_leads',1),
 ('Super Admin','delete_leads',1),('Super Admin','view_reports',1),('Super Admin','manage_api',1),
 ('Super Admin','manage_super_admin',1),
--- Admin: all permissions
 ('Admin','manage_TBL_USERS',1),('Admin','manage_TBL_TEAMS',1),('Admin','manage_settings',1),
 ('Admin','view_activity',1),('Admin','manage_database',1),('Admin','upload_data',1),
 ('Admin','export_data',1),('Admin','assign_leads',1),('Admin','manage_leads',1),
 ('Admin','delete_leads',1),('Admin','view_reports',1),('Admin','manage_api',1),
--- Manager: all except Super Admin panel
 ('Manager','manage_TBL_USERS',1),('Manager','manage_TBL_TEAMS',1),('Manager','manage_settings',1),
 ('Manager','view_activity',1),('Manager','manage_database',1),('Manager','upload_data',1),
 ('Manager','export_data',1),('Manager','assign_leads',1),('Manager','manage_leads',1),
 ('Manager','delete_leads',1),('Manager','view_reports',1),('Manager','manage_api',1),
--- Supervisor
 ('Supervisor','manage_TBL_USERS',0),('Supervisor','manage_TBL_TEAMS',1),('Supervisor','manage_settings',0),
 ('Supervisor','view_activity',1),('Supervisor','manage_database',0),('Supervisor','upload_data',0),
 ('Supervisor','export_data',1),('Supervisor','assign_leads',1),('Supervisor','manage_leads',1),
 ('Supervisor','delete_leads',0),('Supervisor','view_reports',1),
--- Officer
 ('Officer','manage_TBL_USERS',0),('Officer','manage_TBL_TEAMS',0),('Officer','manage_settings',0),
 ('Officer','view_activity',0),('Officer','manage_database',0),('Officer','upload_data',0),
 ('Officer','export_data',0),('Officer','assign_leads',0),('Officer','manage_leads',1),
@@ -159,9 +152,7 @@ CREATE TABLE IF NOT EXISTS `user_permissions` (
   `permission_value` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_user_perm` (`user_id`,`permission_key`),
-  KEY `permission_key` (`permission_key`),
-  CONSTRAINT `user_permissions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`ID`) ON DELETE CASCADE,
-  CONSTRAINT `user_permissions_ibfk_2` FOREIGN KEY (`permission_key`) REFERENCES `permissions` (`permission_key`) ON DELETE CASCADE
+  KEY `permission_key` (`permission_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -179,9 +170,7 @@ CREATE TABLE IF NOT EXISTS `teams` (
   PRIMARY KEY (`ID`),
   UNIQUE KEY `NAME` (`NAME`),
   KEY `idx_supervisor` (`SUPERVISOR_ID`),
-  KEY `idx_manager` (`MANAGER_ID`),
-  CONSTRAINT `teams_ibfk_1` FOREIGN KEY (`SUPERVISOR_ID`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
-  CONSTRAINT `teams_ibfk_2` FOREIGN KEY (`MANAGER_ID`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+  KEY `idx_manager` (`MANAGER_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -369,13 +358,13 @@ CREATE TABLE IF NOT EXISTS `leads_table` (
   UNIQUE KEY `idx_id` (`ID`),
   KEY `idx_cust_id` (`cust_id`),
   KEY `idx_assigned_to` (`assigned_to`),
+  KEY `idx_assigned_by` (`assigned_by`),
   KEY `idx_lead_status` (`lead_status`),
   KEY `idx_lead_stage` (`lead_stage`),
   KEY `idx_priority` (`priority`),
   KEY `idx_next_followup` (`next_followup_at`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_assigned_status` (`assigned_to`,`lead_status`),
-  KEY `assigned_by` (`assigned_by`),
   KEY `created_by` (`created_by`),
   KEY `updated_by` (`updated_by`),
   KEY `idx_login_date` (`login_date`),
@@ -384,14 +373,7 @@ CREATE TABLE IF NOT EXISTS `leads_table` (
   KEY `idx_loan_type` (`loan_type`),
   KEY `idx_team_id` (`team_id`),
   KEY `idx_parent_lead` (`parent_lead_id`),
-  FULLTEXT KEY `idx_remarks` (`remarks`),
-  CONSTRAINT `leads_table_ibfk_1` FOREIGN KEY (`cust_id`) REFERENCES `main_database` (`ID`) ON DELETE SET NULL,
-  CONSTRAINT `leads_table_ibfk_2` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
-  CONSTRAINT `leads_table_ibfk_3` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
-  CONSTRAINT `leads_table_ibfk_4` FOREIGN KEY (`created_by`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
-  CONSTRAINT `leads_table_ibfk_5` FOREIGN KEY (`updated_by`) REFERENCES `users` (`ID`) ON DELETE SET NULL,
-  CONSTRAINT `leads_table_ibfk_6` FOREIGN KEY (`parent_lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE SET NULL,
-  CONSTRAINT `leads_table_ibfk_7` FOREIGN KEY (`team_id`) REFERENCES `teams` (`ID`) ON DELETE SET NULL
+  FULLTEXT KEY `idx_remarks` (`remarks`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -404,9 +386,7 @@ CREATE TABLE IF NOT EXISTS `lead_notes` (
   `note` text NOT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `idx_lead_id` (`lead_id`),
-  CONSTRAINT `lead_notes_ibfk_1` FOREIGN KEY (`lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE CASCADE,
-  CONSTRAINT `lead_notes_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+  KEY `idx_lead_id` (`lead_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -423,9 +403,7 @@ CREATE TABLE IF NOT EXISTS `lead_followups` (
   PRIMARY KEY (`id`),
   KEY `idx_lead_id` (`lead_id`),
   KEY `idx_followup_at` (`followup_at`),
-  KEY `idx_status` (`status`),
-  CONSTRAINT `lead_followups_ibfk_1` FOREIGN KEY (`lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE CASCADE,
-  CONSTRAINT `lead_followups_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+  KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -441,8 +419,7 @@ CREATE TABLE IF NOT EXISTS `lead_assignments` (
   `reason` text DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `idx_lead_id` (`lead_id`),
-  CONSTRAINT `lead_assignments_ibfk_1` FOREIGN KEY (`lead_id`) REFERENCES `leads_table` (`lead_id`) ON DELETE CASCADE
+  KEY `idx_lead_id` (`lead_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -466,8 +443,7 @@ CREATE TABLE IF NOT EXISTS `activity_log` (
   KEY `idx_target_table` (`TARGET_TABLE`),
   KEY `idx_log_time` (`LOG_TIME`),
   KEY `idx_affected_ids` (`AFFECTED_IDS`(255)),
-  KEY `idx_user_time` (`USER_ID`,`LOG_TIME`),
-  CONSTRAINT `activity_log_ibfk_1` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`ID`) ON DELETE CASCADE
+  KEY `idx_user_time` (`USER_ID`,`LOG_TIME`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
@@ -625,8 +601,7 @@ CREATE TABLE IF NOT EXISTS `super_admin_account` (
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_plan_id` (`current_plan_id`),
-  KEY `idx_payment_status` (`payment_status`),
-  CONSTRAINT `fk_super_admin_plan` FOREIGN KEY (`current_plan_id`) REFERENCES `super_admin_plans` (`id`) ON DELETE SET NULL
+  KEY `idx_payment_status` (`payment_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT IGNORE INTO `super_admin_account` (`id`, `current_plan_id`, `company_name`, `payment_status`, `trial_ends_at`) VALUES
@@ -648,8 +623,7 @@ CREATE TABLE IF NOT EXISTS `super_admin_limit_logs` (
   PRIMARY KEY (`id`),
   KEY `idx_limit_type` (`limit_type`),
   KEY `idx_user_id` (`user_id`),
-  KEY `idx_created_at` (`created_at`),
-  CONSTRAINT `fk_limit_log_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+  KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================

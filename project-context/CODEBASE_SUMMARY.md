@@ -104,7 +104,6 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 #### modules/database/sql/
 | File | Purpose |
 |---|---|
-| `setup_callnow_crm.sql` | Full schema + seed data |
 | `migrate_super_admin_limits.sql` | Migration for super admin plans, account, and limit logs tables + seed data |
 
 ## Security Fixes Applied (Priority Actions)
@@ -173,8 +172,6 @@ Column mapping applied:
 - `SOURCE` column dropped
 - New columns added: `MAINDATABASE_CALL_DIALED_USER`, `LAST_DIALED_DATE_TIME`, `CALL_TIME`, `archived_at`, `archived_by`, `archive_reason`
 - Indexes added: `idx_upload_dt`, `idx_user` (on MAINDATABASE_CALL_DIALED_USER)
-
-**IMPORTANT**: Do NOT run `setup_callnow_crm.sql` — it uses `DROP TABLE IF EXISTS` and will wipe all live data. The live DB is now the source of truth.
 
 **Super Admin limits tables (added 2026-09-03)**:
 - `super_admin_plans` — subscription plans with configurable limits (max users, API tokens, API calls, DB records, storage MB) and pricing fields for future payment integration.

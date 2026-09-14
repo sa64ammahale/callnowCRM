@@ -170,8 +170,7 @@ Visit: `https://yourdomain.com/callnowCRM/`
 │   └── admin/index.php             # Admin API endpoints
 │
 ├── database/
-│   ├── hostinger_schema.sql          # Recommended for Hostinger deployment (includes default Super Admin user)
-│   └── schema.sql                    # Full schema dump from development database
+│   └── hostinger_schema.sql          # Recommended for Hostinger deployment (includes default Super Admin user)
 │
 └── project-context/
     ├── CODEBASE_SUMMARY.md         # Canonical project reference

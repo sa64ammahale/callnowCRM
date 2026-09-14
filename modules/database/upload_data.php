@@ -263,6 +263,11 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
         $meta['message'] = 'Importing data...';
     }
 
+    // Resume from where the previous batch left off
+    for ($i = 0; $i < $meta['processed']; $i++) {
+        fgetcsv($handle, 20000, ",");
+    }
+
     // Target is isolated: duplicates are checked only within the selected target table.
     // TBL_TEMP uploads do NOT cross-check against TBL_MAIN.
     // Cross-table duplicate resolution happens only during transfer (Temp -> Main).

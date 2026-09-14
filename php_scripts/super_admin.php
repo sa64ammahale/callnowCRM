@@ -39,8 +39,7 @@ function ensureSuperAdminSchema(mysqli $link): void {
         `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
         KEY `idx_plan_id` (`current_plan_id`),
-        KEY `idx_payment_status` (`payment_status`),
-        CONSTRAINT `fk_super_admin_plan` FOREIGN KEY (`current_plan_id`) REFERENCES `super_admin_plans` (`id`) ON DELETE SET NULL
+        KEY `idx_payment_status` (`payment_status`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
     mysqli_query($link, "CREATE TABLE IF NOT EXISTS `super_admin_limit_logs` (
@@ -56,8 +55,7 @@ function ensureSuperAdminSchema(mysqli $link): void {
         PRIMARY KEY (`id`),
         KEY `idx_limit_type` (`limit_type`),
         KEY `idx_user_id` (`user_id`),
-        KEY `idx_created_at` (`created_at`),
-        CONSTRAINT `fk_limit_log_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`ID`) ON DELETE SET NULL
+        KEY `idx_created_at` (`created_at`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
     $done = true;
