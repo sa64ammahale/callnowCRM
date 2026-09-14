@@ -504,10 +504,11 @@ if (isset($_GET['upload_progress']) && !empty($_GET['task_id'])) {
                   <label class="form-check-label small" for="dryRun">Dry-run</label>
                 </div>
               </div>
-              <div id="tempIsolationBanner" class="alert alert-info py-2 mb-0 small" style="display:none;">
-                <i class="bi bi-info-circle me-1"></i>
-                Temporary uploads are isolated. Duplicates are checked only within Temporary DB. No data in Main DB will be touched until you explicitly use Transfer.
-              </div>
+            </div>
+
+            <div id="tempIsolationBanner" class="alert alert-info py-2 mb-3 small" style="display:none;">
+              <i class="bi bi-info-circle me-1"></i>
+              Temporary uploads are isolated. Duplicates are checked only within Temporary DB. No data in Main DB will be touched until you explicitly use Transfer.
             </div>
 
             <div id="dropZone" class="file-zone mb-3" tabindex="0">
@@ -519,15 +520,12 @@ if (isset($_GET['upload_progress']) && !empty($_GET['task_id'])) {
               </div>
               <input type="file" name="file" id="fileInput" accept=".csv" style="display:none;">
             </div>
-                            <!-- Terms & Conditions Checkbox -->
-                            <div class="form-check">
-                                <input type="checkbox" name="terms_agreed" class="form-check-input" id="exampleCheck1" required>
-                                <div class="row justify-content-center">
-                                    <label class="form-check-label" for="exampleCheck1">
-                                        I Agree to all <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms & Conditions</a> for Data Upload.
-                                    </label>
-                                </div>
-                            </div>
+            <div class="form-check mt-3">
+                <input type="checkbox" name="terms_agreed" class="form-check-input" id="exampleCheck1" required>
+                <label class="form-check-label" for="exampleCheck1">
+                    I Agree to all <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms & Conditions</a> for Data Upload.
+                </label>
+            </div>
 
 
             <div class="d-flex justify-content-between align-items-center">
