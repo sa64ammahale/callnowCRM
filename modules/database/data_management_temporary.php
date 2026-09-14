@@ -125,6 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else respond_json(['error' => 'Truncate failed: ' . mysqli_error($link)]);
     }
 
+    // Transfer checks TBL_MAIN for existing mobiles and updates them.
+    // This is the ONLY point where temp data merges with main data.
     if ($action === 'transfer_selected' && !empty($_POST['ids']) && is_array($_POST['ids'])) {
         if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
@@ -161,6 +163,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    // Transfer All: batch migrate TBL_TEMP -> TBL_MAIN with upsert, then clear TBL_TEMP.
+    // Duplicate checking happens against TBL_MAIN during this phase only.
     if ($action === 'transfer_all') {
         if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
@@ -530,6 +534,11 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <button id="activityBtn" class="td-btn-glass" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-list-check"></i> Activity</button>
             </div>
         </div>
+    </div>
+
+    <div class="alert alert-warning py-2 mb-3 small">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      <strong>Sandbox Mode</strong> — changes here do not affect Main DB until you use <strong>Transfer Selected</strong> or <strong>Transfer All</strong>.
     </div>
 
     <div class="td-stat-grid">

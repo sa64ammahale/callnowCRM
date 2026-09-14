@@ -263,6 +263,9 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
         $meta['message'] = 'Importing data...';
     }
 
+    // Target is isolated: duplicates are checked only within the selected target table.
+    // TBL_TEMP uploads do NOT cross-check against TBL_MAIN.
+    // Cross-table duplicate resolution happens only during transfer (Temp -> Main).
     $targets = [];
     if ($target === 'temporary' || $target === 'both') {
         $targets['temporary'] = [
@@ -500,6 +503,10 @@ if (isset($_GET['upload_progress']) && !empty($_GET['task_id'])) {
                   <input class="form-check-input" type="checkbox" id="dryRun" name="dryrun" value="1">
                   <label class="form-check-label small" for="dryRun">Dry-run</label>
                 </div>
+              </div>
+              <div id="tempIsolationBanner" class="alert alert-info py-2 mb-0 small" style="display:none;">
+                <i class="bi bi-info-circle me-1"></i>
+                Temporary uploads are isolated. Duplicates are checked only within Temporary DB. No data in Main DB will be touched until you explicitly use Transfer.
               </div>
             </div>
 
@@ -866,6 +873,19 @@ const hasHeaderCheckbox = document.getElementById('hasHeader');
 const downloadExampleBtn = document.getElementById('downloadExampleBtn');
 
 const terms = document.getElementById('exampleCheck1');
+
+/* temp isolation banner toggle */
+function updateTempIsolationBanner() {
+  const banner = document.getElementById('tempIsolationBanner');
+  const target = document.querySelector('input[name="target_database"]:checked');
+  if (banner && target) {
+    banner.style.display = target.value === 'temporary' ? 'block' : 'none';
+  }
+}
+document.querySelectorAll('input[name="target_database"]').forEach(function(r) {
+  r.addEventListener('change', updateTempIsolationBanner);
+});
+updateTempIsolationBanner();
 
 /* click opens file dialog */
 dropZone.addEventListener('click', ()=> fileInput.click());
