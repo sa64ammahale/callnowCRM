@@ -140,7 +140,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
 
     $first = null;
     if ($has_header) {
-        $first = fgetcsv($handle, 4000, ",");
+        $first = fgetcsv($handle, 20000, ",");
         if ($first === false) {
             fclose($handle);
             @unlink($path);
@@ -184,7 +184,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
     $estimatedRows = 0;
     if (!$dryrun) {
         rewind($handle);
-        while (fgetcsv($handle, 4000, ",") !== false) $estimatedRows++;
+        while (fgetcsv($handle, 20000, ",") !== false) $estimatedRows++;
         rewind($handle);
         if ($has_header && $estimatedRows > 0) $estimatedRows--;
         $storageCheck = checkStorageLimit($link, max(1, $estimatedRows), USER_ID);
@@ -259,7 +259,7 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
 
     $handle = fopen($path, 'r');
     if ($has_header) {
-        fgetcsv($handle, 4000, ","); // skip header
+        fgetcsv($handle, 20000, ","); // skip header
         $meta['message'] = 'Importing data...';
     }
 
@@ -277,11 +277,10 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
         ];
     }
 
-    $batch_size = 200;
+    $batch_size = 500;
     $rows_processed = 0;
-    $max_rows = 200;
 
-    while (($row = fgetcsv($handle, 4000, ",")) !== false && $rows_processed < $batch_size) {
+    while (($row = fgetcsv($handle, 20000, ",")) !== false && $rows_processed < $batch_size) {
         $meta['stats']['rows_processed']++;
         $rownum = $meta['stats']['rows_processed'];
 
@@ -400,9 +399,9 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
     $has_more = false;
     $test_handle = fopen($path, 'r');
     if ($test_handle) {
-        if ($has_header) fgetcsv($test_handle, 4000, ",");
-        for ($i = 0; $i < $meta['processed']; $i++) fgetcsv($test_handle, 4000, ",");
-        $peek = fgetcsv($test_handle, 4000, ",");
+        if ($has_header) fgetcsv($test_handle, 20000, ",");
+        for ($i = 0; $i < $meta['processed']; $i++) fgetcsv($test_handle, 20000, ",");
+        $peek = fgetcsv($test_handle, 20000, ",");
         $has_more = ($peek !== false);
         fclose($test_handle);
     }
@@ -1141,7 +1140,7 @@ function processUploadBatch(task_id) {
                 progressBar.css('width', resp.percent + '%').removeClass('bg-success bg-danger').addClass('bg-primary');
                 percentText.text(resp.percent + '%');
                 messageText.text(resp.message || 'Processing...');
-                setTimeout(function() { processUploadBatch(task_id); }, 400);
+                setTimeout(function() { processUploadBatch(task_id); }, 200);
             }
         },
         error: function() {
