@@ -506,9 +506,11 @@ if (isset($_GET['upload_progress']) && !empty($_GET['task_id'])) {
               </div>
             </div>
 
-            <div id="tempIsolationBanner" class="alert alert-info py-2 mb-3 small" style="display:none;">
-              <i class="bi bi-info-circle me-1"></i>
-              Temporary uploads are isolated. Duplicates are checked only within Temporary DB. No data in Main DB will be touched until you explicitly use Transfer.
+            <div id="tempIsolationBanner" class="card mb-3" style="display:none;">
+              <div class="card-body py-2 d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle text-primary"></i>
+                <span class="small text-muted mb-0">Temporary uploads are isolated. Duplicates are checked only within Temporary DB. No data in Main DB will be touched until you explicitly use Transfer.</span>
+              </div>
             </div>
 
             <div id="dropZone" class="file-zone mb-3" tabindex="0">
