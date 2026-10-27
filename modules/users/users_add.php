@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                         header("Location: users_view?created=1"); exit;
                     }
                 } else {
-                    $Message = "Database error!";
+                    $Message = "Database error: " . mysqli_error($link);
                     $type = "danger";
                 }
             }

@@ -1,0 +1,1 @@
+<?php require "C:/xampp/htdocs/callnowCRM/config.php"; $r=mysqli_query($link,"SHOW COLUMNS FROM ".tn("TBL_USERS")); while($row=mysqli_fetch_assoc($r)){ if(stripos($row["Field"],"role")!==false){echo $row["Field"].":".$row["Type"].":".$row["Null"].":".var_export($row["Default"],true).PHP_EOL;}}
