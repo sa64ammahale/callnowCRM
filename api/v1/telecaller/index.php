@@ -421,9 +421,11 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 } elseif ($relativePath === '/reports/summary' || $relativePath === '/reports/summary/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
+    $alterRes = @$link->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL DEFAULT NULL AFTER duration_seconds");
+    $alterErr = $link->error;
     $cols = $link->query("SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS'))->fetch_all(MYSQLI_ASSOC);
     $colNames = array_column($cols, 'Field');
-    throw new Exception("REMOTE_CALL_LOGS_COLS: " . implode(', ', $colNames));
+    throw new Exception("ALTER_RES: " . var_export($alterRes, true) . " | ERR: $alterErr | COLS: " . implode(', ', $colNames));
     $dateFrom = $_GET['date_from'] ?? null;
     $dateTo = $_GET['date_to'] ?? null;
     
