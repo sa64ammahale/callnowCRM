@@ -186,13 +186,18 @@ function apiError(int $code, string $message, array $extra = []): void {
     exit;
 }
 
-function logActivity(mysqli $link, int $userId, string $actionType, string $details, string $affectedIds = '', string $targetTable = ''): void {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
-    $stmt = $link->prepare("INSERT INTO " . tn('TBL_ACTIVITY_LOG') . "(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
-        VALUES (?, ?, ?, ?, ?, NOW(), ?)");
-    $stmt->bind_param('isssss', $userId, $actionType, $details, $affectedIds, $targetTable, $ip);
-    $stmt->execute();
-    $stmt->close();
+if (!function_exists('logActivity')) {
+    function logActivity(mysqli $link, int $userId, string $actionType, string $details, string $affectedIds = '', string $targetTable = ''): void {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+        $stmt = $link->prepare("INSERT INTO " . tn('TBL_ACTIVITY_LOG') . "(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
+            VALUES (?, ?, ?, ?, ?, NOW(), ?)");
+        $stmt->bind_param('isssss', $userId, $actionType, $details, $affectedIds, $targetTable, $ip);
+        $stmt->execute();
+        $stmt->close();
+    }
+} else {
+    // If auth.php's logActivity is already loaded (different signature), provide compatibility wrapper
+    // but keep the name available; PHP won't allow redeclare, so we rely on function_exists
 }
 
 // Check rate limit
