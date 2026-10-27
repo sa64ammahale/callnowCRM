@@ -235,26 +235,26 @@ function checkRateLimit(array $tokenData): void {
 }
 
 function logApiAccess(array $tokenData, string $endpoint, string $method, int $responseCode, int $execTimeMs): void {
-    $settings = getApiSettings();
-    if (!($settings['log_requests'] ?? true)) return;
-    
-    global $link;
-    $stmt = $link->prepare("
-        INSERT INTO " . tn('TBL_API_ACCESS_LOGS') . " (token_id, user_id, endpoint, method, ip_address, user_agent, response_code, execution_time_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->bind_param('iisssiii', 
-        $tokenData['id'],
-        $tokenData['user_id'],
-        $endpoint,
-        $method,
-        $_SERVER['REMOTE_ADDR'] ?? '',
-        $_SERVER['HTTP_USER_AGENT'] ?? '',
-        $responseCode,
-        $execTimeMs
-    );
-    $stmt->execute();
-    $stmt->close();
+    try {
+        $settings = getApiSettings();
+        if (!($settings['log_requests'] ?? true)) return;
+        
+        global $link;
+        $tokenId = !empty($tokenData['id']) ? (int)$tokenData['id'] : 0;
+        $uId = !empty($tokenData['user_id']) ? (int)$tokenData['user_id'] : 0;
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 250);
+        
+        $stmt = @$link->prepare("
+            INSERT INTO " . tn('TBL_API_ACCESS_LOGS') . " (token_id, user_id, endpoint, method, ip_address, user_agent, response_code, execution_time_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        if ($stmt) {
+            $stmt->bind_param('iisssiii', $tokenId, $uId, $endpoint, $method, $ip, $ua, $responseCode, $execTimeMs);
+            $stmt->execute();
+            $stmt->close();
+        }
+    } catch (Throwable $t) {}
 }
 
 // Auto-execute middleware for protected API endpoints.
@@ -266,8 +266,10 @@ if (!defined('API_SKIP_AUTO_AUTH')) {
     $startTime = microtime(true);
 
     register_shutdown_function(function() use ($startTime) {
-        $execTime = round((microtime(true) - $startTime) * 1000);
-        $responseCode = http_response_code();
-        logApiAccess($GLOBALS['api_token_data'], $_SERVER['REQUEST_URI'], $_SERVER['REQUEST_METHOD'], $responseCode, $execTime);
+        try {
+            $execTime = round((microtime(true) - $startTime) * 1000);
+            $responseCode = http_response_code();
+            logApiAccess($GLOBALS['api_token_data'] ?? [], $_SERVER['REQUEST_URI'] ?? '', $_SERVER['REQUEST_METHOD'] ?? '', $responseCode, $execTime);
+        } catch (Throwable $t) {}
     });
 }
