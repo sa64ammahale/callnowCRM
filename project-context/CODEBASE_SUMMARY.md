@@ -57,7 +57,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/logs/
 | File | Purpose | Notes |
 |---|---|---|
-| `Reports.php` | Call performance reports (gated `view_reports`) | Single date-range page: preset ranges (today default, yesterday, last7/30/90, this/last month, last3/6, current_year, custom), Trend/Status/Per-User Chart.js charts above the per-telecaller table; prepared UNION of `temporary_database`+`main_database`, Table2Excel export |
+| `Reports.php` | Call performance reports (gated `view_reports`) | Modern single date-range page: preset ranges (today default, yesterday, last7/30/90, this/last month, last3/6, current_year, custom), high-contrast hero CTA, special cards with gradient headers, alternating zebra-striped tables, Team & Telecaller Summary prioritized above Chart.js charts, drill-down detailed calls, clean CSV/Excel export with UTF-8 BOM and sanitized employee names |
 | `ViewDialList.php` | Legacy per-user dial list | **DELETED** — broken schema + SQLi on dates |
 | `manage_activity.php` | Activity log viewer/admin | CSRF-protected, sort whitelist |
 
@@ -85,7 +85,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose | Notes |
 |---|---|---|
 | `upload_data.php` | CSV upload + archive | Was debug-logging sensitive data; now removed |
-| `ViewDND.php` | DND numbers list (Admin) | CSRF-protected |
+| `ViewDND.php` | DND numbers list (gated `manage_database`) | Dual-database listing (queries both `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC'), origin badges (Main DB vs Temp DB), search, pagination, restore to queue, permanent delete, CSRF-protected |
 | `data_management_temporary.php` | AJAX CRUD on TEMPORARY_DATABASE | Was missing role guard; now Admin/Manager |
 | `data_management_main.php` | Main DB DataTables view + bulk ops | References bulk_assign.php (missing) |
 | `add_update_status.php` | Insert/Update + bulk status by ID range (Admin) | CSRF-protected |

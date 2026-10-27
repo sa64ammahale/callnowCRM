@@ -94,10 +94,21 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     // Calculate pending queue count
     $pendingCount = 0;
     
-    // Check temporary table pending
+    // Check temporary table pending strictly excluding DND
     $sqlTemp = "SELECT COUNT(*) as c FROM " . tn('TBL_TEMP') . " 
         WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
-        AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')";
+        AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+        AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_MAIN') . " m 
+            WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
+            AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
+            WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
+            AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        )";
     $stmt = $link->prepare($sqlTemp);
     $stmt->bind_param('i', $userId);
     $stmt->execute();
@@ -105,10 +116,21 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $stmt->close();
     $pendingCount += (int)($tempRow['c'] ?? 0);
     
-    // Check main table pending
+    // Check main table pending strictly excluding DND
     $sqlMain = "SELECT COUNT(*) as c FROM " . tn('TBL_MAIN') . " 
         WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
-        AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')";
+        AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
+        AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
+            WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_TEMP') . " t 
+            WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        )";
     $stmt = $link->prepare($sqlMain);
     $stmt->bind_param('i', $userId);
     $stmt->execute();
@@ -133,13 +155,24 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $limit = min(50, max(1, (int)($_GET['limit'] ?? 15)));
     $leads = [];
     
-    // 1. Try temporary database first
+    // 1. Try temporary database first (strictly excluding any DND numbers)
     $sqlTemp = "SELECT 
         ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
         CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, TEMP_UPLOAD_DATETIME
     FROM " . tn('TBL_TEMP') . " 
     WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
     AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_MAIN') . " m 
+        WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
+        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
+        WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
+        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+    )
     ORDER BY TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT ?";
     
@@ -173,7 +206,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_TELECALLER = $userId, BATCH_ASSIGNED_AT = NOW() WHERE ID IN ($inClause)");
     }
     
-    // 2. If temporary database yielded fewer than $limit, fill remainder from main_database
+    // 2. If temporary database yielded fewer than $limit, fill remainder from main_database (strictly excluding any DND numbers)
     $remaining = $limit - count($leads);
     if ($remaining > 0) {
         $sqlMain = "SELECT 
@@ -183,6 +216,17 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         FROM " . tn('TBL_MAIN') . "
         WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
         AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
+        AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
+            WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_TEMP') . " t 
+            WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        )
         ORDER BY ID ASC
         LIMIT ?";
         
@@ -233,13 +277,24 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 } elseif ($relativePath === '/next-call' || $relativePath === '/next-call/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
-    // Check temp first
+    // Check temp first (strictly excluding DND)
     $sqlTemp = "SELECT 
         ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
         TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME
     FROM " . tn('TBL_TEMP') . " 
     WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
     AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_MAIN') . " m 
+        WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
+        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
+        WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
+        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+    )
     ORDER BY TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT 1";
     $stmt = $link->prepare($sqlTemp);
@@ -267,7 +322,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         ]);
     }
     
-    // Try main database next
+    // Try main database next (strictly excluding DND)
     $sqlMain = "SELECT 
         ID, MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY,
         MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS,
@@ -275,6 +330,17 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     FROM " . tn('TBL_MAIN') . " 
     WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
     AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
+    AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
+        WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+        AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_TEMP') . " t 
+        WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+        AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+    )
     ORDER BY ID ASC
     LIMIT 1";
     $stmt = $link->prepare($sqlMain);
@@ -316,7 +382,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $rawSource = strtoupper(trim($input['source'] ?? 'MAIN'));
     $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
     
-    $status = trim($input['call_status'] ?? ($input['status'] ?? 'Connected'));
+    $rawStatus = trim($input['call_status'] ?? ($input['status'] ?? 'Connected'));
+    $isDnd = in_array(strtolower($rawStatus), ['dnd', 'do not call', 'dnc']);
+    $status = $isDnd ? 'Do Not Call' : $rawStatus;
+    
     $notes = trim($input['notes'] ?? '');
     $duration = (int)($input['call_duration'] ?? ($input['duration_seconds'] ?? 0));
     $timingTier = trim($input['timing_classification'] ?? '');
@@ -326,6 +395,22 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : (!empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null);
     
+    // Retrieve phone number to guarantee cross-database DND synchronization
+    $targetMobile = '';
+    if ($source === 'MAIN') {
+        $mStmt = $link->prepare("SELECT MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+        $mStmt->bind_param('i', $recordId);
+        $mStmt->execute();
+        $targetMobile = (string)($mStmt->get_result()->fetch_assoc()['MAINDATABASE_MOBILE'] ?? '');
+        $mStmt->close();
+    } else {
+        $mStmt = $link->prepare("SELECT CUST_MOBILE FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
+        $mStmt->bind_param('i', $recordId);
+        $mStmt->execute();
+        $targetMobile = (string)($mStmt->get_result()->fetch_assoc()['CUST_MOBILE'] ?? '');
+        $mStmt->close();
+    }
+
     // 1. Update master table based on source
     $isConnected = ($duration > 0 || in_array(strtolower($status), ['connected', 'lead', 'interested'])) ? 1 : 0;
     if ($source === 'MAIN') {
@@ -356,6 +441,13 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $stmt->bind_param('sissii', $status, $userId, $notes, $notes, $isConnected, $recordId);
         $stmt->execute();
         $stmt->close();
+    }
+    
+    // If marked as DND, strictly synchronize across ALL occurrences of this phone number in both tables
+    if ($isDnd && $targetMobile !== '') {
+        $targetMobileSafe = $link->real_escape_string($targetMobile);
+        $link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE = '$targetMobileSafe'");
+        $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = '$targetMobileSafe'");
     }
     
     // 2. Insert record into call_logs using exact remote column names

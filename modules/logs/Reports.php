@@ -371,8 +371,75 @@ function reportQs(array $extra = []): string {
 }
 }
 $self = htmlspecialchars($_SERVER['PHP_SELF']);
+
+// ──────────────────────────────────────────────────────────────
+// Clean CSV / Excel Export Handler
+// ──────────────────────────────────────────────────────────────
+if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
+    while (ob_get_level()) { ob_end_clean(); }
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="CallNow_Report_' . date('Y-m-d_His') . '.csv"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    $out = fopen('php://output', 'w');
+    // UTF-8 BOM so Excel opens with proper encoding
+    fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+    fputcsv($out, ['CALLNOW CRM - CALL PERFORMANCE REPORT']);
+    fputcsv($out, ['Report Preset', $rangeLabel, 'Date Range', $from . ' to ' . $to]);
+    fputcsv($out, ['Total Calls', $grand_total, 'Connected', $grand_connected, 'Connect Rate', $grand_rate . '%']);
+    fputcsv($out, []);
+
+    // Summary Section
+    fputcsv($out, ['--- TEAM & TELECALLER SUMMARY ---']);
+    fputcsv($out, ['Team', 'Supervisor', 'Telecaller', 'Total Calls', 'Connected', 'Busy', 'No Answer', 'DNC', 'Pending', 'Not Called', 'Connect Rate (%)']);
+
+    foreach ($data as $team_name => $block) {
+        $sup = $block['supervisor_name'] ?: 'None';
+        foreach ($block['TBL_USERS'] as $u) {
+            fputcsv($out, [
+                $team_name,
+                $sup,
+                $u['user_name'], // Clean employee name without initials or HTML tags
+                (int)$u['total'],
+                (int)$u['connected'],
+                (int)$u['busy'],
+                (int)$u['no_answer'],
+                (int)$u['dnc'],
+                (int)$u['pending'],
+                (int)$u['not_called'],
+                $u['rate'] . '%'
+            ]);
+        }
+    }
+
+    // Detailed Calls Section
+    if (!empty($detail_rows)) {
+        fputcsv($out, []);
+        fputcsv($out, []);
+        fputcsv($out, ['--- DETAILED CALLS (' . ($selected_user_name ?: ('User #' . $selected_user_id)) . ') ---']);
+        fputcsv($out, ['Date & Time', 'Telecaller', 'Customer Name', 'Mobile Number', 'Company', 'Call Status', 'Source Database']);
+        foreach ($detail_rows as $dr) {
+            fputcsv($out, [
+                $dr['call_time'] ? date('d-m-Y H:i:s', strtotime($dr['call_time'])) : '',
+                $selected_user_name,
+                $dr['cust_name'] ?: 'None',
+                $dr['cust_mobile'] ?: '',
+                $dr['cust_company'] ?: '',
+                $dr['call_status'],
+                $dr['source']
+            ]);
+        }
+    }
+
+    fclose($out);
+    exit;
+}
+
+$pageTitle = 'Call Report - CallNow';
+include '../../php_scripts/header.php';
 ?>
-<?php $pageTitle = 'Call Report - CallNow'; include '../../php_scripts/header.php'; ?>
 
 <style>
 /* ── Hero ───────────────────────────────────────────── */
@@ -407,6 +474,142 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
 /* ── Summary table ──────────────────────────────────── */
 .rp-table thead th { white-space: nowrap; }
 .rp-avatar-sm { flex-shrink: 0; }
+.rp-btn-hero {
+    background: #ffffff !important;
+    color: #4f46e5 !important;
+    font-weight: 600 !important;
+    border: none !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 0.55rem 1.15rem !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.45rem !important;
+    transition: all 0.2s ease !important;
+    text-decoration: none !important;
+}
+.rp-btn-hero:hover {
+    background: #f8fafc !important;
+    color: #4338ca !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22) !important;
+}
+.rp-btn-hero i {
+    color: #4f46e5 !important;
+    font-size: 1rem !important;
+}
+
+/* ── Special Card & Colored Headers ────────────────── */
+.rp-special-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+    overflow: hidden;
+    margin-bottom: 2rem;
+    transition: box-shadow 0.2s ease;
+}
+.rp-special-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.rp-special-card-head {
+    padding: 1.15rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.rp-special-card-head.summary-head {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border-bottom: 2px solid rgba(99, 102, 241, 0.18);
+}
+.rp-special-card-head.detail-head {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%);
+    border-bottom: 2px solid rgba(14, 165, 233, 0.18);
+}
+
+.rp-head-icon {
+    width: 42px; height: 42px; border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--accent, #6366f1), #8b5cf6);
+    color: #ffffff !important; display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+.rp-head-icon i { color: #ffffff !important; }
+.rp-head-title { font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--ink); }
+.rp-head-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 0.1rem; }
+
+/* ── Modern Table with Alternative Coloring ──────────── */
+.rp-special-table {
+    margin-bottom: 0;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.rp-special-table thead th {
+    background: var(--surface-2) !important;
+    color: var(--ink-soft) !important;
+    font-size: 0.72rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    font-weight: 700 !important;
+    padding: 0.95rem 1rem !important;
+    border-bottom: 2px solid var(--border) !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+}
+.rp-special-table tbody td {
+    padding: 0.9rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.86rem;
+    transition: background 0.15s ease;
+}
+
+/* Alternating row zebra styling */
+.rp-special-table tbody tr:nth-child(even) td {
+    background-color: rgba(99, 102, 241, 0.025);
+}
+[data-bs-theme="dark"] .rp-special-table tbody tr:nth-child(even) td {
+    background-color: rgba(255, 255, 255, 0.025);
+}
+.rp-special-table tbody tr:hover td {
+    background-color: rgba(99, 102, 241, 0.08) !important;
+}
+.rp-special-table tbody tr.table-selected td {
+    background-color: rgba(99, 102, 241, 0.14) !important;
+}
+
+/* Metric count pills */
+.rp-num-badge {
+    display: inline-block;
+    min-width: 34px;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    text-align: center;
+}
+.rp-num-connected { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.rp-num-busy      { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.rp-num-noans     { background: rgba(100, 116, 139, 0.12); color: #475569; }
+.rp-num-dnc       { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+.rp-num-pending   { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+.rp-num-notcalled { background: var(--surface-2); color: var(--ink-muted); }
+
+.rp-rate-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+.rp-rate-good { background: rgba(16, 185, 129, 0.14); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); }
+.rp-rate-poor { background: rgba(239, 68, 68, 0.14); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
 
 /* ── Card base ─────────────────────────────────────── */
 .rp-card {
@@ -530,8 +733,8 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                         <span class="rp-kpi-label">Connect Rate</span>
                         <span class="rp-kpi-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?>"><?= $grand_rate ?>%</span>
                     </div>
-                    <a href="<?= htmlspecialchars(url('modules/logs/call_history.php')) ?>" class="btn btn-light btn-sm ms-auto" style="align-self:center;">
-                        <i class="bi bi-telephone-inbound"></i> View Full Call History
+                    <a href="<?= htmlspecialchars(url('modules/logs/call_history.php')) ?>" class="btn rp-btn-hero btn-sm ms-auto" style="align-self:center;">
+                        <i class="bi bi-clock-history"></i> View Full Call History
                     </a>
                 </div>
         </div>
@@ -617,14 +820,28 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
     <!-- Team & Telecaller Summary -->
     <div id="exportArea">
     <?php if (!empty($data)): ?>
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0"><i class="bi bi-people me-2"></i>Team & Telecaller Summary</h5>
+        <div class="card rp-special-card mb-4">
+            <div class="rp-special-card-head summary-head">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rp-head-icon"><i class="bi bi-people-fill"></i></div>
+                    <div>
+                        <h5 class="rp-head-title">Team &amp; Telecaller Summary</h5>
+                        <div class="rp-head-sub">Performance metrics and connect rates grouped by team</div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-white text-primary border rounded-pill px-3 py-2 fw-bold shadow-sm">
+                        <i class="bi bi-person-badge me-1"></i><?= number_format(count($TBL_USERS_index)) ?> Active Telecallers
+                    </span>
+                    <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['export' => 'csv'])) ?>" class="btn btn-sm btn-success rounded-pill px-3 fw-semibold shadow-sm">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Excel
+                    </a>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 rp-table">
-                        <thead class="table-light">
+                    <table class="table align-middle rp-special-table mb-0">
+                        <thead>
                             <tr>
                                 <th>Team</th>
                                 <th>Supervisor</th>
@@ -637,7 +854,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                                 <th class="text-center">Pending</th>
                                 <th class="text-center">Not Called</th>
                                 <th class="text-center">Connect Rate</th>
-                                <th class="text-center">Actions</th>
+                                <th class="text-center" data-exclude="true">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -663,39 +880,42 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                             ?>
                                 <?php foreach ($block['TBL_USERS'] as $u):
                                     $rate = $u['rate'];
-                                    $rateClass = $rate >= 40 ? 'text-success' : 'text-danger';
+                                    $rateGood = $rate >= 40;
                                     $isSelected = $selected_user_id && $selected_user_id == $u['user_id'];
+                                    $initials = strtoupper(substr($u['user_name'] ?? '?', 0, 2));
                                 ?>
-                                    <tr class="<?= $isSelected ? 'table-info' : '' ?>">
-                                        <td><?= htmlspecialchars($team_name) ?></td>
-                                        <td><?= htmlspecialchars($sup ?: '—') ?></td>
+                                    <tr class="<?= $isSelected ? 'table-selected' : '' ?>">
+                                        <td class="fw-semibold text-secondary"><?= htmlspecialchars($team_name) ?></td>
+                                        <td class="text-muted"><?= htmlspecialchars($sup ?: '—') ?></td>
                                         <td>
                                             <div class="d-flex align-items-center gap-2">
-                                                <div class="rp-avatar-sm rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:32px;height:32px;background:var(--accent);font-size:.75rem;">
-                                                    <?= strtoupper(substr($u['user_name'] ?? '?', 0, 2)) ?>
+                                                <div class="rp-avatar-sm rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:34px;height:34px;background:var(--accent);font-size:.78rem;flex-shrink:0;">
+                                                    <?= $initials ?>
                                                 </div>
                                                 <div>
-                                                    <div class="fw-semibold"><?= htmlspecialchars($u['user_name'] ?? 'Unknown') ?></div>
+                                                    <div class="fw-bold text-dark rp-emp-name"><?= htmlspecialchars($u['user_name'] ?? 'Unknown') ?></div>
                                                     <?php if ($isSelected): ?>
-                                                        <span class="badge bg-info ms-1">Selected</span>
+                                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-0" style="font-size:0.68rem;" data-exclude="true">Active Filter</span>
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="text-center"><?= number_format($u['total']) ?></td>
-                                        <td class="text-center text-success"><?= number_format($u['connected']) ?></td>
-                                        <td class="text-center"><?= number_format($u['busy']) ?></td>
-                                        <td class="text-center"><?= number_format($u['no_answer']) ?></td>
-                                        <td class="text-center text-danger"><?= number_format($u['dnc']) ?></td>
-                                        <td class="text-center"><?= number_format($u['pending']) ?></td>
-                                        <td class="text-center"><?= number_format($u['not_called']) ?></td>
+                                        <td class="text-center"><span class="fw-bold"><?= number_format($u['total']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-connected"><?= number_format($u['connected']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-busy"><?= number_format($u['busy']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-noans"><?= number_format($u['no_answer']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-dnc"><?= number_format($u['dnc']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-pending"><?= number_format($u['pending']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-notcalled"><?= number_format($u['not_called']) ?></span></td>
                                         <td class="text-center">
-                                            <span class="fw-bold <?= $rateClass ?>"><?= $rate ?>%</span>
+                                            <span class="rp-rate-badge <?= $rateGood ? 'rp-rate-good' : 'rp-rate-poor' ?>">
+                                                <i class="bi <?= $rateGood ? 'bi-arrow-up-right' : 'bi-arrow-down-right' ?>"></i> <?= $rate ?>%
+                                            </span>
                                         </td>
-                                        <td class="text-center">
+                                        <td class="text-center" data-exclude="true">
                                             <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => $u['user_id']])) ?>"
-                                               class="btn btn-outline-primary btn-sm">
-                                                <i class="bi bi-person-lines-fill"></i> Details
+                                               class="btn btn-outline-primary btn-sm rounded-pill px-3 py-1 fw-semibold">
+                                                <i class="bi bi-person-lines-fill me-1"></i> Details
                                             </a>
                                         </td>
                                     </tr>
@@ -735,52 +955,83 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
 
     <!-- Detailed Calls for selected telecaller -->
     <?php if ($selected_user_id && !empty($detail_rows)): ?>
-        <div class="rp-card rp-detail mt-4">
-            <div class="rp-detail-head">
-                <div>
-                    <h5>
-                        <i class="bi bi-person-circle me-2"></i>
-                        Detailed Calls ·
-                        <?= htmlspecialchars($selected_user_name ?? ('User #' . $selected_user_id)) ?>
-                    </h5>
-                    <small class="text-muted">Showing <?= count($detail_rows) ?> calls for applied filters</small>
+        <div class="card rp-special-card mt-4">
+            <div class="rp-special-card-head detail-head">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rp-head-icon" style="background: linear-gradient(135deg, #0ea5e9, var(--accent));">
+                        <i class="bi bi-person-lines-fill"></i>
+                    </div>
+                    <div>
+                        <h5 class="rp-head-title">
+                            Detailed Calls &bull; <?= htmlspecialchars($selected_user_name ?? ('User #' . $selected_user_id)) ?>
+                        </h5>
+                        <div class="rp-head-sub">Log of all dialed calls for this telecaller with applied date filters</div>
+                    </div>
                 </div>
-                <div>
-                    <a href="<?= $self ?>?<?= htmlspecialchars(reportQs()) ?>"
-                       class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-x-circle"></i> Clear Selection
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill px-3 py-2 fw-bold">
+                        <?= count($detail_rows) ?> calls recorded
+                    </span>
+                    <a href="<?= $self ?>?<?= htmlspecialchars(reportQs()) ?>" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+                        <i class="bi bi-x-circle me-1"></i> Clear Selection
                     </a>
                 </div>
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 rp-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 16%;">Date &amp; Time</th>
-                            <th>Customer</th>
-                            <th style="width: 13%;">Mobile</th>
-                            <th>Company</th>
-                            <th style="width: 12%;">Status</th>
-                            <th style="width: 8%;">Source</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($detail_rows as $r): ?>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle rp-special-table mb-0">
+                        <thead>
                             <tr>
-                                <td><?= $r['call_time'] ? htmlspecialchars(date('d M Y, h:i A', strtotime($r['call_time']))) : '—' ?></td>
-                                <td><?= htmlspecialchars($r['cust_name'] ?: '—') ?></td>
-                                <td><?= htmlspecialchars($r['cust_mobile']) ?></td>
-                                <td><?= htmlspecialchars($r['cust_company'] ?: '—') ?></td>
-                                <td><?= htmlspecialchars($r['call_status']) ?></td>
-                                <td>
-                                    <span class="badge bg-info-subtle text-info-emphasis">
-                                        <?= htmlspecialchars($r['source']) ?>
-                                    </span>
-                                </td>
+                                <th style="width: 18%;">Date &amp; Time</th>
+                                <th style="width: 24%;">Customer</th>
+                                <th style="width: 16%;">Mobile</th>
+                                <th style="width: 18%;">Company</th>
+                                <th style="width: 14%;">Status</th>
+                                <th style="width: 10%;">Source</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($detail_rows as $r):
+                                $timeStr = $r['call_time'] ? date('d M Y, h:i A', strtotime($r['call_time'])) : '—';
+                                $stLow = strtolower(trim($r['call_status']));
+                                $stBadge = 'bg-secondary-subtle text-secondary';
+                                if (in_array($stLow, ['connected', 'lead', 'interested'])) $stBadge = 'bg-success-subtle text-success border border-success-subtle';
+                                elseif ($stLow === 'busy') $stBadge = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                                elseif (in_array($stLow, ['no answer', 'no_answer'])) $stBadge = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
+                                elseif (in_array($stLow, ['do not call', 'dnc'])) $stBadge = 'bg-danger-subtle text-danger border border-danger-subtle';
+                                elseif (in_array($stLow, ['pending', 'call back', 'callback', 'follow up', 'follow-up'])) $stBadge = 'bg-info-subtle text-info border border-info-subtle';
+                            ?>
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold"><?= htmlspecialchars(date('d M Y', strtotime($r['call_time']))) ?></div>
+                                        <small class="text-muted"><?= htmlspecialchars(date('h:i A', strtotime($r['call_time']))) ?></small>
+                                    </td>
+                                    <td><span class="fw-bold text-dark"><?= htmlspecialchars($r['cust_name'] ?: '—') ?></span></td>
+                                    <td>
+                                        <?php if ($r['cust_mobile']): ?>
+                                            <a href="tel:<?= urlencode($r['cust_mobile']) ?>" class="text-decoration-none text-muted fw-semibold">
+                                                <i class="bi bi-telephone me-1 text-primary"></i><?= htmlspecialchars($r['cust_mobile']) ?>
+                                            </a>
+                                        <?php else: ?>
+                                            <span class="text-muted">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= htmlspecialchars($r['cust_company'] ?: '—') ?></td>
+                                    <td>
+                                        <span class="badge rounded-pill <?= $stBadge ?> px-2 py-1">
+                                            <?= htmlspecialchars($r['call_status']) ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                            <?= htmlspecialchars($r['source']) ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     <?php elseif ($selected_user_id && empty($detail_rows)): ?>
@@ -792,9 +1043,12 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
     </div><!-- /exportArea -->
 
     <?php if ($grand_total > 0): ?>
-    <div class="rp-export">
-        <button id="btnExport" class="btn btn-success btn-lg px-5">
-            <i class="bi bi-file-earmark-excel"></i> Export to Excel
+    <div class="rp-export my-4 d-flex justify-content-center gap-3 flex-wrap">
+        <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['export' => 'csv'])) ?>" class="btn btn-success btn-lg px-4 shadow-sm fw-semibold rounded-pill">
+            <i class="bi bi-file-earmark-spreadsheet me-2"></i> Download Clean Excel / CSV
+        </a>
+        <button id="btnExport" class="btn btn-outline-success btn-lg px-4 shadow-sm fw-semibold rounded-pill">
+            <i class="bi bi-file-earmark-excel me-2"></i> Export Table View
         </button>
     </div>
     <?php endif; ?>
@@ -858,10 +1112,26 @@ new Chart(document.getElementById('userChart'), {
 });
 <?php endif; ?>
 
-// Export all tables inside exportArea
+// Export tables inside exportArea with DOM sanitation
 document.getElementById('btnExport')?.addEventListener('click', () => {
-    const tables = document.querySelectorAll('#exportArea table');
+    // Clone exportArea and clean up avatars, badges, and action columns
+    const container = document.getElementById('exportArea');
+    if (!container) return;
+
+    const clone = container.cloneNode(true);
+    // Remove avatar elements and badges
+    clone.querySelectorAll('.rp-avatar-sm, [data-exclude="true"]').forEach(el => el.remove());
+
+    // Replace composite telecaller cells with just clean name
+    clone.querySelectorAll('.rp-emp-name').forEach(el => {
+        const text = el.textContent.trim();
+        const parentTd = el.closest('td');
+        if (parentTd) parentTd.textContent = text;
+    });
+
+    const tables = clone.querySelectorAll('table');
     if (!tables.length) return;
+
     const exporter = new Table2Excel();
     exporter.export(tables, {
         filename: "CallNow_CallReport_<?= date('d-m-Y_H-i') ?>"

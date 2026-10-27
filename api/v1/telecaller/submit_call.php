@@ -35,7 +35,10 @@ foreach ($required as $field) {
 $recordId = (int)$input['record_id'];
 $rawSource = strtoupper(trim($input['source']));
 $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
-$callStatus = trim($input['call_status']);
+$rawCallStatus = trim($input['call_status']);
+$isDnd = in_array(strtolower($rawCallStatus), ['dnd', 'do not call', 'dnc']);
+$callStatus = $isDnd ? 'Do Not Call' : $rawCallStatus;
+
 $callDuration = isset($input['call_duration']) ? (int)$input['call_duration'] : (isset($input['duration_seconds']) ? (int)$input['duration_seconds'] : 0);
 $notes = trim($input['notes'] ?? '');
 $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : (!empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null);
@@ -61,12 +64,12 @@ if (empty($timingTier)) {
 }
 $isConnected = ($callDuration > 0 || in_array(strtolower($callStatus), ['connected', 'interested'])) ? 1 : 0;
 
-// Verify record exists
+// Verify record exists and get customer phone number
 if ($source === 'TEMP') {
-    $stmt = $link->prepare("SELECT ID, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, CUST_MOBILE, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
     $stmt->bind_param('i', $recordId);
 } else {
-    $stmt = $link->prepare("SELECT ID, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
     $stmt->bind_param('i', $recordId);
 }
 $stmt->execute();
@@ -76,6 +79,8 @@ $stmt->close();
 if (!$record) {
     apiError(404, 'Record not found');
 }
+
+$targetMobile = (string)($source === 'TEMP' ? ($record['CUST_MOBILE'] ?? '') : ($record['MAINDATABASE_MOBILE'] ?? ''));
 
 $recordUserId = (int)($record['CALL_DIALED_TELECALLER'] ?? $record['MAINDATABASE_CALL_DIALED_USER']);
 if ($recordUserId > 0 && $recordUserId !== $userId && $userRole !== 'Admin' && $userRole !== 'Manager') {
@@ -111,6 +116,13 @@ if ($source === 'MAIN') {
     $stmt->bind_param('sissii', $callStatus, $userId, $notes, $notes, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
+}
+
+// If marked as DND, strictly synchronize across ALL occurrences of this phone number in both tables
+if ($isDnd && $targetMobile !== '') {
+    $targetMobileSafe = $link->real_escape_string($targetMobile);
+    $link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE = '$targetMobileSafe'");
+    $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = '$targetMobileSafe'");
 }
 
 // 2. Insert into call logs

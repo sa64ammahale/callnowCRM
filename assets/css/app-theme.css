@@ -135,6 +135,22 @@ h1, h2, h3, h4, h5, h6,
     color: rgba(255, 255, 255, 0.9);
 }
 
+/* Exempt buttons inside heroes from white text and ensure crisp dark/accent text on white buttons */
+.rp-hero .btn-light, .ch-hero .btn-light,
+.rp-hero .btn-white, .ch-hero .btn-white,
+.rp-hero .rp-btn-hero, .ch-hero .rp-btn-hero,
+[class*="-hero"] .btn-light, [class*="-hero"] .btn-white {
+    background-color: #ffffff !important;
+    color: #4f46e5 !important;
+    border-color: #ffffff !important;
+}
+.rp-hero .btn-light *, .ch-hero .btn-light *,
+.rp-hero .btn-white *, .ch-hero .btn-white *,
+.rp-hero .rp-btn-hero *, .ch-hero .rp-btn-hero *,
+[class*="-hero"] .btn-light *, [class*="-hero"] .btn-white * {
+    color: #4f46e5 !important;
+}
+
 h1 { font-size: 1.5rem; font-weight: 700; }
 h2 { font-size: 1.25rem; }
 h3 { font-size: 1.125rem; }
