@@ -20,12 +20,13 @@ $teamId = $tokenData['user_team_id'] ? (int)$tokenData['user_team_id'] : null;
 
 global $link;
 
-$requestUri = $_SERVER['REQUEST_URI'];
+$requestUri = $_SERVER['REQUEST_URI'] ?? '';
 $path = parse_url($requestUri, PHP_URL_PATH);
 
-// Normalize path
-$basePath = '/api/v1/telecaller';
-$relativePath = substr($path, strlen($basePath));
+// Normalize path to support any root or subfolder prefix
+$pos = strpos($path, '/api/v1/telecaller');
+$relativePath = ($pos !== false) ? substr($path, $pos + strlen('/api/v1/telecaller')) : $path;
+$relativePath = '/' . trim($relativePath, '/');
 
 // /history is the same as /calls but with a larger default limit window
 if ($relativePath === '/history' || $relativePath === '/history/') {

@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../../php_scripts/api_auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Authorization, Content-Type');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -14,25 +14,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 ensureApiSchema($GLOBALS['link']);
 
+// Normalize endpoint path to support any base path (e.g. /callnowCRM/api/v1/auth/login or /api/v1/auth/login)
+$uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+$pos = strpos($uriPath, '/api/v1/auth');
+$endpoint = ($pos !== false) ? substr($uriPath, $pos + strlen('/api/v1/auth')) : $uriPath;
+$endpoint = '/' . trim($endpoint, '/');
+
 // Allow GET for /me and /refresh endpoints
-$isGetEndpoint = in_array($_SERVER['REQUEST_URI'], ['/api/v1/auth/me', '/api/v1/auth/refresh']);
+$isGetEndpoint = in_array($endpoint, ['/me', '/refresh']);
 if (!$isGetEndpoint && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     apiError(405, 'Method not allowed');
 }
 
-$input = json_decode(file_get_contents('php://input'), true);
+$rawBody = file_get_contents('php://input');
+if (!$rawBody && php_sapi_name() === 'cli') {
+    $rawBody = file_get_contents('php://stdin');
+}
+$input = json_decode($rawBody, true) ?? [];
 
-if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
-    $email = trim($input['email'] ?? '');
+if ($endpoint === '/login') {
+    $email = trim($input['email'] ?? ($input['username'] ?? ''));
     $password = $input['password'] ?? '';
     
     if (!$email || !$password) {
-        apiError(400, 'Email and password required');
+        apiError(400, 'Email/username and password required');
     }
     
     global $link;
-    $stmt = $link->prepare("SELECT ID, NAME, EMAIL, PASSWORD, ROLE, TEAM_ID, STATUS FROM " . tn('TBL_USERS') . " WHERE EMAIL = ?");
-    $stmt->bind_param('s', $email);
+    $stmt = $link->prepare("SELECT ID, NAME, EMAIL, LOGIN_ID, PASSWORD, ROLE, TEAM_ID, STATUS FROM " . tn('TBL_USERS') . " WHERE EMAIL = ? OR LOGIN_ID = ? LIMIT 1");
+    $stmt->bind_param('ss', $email, $email);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
     $stmt->close();
@@ -68,15 +78,16 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
         'user' => [
             'id' => (int)$user['ID'],
             'name' => $user['NAME'],
-            'email' => $user['EMAIL'],
+            'email' => $user['EMAIL'] ?: $user['LOGIN_ID'],
+            'login_id' => $user['LOGIN_ID'],
             'role' => $user['ROLE'],
             'team_id' => $user['TEAM_ID'] ? (int)$user['TEAM_ID'] : null,
         ],
         'database_access' => $dbAccess,
-        'assigned_TBL_TEAMS' => $teamIds,
+        'assigned_teams' => $teamIds,
     ]);
     
-} elseif ($_SERVER['REQUEST_URI'] === '/api/v1/auth/logout') {
+} elseif ($endpoint === '/logout') {
     $tokenData = apiRequireAuth();
     
     global $link;
@@ -87,7 +98,7 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
     
     apiSuccess(['message' => 'Logged out successfully']);
     
-} elseif ($_SERVER['REQUEST_URI'] === '/api/v1/auth/refresh') {
+} elseif ($endpoint === '/refresh') {
     $tokenData = apiRequireAuth();
     
     // Extend expiry by 30 days
@@ -105,10 +116,10 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
     apiSuccess([
         'expires_at' => $newExpiry,
         'database_access' => $dbAccess,
-        'assigned_TBL_TEAMS' => $teamIds,
+        'assigned_teams' => $teamIds,
     ]);
     
-} elseif ($_SERVER['REQUEST_URI'] === '/api/v1/auth/me') {
+} elseif ($endpoint === '/me') {
     $tokenData = apiRequireAuth();
     
     $dbAccess = getUserDatabaseAccess($tokenData['user_id']);
@@ -122,7 +133,7 @@ if ($_SERVER['REQUEST_URI'] === '/api/v1/auth/login') {
             'team_id' => $tokenData['TEAM_ID'] ? (int)$tokenData['TEAM_ID'] : null,
         ],
         'database_access' => $dbAccess,
-        'assigned_TBL_TEAMS' => $teamIds,
+        'assigned_teams' => $teamIds,
     ]);
     
 } else {
