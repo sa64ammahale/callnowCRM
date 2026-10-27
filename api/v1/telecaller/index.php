@@ -74,6 +74,11 @@ function buildDateCondition(string $period, ?string $dateFrom, ?string $dateTo, 
 // -----------------------------------------------------------------------------
 // 1. DASHBOARD STATS
 // -----------------------------------------------------------------------------
+if ($relativePath === '/debug-schema') {
+    $cols = $link->query("SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS'))->fetch_all(MYSQLI_ASSOC);
+    apiSuccess(['call_logs_columns' => $cols]);
+}
+
 if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
