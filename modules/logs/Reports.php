@@ -165,12 +165,12 @@ $sqlSummary = "
         t.SUPERVISOR_ID,
         s.NAME AS supervisor_name,
         COUNT(*) AS total,
-        SUM(CASE WHEN m.call_status = 'Connected'   THEN 1 ELSE 0 END) AS connected,
+        SUM(CASE WHEN m.call_status IN ('Connected', 'Lead', 'Interested') THEN 1 ELSE 0 END) AS connected,
         SUM(CASE WHEN m.call_status = 'Dialed'      THEN 1 ELSE 0 END) AS dialed,
         SUM(CASE WHEN m.call_status = 'Busy'        THEN 1 ELSE 0 END) AS busy,
         SUM(CASE WHEN m.call_status = 'No Answer'   THEN 1 ELSE 0 END) AS no_answer,
         SUM(CASE WHEN m.call_status = 'Do Not Call' THEN 1 ELSE 0 END) AS dnc,
-        SUM(CASE WHEN m.call_status = 'Pending'     THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN m.call_status IN ('Pending', 'Call Back', 'callback', 'Follow-up', 'Follow Up') THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN m.call_status = 'Not Called'  THEN 1 ELSE 0 END) AS not_called
     FROM (
         $unionSubquery

@@ -1,7 +1,9 @@
 <?php
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/team_auth.php';
 requirePermission('view_reports');
+
+ensureApiSchema($link);
 
 $pageTitle = 'Call History - CallNow';
 
@@ -39,7 +41,7 @@ if ($dateTo) {
     $types .= 's';
 }
 if ($search !== '') {
-    $whereParts[] = '(COALESCE(cust_name, "") LIKE ? OR COALESCE(cust_mobile, "") LIKE ? OR cl.notes LIKE ?)';
+    $whereParts[] = '(COALESCE(t.CUST_NAME, m.MAINDATABASE_NAME, l.NAME, "") LIKE ? OR COALESCE(t.CUST_MOBILE, m.MAINDATABASE_MOBILE, l.MOBILE, "") LIKE ? OR cl.notes LIKE ?)';
     $like = "%$search%";
     $params[] = $like;
     $params[] = $like;
@@ -122,7 +124,7 @@ mysqli_stmt_close($stmt);
 $statusesList = ['Connected', 'Dialed', 'Busy', 'No Answer', 'Do Not Call', 'Pending', 'Not Called', 'Follow Up', 'Interested', 'Call Back'];
 ?>
 
-<?php $pageTitle = 'Call History - CallNow'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Call History - CallNow'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <style>
 .ch-hero {
@@ -258,7 +260,7 @@ $statusesList = ['Connected', 'Dialed', 'Busy', 'No Answer', 'Do Not Call', 'Pen
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script>
 (function() {

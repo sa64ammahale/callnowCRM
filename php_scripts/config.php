@@ -282,15 +282,85 @@
                 KEY idx_created_at (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
-            // Ensure rich call telemetry columns exist in TBL_CALL_LOGS
-            $colRes = mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS') . " LIKE 'dial_time'");
-            if ($colRes && mysqli_num_rows($colRes) === 0) {
-                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " 
-                    ADD COLUMN dial_time DATETIME NULL AFTER call_time,
-                    ADD COLUMN call_end_time DATETIME NULL AFTER dial_time,
-                    ADD COLUMN total_duration INT NULL AFTER call_duration,
-                    ADD COLUMN sim_slot VARCHAR(50) NULL AFTER recording_url,
-                    ADD COLUMN metadata LONGTEXT NULL AFTER notes");
+            // Ensure TBL_CALL_LOGS exists
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_CALL_LOGS') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                record_id INT NOT NULL,
+                source ENUM('TEMP','MAIN','LEADS') NOT NULL DEFAULT 'MAIN',
+                user_id INT NOT NULL,
+                call_status VARCHAR(50) NOT NULL DEFAULT 'Connected',
+                call_duration INT NOT NULL DEFAULT 0,
+                total_duration INT NULL,
+                timing_classification VARCHAR(30) NULL,
+                notes TEXT NULL,
+                metadata LONGTEXT NULL,
+                next_followup DATETIME NULL,
+                recording_url VARCHAR(500) NULL,
+                sim_slot VARCHAR(50) NULL,
+                call_time DATETIME NULL,
+                dial_time DATETIME NULL,
+                call_end_time DATETIME NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY idx_record (record_id, source),
+                KEY idx_user (user_id),
+                KEY idx_status (call_status),
+                KEY idx_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            // Self-heal column renames/additions if table existed with legacy columns
+            $existingCols = [];
+            $colRes = mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS'));
+            if ($colRes) {
+                while ($cRow = mysqli_fetch_assoc($colRes)) {
+                    $existingCols[strtolower($cRow['Field'])] = true;
+                }
+            }
+
+            if (!empty($existingCols)) {
+                if (!isset($existingCols['record_id']) && isset($existingCols['lead_id'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN lead_id record_id INT NOT NULL");
+                    $existingCols['record_id'] = true;
+                } elseif (!isset($existingCols['record_id'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN record_id INT NOT NULL DEFAULT 0 AFTER id");
+                }
+
+                if (!isset($existingCols['source']) && isset($existingCols['call_type'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN call_type source ENUM('TEMP','MAIN','LEADS') NOT NULL DEFAULT 'MAIN'");
+                    $existingCols['source'] = true;
+                } elseif (!isset($existingCols['source'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN source ENUM('TEMP','MAIN','LEADS') NOT NULL DEFAULT 'MAIN' AFTER record_id");
+                }
+
+                if (!isset($existingCols['call_status']) && isset($existingCols['status'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN status call_status VARCHAR(50) NOT NULL DEFAULT 'Connected'");
+                    $existingCols['call_status'] = true;
+                } elseif (!isset($existingCols['call_status'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_status VARCHAR(50) NOT NULL DEFAULT 'Connected' AFTER user_id");
+                }
+
+                if (!isset($existingCols['call_duration']) && isset($existingCols['duration_seconds'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN duration_seconds call_duration INT NOT NULL DEFAULT 0");
+                    $existingCols['call_duration'] = true;
+                } elseif (!isset($existingCols['call_duration'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_duration INT NOT NULL DEFAULT 0 AFTER call_status");
+                }
+
+                if (!isset($existingCols['dial_time'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN dial_time DATETIME NULL AFTER call_time");
+                }
+                if (!isset($existingCols['call_end_time'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_end_time DATETIME NULL AFTER dial_time");
+                }
+                if (!isset($existingCols['total_duration'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN total_duration INT NULL AFTER call_duration");
+                }
+                if (!isset($existingCols['sim_slot'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN sim_slot VARCHAR(50) NULL AFTER recording_url");
+                }
+                if (!isset($existingCols['metadata'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN metadata LONGTEXT NULL AFTER notes");
+                }
             }
 
             $done = true;
