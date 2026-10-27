@@ -111,6 +111,30 @@ h1, h2, h3, h4, h5, h6,
     color: var(--ink);
 }
 
+/* Ensure headings & text in colored/gradient headers retain full contrast */
+.rp-hero, .ch-hero, .dash-hero, .uv-header, .ua-header, .tm-header, .td-header, .st-header, .sa-header, .pm-header,
+[class*="-hero"], [class*="--hero"], .bg-primary, .text-white {
+    color: #ffffff !important;
+}
+
+.rp-hero h1, .rp-hero h2, .rp-hero h3, .rp-hero h4, .rp-hero h5, .rp-hero h6,
+.rp-hero .rp-title, .rp-hero .rp-eyebrow, .rp-hero .rp-sub, .rp-hero .rp-kpi-value, .rp-hero .rp-kpi-label,
+.ch-hero h1, .ch-hero h2, .ch-hero h3, .ch-hero h4, .ch-hero h5, .ch-hero h6,
+.ch-hero .ch-title, .ch-hero .ch-sub,
+.dash-hero h1, .dash-hero h2, .dash-hero h3, .dash-hero h4, .dash-hero h5, .dash-hero h6,
+.dash-hero .dash-hero-title, .dash-hero .dash-hero-sub,
+[class*="-hero"] h1, [class*="-hero"] h2, [class*="-hero"] h3, [class*="-hero"] h4, [class*="-hero"] h5, [class*="-hero"] h6,
+[class*="-hero"] [class*="-title"],
+.text-white h1, .text-white h2, .text-white h3, .text-white h4, .text-white h5, .text-white h6,
+.bg-primary h1, .bg-primary h2, .bg-primary h3, .bg-primary h4, .bg-primary h5, .bg-primary h6 {
+    color: #ffffff !important;
+}
+
+[class*="-hero"] p, [class*="-hero"] small, [class*="-hero"] [class*="-sub"],
+[class*="-header"] p, [class*="-header"] small, [class*="-header"] [class*="-sub"] {
+    color: rgba(255, 255, 255, 0.9);
+}
+
 h1 { font-size: 1.5rem; font-weight: 700; }
 h2 { font-size: 1.25rem; }
 h3 { font-size: 1.125rem; }

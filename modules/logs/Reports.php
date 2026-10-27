@@ -34,6 +34,7 @@ $rangeLabels = [
 /**
  * Resolve $from / $to (inclusive Y-m-d) for a given preset.
  */
+if (!function_exists('computeRange')) {
 function computeRange(string $preset, string &$from, string &$to): void {
     $today = new DateTime('today');
     $from  = $today->format('Y-m-d');
@@ -77,6 +78,7 @@ function computeRange(string $preset, string &$from, string &$to): void {
             $from = $to = $today->format('Y-m-d');
             break;
     }
+}
 }
 
 if ($range === 'custom') {
@@ -125,32 +127,22 @@ $whereSql = $whereParts
     : "";
 
 /**
- * Unified call log: TBL_TEMP + TBL_MAIN
+ * Unified call log: TBL_CALL_LOGS as canonical call log joined with source tables
  */
 $unionSubquery = "
     SELECT
-        ID,
-        CALL_DIALED_TELECALLER AS user_id,
-        LAST_DIALED_DATE_TIME  AS call_time,
-        CALL_DIALED_STATUS     AS call_status,
-        CUST_NAME              AS cust_name,
-        CUST_MOBILE            AS cust_mobile,
-        CUST_COMPANY           AS cust_company,
-        'TEMP'                 AS source
-    FROM " . tn('TBL_TEMP') . "
-
-    UNION ALL
-
-    SELECT
-        ID,
-        MAINDATABASE_CALL_DIALED_USER AS user_id,
-        COALESCE(MAINDATABASE_CALL_DIAL_TIME, LAST_DIALED_DATE_TIME) AS call_time,
-        MAINDATABASE_CALL_DIALED_STATUS AS call_status,
-        MAINDATABASE_NAME    AS cust_name,
-        MAINDATABASE_MOBILE  AS cust_mobile,
-        MAINDATABASE_COMPANY AS cust_company,
-        'MAIN'               AS source
-    FROM " . tn('TBL_MAIN') . "
+        cl.id                  AS ID,
+        cl.user_id             AS user_id,
+        COALESCE(cl.call_time, cl.created_at) AS call_time,
+        cl.call_status         AS call_status,
+        COALESCE(t.CUST_NAME, m.MAINDATABASE_NAME, l.NAME, '') AS cust_name,
+        COALESCE(t.CUST_MOBILE, m.MAINDATABASE_MOBILE, l.MOBILE, '') AS cust_mobile,
+        COALESCE(t.CUST_COMPANY, m.MAINDATABASE_COMPANY, l.COMPANY_NAME, '') AS cust_company,
+        cl.source              AS source
+    FROM " . tn('TBL_CALL_LOGS') . " cl
+    LEFT JOIN " . tn('TBL_TEMP') . " t ON cl.source = 'TEMP' AND cl.record_id = t.ID
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON cl.source = 'MAIN' AND cl.record_id = m.ID
+    LEFT JOIN " . tn('TBL_LEADS') . " l ON cl.source = 'LEADS' AND cl.record_id = l.lead_id
 ";
 
 /**
@@ -165,13 +157,13 @@ $sqlSummary = "
         t.SUPERVISOR_ID,
         s.NAME AS supervisor_name,
         COUNT(*) AS total,
-        SUM(CASE WHEN m.call_status IN ('Connected', 'Lead', 'Interested') THEN 1 ELSE 0 END) AS connected,
-        SUM(CASE WHEN m.call_status = 'Dialed'      THEN 1 ELSE 0 END) AS dialed,
-        SUM(CASE WHEN m.call_status = 'Busy'        THEN 1 ELSE 0 END) AS busy,
-        SUM(CASE WHEN m.call_status = 'No Answer'   THEN 1 ELSE 0 END) AS no_answer,
-        SUM(CASE WHEN m.call_status = 'Do Not Call' THEN 1 ELSE 0 END) AS dnc,
-        SUM(CASE WHEN m.call_status IN ('Pending', 'Call Back', 'callback', 'Follow-up', 'Follow Up') THEN 1 ELSE 0 END) AS pending,
-        SUM(CASE WHEN m.call_status = 'Not Called'  THEN 1 ELSE 0 END) AS not_called
+        SUM(CASE WHEN LOWER(m.call_status) IN ('connected', 'lead', 'interested') THEN 1 ELSE 0 END) AS connected,
+        SUM(CASE WHEN LOWER(m.call_status) = 'dialed'      THEN 1 ELSE 0 END) AS dialed,
+        SUM(CASE WHEN LOWER(m.call_status) = 'busy'        THEN 1 ELSE 0 END) AS busy,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('no answer', 'no_answer') THEN 1 ELSE 0 END) AS no_answer,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('do not call', 'dnc') THEN 1 ELSE 0 END) AS dnc,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('pending', 'call back', 'callback', 'follow-up', 'follow up', 'not interested') THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('not called', 'not_called') THEN 1 ELSE 0 END) AS not_called
     FROM (
         $unionSubquery
     ) AS m
@@ -251,7 +243,7 @@ $bucketExpr = $bucket === 'month'
 $sqlTrend = "
     SELECT $bucketExpr AS bucket,
            COUNT(*) AS total,
-           SUM(CASE WHEN m.call_status = 'Connected' THEN 1 ELSE 0 END) AS connected
+           SUM(CASE WHEN LOWER(m.call_status) IN ('connected', 'lead', 'interested') THEN 1 ELSE 0 END) AS connected
     FROM (
         $unionSubquery
     ) AS m
@@ -365,6 +357,7 @@ LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
 
 // Build a query-string helper that preserves current filters.
 // User selection is only included when explicitly passed via $extra['user'].
+if (!function_exists('reportQs')) {
 function reportQs(array $extra = []): string {
     global $range, $from, $to, $team_filter;
     $qs = [
@@ -376,6 +369,7 @@ function reportQs(array $extra = []): string {
     $qs = array_merge($qs, $extra);
     return http_build_query($qs);
 }
+}
 $self = htmlspecialchars($_SERVER['PHP_SELF']);
 ?>
 <?php $pageTitle = 'Call Report - CallNow'; include '../../php_scripts/header.php'; ?>
@@ -384,30 +378,31 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
 /* ── Hero ───────────────────────────────────────────── */
 .rp-hero {
     background: linear-gradient(135deg, var(--accent) 0%, #6d5dd3 55%, #8b5cf6 100%);
-    color: #fff;
+    color: #ffffff !important;
     padding: 1.6rem 0 1.4rem;
     border-radius: 0 0 var(--radius-xl) var(--radius-xl);
     box-shadow: var(--shadow-md);
     margin-bottom: 1.5rem;
 }
+.rp-hero * { color: inherit; }
 .rp-eyebrow {
     font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
-    opacity: .85; font-weight: 600;
+    color: rgba(255,255,255,.85) !important; font-weight: 600;
 }
-.rp-title { font-size: 1.5rem; font-weight: 700; margin: .15rem 0 .25rem; letter-spacing: -.02em; }
-.rp-scope { font-weight: 500; opacity: .85; font-size: 1rem; }
-.rp-sub { font-size: .85rem; opacity: .9; }
-.rp-sub strong { font-weight: 600; }
+.rp-title { font-size: 1.5rem; font-weight: 700; margin: .15rem 0 .25rem; letter-spacing: -.02em; color: #ffffff !important; }
+.rp-scope { font-weight: 500; color: rgba(255,255,255,.85) !important; font-size: 1rem; }
+.rp-sub { font-size: .85rem; color: rgba(255,255,255,.92) !important; }
+.rp-sub strong { font-weight: 600; color: #ffffff !important; }
 .rp-kpis { display: flex; gap: .65rem; flex-wrap: wrap; }
 .rp-kpi {
     background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
     border-radius: var(--radius-lg); padding: .55rem .95rem; min-width: 96px; text-align: center;
     backdrop-filter: blur(6px);
 }
-.rp-kpi-label { display: block; font-size: .68rem; opacity: .85; text-transform: uppercase; letter-spacing: .04em; }
-.rp-kpi-value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.25; }
-.rp-kpi-value.text-success { color: #d1fae5 !important; }
-.rp-kpi-value.text-danger  { color: #fee2e2 !important; }
+.rp-kpi-label { display: block; font-size: .68rem; color: rgba(255,255,255,.85) !important; text-transform: uppercase; letter-spacing: .04em; }
+.rp-kpi-value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.25; color: #ffffff !important; }
+.rp-kpi-value.text-success { color: #6ee7b7 !important; }
+.rp-kpi-value.text-danger  { color: #fca5a5 !important; }
 
 /* ── Summary table ──────────────────────────────────── */
 .rp-table thead th { white-space: nowrap; }
@@ -619,30 +614,6 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
     });
     </script>
 
-    <!-- Charts -->
-    <?php if ($grand_total > 0): ?>
-    <div class="rp-charts">
-        <div class="rp-card">
-            <div class="rp-card-head"><i class="bi bi-graph-up"></i> Call Trend (<?= $bucket==='month'?'Monthly':'Daily' ?>)</div>
-            <div class="rp-chart-wrap"><canvas id="trendChart"></canvas></div>
-        </div>
-        <div class="rp-card">
-            <div class="rp-card-head"><i class="bi bi-pie-chart"></i> Status Breakdown</div>
-            <div class="rp-chart-wrap"><canvas id="statusChart"></canvas></div>
-        </div>
-    </div>
-    <div class="rp-card">
-        <div class="rp-card-head"><i class="bi bi-bar-chart"></i> Calls per Telecaller</div>
-        <div class="rp-chart-wrap" style="height:300px;"><canvas id="userChart"></canvas></div>
-    </div>
-    <?php else: ?>
-        <div class="rp-card rp-empty">
-            <i class="bi bi-telephone-outbound"></i>
-            <h5 class="mt-2">No calls found for the selected period</h5>
-            <p class="text-muted mb-0">Try widening the date range or clearing filters.</p>
-        </div>
-    <?php endif; ?>
-
     <!-- Team & Telecaller Summary -->
     <div id="exportArea">
     <?php if (!empty($data)): ?>
@@ -734,6 +705,31 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
                     </table>
                 </div>
             </div>
+        </div>
+    <?php endif; ?>
+
+
+    <!-- Charts -->
+    <?php if ($grand_total > 0): ?>
+    <div class="rp-charts">
+        <div class="rp-card">
+            <div class="rp-card-head"><i class="bi bi-graph-up"></i> Call Trend (<?= $bucket==='month'?'Monthly':'Daily' ?>)</div>
+            <div class="rp-chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="rp-card">
+            <div class="rp-card-head"><i class="bi bi-pie-chart"></i> Status Breakdown</div>
+            <div class="rp-chart-wrap"><canvas id="statusChart"></canvas></div>
+        </div>
+    </div>
+    <div class="rp-card">
+        <div class="rp-card-head"><i class="bi bi-bar-chart"></i> Calls per Telecaller</div>
+        <div class="rp-chart-wrap" style="height:300px;"><canvas id="userChart"></canvas></div>
+    </div>
+    <?php else: ?>
+        <div class="rp-card rp-empty">
+            <i class="bi bi-telephone-outbound"></i>
+            <h5 class="mt-2">No calls found for the selected period</h5>
+            <p class="text-muted mb-0">Try widening the date range or clearing filters.</p>
         </div>
     <?php endif; ?>
 
