@@ -15,11 +15,15 @@ header('Content-Type: application/json; charset=utf-8');
 
 ensureApiSchema($GLOBALS['link']);
 
-// Self-heal: ensure timing_classification column exists on TBL_CALL_LOGS
+// Check if timing_classification column exists or can be added
+$hasTimingCol = false;
 try {
     $resCol = @$GLOBALS['link']->query("SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS') . " LIKE 'timing_classification'");
-    if ($resCol && $resCol->num_rows === 0) {
-        @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL DEFAULT NULL AFTER call_duration");
+    if ($resCol && $resCol->num_rows > 0) {
+        $hasTimingCol = true;
+    } else {
+        $alt = @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL DEFAULT NULL AFTER call_duration");
+        if ($alt) $hasTimingCol = true;
     }
 } catch (Throwable $t) {}
 
@@ -356,14 +360,27 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     // 2. Insert rich record into call_logs
-    $sqlLog = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-        (record_id, source, user_id, call_status, call_duration, timing_classification, notes, next_followup, call_time, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
-    $stmt = $link->prepare($sqlLog);
-    $stmt->bind_param('isisissss', $recordId, $source, $userId, $status, $duration, $timingTier, $notes, $nextFollowup, $callTime);
-    $stmt->execute();
-    $logId = $stmt->insert_id;
-    $stmt->close();
+    if ($hasTimingCol) {
+        $sqlLog = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
+            (record_id, source, user_id, call_status, call_duration, timing_classification, notes, next_followup, call_time, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        $stmt = $link->prepare($sqlLog);
+        if (!$stmt) throw new Exception("Prepare failed for call_logs: " . $link->error);
+        $stmt->bind_param('isisissss', $recordId, $source, $userId, $status, $duration, $timingTier, $notes, $nextFollowup, $callTime);
+        $stmt->execute();
+        $logId = $stmt->insert_id;
+        $stmt->close();
+    } else {
+        $sqlLog = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
+            (record_id, source, user_id, call_status, call_duration, notes, next_followup, call_time, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        $stmt = $link->prepare($sqlLog);
+        if (!$stmt) throw new Exception("Prepare failed for call_logs: " . $link->error);
+        $stmt->bind_param('isisisss', $recordId, $source, $userId, $status, $duration, $notes, $nextFollowup, $callTime);
+        $stmt->execute();
+        $logId = $stmt->insert_id;
+        $stmt->close();
+    }
     
     logActivity($link, $userId, 'API_CALL_COMPLETED', "Logged call for record #$recordId ($source) duration: {$duration}s, status: $status, tier: $timingTier", (string)$recordId, $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN');
     
@@ -387,19 +404,20 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $dateCond = buildDateCondition($period, $dateFrom, $dateTo, 'created_at');
     
-    // Calculate aggregate metrics
+    // Calculate aggregate metrics using duration math (100% portable)
     $sql = "SELECT 
         COUNT(*) as total_calls,
         COALESCE(SUM(call_duration), 0) as total_duration,
         COALESCE(AVG(call_duration), 0) as avg_duration,
         COALESCE(SUM(CASE WHEN call_duration > 0 THEN 1 ELSE 0 END), 0) as connected_calls,
-        COALESCE(SUM(CASE WHEN call_duration = 0 OR timing_classification = 'NOT_CONNECTED' THEN 1 ELSE 0 END), 0) as not_connected_calls,
-        COALESCE(SUM(CASE WHEN (call_duration > 0 AND call_duration <= 20) OR timing_classification = 'CONNECTED_SHORT' THEN 1 ELSE 0 END), 0) as connected_short_calls,
-        COALESCE(SUM(CASE WHEN call_duration > 20 OR timing_classification = 'CONNECTED_CONVERSATION' THEN 1 ELSE 0 END), 0) as connected_conversation_calls
+        COALESCE(SUM(CASE WHEN call_duration = 0 THEN 1 ELSE 0 END), 0) as not_connected_calls,
+        COALESCE(SUM(CASE WHEN call_duration > 0 AND call_duration <= 20 THEN 1 ELSE 0 END), 0) as connected_short_calls,
+        COALESCE(SUM(CASE WHEN call_duration > 20 THEN 1 ELSE 0 END), 0) as connected_conversation_calls
     FROM " . tn('TBL_CALL_LOGS') . "
     WHERE user_id = ? AND $dateCond";
     
     $stmt = $link->prepare($sql);
+    if (!$stmt) throw new Exception("Prepare failed for summary: " . $link->error);
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $agg = $stmt->get_result()->fetch_assoc();
