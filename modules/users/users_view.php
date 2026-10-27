@@ -703,6 +703,13 @@ $totalInactive = $totalRecords - $totalActive;
                                             <div class="uv-avatar"><?= strtoupper(substr($u['NAME'] ?? '?', 0, 2)) ?></div>
                                             <div>
                                                 <div class="uv-name-text"><?= htmlspecialchars($u['NAME'] ?: '—') ?></div>
+                                                <?php if (!empty($u['current_calling_db'])): ?>
+                                                    <div style="margin-top:0.2rem;">
+                                                        <span class="uv-badge <?= $u['current_calling_db'] === 'TEMPORARY' ? 'uv-badge-warning' : 'uv-badge-success' ?>" style="font-size:0.6rem;padding:0.1rem 0.45rem;" title="<?= !empty($u['last_batch_at']) ? 'Last batch: ' . date('d M H:i', strtotime($u['last_batch_at'])) : '' ?>">
+                                                            <i class="bi bi-database"></i> <?= htmlspecialchars($u['current_calling_db']) ?>
+                                                        </span>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </td>

@@ -210,6 +210,12 @@ Column mapping applied:
   - Neutralized spreadsheet formula injection in [`modules/database/maindatabase_ajax/export_batch.php`](file:///c:/xampp/htdocs/callnowCRM/modules/database/maindatabase_ajax/export_batch.php), [`modules/database/maindatabase_ajax/export_csv.php`](file:///c:/xampp/htdocs/callnowCRM/modules/database/maindatabase_ajax/export_csv.php), and [`modules/database/temporarydatabase_ajax/export_batch.php`](file:///c:/xampp/htdocs/callnowCRM/modules/database/temporarydatabase_ajax/export_batch.php) by escaping `=`, `+`, `-`, `@`, `\t`, and `\r`.
 - **Host Header Poisoning Defense**:
   - Sanitized `$_SERVER['HTTP_HOST']` in [`php_scripts/config.php`](file:///c:/xampp/htdocs/callnowCRM/php_scripts/config.php) and added optional `APP_URL`/`APP_BASE` environment override.
+- **Telecaller Lease-Based Batch Queue Engine & Database Tracking**:
+  - Implemented 20-minute lease-based auto-expiry locking in [`api/v1/telecaller/index.php`](file:///c:/xampp/htdocs/callnowCRM/api/v1/telecaller/index.php) (`GET /batch-leads`, `GET /next-call`, `POST /calls/{id}/complete`, `POST /release-queue`).
+  - Added self-healing schema additions: `BATCH_ASSIGNED_AT` in `TEMPORARY_DATABASE` and `MAIN_DATABASE`, and `current_calling_db`, `last_batch_at` in `users`.
+  - Enforced strict hierarchy: Temporary DB depleted first (oldest uncalled first); then Main DB (Tier 1 fresh uncalled `CALL_COUNT = 0` oldest first $\to$ Tier 2 user pending follow-ups $\to$ Tier 3 retries oldest dialed first).
+  - Guaranteed zero concurrency collision: Atomic transaction locking with `FOR UPDATE` prevents repeat numbers across multiple callers.
+  - Exposed active database: Returned top-level `current_database` in API responses and added live database indicator badge in [`modules/users/users_view.php`](file:///c:/xampp/htdocs/callnowCRM/modules/users/users_view.php).
 
 ## Remaining Known Issues (not yet fixed)
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.
