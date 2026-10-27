@@ -16,7 +16,12 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../../php_scripts/api_auth.php';
 
-ensureApiSchema($GLOBALS['link']);
+// Ensure call_logs schema has required columns
+try {
+    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " MODIFY COLUMN call_type VARCHAR(50) DEFAULT 'MAIN'");
+    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL DEFAULT NULL AFTER duration_seconds");
+    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN next_followup DATETIME NULL DEFAULT NULL AFTER notes");
+} catch (Throwable $t) {}
 
 $tokenData = $GLOBALS['api_token_data'];
 $userId = (int)$tokenData['user_id'];
@@ -359,9 +364,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             (user_id, lead_id, call_type, status, duration_seconds, notes, created_at)
             VALUES (?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $link->prepare($sqlLogFallback);
-        $stmt->bind_param('iisss', $userId, $recordId, $source, $status, $duration, $notes);
+        $stmt->bind_param('iissis', $userId, $recordId, $source, $status, $duration, $notes);
     } else {
-        $stmt->bind_param('iissssss', $userId, $recordId, $source, $status, $duration, $timingTier, $notes, $nextFollowup);
+        $stmt->bind_param('iississs', $userId, $recordId, $source, $status, $duration, $timingTier, $notes, $nextFollowup);
     }
     $stmt->execute();
     $logId = $stmt->insert_id;
