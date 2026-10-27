@@ -496,7 +496,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $sql = "SELECT 
         cl.id as log_id,
         cl.lead_id as record_id,
-        cl.call_type as source,
+        CASE WHEN cl.call_type = 'TEMP' THEN 'TEMP' ELSE 'MAIN' END as source,
         cl.status as call_status,
         cl.duration_seconds as call_duration,
         CASE 
@@ -506,29 +506,13 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         END as timing_classification,
         cl.notes,
         cl.created_at,
-        CASE 
-            WHEN cl.call_type = 'MAIN' THEN COALESCE(m.MAINDATABASE_NAME, '')
-            WHEN cl.call_type = 'TEMP' THEN COALESCE(t.CUST_NAME, '')
-            ELSE ''
-        END as customer_name,
-        CASE 
-            WHEN cl.call_type = 'MAIN' THEN COALESCE(m.MAINDATABASE_MOBILE, '')
-            WHEN cl.call_type = 'TEMP' THEN COALESCE(t.CUST_MOBILE, '')
-            ELSE ''
-        END as customer_mobile,
-        CASE 
-            WHEN cl.call_type = 'MAIN' THEN COALESCE(m.MAINDATABASE_COMPANY, '')
-            WHEN cl.call_type = 'TEMP' THEN COALESCE(t.CUST_COMPANY, '')
-            ELSE ''
-        END as customer_company,
-        CASE 
-            WHEN cl.call_type = 'MAIN' THEN COALESCE(m.MAINDATABASE_PACKAGE, '')
-            WHEN cl.call_type = 'TEMP' THEN COALESCE(t.CUST_PACKAGE, '')
-            ELSE ''
-        END as customer_package
+        COALESCE(m.MAINDATABASE_NAME, t.CUST_NAME, '') as customer_name,
+        COALESCE(m.MAINDATABASE_MOBILE, t.CUST_MOBILE, '') as customer_mobile,
+        COALESCE(m.MAINDATABASE_COMPANY, t.CUST_COMPANY, '') as customer_company,
+        COALESCE(m.MAINDATABASE_PACKAGE, t.CUST_PACKAGE, '') as customer_package
     FROM " . tn('TBL_CALL_LOGS') . " cl
-    LEFT JOIN " . tn('TBL_MAIN') . " m ON cl.call_type = 'MAIN' AND cl.lead_id = m.ID
-    LEFT JOIN " . tn('TBL_TEMP') . " t ON cl.call_type = 'TEMP' AND cl.lead_id = t.ID
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON (cl.call_type != 'TEMP') AND cl.lead_id = m.ID
+    LEFT JOIN " . tn('TBL_TEMP') . " t ON (cl.call_type = 'TEMP') AND cl.lead_id = t.ID
     WHERE $whereSql
     ORDER BY cl.created_at DESC
     LIMIT $offset, $limit";
