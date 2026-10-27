@@ -9,17 +9,14 @@
  * POST /api/v1/telecaller/calls/{id}/complete - Submit call result & full analytics
  * GET /api/v1/telecaller/call-history/{id} - Call history for specific record
  */
-require_once __DIR__ . '/../../../php_scripts/api_auth.php';
-
+@ini_set('display_errors', '0');
+error_reporting(0);
+http_response_code(200);
 header('Content-Type: application/json; charset=utf-8');
 
-ensureApiSchema($GLOBALS['link']);
+require_once __DIR__ . '/../../../php_scripts/api_auth.php';
 
-// Ensure call_logs schema has required columns
-try {
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL DEFAULT NULL AFTER duration_seconds");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN next_followup DATETIME NULL DEFAULT NULL AFTER notes");
-} catch (Throwable $t) {}
+ensureApiSchema($GLOBALS['link']);
 
 $tokenData = $GLOBALS['api_token_data'];
 $userId = (int)$tokenData['user_id'];
