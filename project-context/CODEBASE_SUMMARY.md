@@ -195,15 +195,27 @@ Column mapping applied:
 - **Scope of conversion**: All core files (`auth.php`, `team_auth.php`, `api_auth.php`, `permissions.php`, `header.php`, `profile.php`, index, dashboard, forgot-password), all lead module files (30+ scripts), all AJAX endpoints, all API endpoints, all settings/users/teams pages, all data management pages.
 - **Verification**: All PHP files pass `php -l` syntax check across entire repo.
 
+## Completed Security & Bug Fixes (2026-10-27)
+- **User Addition "Duplicate entry" Fix**:
+  - Root cause: In `modules/users/users_add.php`, leaving the optional Alternate Email blank passed an empty string `""` to the `EMAIL` column. Because `users.EMAIL` has a UNIQUE index (`idx_email`), MySQL rejected subsequent inserts with `Duplicate entry '' for key 'idx_email'`.
+  - Fix: Empty alternate emails now bind as SQL `NULL` (MySQL permits multiple `NULL`s in unique columns).
+  - Added dedicated pre-checks for Mobile, Login Email, and Alternate Email collisions before database queries run, returning specific, user-friendly warnings. Sanitized existing empty strings in `users.EMAIL` to `NULL` and set user ID 8's missing `LOGIN_ID`.
+- **Permission Key Typo Fix**:
+  - Restored `manage_users` and `manage_teams` keys across `php_scripts/permissions.php`, `php_scripts/sidebar.php`, `modules/users/users_view.php`, `modules/users/users_add.php`, `modules/users/teams_dashboard.php`, and `modules/users/team_members.php` (which had been corrupted to `manage_TBL_USERS` and `manage_TBL_TEAMS`).
+- **Main Database Bulk Assign**:
+  - Created [`modules/database/maindatabase_ajax/bulk_assign.php`](file:///c:/xampp/htdocs/callnowCRM/modules/database/maindatabase_ajax/bulk_assign.php) resolving the missing endpoint referenced in `data_management_main.php`.
+- **Web Authentication Rate Limiting**:
+  - Created [`php_scripts/rate_limiter.php`](file:///c:/xampp/htdocs/callnowCRM/php_scripts/rate_limiter.php) with auto-created table `login_attempts`. Enforces lockout on brute-force attempts across login (`index.php`) and password reset (`forgot-password.php`).
+- **CSV Formula Injection Sanitization**:
+  - Neutralized spreadsheet formula injection in [`modules/database/maindatabase_ajax/export_batch.php`](file:///c:/xampp/htdocs/callnowCRM/modules/database/maindatabase_ajax/export_batch.php), [`modules/database/maindatabase_ajax/export_csv.php`](file:///c:/xampp/htdocs/callnowCRM/modules/database/maindatabase_ajax/export_csv.php), and [`modules/database/temporarydatabase_ajax/export_batch.php`](file:///c:/xampp/htdocs/callnowCRM/modules/database/temporarydatabase_ajax/export_batch.php) by escaping `=`, `+`, `-`, `@`, `\t`, and `\r`.
+- **Host Header Poisoning Defense**:
+  - Sanitized `$_SERVER['HTTP_HOST']` in [`php_scripts/config.php`](file:///c:/xampp/htdocs/callnowCRM/php_scripts/config.php) and added optional `APP_URL`/`APP_BASE` environment override.
+
 ## Remaining Known Issues (not yet fixed)
-- `data_management_main.php` references `bulk_assign.php` which doesn't exist
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.
-- No rate limiting on login/forgot-password (brute force)
 - Default admin `Admin@123` hardcoded in SQL seed (with warning in comments)
-- CSV export (`export_batch.php`) uses `implode()` without field escaping (CSV injection)
 - Mixed procedural/OO `mysqli` style
-- `forgot-password.php` hardcoded From/Reply-To addresses; password emailed in plaintext
-- `AUTH_BASE` uses `$_SERVER['HTTP_HOST']` (user-controlled) — host header injection risk for link/cache poisoning
+- `forgot-password.php` hardcoded From/Reply-To addresses; password emailed in plaintext (recommend moving to secure reset token links in future)
 
 ## Conventions for Future Changes
 - **Auth bootstrap**: `php_scripts/auth.php` (canonical) — include at top of every protected page

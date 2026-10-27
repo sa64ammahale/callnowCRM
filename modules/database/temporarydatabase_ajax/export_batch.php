@@ -27,14 +27,22 @@ mysqli_stmt_bind_param($stmt, "ii", $limit, $offset);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
-$csv = "";
+$csv = "\xEF\xBB\xBF"; // UTF-8 BOM
 $first = true;
 while ($row = mysqli_fetch_assoc($result)) {
     if ($first) {
-        $csv .= implode(',', array_keys($row)) . "\n";
+        $csv .= implode(',', array_keys($row)) . "\r\n";
         $first = false;
     }
-    $csv .= implode(',', array_map('strval', $row)) . "\n";
+    $fields = [];
+    foreach ($row as $val) {
+        $val = strval($val ?? '');
+        if ($val !== '' && in_array($val[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            $val = "'" . $val;
+        }
+        $fields[] = '"' . str_replace('"', '""', $val) . '"';
+    }
+    $csv .= implode(',', $fields) . "\r\n";
 }
 
 echo json_encode([

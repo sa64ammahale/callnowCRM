@@ -93,7 +93,7 @@ function navActive($patterns) {
             <?php endif; ?>
         </div>
 
-        <?php if (can('manage_TBL_USERS')): ?>
+        <?php if (can('manage_users')): ?>
         <div class="app-sidebar-section">
             <div class="app-sidebar-section-label">Manage</div>
             <a class="app-sidebar-link <?= navActive(['users_view.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_view.php') ?>">
@@ -105,7 +105,7 @@ function navActive($patterns) {
                 <span class="link-text">Add User</span>
             </a>
             <?php endif; ?>
-            <?php if (can('manage_TBL_TEAMS')): ?>
+            <?php if (can('manage_teams')): ?>
             <a class="app-sidebar-link <?= navActive(['teams_dashboard.php']) ? 'active' : '' ?>" href="<?= url('modules/users/teams_dashboard.php') ?>">
                 <i class="bi bi-diagram-3"></i>
                 <span class="link-text">Teams</span>

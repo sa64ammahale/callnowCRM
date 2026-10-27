@@ -12,8 +12,8 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
     // is_system = 1 => protected from delete/rename in the UI.
     function getTBL_PERMISSIONSeed(): array {
         return [
-            'manage_TBL_USERS'    => ['label' => 'Manage TBL_USERS',     'category' => 'Administration', 'description' => 'Create, edit and delete user accounts', 'is_system' => 1],
-            'manage_TBL_TEAMS'    => ['label' => 'Manage TBL_TEAMS',      'category' => 'Administration', 'description' => 'Create TBL_TEAMS and assign members', 'is_system' => 1],
+            'manage_users'    => ['label' => 'Manage Users',     'category' => 'Administration', 'description' => 'Create, edit and delete user accounts', 'is_system' => 1],
+            'manage_teams'    => ['label' => 'Manage Teams',      'category' => 'Administration', 'description' => 'Create teams and assign members', 'is_system' => 1],
             'manage_settings'     => ['label' => 'Manage Settings',   'category' => 'Administration', 'description' => 'Access the Settings hub and permission manager', 'is_system' => 1],
             'manage_api'          => ['label' => 'Manage API Access',  'category' => 'Integration',    'description' => 'Create and manage API tokens and database assignments', 'is_system' => 1],
             'view_activity'       => ['label' => 'View Activity Log', 'category' => 'Administration', 'description' => 'Access the audit / activity log', 'is_system' => 1],
@@ -36,7 +36,7 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
             'Admin'       => ['*' => 1],
             'Manager'     => ['*' => 1],
             'Supervisor'  => [
-                'manage_TBL_TEAMS' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
+                'manage_teams' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
                 'export_data' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
             'Officer'     => [

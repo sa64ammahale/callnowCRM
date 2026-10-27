@@ -23,7 +23,7 @@ $sql = "SELECT MAINDATABASE_MOBILE,
 
 $res = mysqli_query($link, $sql);
 while ($row = mysqli_fetch_assoc($res)) {
-    fputcsv($output, [
+    $rowClean = [
         $row['MAINDATABASE_MOBILE'],
         $row['MAINDATABASE_NAME'] ?: '',
         $row['MAINDATABASE_COMPANY'] ?: '',
@@ -31,7 +31,16 @@ while ($row = mysqli_fetch_assoc($res)) {
         $row['MAINDATABASE_CALL_DIALED_STATUS'] ?: 'Not Called',
         $row['assigned'] ?: '',
         $row['dt']
-    ]);
+    ];
+    $sanitized = [];
+    foreach ($rowClean as $val) {
+        $val = strval($val ?? '');
+        if ($val !== '' && in_array($val[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            $val = "'" . $val;
+        }
+        $sanitized[] = $val;
+    }
+    fputcsv($output, $sanitized);
 }
 exit;
 ?>

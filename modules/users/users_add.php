@@ -6,7 +6,7 @@ require_once '../../php_scripts/super_admin.php';
 $isEdit = isset($_GET['ID']);
 $userID = $isEdit ? intval($_GET['ID']) : 0;
 
-requirePermission('manage_TBL_USERS');
+requirePermission('manage_users');
 
 if (!$isEdit) {
     $limitMsg = checkUserLimit($link, USER_ID);
@@ -56,37 +56,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $Message = "Invalid session token";
         $type = "danger";
     } else {
-        $name       = trim($_POST['name']);
-        $mobile     = trim($_POST['mobile']);
-        $login_id   = trim($_POST['username']);
-        $email_addr = trim($_POST['email']);
-        $company_name = trim($_POST['company_name']);
-        $password   = $_POST['password'] ?? '';
-        $role       = $_POST['role'];
-        $team_id    = $_POST['team_id'];
-        $package    = trim($_POST['package']);
-        $status     = $_POST['status'];
-        $company    = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
+        $name         = trim($_POST['name'] ?? '');
+        $mobile       = trim($_POST['mobile'] ?? '');
+        $login_id     = trim($_POST['username'] ?? '');
+        $email_input  = trim($_POST['email'] ?? '');
+        $email_addr   = ($email_input !== '') ? $email_input : null;
+        $company_name = trim($_POST['company_name'] ?? '');
+        $company_name_db = ($company_name !== '') ? $company_name : null;
+        $password     = $_POST['password'] ?? '';
+        $role         = $_POST['role'] ?? '';
+        $team_id      = $_POST['team_id'] ?? '';
+        $package      = trim($_POST['package'] ?? '');
+        $status       = $_POST['status'] ?? 'Active';
+        $company      = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
 
         if (!preg_match("/^[a-zA-Z ]+$/", $name)) $Message = "Invalid name";
         elseif (!preg_match("/^[6-9][0-9]{9}$/", $mobile)) $Message = "Invalid mobile number";
         elseif (!filter_var($login_id, FILTER_VALIDATE_EMAIL)) $Message = "Invalid login email";
-        elseif ($email_addr !== '' && !filter_var($email_addr, FILTER_VALIDATE_EMAIL)) $Message = "Invalid alternate email";
+        elseif ($email_addr !== null && !filter_var($email_addr, FILTER_VALIDATE_EMAIL)) $Message = "Invalid alternate email";
         elseif (!$isEdit && strlen($password) < 6) $Message = "Password must be 6+ characters";
         elseif (empty($role) || empty($team_id) || empty($package)) $Message = "All required fields must be filled";
         else {
-            $checkSql = "SELECT ID FROM " . tn('TBL_USERS') . " WHERE (MOBILE = ? OR LOGIN_ID = ?) AND ID != ?";
-            $stmt = mysqli_prepare($link, $checkSql);
-            mysqli_stmt_bind_param($stmt, "ssi", $mobile, $login_id, $userID);
-            mysqli_stmt_execute($stmt);
-            mysqli_stmt_store_result($stmt);
-            if (mysqli_stmt_num_rows($stmt) > 0) {
-                $Message = "Mobile or Login ID already exists!";
+            // Check 1: Mobile uniqueness
+            $checkMob = mysqli_prepare($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE MOBILE = ? AND ID != ? LIMIT 1");
+            mysqli_stmt_bind_param($checkMob, "si", $mobile, $userID);
+            mysqli_stmt_execute($checkMob);
+            mysqli_stmt_store_result($checkMob);
+            if (mysqli_stmt_num_rows($checkMob) > 0) {
+                $Message = "Mobile number ($mobile) is already registered to another user.";
                 $type = "warning";
-            } else {
+            }
+            mysqli_stmt_close($checkMob);
+
+            // Check 2: Login ID uniqueness (against LOGIN_ID and EMAIL)
+            if (!$Message) {
+                $checkLogin = mysqli_prepare($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE (LOGIN_ID = ? OR EMAIL = ?) AND ID != ? LIMIT 1");
+                mysqli_stmt_bind_param($checkLogin, "ssi", $login_id, $login_id, $userID);
+                mysqli_stmt_execute($checkLogin);
+                mysqli_stmt_store_result($checkLogin);
+                if (mysqli_stmt_num_rows($checkLogin) > 0) {
+                    $Message = "Login email ($login_id) is already registered in the system.";
+                    $type = "warning";
+                }
+                mysqli_stmt_close($checkLogin);
+            }
+
+            // Check 3: Alternate Email uniqueness if provided (against EMAIL and LOGIN_ID)
+            if (!$Message && $email_addr !== null) {
+                $checkEmail = mysqli_prepare($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE (EMAIL = ? OR LOGIN_ID = ?) AND ID != ? LIMIT 1");
+                mysqli_stmt_bind_param($checkEmail, "ssi", $email_addr, $email_addr, $userID);
+                mysqli_stmt_execute($checkEmail);
+                mysqli_stmt_store_result($checkEmail);
+                if (mysqli_stmt_num_rows($checkEmail) > 0) {
+                    $Message = "Alternate email ($email_addr) is already in use by another user.";
+                    $type = "warning";
+                }
+                mysqli_stmt_close($checkEmail);
+            }
+
+            if (!$Message) {
                 if ($isEdit) {
                     $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name, $role, $team_id, $package, $status, $company];
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $team_id, $package, $status, $company];
                     $types = "ssssssisss";
 
                     if (!empty($password)) {
@@ -101,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
                     $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name, $hashed, $role, $team_id, $package, $status, $company];
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $team_id, $package, $status, $company];
                     $types = "sssssssisss";
                 }
 
@@ -115,9 +146,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                         header("Location: users_view?created=1"); exit;
                     }
                 } else {
-                    $Message = "Database error: " . mysqli_error($link);
-                    $type = "danger";
+                    $errno = mysqli_errno($link);
+                    if ($errno === 1062) {
+                        $Message = "A user with this mobile, login ID, or email already exists.";
+                        $type = "warning";
+                    } else {
+                        $Message = "Database error: " . mysqli_error($link);
+                        $type = "danger";
+                    }
                 }
+                if ($stmt) mysqli_stmt_close($stmt);
             }
         }
         if ($Message && $type !== "success") $type = $type ?: "danger";

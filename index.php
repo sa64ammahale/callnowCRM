@@ -2,6 +2,7 @@
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/php_scripts/rate_limiter.php';
 
 // Show errors on POST so login failures don't produce a blank 500
 ini_set('display_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
@@ -36,55 +37,64 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $password    = trim($_POST["password"] ?? '');
 
         if (!empty($username) && !empty($password) && !empty($CompanyName)) {
-            try {
-                $tblUsers = tn('TBL_USERS');
-                $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM $tblUsers WHERE LOGIN_ID = ?";
-                $stmt = mysqli_prepare($link, $sql);
-                if ($stmt) {
-                    mysqli_stmt_bind_param($stmt, "s", $param_username);
-                    $param_username = $username;
-                    if (mysqli_stmt_execute($stmt)) {
-                        mysqli_stmt_store_result($stmt);
-                        if (mysqli_stmt_num_rows($stmt) == 1) {
-                            mysqli_stmt_bind_result($stmt, $id, $name, $mobile, $company, $package, $status, $join_date, $role, $team, $hashed_password, $login_id, $device_id);
-                            if (mysqli_stmt_fetch($stmt)) {
-                                if ($company == $CompanyName && $status == 'Active') {
-                                    if (password_verify($password, $hashed_password)) {
-                                        session_regenerate_id(true);
-                                        $_SESSION["loggedin"]    = true;
-                                        $_SESSION["id"]          = $id;
-                                        $_SESSION["name"]        = $name;
-                                        $_SESSION["mobile"]      = $mobile;
-                                        $_SESSION["company"]     = $company;
-                                        $_SESSION["package"]     = $package;
-                                        $_SESSION["status"]      = $status;
-                                        $_SESSION["join_date"]   = $join_date;
-                                        $_SESSION["role"]        = $role;
-                                        $_SESSION["team_id"]     = $team;
-                                        $_SESSION["login_id"]    = $login_id;
-                                        $_SESSION["device_id"]   = $device_id;
-                                        $_SESSION['LAST_ACTIVITY'] = time();
-                                        header("Location: dashboard");
-                                        exit;
+            $rateLimitError = checkWebRateLimit($link, 'login', $username);
+            if ($rateLimitError) {
+                $ErrorMessage = $rateLimitError;
+            } else {
+                try {
+                    $tblUsers = tn('TBL_USERS');
+                    $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM $tblUsers WHERE LOGIN_ID = ?";
+                    $stmt = mysqli_prepare($link, $sql);
+                    if ($stmt) {
+                        mysqli_stmt_bind_param($stmt, "s", $param_username);
+                        $param_username = $username;
+                        if (mysqli_stmt_execute($stmt)) {
+                            mysqli_stmt_store_result($stmt);
+                            if (mysqli_stmt_num_rows($stmt) == 1) {
+                                mysqli_stmt_bind_result($stmt, $id, $name, $mobile, $company, $package, $status, $join_date, $role, $team, $hashed_password, $login_id, $device_id);
+                                if (mysqli_stmt_fetch($stmt)) {
+                                    if ($company == $CompanyName && $status == 'Active') {
+                                        if (password_verify($password, $hashed_password)) {
+                                            clearWebRateLimit($link, 'login', $username);
+                                            session_regenerate_id(true);
+                                            $_SESSION["loggedin"]    = true;
+                                            $_SESSION["id"]          = $id;
+                                            $_SESSION["name"]        = $name;
+                                            $_SESSION["mobile"]      = $mobile;
+                                            $_SESSION["company"]     = $company;
+                                            $_SESSION["package"]     = $package;
+                                            $_SESSION["status"]      = $status;
+                                            $_SESSION["join_date"]   = $join_date;
+                                            $_SESSION["role"]        = $role;
+                                            $_SESSION["team_id"]     = $team;
+                                            $_SESSION["login_id"]    = $login_id;
+                                            $_SESSION["device_id"]   = $device_id;
+                                            $_SESSION['LAST_ACTIVITY'] = time();
+                                            header("Location: dashboard");
+                                            exit;
+                                        } else {
+                                            recordFailedAttemptWeb($link, 'login', $username);
+                                            $ErrorMessage = "Error: The password you entered is not valid.";
+                                        }
                                     } else {
-                                        $ErrorMessage = "Error: The password you entered is not valid.";
+                                        recordFailedAttemptWeb($link, 'login', $username);
+                                        $ErrorMessage = "Error: The Company Name is not valid OR your account is not active.";
                                     }
-                                } else {
-                                    $ErrorMessage = "Error: The Company Name is not valid OR your account is not active.";
                                 }
+                            } else {
+                                recordFailedAttemptWeb($link, 'login', $username);
+                                $ErrorMessage = "Error: The username you entered is not valid.";
                             }
                         } else {
-                            $ErrorMessage = "Error: The username you entered is not valid.";
+                            $ErrorMessage = "Oops! Something went wrong. Please try again later.";
                         }
+                        mysqli_stmt_close($stmt);
                     } else {
-                        $ErrorMessage = "Oops! Something went wrong. Please try again later.";
+                        $ErrorMessage = "Database error: " . mysqli_error($link);
                     }
-                    mysqli_stmt_close($stmt);
-                } else {
-                    $ErrorMessage = "Database error: " . mysqli_error($link);
+                } catch (\Throwable $e) {
+                    $ErrorMessage = "Error: " . $e->getMessage();
                 }
-            } catch (\Throwable $e) {
-                $ErrorMessage = "Error: " . $e->getMessage();
             }
         }
     }

@@ -2,7 +2,7 @@
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
 
-requirePermission('manage_TBL_USERS');
+requirePermission('manage_users');
 
 $limit  = 50;
 $page   = max(1, intval($_GET['page'] ?? 1));

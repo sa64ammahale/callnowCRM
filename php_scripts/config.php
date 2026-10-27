@@ -40,7 +40,9 @@
     mysqli_report(MYSQLI_REPORT_OFF);
 
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $rawHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $host = preg_replace('/[^a-zA-Z0-9\.\-:]/', '', $rawHost);
+    if ($host === '') $host = 'localhost';
 
     // App install path relative to the document root.
     // Derive it from THIS file's physical location (php_scripts/config.php lives
@@ -60,7 +62,13 @@
     if ($appPath !== '' && $appPath[0] !== '/') {
         $appPath = '/' . $appPath;
     }
-    define('APP_BASE', rtrim($protocol . '://' . $host . $appPath, '/'));
+
+    $envAppBase = getenv('APP_URL') ?: getenv('APP_BASE');
+    if ($envAppBase) {
+        define('APP_BASE', rtrim($envAppBase, '/'));
+    } else {
+        define('APP_BASE', rtrim($protocol . '://' . $host . $appPath, '/'));
+    }
     define('APP_PATH', $appPath);
 
     // Local vendored asset URL (no external CDNs — works on shared hosting).

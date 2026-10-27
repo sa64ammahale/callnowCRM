@@ -63,11 +63,10 @@ while ($row = mysqli_fetch_assoc($result)) {
     $fields = [];
     foreach ($row as $val) {
         $val = strval($val ?? '');
-        if (strpos($val, ',') !== false || strpos($val, '"') !== false || strpos($val, "\n") !== false || strpos($val, "\r") !== false) {
-            $fields[] = '"' . str_replace('"', '""', $val) . '"';
-        } else {
-            $fields[] = $val;
+        if ($val !== '' && in_array($val[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            $val = "'" . $val;
         }
+        $fields[] = '"' . str_replace('"', '""', $val) . '"';
     }
     $csv .= implode(',', $fields) . "\r\n";
     $rowCount++;

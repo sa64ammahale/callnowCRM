@@ -5,7 +5,7 @@ require_once __DIR__ . '/../../../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
 if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-    echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
+    echo json_encode(['success' => false, 'error' => 'Invalid CSRF token', 'message' => 'Invalid CSRF token']);
     exit;
 }
 
@@ -16,7 +16,7 @@ $ids = $_POST['ids'] ?? [];
 $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
 
 if (!is_array($ids) || count($ids) === 0 || $user_id <= 0) {
-    echo json_encode(['success' => false, 'message' => 'Invalid parameters']);
+    echo json_encode(['success' => false, 'error' => 'Invalid parameters', 'message' => 'Invalid parameters']);
     exit;
 }
 
@@ -26,7 +26,7 @@ $placeholders = implode(',', array_fill(0, count($ids), '?'));
 $sql = "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_USER = ? WHERE ID IN ($placeholders)";
 $stmt = mysqli_prepare($link, $sql);
 if (!$stmt) {
-    echo json_encode(['success' => false, 'message' => 'Prepare failed: ' . mysqli_error($link)]);
+    echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . mysqli_error($link), 'message' => 'Database prepare failed']);
     exit;
 }
 
@@ -41,8 +41,8 @@ $affected = mysqli_stmt_affected_rows($stmt);
 mysqli_stmt_close($stmt);
 
 if ($ok) {
-    logActivity($link, USER_ID, 'ASSIGN', "Assigned $affected records to user $user_id");
-    echo json_encode(['success' => true, 'affected' => $affected]);
+    logActivity($link, USER_ID, 'ASSIGN', "Assigned $affected records to user $user_id in Main Database");
+    echo json_encode(['success' => true, 'affected' => $affected, 'message' => "$affected records assigned successfully"]);
 } else {
-    echo json_encode(['success' => false, 'message' => 'Execute failed: ' . mysqli_stmt_error($stmt)]);
+    echo json_encode(['success' => false, 'error' => 'Execute failed: ' . mysqli_error($link), 'message' => 'Execute failed']);
 }

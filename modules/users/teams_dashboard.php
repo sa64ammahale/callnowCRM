@@ -1,7 +1,7 @@
 <?php
 require_once '../../php_scripts/auth.php';
 require_once '../../php_scripts/team_auth.php';
-requirePermission('manage_TBL_TEAMS');
+requirePermission('manage_teams');
 
 $msg = $msg_type = "";
 
