@@ -346,6 +346,21 @@
                     @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_duration INT NOT NULL DEFAULT 0 AFTER call_status");
                 }
 
+                if (!isset($existingCols['recording_url'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN recording_url VARCHAR(500) NULL AFTER notes");
+                }
+                if (!isset($existingCols['next_followup'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN next_followup DATETIME NULL AFTER recording_url");
+                }
+                if (!isset($existingCols['call_time'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_time DATETIME NULL AFTER next_followup");
+                }
+                if (!isset($existingCols['timing_classification'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL AFTER total_duration");
+                }
+                if (!isset($existingCols['notes'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN notes TEXT NULL AFTER timing_classification");
+                }
                 if (!isset($existingCols['dial_time'])) {
                     @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN dial_time DATETIME NULL AFTER call_time");
                 }

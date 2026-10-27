@@ -3,7 +3,56 @@ require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
 requirePermission('view_reports');
 
-ensureApiSchema($link);
+if (!function_exists('ensureCallHistorySchema')) {
+    function ensureCallHistorySchema(mysqli $link): void {
+        ensureApiSchema($link);
+        $res = mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS'));
+        $existing = [];
+        if ($res) {
+            while ($r = mysqli_fetch_assoc($res)) {
+                $existing[strtolower($r['Field'])] = true;
+            }
+        }
+        if (!isset($existing['recording_url'])) {
+            @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN recording_url VARCHAR(500) NULL AFTER notes");
+        }
+        if (!isset($existing['next_followup'])) {
+            @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN next_followup DATETIME NULL AFTER recording_url");
+        }
+        if (!isset($existing['call_time'])) {
+            @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_time DATETIME NULL AFTER next_followup");
+        }
+        if (!isset($existing['record_id'])) {
+            if (isset($existing['lead_id'])) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN lead_id record_id INT NOT NULL DEFAULT 0");
+            } else {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN record_id INT NOT NULL DEFAULT 0 AFTER id");
+            }
+        }
+        if (!isset($existing['source'])) {
+            if (isset($existing['call_type'])) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN call_type source ENUM('TEMP','MAIN','LEADS') NOT NULL DEFAULT 'MAIN'");
+            } else {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN source ENUM('TEMP','MAIN','LEADS') NOT NULL DEFAULT 'MAIN' AFTER record_id");
+            }
+        }
+        if (!isset($existing['call_status'])) {
+            if (isset($existing['status'])) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN status call_status VARCHAR(50) NOT NULL DEFAULT 'Connected'");
+            } else {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_status VARCHAR(50) NOT NULL DEFAULT 'Connected' AFTER user_id");
+            }
+        }
+        if (!isset($existing['call_duration'])) {
+            if (isset($existing['duration_seconds'])) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " CHANGE COLUMN duration_seconds call_duration INT NOT NULL DEFAULT 0");
+            } else {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN call_duration INT NOT NULL DEFAULT 0 AFTER call_status");
+            }
+        }
+    }
+}
+ensureCallHistorySchema($link);
 
 $pageTitle = 'Call History - CallNow';
 
@@ -72,6 +121,10 @@ $countSql = "
 ";
 
 $countStmt = mysqli_prepare($link, $countSql);
+if ($countStmt === false) {
+    $err = mysqli_error($link);
+    die('Count prepare failed: ' . htmlspecialchars($err ?: 'Unknown database error') . '<br><small>' . htmlspecialchars($countSql) . '</small>');
+}
 if ($types !== '') {
     mysqli_stmt_bind_param($countStmt, $types, ...$params);
 }
@@ -113,7 +166,8 @@ $types .= 'ii';
 
 $stmt = mysqli_prepare($link, $sql);
 if ($stmt === false) {
-    die('Prepare failed: ' . mysqli_error($link));
+    $err = mysqli_error($link);
+    die('Prepare failed: ' . htmlspecialchars($err ?: 'Unknown database error') . '<br><small>' . htmlspecialchars($sql) . '</small>');
 }
 mysqli_stmt_bind_param($stmt, $types, ...$params);
 mysqli_stmt_execute($stmt);
