@@ -6,14 +6,21 @@
 require_once __DIR__ . '/../config.php';
 
 function apiRequireAuth(): array {
-    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? getenv('HTTP_AUTHORIZATION') ?? '';
-    error_log("Auth header (SERVER): " . ($_SERVER['HTTP_AUTHORIZATION'] ?? 'NOT SET'));
-    error_log("Auth header (getenv): " . (getenv('HTTP_AUTHORIZATION') ?? 'NOT SET'));
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] 
+        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] 
+        ?? getenv('HTTP_AUTHORIZATION') 
+        ?? '';
+
+    if (!$authHeader && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    }
+
     if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
         apiError(401, 'Missing or invalid Authorization header. Use: Bearer <token>');
     }
     
-    $token = substr($authHeader, 7);
+    $token = trim(substr($authHeader, 7));
     
     global $link;
     $stmt = $link->prepare("
@@ -210,26 +217,26 @@ function checkRateLimit(array $tokenData): void {
     
     global $link;
     $tokenId = (int)$tokenData['id'];
-    $now = time();
-    $minuteAgo = $now - 60;
-    $hourAgo = $now - 3600;
     
     $stmt = $link->prepare("
         SELECT 
-            SUM(created_at >= ?) as count_min,
-            SUM(created_at >= ?) as count_hour
+            COALESCE(SUM(CASE WHEN created_at >= NOW() - INTERVAL 1 MINUTE THEN 1 ELSE 0 END), 0) as count_min,
+            COUNT(*) as count_hour
         FROM " . tn('TBL_API_ACCESS_LOGS') . " 
-        WHERE token_id = ?
+        WHERE token_id = ? AND created_at >= NOW() - INTERVAL 1 HOUR
     ");
-    $stmt->bind_param('iii', $minuteAgo, $hourAgo, $tokenId);
+    $stmt->bind_param('i', $tokenId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     
-    if ($limitPerMin > 0 && $row['count_min'] >= $limitPerMin) {
+    $countMin = (int)($row['count_min'] ?? 0);
+    $countHour = (int)($row['count_hour'] ?? 0);
+    
+    if ($limitPerMin > 0 && $countMin >= $limitPerMin) {
         apiError(429, "Rate limit exceeded: $limitPerMin requests per minute");
     }
-    if ($limitPerHour > 0 && $row['count_hour'] >= $limitPerHour) {
+    if ($limitPerHour > 0 && $countHour >= $limitPerHour) {
         apiError(429, "Rate limit exceeded: $limitPerHour requests per hour");
     }
 }

@@ -130,7 +130,7 @@ if ($endpoint === '/login') {
             'id' => (int)$tokenData['user_id'],
             'name' => $tokenData['user_name'],
             'role' => $tokenData['user_role'],
-            'team_id' => $tokenData['TEAM_ID'] ? (int)$tokenData['TEAM_ID'] : null,
+            'team_id' => !empty($tokenData['user_team_id']) ? (int)$tokenData['user_team_id'] : null,
         ],
         'database_access' => $dbAccess,
         'assigned_teams' => $teamIds,

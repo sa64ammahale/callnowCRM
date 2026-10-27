@@ -11,23 +11,9 @@
  */
 @ini_set('display_errors', '0');
 error_reporting(0);
-http_response_code(200);
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../../php_scripts/api_auth.php';
-
-// Ensure call_logs and queue leasing schema has required columns & indexes
-try {
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " MODIFY COLUMN call_type VARCHAR(50) DEFAULT 'MAIN'");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL DEFAULT NULL AFTER duration_seconds");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN next_followup DATETIME NULL DEFAULT NULL AFTER notes");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_TEMP') . " ADD COLUMN BATCH_ASSIGNED_AT DATETIME NULL DEFAULT NULL AFTER CALL_DIALED_TELECALLER");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_TEMP') . " ADD INDEX idx_temp_batch_lease (BATCH_ASSIGNED_AT)");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_MAIN') . " ADD COLUMN BATCH_ASSIGNED_AT DATETIME NULL DEFAULT NULL AFTER MAINDATABASE_CALL_DIALED_USER");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_MAIN') . " ADD INDEX idx_main_batch_lease (BATCH_ASSIGNED_AT)");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN current_calling_db VARCHAR(20) NULL DEFAULT NULL");
-    @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN last_batch_at DATETIME NULL DEFAULT NULL");
-} catch (Throwable $t) {}
 
 $tokenData = $GLOBALS['api_token_data'];
 $userId = (int)$tokenData['user_id'];
@@ -82,8 +68,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     // Calculate today's stats from call_logs for this user
     $sqlLogs = "SELECT 
         COUNT(*) as total_calls,
-        SUM(CASE WHEN duration_seconds > 0 THEN 1 ELSE 0 END) as connected_calls,
-        SUM(duration_seconds) as total_talk_time
+        SUM(CASE WHEN call_duration > 0 THEN 1 ELSE 0 END) as connected_calls,
+        COALESCE(SUM(call_duration), 0) as total_talk_time
     FROM " . tn('TBL_CALL_LOGS') . "
     WHERE user_id = ? AND DATE(created_at) = CURDATE()";
     
@@ -494,11 +480,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 // -----------------------------------------------------------------------------
 // 4. SUBMIT CALL RESULT & DETAILED ANALYTICS
 // -----------------------------------------------------------------------------
-} elseif (preg_match('#^/calls/(\d+)/complete$#', $relativePath, $matches)) {
+} elseif (preg_match('#^/calls/(\d+)/complete$#', $relativePath, $matches) || in_array($relativePath, ['/submit_call', '/submit-call', '/calls/complete'])) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
     
-    $recordId = (int)$matches[1];
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $recordId = !empty($matches[1]) ? (int)$matches[1] : (int)($input['record_id'] ?? ($input['lead_id'] ?? ($input['id'] ?? 0)));
+    if ($recordId <= 0) apiError(400, 'record_id is required');
     
     $rawSource = strtoupper(trim($input['source'] ?? 'MAIN'));
     $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
@@ -512,6 +499,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : (!empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null);
+    $recordingUrl = !empty($input['recording_url']) ? trim($input['recording_url']) : null;
+    $callTime = !empty($input['call_time']) ? date('Y-m-d H:i:s', strtotime($input['call_time'])) : date('Y-m-d H:i:s');
+    $isConnected = ($duration > 0 || in_array(strtolower($status), ['connected', 'interested'])) ? 1 : 0;
     
     // 1. Update master table based on source
     if ($source === 'MAIN') {
@@ -520,13 +510,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             MAINDATABASE_CALL_DIALED_USER = ?,
             MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
             LAST_DIALED_DATE_TIME = NOW(),
-            LAST_CONNECTED_PERIOD = ?,
+            LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
             CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1,
             BATCH_ASSIGNED_AT = NULL
             WHERE ID = ?";
         $stmt = $link->prepare($sql);
-        $durationStr = (string)$duration . "s";
-        $stmt->bind_param('sissii', $status, $userId, $notes, $notes, $durationStr, $recordId);
+        $stmt->bind_param('sissii', $status, $userId, $notes, $notes, $isConnected, $recordId);
         $stmt->execute();
         $stmt->close();
         
@@ -536,31 +525,21 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             CALL_DIALED_TELECALLER = ?,
             CUST_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE CUST_OTHER_INFO END,
             LAST_DIALED_DATE_TIME = NOW(),
-            LAST_CONNECTED_PERIOD = ?,
+            LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
             BATCH_ASSIGNED_AT = NULL
             WHERE ID = ?";
         $stmt = $link->prepare($sql);
-        $durationStr = (string)$duration . "s";
-        $stmt->bind_param('sissii', $status, $userId, $notes, $notes, $durationStr, $recordId);
+        $stmt->bind_param('sissii', $status, $userId, $notes, $notes, $isConnected, $recordId);
         $stmt->execute();
         $stmt->close();
     }
     
-    // 2. Insert record into call_logs using exact remote column names
+    // 2. Insert record into call_logs using exact schema column names
     $sqlLog = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-        (user_id, lead_id, call_type, status, duration_seconds, timing_classification, notes, next_followup, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+        (record_id, source, user_id, call_status, call_duration, timing_classification, notes, next_followup, recording_url, call_time, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
     $stmt = $link->prepare($sqlLog);
-    if (!$stmt) {
-        // Fallback without timing_classification or next_followup if remote schema restricted
-        $sqlLogFallback = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-            (user_id, lead_id, call_type, status, duration_seconds, notes, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())";
-        $stmt = $link->prepare($sqlLogFallback);
-        $stmt->bind_param('iissis', $userId, $recordId, $source, $status, $duration, $notes);
-    } else {
-        $stmt->bind_param('iississs', $userId, $recordId, $source, $status, $duration, $timingTier, $notes, $nextFollowup);
-    }
+    $stmt->bind_param('isisisssss', $recordId, $source, $userId, $status, $duration, $timingTier, $notes, $nextFollowup, $recordingUrl, $callTime);
     $stmt->execute();
     $logId = $stmt->insert_id;
     $stmt->close();
@@ -587,15 +566,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $dateCond = buildDateCondition($period, $dateFrom, $dateTo, 'created_at');
     
-    // Calculate aggregate metrics using duration_seconds
+    // Calculate aggregate metrics using call_duration
     $sql = "SELECT 
         COUNT(*) as total_calls,
-        COALESCE(SUM(duration_seconds), 0) as total_duration,
-        COALESCE(AVG(duration_seconds), 0) as avg_duration,
-        COALESCE(SUM(CASE WHEN duration_seconds > 0 THEN 1 ELSE 0 END), 0) as connected_calls,
-        COALESCE(SUM(CASE WHEN duration_seconds = 0 THEN 1 ELSE 0 END), 0) as not_connected_calls,
-        COALESCE(SUM(CASE WHEN duration_seconds > 0 AND duration_seconds <= 20 THEN 1 ELSE 0 END), 0) as connected_short_calls,
-        COALESCE(SUM(CASE WHEN duration_seconds > 20 THEN 1 ELSE 0 END), 0) as connected_conversation_calls
+        COALESCE(SUM(call_duration), 0) as total_duration,
+        COALESCE(AVG(call_duration), 0) as avg_duration,
+        COALESCE(SUM(CASE WHEN call_duration > 0 THEN 1 ELSE 0 END), 0) as connected_calls,
+        COALESCE(SUM(CASE WHEN call_duration = 0 THEN 1 ELSE 0 END), 0) as not_connected_calls,
+        COALESCE(SUM(CASE WHEN call_duration > 0 AND call_duration <= 20 THEN 1 ELSE 0 END), 0) as connected_short_calls,
+        COALESCE(SUM(CASE WHEN call_duration > 20 THEN 1 ELSE 0 END), 0) as connected_conversation_calls
     FROM " . tn('TBL_CALL_LOGS') . "
     WHERE user_id = ? AND $dateCond";
     
@@ -613,10 +592,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $connectionRate = $totalCalls > 0 ? round(($connectedCalls / $totalCalls) * 100, 1) : 0.0;
     
     // Status breakdown counts
-    $sqlStatus = "SELECT status, COUNT(*) as cnt 
+    $sqlStatus = "SELECT call_status, COUNT(*) as cnt 
         FROM " . tn('TBL_CALL_LOGS') . " 
         WHERE user_id = ? AND $dateCond 
-        GROUP BY status";
+        GROUP BY call_status";
     $stmt = $link->prepare($sqlStatus);
     $stmt->bind_param('i', $userId);
     $stmt->execute();
@@ -625,7 +604,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $statusMap = [];
     foreach ($statusRows as $sr) {
-        $st = $sr['status'] ?: 'Unknown';
+        $st = $sr['call_status'] ?: 'Unknown';
         $statusMap[$st] = (int)$sr['cnt'];
     }
     
@@ -666,15 +645,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $whereParts = ["cl.user_id = $userId", $dateCond];
     if ($statusFilter && $statusFilter !== 'all') {
         $escStatus = $link->real_escape_string($statusFilter);
-        $whereParts[] = "cl.status = '$escStatus'";
+        $whereParts[] = "cl.call_status = '$escStatus'";
     }
     if ($timingFilter && $timingFilter !== 'all') {
         if ($timingFilter === 'NOT_CONNECTED') {
-            $whereParts[] = "cl.duration_seconds = 0";
+            $whereParts[] = "cl.call_duration = 0";
         } elseif ($timingFilter === 'CONNECTED_SHORT') {
-            $whereParts[] = "(cl.duration_seconds > 0 AND cl.duration_seconds <= 20)";
+            $whereParts[] = "(cl.call_duration > 0 AND cl.call_duration <= 20)";
         } elseif ($timingFilter === 'CONNECTED_CONVERSATION') {
-            $whereParts[] = "cl.duration_seconds > 20";
+            $whereParts[] = "cl.call_duration > 20";
         }
     }
     
@@ -688,24 +667,27 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     // Rich joined query
     $sql = "SELECT 
         cl.id as log_id,
-        cl.lead_id as record_id,
-        CASE WHEN cl.call_type = 'TEMP' THEN 'TEMP' ELSE 'MAIN' END as source,
-        cl.status as call_status,
-        cl.duration_seconds as call_duration,
-        CASE 
-            WHEN cl.duration_seconds = 0 THEN 'NOT_CONNECTED'
-            WHEN cl.duration_seconds <= 20 THEN 'CONNECTED_SHORT'
+        cl.record_id,
+        cl.source,
+        cl.call_status,
+        cl.call_duration,
+        COALESCE(cl.timing_classification, CASE 
+            WHEN cl.call_duration = 0 THEN 'NOT_CONNECTED'
+            WHEN cl.call_duration <= 20 THEN 'CONNECTED_SHORT'
             ELSE 'CONNECTED_CONVERSATION'
-        END as timing_classification,
+        END) as timing_classification,
         cl.notes,
+        cl.next_followup,
+        cl.recording_url,
+        cl.call_time,
         cl.created_at,
         COALESCE(m.MAINDATABASE_NAME, t.CUST_NAME, '') as customer_name,
         COALESCE(m.MAINDATABASE_MOBILE, t.CUST_MOBILE, '') as customer_mobile,
         COALESCE(m.MAINDATABASE_COMPANY, t.CUST_COMPANY, '') as customer_company,
         COALESCE(m.MAINDATABASE_PACKAGE, t.CUST_PACKAGE, '') as customer_package
     FROM " . tn('TBL_CALL_LOGS') . " cl
-    LEFT JOIN " . tn('TBL_MAIN') . " m ON (cl.call_type != 'TEMP') AND cl.lead_id = m.ID
-    LEFT JOIN " . tn('TBL_TEMP') . " t ON (cl.call_type = 'TEMP') AND cl.lead_id = t.ID
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON (cl.source = 'MAIN' AND cl.record_id = m.ID)
+    LEFT JOIN " . tn('TBL_TEMP') . " t ON (cl.source = 'TEMP' AND cl.record_id = t.ID)
     WHERE $whereSql
     ORDER BY cl.created_at DESC
     LIMIT $offset, $limit";
@@ -736,7 +718,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             'timing_classification' => $r['timing_classification'],
             'notes' => $r['notes'] ?? '',
             'next_followup' => $r['next_followup'] ?? null,
-            'call_time' => $r['created_at'],
+            'recording_url' => $r['recording_url'] ?? null,
+            'call_time' => $r['call_time'] ?? $r['created_at'],
             'created_at' => $r['created_at'],
         ];
     }
@@ -761,9 +744,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
     $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
     
-    $sql = "SELECT id, lead_id as record_id, call_type as source, user_id, status as call_status, duration_seconds as call_duration, timing_classification, notes, next_followup, created_at
+    $sql = "SELECT id, record_id, source, user_id, call_status, call_duration, timing_classification, notes, next_followup, recording_url, call_time, created_at
             FROM " . tn('TBL_CALL_LOGS') . "
-            WHERE lead_id = ? AND call_type = ?
+            WHERE record_id = ? AND source = ?
             ORDER BY created_at DESC";
     $stmt = $link->prepare($sql);
     $stmt->bind_param('is', $recordId, $source);

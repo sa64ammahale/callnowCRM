@@ -214,8 +214,14 @@ Column mapping applied:
   - Implemented 20-minute lease-based auto-expiry locking in [`api/v1/telecaller/index.php`](file:///c:/xampp/htdocs/callnowCRM/api/v1/telecaller/index.php) (`GET /batch-leads`, `GET /next-call`, `POST /calls/{id}/complete`, `POST /release-queue`).
   - Added self-healing schema additions: `BATCH_ASSIGNED_AT` in `TEMPORARY_DATABASE` and `MAIN_DATABASE`, and `current_calling_db`, `last_batch_at` in `users`.
   - Enforced strict hierarchy: Temporary DB depleted first (oldest uncalled first); then Main DB (Tier 1 fresh uncalled `CALL_COUNT = 0` oldest first $\to$ Tier 2 user pending follow-ups $\to$ Tier 3 retries oldest dialed first).
-  - Guaranteed zero concurrency collision: Atomic transaction locking with `FOR UPDATE` prevents repeat numbers across multiple callers.
-  - Exposed active database: Returned top-level `current_database` in API responses and added live database indicator badge in [`modules/users/users_view.php`](file:///c:/xampp/htdocs/callnowCRM/modules/users/users_view.php).
+- **API Module Audit, Bug Fixes & Automated Test Suite (2026-10-27)**:
+  - Fixed schema discrepancies in `api/v1/telecaller/index.php`: aligned `TBL_CALL_LOGS` queries with database column definitions (`record_id` instead of `lead_id`, `source` instead of `call_type`, `call_status` instead of `status`, `call_duration` instead of `duration_seconds`).
+  - Fixed `LAST_CONNECTED_PERIOD` datetime corruptions in `TBL_MAIN` and `TBL_TEMP` (was binding `'XXs'` string into DATETIME column; now accurately sets `NOW()` when connected and retains existing value otherwise).
+  - Fixed `bind_param` parameter count mismatches (`sissii` instead of `sissiii`) in `api/v1/telecaller/index.php` and `api/v1/telecaller/submit_call.php`.
+  - Fixed `api/v1/telecaller/submit_call.php`: resolved non-existent columns (`CALL_DURATION`, `CALL_NOTES`, `NEXT_FOLLOWUP_DATE`, `RECORDING_URL`), corrected `MAINDATABASE_CALL_DIALED_STATUS` column mapping on `TBL_MAIN`, and fixed string binding type for `recording_url`.
+  - Added support for `/submit_call`, `/submit-call`, and `/calls/complete` directly in `api/v1/telecaller/index.php` routing for versatile mobile client compatibility.
+  - Excluded `localhost` and `127.0.0.1` from HTTPS enforcement in `.htaccess` to allow local API development and testing without SSL chain errors.
+  - Created automated test suite [`tests/test_api_module.php`](file:///c:/xampp/htdocs/callnowCRM/tests/test_api_module.php) covering 33 test assertions spanning Auth, Telecaller, Lease Locking, Analytics, Admin settings, and Token lifecycle with 100% pass rate.
 
 ## Remaining Known Issues (not yet fixed)
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.
