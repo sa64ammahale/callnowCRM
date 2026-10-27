@@ -41,6 +41,20 @@ $notes = trim($input['notes'] ?? '');
 $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : (!empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null);
 $recordingUrl = !empty($input['recording_url']) ? trim($input['recording_url']) : null;
 $callTime = !empty($input['call_time']) ? date('Y-m-d H:i:s', strtotime($input['call_time'])) : date('Y-m-d H:i:s');
+$dialTime = !empty($input['dial_time']) ? date('Y-m-d H:i:s', strtotime($input['dial_time'])) : null;
+$callEndTime = !empty($input['call_end_time']) ? date('Y-m-d H:i:s', strtotime($input['call_end_time'])) : null;
+$totalDuration = isset($input['total_duration']) ? (int)$input['total_duration'] : $callDuration;
+$simSlot = !empty($input['sim_slot']) ? trim((string)$input['sim_slot']) : null;
+
+// Store extra payload fields or explicit metadata JSON
+if (isset($input['metadata'])) {
+    $metadata = is_array($input['metadata']) ? json_encode($input['metadata'], JSON_UNESCAPED_UNICODE) : (string)$input['metadata'];
+} else {
+    $knownKeys = ['record_id', 'lead_id', 'id', 'source', 'call_status', 'status', 'notes', 'call_duration', 'duration_seconds', 'timing_classification', 'next_followup', 'next_followup_at', 'recording_url', 'call_time', 'dial_time', 'call_end_time', 'total_duration', 'sim_slot'];
+    $extra = array_diff_key($input, array_flip($knownKeys));
+    $metadata = !empty($extra) ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null;
+}
+
 $timingTier = trim($input['timing_classification'] ?? '');
 if (empty($timingTier)) {
     $timingTier = ($callDuration === 0) ? 'NOT_CONNECTED' : (($callDuration <= 20) ? 'CONNECTED_SHORT' : 'CONNECTED_CONVERSATION');
@@ -74,13 +88,14 @@ if ($source === 'MAIN') {
         MAINDATABASE_CALL_DIALED_STATUS = ?,
         MAINDATABASE_CALL_DIALED_USER = ?,
         MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
+        MAINDATABASE_CALL_DIAL_TIME = COALESCE(?, NOW()),
         LAST_DIALED_DATE_TIME = NOW(),
         LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
         CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1,
         BATCH_ASSIGNED_AT = NULL
         WHERE ID = ?";
     $stmt = $link->prepare($sql);
-    $stmt->bind_param('sissii', $callStatus, $userId, $notes, $notes, $isConnected, $recordId);
+    $stmt->bind_param('sisssii', $callStatus, $userId, $notes, $notes, $dialTime, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
 } else {
@@ -101,21 +116,26 @@ if ($source === 'MAIN') {
 // 2. Insert into call logs
 $logStmt = $link->prepare("
     INSERT INTO " . tn('TBL_CALL_LOGS') . "
-        (record_id, source, user_id, call_status, call_duration, timing_classification, notes, next_followup, recording_url, call_time, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        (record_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 ");
 $logStmt->bind_param(
-    'isisisssss',
+    'isisiisssssssss',
     $recordId,
     $source,
     $userId,
     $callStatus,
     $callDuration,
+    $totalDuration,
     $timingTier,
     $notes,
+    $metadata,
     $nextFollowup,
     $recordingUrl,
-    $callTime
+    $simSlot,
+    $callTime,
+    $dialTime,
+    $callEndTime
 );
 $logStmt->execute();
 $logId = $logStmt->insert_id;
@@ -124,10 +144,15 @@ $logStmt->close();
 $table = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
 logActivity($link, $userId, 'CALL_SUBMITTED', "Submitted call result for $source record #$recordId", (string)$recordId, $table);
 
+// Convert to CRM Leads table (TBL_LEADS) if status is Lead or Follow-up
+$syncedLeadId = syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $callStatus, $notes, $nextFollowup);
+
 apiSuccess([
     'message' => 'Call result submitted successfully',
     'log_id' => $logId,
     'record_id' => $recordId,
+    'lead_id' => $syncedLeadId,
     'timing_classification' => $timingTier,
     'duration' => $callDuration,
+    'total_duration' => $totalDuration,
 ]);

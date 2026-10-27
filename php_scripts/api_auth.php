@@ -264,6 +264,120 @@ function logApiAccess(array $tokenData, string $endpoint, string $method, int $r
     } catch (Throwable $t) {}
 }
 
+if (!function_exists('syncCallToLeadsAndPipeline')) {
+    function syncCallToLeadsAndPipeline(mysqli $link, string $source, int $recordId, int $userId, string $status, string $notes, ?string $nextFollowup): ?int {
+        $statusLower = strtolower(trim($status));
+        $isLead = in_array($statusLower, ['lead', 'interested']);
+        $isCallback = in_array($statusLower, ['call back', 'callback', 'follow-up', 'follow up']);
+
+        if (!$isLead && !$isCallback) {
+            return null;
+        }
+
+        $leadContact = null;
+        $mainCustId = $recordId;
+
+        if ($source === 'MAIN') {
+            $q = $link->prepare("SELECT ID, MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_OTHER_INFO FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+            if ($q) {
+                $q->bind_param('i', $recordId);
+                $q->execute();
+                $leadContact = $q->get_result()->fetch_assoc();
+                $q->close();
+            }
+        } else {
+            $q = $link->prepare("SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_OTHER_INFO FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
+            if ($q) {
+                $q->bind_param('i', $recordId);
+                $q->execute();
+                $tRow = $q->get_result()->fetch_assoc();
+                $q->close();
+                if ($tRow) {
+                    $mob = trim($tRow['CUST_MOBILE'] ?? '');
+                    if ($mob !== '') {
+                        $chkM = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
+                        $chkM->bind_param('s', $mob);
+                        $chkM->execute();
+                        $mFound = $chkM->get_result()->fetch_assoc();
+                        $chkM->close();
+                        if ($mFound) {
+                            $mainCustId = (int)$mFound['ID'];
+                        } else {
+                            $insM = $link->prepare("INSERT INTO " . tn('TBL_MAIN') . " (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS, MAINDATABASE_CALL_DIALED_USER, LAST_DIALED_DATE_TIME, MAINDATABASE_UPLOAD_DATETIME) VALUES (?, ?, ?, ?, 'Lead', ?, NOW(), NOW())");
+                            $insM->bind_param('ssssi', $tRow['CUST_NAME'], $tRow['CUST_MOBILE'], $tRow['CUST_COMPANY'], $tRow['CUST_OTHER_INFO'], $userId);
+                            $insM->execute();
+                            $mainCustId = (int)$insM->insert_id;
+                            $insM->close();
+                        }
+                    }
+                    $leadContact = [
+                        'ID' => $mainCustId,
+                        'MAINDATABASE_NAME' => $tRow['CUST_NAME'] ?? '',
+                        'MAINDATABASE_MOBILE' => $tRow['CUST_MOBILE'] ?? '',
+                        'MAINDATABASE_COMPANY' => $tRow['CUST_COMPANY'] ?? '',
+                        'MAINDATABASE_OTHER_INFO' => $tRow['CUST_OTHER_INFO'] ?? '',
+                    ];
+                }
+            }
+        }
+
+        if (!$leadContact) return null;
+
+        $cName = $leadContact['MAINDATABASE_NAME'] ?? '';
+        $cMobile = $leadContact['MAINDATABASE_MOBILE'] ?? '';
+        $cCompany = $leadContact['MAINDATABASE_COMPANY'] ?? '';
+        $cOther = $notes ?: ($leadContact['MAINDATABASE_OTHER_INFO'] ?? '');
+
+        $chkL = $link->prepare("SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = ? OR (MOBILE IS NOT NULL AND MOBILE != '' AND MOBILE = ?) LIMIT 1");
+        $chkL->bind_param('is', $mainCustId, $cMobile);
+        $chkL->execute();
+        $existingL = $chkL->get_result()->fetch_assoc();
+        $chkL->close();
+
+        $leadId = null;
+
+        if ($isLead) {
+            if (!$existingL) {
+                $insLead = $link->prepare("INSERT INTO " . tn('TBL_LEADS') . " 
+                    (cust_id, NAME, MOBILE, COMPANY_NAME, OTHER_INFO, assigned_to, assigned_by, created_by, updated_by, lead_status, lead_status_new, lead_stage, priority, remarks, next_followup_at, last_contacted_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', 'LEAD', 'Warm', 'Medium', ?, ?, NOW(), NOW(), NOW())");
+                $insLead->bind_param('issssiiiiss', $mainCustId, $cName, $cMobile, $cCompany, $cOther, $userId, $userId, $userId, $userId, $notes, $nextFollowup);
+                $insLead->execute();
+                $leadId = (int)$insLead->insert_id;
+                $insLead->close();
+
+                if ($nextFollowup && $leadId > 0) {
+                    $insFollow = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
+                    $insFollow->bind_param('iiss', $leadId, $userId, $nextFollowup, $notes);
+                    $insFollow->execute();
+                    $insFollow->close();
+                }
+            } else {
+                $leadId = (int)$existingL['lead_id'];
+                $updLead = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET lead_status_new = 'LEAD', remarks = CASE WHEN ? != '' THEN ? ELSE remarks END, next_followup_at = COALESCE(?, next_followup_at), last_contacted_at = NOW(), updated_at = NOW() WHERE lead_id = ?");
+                $updLead->bind_param('ssssi', $notes, $notes, $nextFollowup, $leadId);
+                $updLead->execute();
+                $updLead->close();
+            }
+        } elseif ($isCallback && $existingL) {
+            $leadId = (int)$existingL['lead_id'];
+            $updLead = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET lead_status_new = 'FOLLOWUP', next_followup_at = COALESCE(?, next_followup_at), last_contacted_at = NOW(), updated_at = NOW() WHERE lead_id = ?");
+            $updLead->bind_param('si', $nextFollowup, $leadId);
+            $updLead->execute();
+            $updLead->close();
+
+            if ($nextFollowup) {
+                $insFollow = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
+                $insFollow->bind_param('iiss', $leadId, $userId, $nextFollowup, $notes);
+                $insFollow->execute();
+                $insFollow->close();
+            }
+        }
+
+        return $leadId;
+    }
+}
+
 // Auto-execute middleware for protected API endpoints.
 // Auth routers (login/logout/refresh/me) define API_SKIP_AUTO_AUTH
 // before including this file so public endpoints stay reachable.

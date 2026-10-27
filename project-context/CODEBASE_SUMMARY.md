@@ -222,6 +222,11 @@ Column mapping applied:
   - Added support for `/submit_call`, `/submit-call`, and `/calls/complete` directly in `api/v1/telecaller/index.php` routing for versatile mobile client compatibility.
   - Excluded `localhost` and `127.0.0.1` from HTTPS enforcement in `.htaccess` to allow local API development and testing without SSL chain errors.
   - Created automated test suite [`tests/test_api_module.php`](file:///c:/xampp/htdocs/callnowCRM/tests/test_api_module.php) covering 33 test assertions spanning Auth, Telecaller, Lease Locking, Analytics, Admin settings, and Token lifecycle with 100% pass rate.
+- **Rich Call Telemetry & Auto-Conversion to Leads Pipeline (2026-10-27)**:
+  - Added full call telemetry extraction & persistence (`dial_time`, `call_end_time`, `total_duration`, `sim_slot`, and `metadata` JSON) in `TBL_CALL_LOGS` across both `/calls/{id}/complete` and `/submit_call`.
+  - Added `syncCallToLeadsAndPipeline()` in `php_scripts/api_auth.php`: when a telecaller submits a call with status `Lead` or `Interested`, the record is automatically converted and inserted into `TBL_LEADS` (`leads_table`) with caller attribution and open follow-up in `TBL_LEAD_FOLLOWUPS`. If `Call Back` or `Follow-up` is submitted, the lead's follow-up schedule and stage are automatically updated.
+  - Updated `modules/logs/Reports.php` aggregation query: included `Lead`, `Interested` in `connected` calls, and `Call Back`, `callback`, `Follow-up` in `pending` calls so productive mobile calls reflect in performance reports.
+  - Updated `.htaccess` HTTPS rewrite condition: exempted private LAN IP ranges (`10.x.x.x`, `192.168.x.x`, `172.16-31.x.x`) to facilitate direct local mobile app testing over Wi-Fi without SSL rejection.
 
 ## Remaining Known Issues (not yet fixed)
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.

@@ -282,6 +282,17 @@
                 KEY idx_created_at (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
+            // Ensure rich call telemetry columns exist in TBL_CALL_LOGS
+            $colRes = mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS') . " LIKE 'dial_time'");
+            if ($colRes && mysqli_num_rows($colRes) === 0) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " 
+                    ADD COLUMN dial_time DATETIME NULL AFTER call_time,
+                    ADD COLUMN call_end_time DATETIME NULL AFTER dial_time,
+                    ADD COLUMN total_duration INT NULL AFTER call_duration,
+                    ADD COLUMN sim_slot VARCHAR(50) NULL AFTER recording_url,
+                    ADD COLUMN metadata LONGTEXT NULL AFTER notes");
+            }
+
             $done = true;
         }
     }
