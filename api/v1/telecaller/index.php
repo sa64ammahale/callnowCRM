@@ -421,7 +421,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 } elseif ($relativePath === '/reports/summary' || $relativePath === '/reports/summary/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
-    $period = $_GET['period'] ?? 'today';
+    $cols = $link->query("SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS'))->fetch_all(MYSQLI_ASSOC);
+    $colNames = array_column($cols, 'Field');
+    throw new Exception("REMOTE_CALL_LOGS_COLS: " . implode(', ', $colNames));
     $dateFrom = $_GET['date_from'] ?? null;
     $dateTo = $_GET['date_to'] ?? null;
     
