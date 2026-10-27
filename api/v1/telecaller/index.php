@@ -15,12 +15,22 @@ header('Content-Type: application/json; charset=utf-8');
 
 ensureApiSchema($GLOBALS['link']);
 
+// Self-heal: ensure timing_classification column exists on TBL_CALL_LOGS
+try {
+    $resCol = @$GLOBALS['link']->query("SHOW COLUMNS FROM " . tn('TBL_CALL_LOGS') . " LIKE 'timing_classification'");
+    if ($resCol && $resCol->num_rows === 0) {
+        @$GLOBALS['link']->query("ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN timing_classification VARCHAR(30) NULL DEFAULT NULL AFTER call_duration");
+    }
+} catch (Throwable $t) {}
+
 $tokenData = $GLOBALS['api_token_data'];
 $userId = (int)$tokenData['user_id'];
 $userRole = $tokenData['user_role'] ?? 'Telecaller';
 $teamId = !empty($tokenData['user_team_id']) ? (int)$tokenData['user_team_id'] : null;
 
 global $link;
+
+try {
 
 $requestUri = $_SERVER['REQUEST_URI'] ?? '';
 $path = parse_url($requestUri, PHP_URL_PATH);
@@ -573,4 +583,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
 } else {
     apiError(404, 'Telecaller endpoint not found');
+}
+} catch (Throwable $e) {
+    apiError(500, 'Server Exception: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
 }
