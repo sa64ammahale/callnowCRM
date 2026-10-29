@@ -717,6 +717,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function fetchCards() {
         cardsSummary.textContent = 'Loading leads…';
         var body = new URLSearchParams({
+            csrf_token: csrfToken,
             page: String(state.page), perPage: String(state.perPage),
             search: state.globalSearch, quickStatus: state.quickStatus,
             loginMonth: state.loginMonth, followupMonth: state.followupMonth,

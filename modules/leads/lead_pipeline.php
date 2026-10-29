@@ -39,7 +39,7 @@ $sql = "
         l.salary_account, l.bank_name, l.bank_rm_name, l.bt_details, l.dsa_name,
         l.login_location, l.promo_code, l.followup_count, l.last_contacted_at,
         l.rework_flag, l.rework_stage, l.login_status,
-        COALESCE(NULLIF(m.MAINDATABASE_NAME, ''), NULLIF(l.NAME, ''), 'Lead #' . l.lead_id) AS customer_name,
+        COALESCE(NULLIF(m.MAINDATABASE_NAME, ''), NULLIF(l.NAME, ''), CONCAT('Lead #', l.lead_id)) AS customer_name,
         COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') AS company_name,
         COALESCE(NULLIF(m.MAINDATABASE_MOBILE, ''), NULLIF(l.MOBILE, ''), 'N/A') AS mobile,
         COALESCE(u.NAME, 'Unassigned') AS assigned_name
