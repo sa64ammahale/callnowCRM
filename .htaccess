@@ -49,11 +49,7 @@ DirectoryIndex index.php
     RewriteRule ^api/v1/admin/(.*)$ api/v1/admin/index.php [L,QSA]
     RewriteRule ^api/v1/telecaller/(.*)$ api/v1/telecaller/index.php [L,QSA]
 
-    # Hide .php extension
-    RewriteCond %{THE_REQUEST} \s/([^.]+)\.php[\s?] [NC]
-    RewriteCond %{REQUEST_METHOD} GET
-    RewriteRule ^ %1 [R=301,L]
-
+    # Support extensionless URLs (clean URLs) without force-redirecting .php files
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME}.php -f

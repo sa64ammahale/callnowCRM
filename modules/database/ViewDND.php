@@ -506,9 +506,9 @@ include '../../php_scripts/header.php';
             <!-- Filter & Search Bar -->
             <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
                 <div class="btn-group btn-group-sm" role="group">
-                    <a href="?<?= buildQuery(['source' => 'ALL', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'ALL' ? 'btn-danger' : 'btn-outline-secondary' ?>">All Databases (<?= number_format($totalMain + $totalTemp) ?>)</a>
-                    <a href="?<?= buildQuery(['source' => 'TEMP', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'TEMP' ? 'btn-danger' : 'btn-outline-secondary' ?>">Temporary DB (<?= number_format($totalTemp) ?>)</a>
-                    <a href="?<?= buildQuery(['source' => 'MAIN', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'MAIN' ? 'btn-danger' : 'btn-outline-secondary' ?>">Main DB (<?= number_format($totalMain) ?>)</a>
+                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'ALL', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'ALL' ? 'btn-danger' : 'btn-outline-secondary' ?>">All Databases (<?= number_format($totalMain + $totalTemp) ?>)</a>
+                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'TEMP', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'TEMP' ? 'btn-danger' : 'btn-outline-secondary' ?>">Temporary DB (<?= number_format($totalTemp) ?>)</a>
+                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'MAIN', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'MAIN' ? 'btn-danger' : 'btn-outline-secondary' ?>">Main DB (<?= number_format($totalMain) ?>)</a>
                 </div>
 
                 <div class="input-group input-group-sm shadow-sm" style="min-width: 260px;">
@@ -619,7 +619,7 @@ include '../../php_scripts/header.php';
                     <nav aria-label="DND Pagination">
                         <ul class="pagination pagination-sm justify-content-center flex-wrap mb-0">
                             <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-                                <a class="page-link" href="?<?= buildQuery(['page' => $page - 1]) ?>" aria-label="Previous">&laquo;</a>
+                                <a class="page-link" href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['page' => $page - 1]) ?>" aria-label="Previous">&laquo;</a>
                             </li>
 
                             <?php
@@ -627,23 +627,23 @@ include '../../php_scripts/header.php';
                             $end = min($totalPages, $page + 2);
 
                             if ($start > 1): ?>
-                                <li class="page-item"><a class="page-link" href="?<?= buildQuery(['page' => 1]) ?>">1</a></li>
+                                <li class="page-item"><a class="page-link" href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['page' => 1]) ?>">1</a></li>
                                 <?php if ($start > 2): ?><li class="page-item disabled"><span class="page-link">...</span></li><?php endif; ?>
                             <?php endif; ?>
 
                             <?php for ($i = $start; $i <= $end; $i++): ?>
                                 <li class="page-item <?= $i == $page ? 'active' : '' ?>">
-                                    <a class="page-link" href="?<?= buildQuery(['page' => $i]) ?>"><?= $i ?></a>
+                                    <a class="page-link" href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['page' => $i]) ?>"><?= $i ?></a>
                                 </li>
                             <?php endfor; ?>
 
                             <?php if ($end < $totalPages): ?>
                                 <?php if ($end < $totalPages - 1): ?><li class="page-item disabled"><span class="page-link">...</span></li><?php endif; ?>
-                                <li class="page-item"><a class="page-link" href="?<?= buildQuery(['page' => $totalPages]) ?>"><?= $totalPages ?></a></li>
+                                <li class="page-item"><a class="page-link" href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['page' => $totalPages]) ?>"><?= $totalPages ?></a></li>
                             <?php endif; ?>
 
                             <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
-                                <a class="page-link" href="?<?= buildQuery(['page' => $page + 1]) ?>" aria-label="Next">&raquo;</a>
+                                <a class="page-link" href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['page' => $page + 1]) ?>" aria-label="Next">&raquo;</a>
                             </li>
                         </ul>
                     </nav>
