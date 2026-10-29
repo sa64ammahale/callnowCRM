@@ -12,7 +12,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 }
 
 $theme = $_POST['theme'] ?? 'light';
-$theme = ($theme === 'dark') ? 'dark' : 'light';
+$theme = 'light';
 
 if (session_status() === PHP_SESSION_ACTIVE) {
     $_SESSION['theme'] = $theme;

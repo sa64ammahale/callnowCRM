@@ -387,9 +387,6 @@ include '../../php_scripts/header.php';
 .rp-special-table tbody tr:nth-child(even) td {
     background-color: rgba(239, 68, 68, 0.02);
 }
-[data-bs-theme="dark"] .rp-special-table tbody tr:nth-child(even) td {
-    background-color: rgba(255, 255, 255, 0.02);
-}
 .rp-special-table tbody tr:hover td {
     background-color: rgba(239, 68, 68, 0.06) !important;
 }

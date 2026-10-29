@@ -16,9 +16,6 @@ $userInitial = mb_strtoupper(mb_substr($userName, 0, 1));
     </div>
 
     <div class="app-topbar-actions">
-        <button type="button" class="app-topbar-icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
-            <i class="bi bi-moon-stars" id="themeIcon"></i>
-        </button>
 
         <div class="app-topbar-divider"></div>
 

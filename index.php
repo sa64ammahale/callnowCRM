@@ -104,7 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 ?>
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="<?= ($_SESSION['theme'] ?? 'light') === 'dark' ? 'dark' : 'light' ?>">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
