@@ -193,7 +193,11 @@ function getCallStatusBadge(string $status): string {
             return '<span class="ch-badge ch-badge-secondary"><i class="bi bi-telephone-minus"></i> No Answer</span>';
         case 'do not call':
         case 'dnc':
-            return '<span class="ch-badge ch-badge-danger"><i class="bi bi-slash-circle-fill"></i> DNC</span>';
+        case 'dnd':
+        case 'dnd number':
+        case 'do not disturb':
+        case 'not_connected_dnd':
+            return '<span class="ch-badge ch-badge-danger"><i class="bi bi-slash-circle-fill"></i> DND</span>';
         case 'pending':
         case 'follow up':
         case 'follow-up':

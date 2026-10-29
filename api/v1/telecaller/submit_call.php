@@ -36,7 +36,11 @@ $recordId = (int)$input['record_id'];
 $rawSource = strtoupper(trim($input['source']));
 $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
 $rawCallStatus = trim($input['call_status']);
-$isDnd = in_array(strtolower($rawCallStatus), ['dnd', 'do not call', 'dnc']);
+$rawStatusLow = strtolower($rawCallStatus);
+$isDnd = in_array($rawStatusLow, ['dnd', 'do not call', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'])
+    || str_contains($rawStatusLow, 'dnd')
+    || str_contains($rawStatusLow, 'disturb')
+    || str_contains($rawStatusLow, 'not call');
 $callStatus = $isDnd ? 'Do Not Call' : $rawCallStatus;
 
 $callDuration = isset($input['call_duration']) ? (int)$input['call_duration'] : (isset($input['duration_seconds']) ? (int)$input['duration_seconds'] : 0);

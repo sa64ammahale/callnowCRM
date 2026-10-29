@@ -161,7 +161,7 @@ $sqlSummary = "
         SUM(CASE WHEN LOWER(m.call_status) = 'dialed'      THEN 1 ELSE 0 END) AS dialed,
         SUM(CASE WHEN LOWER(m.call_status) = 'busy'        THEN 1 ELSE 0 END) AS busy,
         SUM(CASE WHEN LOWER(m.call_status) IN ('no answer', 'no_answer') THEN 1 ELSE 0 END) AS no_answer,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('do not call', 'dnc') THEN 1 ELSE 0 END) AS dnc,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('do not call', 'dnc', 'dnd', 'dnd number', 'do not disturb', 'not_connected_dnd') THEN 1 ELSE 0 END) AS dnc,
         SUM(CASE WHEN LOWER(m.call_status) IN ('pending', 'call back', 'callback', 'follow-up', 'follow up', 'not interested') THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN LOWER(m.call_status) IN ('not called', 'not_called') THEN 1 ELSE 0 END) AS not_called
     FROM (
@@ -998,7 +998,7 @@ include '../../php_scripts/header.php';
                                 if (in_array($stLow, ['connected', 'lead', 'interested'])) $stBadge = 'bg-success-subtle text-success border border-success-subtle';
                                 elseif ($stLow === 'busy') $stBadge = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
                                 elseif (in_array($stLow, ['no answer', 'no_answer'])) $stBadge = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
-                                elseif (in_array($stLow, ['do not call', 'dnc'])) $stBadge = 'bg-danger-subtle text-danger border border-danger-subtle';
+                                elseif (in_array($stLow, ['do not call', 'dnc', 'dnd', 'dnd number', 'do not disturb', 'not_connected_dnd'])) $stBadge = 'bg-danger-subtle text-danger border border-danger-subtle';
                                 elseif (in_array($stLow, ['pending', 'call back', 'callback', 'follow up', 'follow-up'])) $stBadge = 'bg-info-subtle text-info border border-info-subtle';
                             ?>
                                 <tr>

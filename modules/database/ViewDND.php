@@ -22,25 +22,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $source = strtoupper(trim($_POST['source'] ?? 'MAIN'));
         $targetMobile = preg_replace('/\D/', '', trim($_POST['mobile'] ?? ''));
 
-        if ($delId > 0) {
-            if ($action === 'delete') {
-                // Permanently delete the lead record
-                $targetTable = ($source === 'TEMP') ? tn('TBL_TEMP') : tn('TBL_MAIN');
-                $stmt = mysqli_prepare($link, "DELETE FROM $targetTable WHERE ID = ?");
-                if ($stmt) {
-                    mysqli_stmt_bind_param($stmt, "i", $delId);
-                    if (mysqli_stmt_execute($stmt)) {
-                        $alertMsg = "Record #$delId ($source) permanently deleted.";
-                        $alertType = "success";
-                        logActivity($link, 'DND_RECORD_DELETED', "Deleted DND record #$delId from $targetTable");
+        if ($action === 'add') {
+            $addMobile = preg_replace('/\D/', '', trim($_POST['add_mobile'] ?? ''));
+            $addName = trim($_POST['add_name'] ?? '');
+            $addCompany = trim($_POST['add_company'] ?? '');
+            $addSource = strtoupper(trim($_POST['add_source'] ?? 'MAIN'));
+            if (!in_array($addSource, ['MAIN', 'TEMP'], true)) {
+                $addSource = 'MAIN';
+            }
+
+            if (strlen($addMobile) < 7) {
+                $alertMsg = "Please enter a valid mobile number (at least 7 digits).";
+                $alertType = "warning";
+            } else {
+                $uMain = mysqli_prepare($link, "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE = ?");
+                $affectedMain = 0;
+                if ($uMain) {
+                    mysqli_stmt_bind_param($uMain, "s", $addMobile);
+                    mysqli_stmt_execute($uMain);
+                    $affectedMain = mysqli_stmt_affected_rows($uMain);
+                    mysqli_stmt_close($uMain);
+                }
+
+                $uTemp = mysqli_prepare($link, "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = ?");
+                $affectedTemp = 0;
+                if ($uTemp) {
+                    mysqli_stmt_bind_param($uTemp, "s", $addMobile);
+                    mysqli_stmt_execute($uTemp);
+                    $affectedTemp = mysqli_stmt_affected_rows($uTemp);
+                    mysqli_stmt_close($uTemp);
+                }
+
+                if ($affectedMain === 0 && $affectedTemp === 0) {
+                    if ($addSource === 'TEMP') {
+                        $iStmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_TEMP') . " (CUST_NAME, CUST_MOBILE, CUST_COMPANY, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, TEMP_UPLOAD_DATETIME) VALUES (?, ?, ?, 'Do Not Call', NOW(), NOW())");
+                        if ($iStmt) {
+                            $defName = $addName ?: 'DND Contact';
+                            $defCompany = $addCompany ?: 'Manual DND';
+                            mysqli_stmt_bind_param($iStmt, "sss", $defName, $addMobile, $defCompany);
+                            mysqli_stmt_execute($iStmt);
+                            mysqli_stmt_close($iStmt);
+                        }
                     } else {
-                        $alertMsg = "Database error while deleting: " . mysqli_error($link);
-                        $alertType = "danger";
+                        $iStmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_MAIN') . " (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, MAINDATABASE_CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, MAINDATABASE_CALL_DIAL_TIME, MAINDATABASE_UPLOAD_DATETIME) VALUES (?, ?, ?, 'Do Not Call', NOW(), NOW(), NOW())");
+                        if ($iStmt) {
+                            $defName = $addName ?: 'DND Contact';
+                            $defCompany = $addCompany ?: 'Manual DND';
+                            mysqli_stmt_bind_param($iStmt, "sss", $defName, $addMobile, $defCompany);
+                            mysqli_stmt_execute($iStmt);
+                            mysqli_stmt_close($iStmt);
+                        }
                     }
-                    mysqli_stmt_close($stmt);
+                }
+
+                $alertMsg = "Mobile number $addMobile has been successfully added to Do-Not-Disturb (DND).";
+                $alertType = "success";
+                logActivity($link, 'DND_MANUAL_ADDED', "Added $addMobile to DND list ($addSource)");
+            }
+        } elseif ($delId > 0) {
+            if ($action === 'delete') {
+                if (!isAdmin()) {
+                    $alertMsg = "Only Administrators are permitted to permanently delete database records.";
+                    $alertType = "danger";
+                } else {
+                    $targetTable = ($source === 'TEMP') ? tn('TBL_TEMP') : tn('TBL_MAIN');
+                    $stmt = mysqli_prepare($link, "DELETE FROM $targetTable WHERE ID = ?");
+                    if ($stmt) {
+                        mysqli_stmt_bind_param($stmt, "i", $delId);
+                        if (mysqli_stmt_execute($stmt)) {
+                            $alertMsg = "Record #$delId ($source) permanently deleted.";
+                            $alertType = "success";
+                            logActivity($link, 'DND_RECORD_DELETED', "Deleted DND record #$delId from $targetTable");
+                        } else {
+                            $alertMsg = "Database error while deleting: " . mysqli_error($link);
+                            $alertType = "danger";
+                        }
+                        mysqli_stmt_close($stmt);
+                    }
                 }
             } elseif ($action === 'unmark') {
-                // Remove DND status, restoring record to 'Not Called' so it can be contacted again
+                $targetTable = ($source === 'TEMP') ? tn('TBL_TEMP') : tn('TBL_MAIN');
+                $mobileField = ($source === 'TEMP') ? 'CUST_MOBILE' : 'MAINDATABASE_MOBILE';
+
+                $mStmt = mysqli_prepare($link, "SELECT $mobileField FROM $targetTable WHERE ID = ? LIMIT 1");
+                if ($mStmt) {
+                    mysqli_stmt_bind_param($mStmt, "i", $delId);
+                    mysqli_stmt_execute($mStmt);
+                    $mRes = mysqli_stmt_get_result($mStmt);
+                    if ($mRow = mysqli_fetch_assoc($mRes)) {
+                        $dbMobile = preg_replace('/\D/', '', $mRow[$mobileField] ?? '');
+                        if ($dbMobile !== '') {
+                            $targetMobile = $dbMobile;
+                        }
+                    }
+                    mysqli_stmt_close($mStmt);
+                }
+
                 if ($source === 'TEMP') {
                     $uStmt = mysqli_prepare($link, "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE ID = ?");
                 } else {
@@ -52,11 +129,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     mysqli_stmt_close($uStmt);
                 }
 
-                // If mobile provided, remove DND across all matching numbers in both tables
                 if ($targetMobile !== '') {
-                    $escMobile = mysqli_real_escape_string($link, $targetMobile);
-                    mysqli_query($link, "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE MAINDATABASE_MOBILE = '$escMobile' AND LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')");
-                    mysqli_query($link, "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE CUST_MOBILE = '$escMobile' AND LOWER(CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')");
+                    $dndStatusInSql = "'do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'";
+                    $uMain = mysqli_prepare($link, "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE MAINDATABASE_MOBILE = ? AND LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ($dndStatusInSql)");
+                    if ($uMain) {
+                        mysqli_stmt_bind_param($uMain, "s", $targetMobile);
+                        mysqli_stmt_execute($uMain);
+                        mysqli_stmt_close($uMain);
+                    }
+
+                    $uTemp = mysqli_prepare($link, "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE CUST_MOBILE = ? AND LOWER(CALL_DIALED_STATUS) IN ($dndStatusInSql)");
+                    if ($uTemp) {
+                        mysqli_stmt_bind_param($uTemp, "s", $targetMobile);
+                        mysqli_stmt_execute($uTemp);
+                        mysqli_stmt_close($uTemp);
+                    }
                 }
 
                 $alertMsg = "Number successfully removed from DND and restored to calling queue.";
@@ -76,10 +163,14 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
 $search = trim($_GET['search'] ?? '');
 $dbFilter = strtoupper(trim($_GET['source'] ?? 'ALL'));
+if (!in_array($dbFilter, ['ALL', 'MAIN', 'TEMP'], true)) {
+    $dbFilter = 'ALL';
+}
 
 // Construct WHERE clauses matching DND statuses across both tables
-$whereMain = "LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')";
-$whereTemp = "LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')";
+$dndStatusInSql = "'do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'";
+$whereMain = "LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ($dndStatusInSql)";
+$whereTemp = "LOWER(t.CALL_DIALED_STATUS) IN ($dndStatusInSql)";
 
 $searchParamsMain = [];
 $searchParamsTemp = [];
@@ -381,6 +472,10 @@ include '../../php_scripts/header.php';
                         <div class="dnd-stat-lbl">Temp / Main DB</div>
                     </div>
                 </div>
+                <button type="button" class="btn btn-light text-danger fw-bold shadow-sm d-inline-flex align-items-center gap-2 px-3 py-2" style="border-radius: var(--radius-lg);" data-bs-toggle="modal" data-bs-target="#addDndModal">
+                    <i class="bi bi-plus-circle-fill fs-5"></i>
+                    <span>Add DND Number</span>
+                </button>
             </div>
         </div>
     </div>
@@ -555,6 +650,54 @@ include '../../php_scripts/header.php';
                 <?php endif; ?>
             </div>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- Add DND Number Modal -->
+<div class="modal fade" id="addDndModal" tabindex="-1" aria-labelledby="addDndModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0" style="border-radius: var(--radius-xl); overflow: hidden;">
+            <form method="POST">
+                <?= csrfField() ?>
+                <input type="hidden" name="action" value="add">
+                <div class="modal-header bg-danger text-white px-4 py-3">
+                    <h5 class="modal-title fw-bold" id="addDndModalLabel">
+                        <i class="bi bi-shield-slash-fill me-2"></i> Add Number to DND
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Mobile Number <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-surface-2"><i class="bi bi-telephone-fill text-muted"></i></span>
+                            <input type="text" name="add_mobile" class="form-control" placeholder="e.g. 9876543210" required pattern="[0-9\s\+\-]{7,15}">
+                        </div>
+                        <div class="form-text">All existing records matching this number across Main & Temporary databases will be marked as DND.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Customer Name <small class="text-muted">(Optional)</small></label>
+                        <input type="text" name="add_name" class="form-control" placeholder="Customer or Contact Name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Company / Remark <small class="text-muted">(Optional)</small></label>
+                        <input type="text" name="add_company" class="form-control" placeholder="Company or Reason for DND">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Default Target Database</label>
+                        <select name="add_source" class="form-select">
+                            <option value="MAIN" selected>Main Customer Database</option>
+                            <option value="TEMP">Temporary Leads Database</option>
+                        </select>
+                        <div class="form-text">Used if this number is new and will be registered as a new record.</div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-surface-2 px-4 py-3 border-top">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-bold"><i class="bi bi-shield-x me-1"></i> Block Number (Mark DND)</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 

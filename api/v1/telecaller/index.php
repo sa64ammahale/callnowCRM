@@ -98,16 +98,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $sqlTemp = "SELECT COUNT(*) as c FROM " . tn('TBL_TEMP') . " 
         WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
         AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
-        AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_MAIN') . " m 
             WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-            AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+            AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
             WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-            AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+            AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         )";
     $stmt = $link->prepare($sqlTemp);
     $stmt->bind_param('i', $userId);
@@ -120,16 +120,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $sqlMain = "SELECT COUNT(*) as c FROM " . tn('TBL_MAIN') . " 
         WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
         AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
-        AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
             WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         )";
     $stmt = $link->prepare($sqlMain);
     $stmt->bind_param('i', $userId);
@@ -162,16 +162,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     FROM " . tn('TBL_TEMP') . " 
     WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
     AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
-    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_MAIN') . " m 
         WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
     ORDER BY TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT ?";
@@ -216,16 +216,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         FROM " . tn('TBL_MAIN') . "
         WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
         AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
-        AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
             WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         )
         ORDER BY ID ASC
         LIMIT ?";
@@ -284,16 +284,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     FROM " . tn('TBL_TEMP') . " 
     WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
     AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
-    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_MAIN') . " m 
         WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
     ORDER BY TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT 1";
@@ -330,16 +330,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     FROM " . tn('TBL_MAIN') . " 
     WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
     AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
-    AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc')
+    AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
         WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-        AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_TEMP') . " t 
         WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-        AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc')
+        AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
     ORDER BY ID ASC
     LIMIT 1";
@@ -383,7 +383,11 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
     
     $rawStatus = trim($input['call_status'] ?? ($input['status'] ?? 'Connected'));
-    $isDnd = in_array(strtolower($rawStatus), ['dnd', 'do not call', 'dnc']);
+    $rawStatusLow = strtolower($rawStatus);
+    $isDnd = in_array($rawStatusLow, ['dnd', 'do not call', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'])
+        || str_contains($rawStatusLow, 'dnd')
+        || str_contains($rawStatusLow, 'disturb')
+        || str_contains($rawStatusLow, 'not call');
     $status = $isDnd ? 'Do Not Call' : $rawStatus;
     
     $notes = trim($input['notes'] ?? '');
