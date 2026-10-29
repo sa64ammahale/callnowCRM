@@ -57,7 +57,8 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/logs/
 | File | Purpose | Notes |
 |---|---|---|
-| `Reports.php` | Call performance reports (gated `view_reports`) | Modern single date-range page: preset ranges (today default, yesterday, last7/30/90, this/last month, last3/6, current_year, custom), high-contrast hero CTA, special cards with gradient headers, alternating zebra-striped tables, Team & Telecaller Summary prioritized above Chart.js charts, drill-down detailed calls, clean CSV/Excel export with UTF-8 BOM and sanitized employee names |
+| `Reports.php` | Call performance reports (gated `view_reports`) | Modern single date-range page: preset ranges, high-contrast hero KPIs (Total, Connected, Interested, Not Interested, Connect Rate), Team & Telecaller Summary with full disposition categorization (Connected, Interested, Not Interested, Follow-up, Busy / No Answer, DNC, Other), duration column, detailed calls drill-down, Doughnut status breakdown, and clean Excel/CSV export |
+| `call_history.php` | Real-time call logs audit trail (gated `view_reports`) | Log of all dialed calls from mobile app & web CRM; status badges (Interested, Not Interested, Busy/No Answer, DND, Follow-up, Wrong Number), duration pills, audio playback, pagination |
 | `ViewDialList.php` | Legacy per-user dial list | **DELETED** — broken schema + SQLi on dates |
 | `manage_activity.php` | Activity log viewer/admin | CSRF-protected, sort whitelist |
 

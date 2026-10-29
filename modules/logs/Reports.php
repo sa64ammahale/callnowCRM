@@ -135,6 +135,7 @@ $unionSubquery = "
         cl.user_id             AS user_id,
         COALESCE(cl.call_time, cl.created_at) AS call_time,
         cl.call_status         AS call_status,
+        cl.call_duration       AS call_duration,
         COALESCE(t.CUST_NAME, m.MAINDATABASE_NAME, l.NAME, '') AS cust_name,
         COALESCE(t.CUST_MOBILE, m.MAINDATABASE_MOBILE, l.MOBILE, '') AS cust_mobile,
         COALESCE(t.CUST_COMPANY, m.MAINDATABASE_COMPANY, l.COMPANY_NAME, '') AS cust_company,
@@ -157,13 +158,19 @@ $sqlSummary = "
         t.SUPERVISOR_ID,
         s.NAME AS supervisor_name,
         COUNT(*) AS total,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('connected', 'lead', 'interested') THEN 1 ELSE 0 END) AS connected,
-        SUM(CASE WHEN LOWER(m.call_status) = 'dialed'      THEN 1 ELSE 0 END) AS dialed,
-        SUM(CASE WHEN LOWER(m.call_status) = 'busy'        THEN 1 ELSE 0 END) AS busy,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('no answer', 'no_answer') THEN 1 ELSE 0 END) AS no_answer,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('do not call', 'dnc', 'dnd', 'dnd number', 'do not disturb', 'not_connected_dnd') THEN 1 ELSE 0 END) AS dnc,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('pending', 'call back', 'callback', 'follow-up', 'follow up', 'not interested') THEN 1 ELSE 0 END) AS pending,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('not called', 'not_called') THEN 1 ELSE 0 END) AS not_called
+        SUM(CASE WHEN (m.call_duration > 0 OR LOWER(m.call_status) IN ('connected', 'lead', 'interested', 'interested / hot', 'deal converted', 'follow-up needed', 'callback / follow-up', 'follow-up', 'follow up', 'not interested', 'other discussion')) THEN 1 ELSE 0 END) AS connected,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('interested', 'interested / hot', 'deal converted', 'lead', 'connected') THEN 1 ELSE 0 END) AS interested,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('not interested', 'not_interested') THEN 1 ELSE 0 END) AS not_interested,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('follow-up needed', 'callback / follow-up', 'follow up', 'follow-up', 'call back', 'callback', 'pending') THEN 1 ELSE 0 END) AS followup,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('busy / no answer', 'busy', 'no answer', 'no_answer') THEN 1 ELSE 0 END) AS busy_no_ans,
+        SUM(CASE WHEN LOWER(m.call_status) IN ('do not call', 'dnc', 'dnd', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd') THEN 1 ELSE 0 END) AS dnc,
+        SUM(CASE WHEN LOWER(m.call_status) NOT IN (
+            'interested', 'interested / hot', 'deal converted', 'lead', 'connected',
+            'not interested', 'not_interested',
+            'follow-up needed', 'callback / follow-up', 'follow up', 'follow-up', 'call back', 'callback', 'pending',
+            'busy / no answer', 'busy', 'no answer', 'no_answer',
+            'do not call', 'dnc', 'dnd', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd'
+        ) THEN 1 ELSE 0 END) AS other
     FROM (
         $unionSubquery
     ) AS m
@@ -175,16 +182,16 @@ LEFT JOIN " . tn('TBL_USERS') . " s ON t.SUPERVISOR_ID = s.ID
     ORDER BY t.NAME, u.NAME
 ";
 
-$data          = [];
-$grand_total   = 0;
-$grand_connected = 0;
-$grand_dialed  = 0;
-$grand_busy    = 0;
-$grand_no_ans  = 0;
-$grand_dnc     = 0;
-$grand_pending = 0;
-$grand_not_called = 0;
-$TBL_USERS_index   = [];
+$data                 = [];
+$grand_total          = 0;
+$grand_connected      = 0;
+$grand_interested     = 0;
+$grand_not_interested = 0;
+$grand_followup       = 0;
+$grand_busy_no_ans    = 0;
+$grand_dnc            = 0;
+$grand_other          = 0;
+$TBL_USERS_index      = [];
 
 if ($runQueries) {
     $stmt = mysqli_prepare($link, $sqlSummary);
@@ -206,19 +213,19 @@ if ($runQueries) {
                 'team_id'         => $row['team_id'],
                 'supervisor_id'   => $row['SUPERVISOR_ID'],
                 'supervisor_name' => $row['supervisor_name'],
-                'TBL_USERS'           => []
+                'TBL_USERS'       => []
             ];
         }
         $data[$team_name]['TBL_USERS'][] = $row;
 
-        $grand_total      += (int)$row['total'];
-        $grand_connected  += (int)$row['connected'];
-        $grand_dialed     += (int)$row['dialed'];
-        $grand_busy       += (int)$row['busy'];
-        $grand_no_ans     += (int)$row['no_answer'];
-        $grand_dnc        += (int)$row['dnc'];
-        $grand_pending    += (int)$row['pending'];
-        $grand_not_called += (int)$row['not_called'];
+        $grand_total          += (int)$row['total'];
+        $grand_connected      += (int)$row['connected'];
+        $grand_interested     += (int)$row['interested'];
+        $grand_not_interested += (int)$row['not_interested'];
+        $grand_followup       += (int)$row['followup'];
+        $grand_busy_no_ans    += (int)$row['busy_no_ans'];
+        $grand_dnc            += (int)$row['dnc'];
+        $grand_other          += (int)$row['other'];
 
         $TBL_USERS_index[$row['user_id']] = $row['user_name'];
     }
@@ -243,7 +250,7 @@ $bucketExpr = $bucket === 'month'
 $sqlTrend = "
     SELECT $bucketExpr AS bucket,
            COUNT(*) AS total,
-           SUM(CASE WHEN LOWER(m.call_status) IN ('connected', 'lead', 'interested') THEN 1 ELSE 0 END) AS connected
+           SUM(CASE WHEN (m.call_duration > 0 OR LOWER(m.call_status) IN ('connected', 'lead', 'interested', 'interested / hot', 'deal converted', 'follow-up needed', 'callback / follow-up', 'follow-up', 'follow up', 'not interested', 'other discussion')) THEN 1 ELSE 0 END) AS connected
     FROM (
         $unionSubquery
     ) AS m
@@ -288,10 +295,14 @@ foreach ($data as $block) {
     }
 }
 
-$statusLabels = ['Connected','Dialed','Busy','No Answer','DNC','Pending','Not Called'];
+$statusLabels = ['Interested / Connected', 'Not Interested', 'Follow-up', 'Busy / No Answer', 'DND', 'Other'];
 $statusValues = [
-    (int)$grand_connected, (int)$grand_dialed, (int)$grand_busy,
-    (int)$grand_no_ans, (int)$grand_dnc, (int)$grand_pending, (int)$grand_not_called
+    (int)$grand_interested,
+    (int)$grand_not_interested,
+    (int)$grand_followup,
+    (int)$grand_busy_no_ans,
+    (int)$grand_dnc,
+    (int)$grand_other
 ];
 
 /**
@@ -324,6 +335,7 @@ if ($selected_user_id !== null) {
         SELECT
             m.call_time,
             m.call_status,
+            m.call_duration,
             m.cust_name,
             m.cust_mobile,
             m.cust_company,
@@ -393,7 +405,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
 
     // Summary Section
     fputcsv($out, ['--- TEAM & TELECALLER SUMMARY ---']);
-    fputcsv($out, ['Team', 'Supervisor', 'Telecaller', 'Total Calls', 'Connected', 'Busy', 'No Answer', 'DNC', 'Pending', 'Not Called', 'Connect Rate (%)']);
+    fputcsv($out, ['Team', 'Supervisor', 'Telecaller', 'Total Calls', 'Connected', 'Interested', 'Not Interested', 'Follow-up', 'Busy / No Answer', 'DNC', 'Other', 'Connect Rate (%)']);
 
     foreach ($data as $team_name => $block) {
         $sup = $block['supervisor_name'] ?: 'None';
@@ -404,11 +416,12 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
                 $u['user_name'], // Clean employee name without initials or HTML tags
                 (int)$u['total'],
                 (int)$u['connected'],
-                (int)$u['busy'],
-                (int)$u['no_answer'],
+                (int)$u['interested'],
+                (int)$u['not_interested'],
+                (int)$u['followup'],
+                (int)$u['busy_no_ans'],
                 (int)$u['dnc'],
-                (int)$u['pending'],
-                (int)$u['not_called'],
+                (int)$u['other'],
                 $u['rate'] . '%'
             ]);
         }
@@ -419,14 +432,16 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
         fputcsv($out, []);
         fputcsv($out, []);
         fputcsv($out, ['--- DETAILED CALLS (' . ($selected_user_name ?: ('User #' . $selected_user_id)) . ') ---']);
-        fputcsv($out, ['Date & Time', 'Telecaller', 'Customer Name', 'Mobile Number', 'Company', 'Call Status', 'Source Database']);
+        fputcsv($out, ['Date & Time', 'Telecaller', 'Customer Name', 'Mobile Number', 'Company', 'Duration', 'Call Status', 'Source Database']);
         foreach ($detail_rows as $dr) {
+            $durStr = (int)($dr['call_duration'] ?? 0) > 0 ? (int)$dr['call_duration'] . 's' : '0s';
             fputcsv($out, [
                 $dr['call_time'] ? date('d-m-Y H:i:s', strtotime($dr['call_time'])) : '',
                 $selected_user_name,
                 $dr['cust_name'] ?: 'None',
                 $dr['cust_mobile'] ?: '',
                 $dr['cust_company'] ?: '',
+                $durStr,
                 $dr['call_status'],
                 $dr['source']
             ]);
@@ -592,12 +607,13 @@ include '../../php_scripts/header.php';
     font-size: 0.82rem;
     text-align: center;
 }
-.rp-num-connected { background: rgba(16, 185, 129, 0.12); color: #059669; }
-.rp-num-busy      { background: rgba(245, 158, 11, 0.12); color: #d97706; }
-.rp-num-noans     { background: rgba(100, 116, 139, 0.12); color: #475569; }
-.rp-num-dnc       { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
-.rp-num-pending   { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
-.rp-num-notcalled { background: var(--surface-2); color: var(--ink-muted); }
+.rp-num-connected     { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.rp-num-interested    { background: rgba(5, 150, 105, 0.14); color: #047857; }
+.rp-num-notinterested { background: rgba(100, 116, 139, 0.14); color: #475569; }
+.rp-num-followup      { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+.rp-num-busy          { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.rp-num-dnc           { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+.rp-num-other         { background: rgba(139, 92, 246, 0.12); color: #7c3aed; }
 
 .rp-rate-badge {
     display: inline-flex;
@@ -730,6 +746,14 @@ include '../../php_scripts/header.php';
                         <span class="rp-kpi-value text-success"><?= number_format($grand_connected) ?></span>
                     </div>
                     <div class="rp-kpi">
+                        <span class="rp-kpi-label">Interested</span>
+                        <span class="rp-kpi-value text-success"><?= number_format($grand_interested) ?></span>
+                    </div>
+                    <div class="rp-kpi">
+                        <span class="rp-kpi-label">Not Interested</span>
+                        <span class="rp-kpi-value" style="color:#e2e8f0;"><?= number_format($grand_not_interested) ?></span>
+                    </div>
+                    <div class="rp-kpi">
                         <span class="rp-kpi-label">Connect Rate</span>
                         <span class="rp-kpi-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?>"><?= $grand_rate ?>%</span>
                     </div>
@@ -848,11 +872,12 @@ include '../../php_scripts/header.php';
                                 <th>Telecaller</th>
                                 <th class="text-center">Total Calls</th>
                                 <th class="text-center">Connected</th>
-                                <th class="text-center">Busy</th>
-                                <th class="text-center">No Answer</th>
+                                <th class="text-center">Interested</th>
+                                <th class="text-center">Not Interested</th>
+                                <th class="text-center">Follow-up</th>
+                                <th class="text-center">Busy / No Ans</th>
                                 <th class="text-center">DNC</th>
-                                <th class="text-center">Pending</th>
-                                <th class="text-center">Not Called</th>
+                                <th class="text-center">Other</th>
                                 <th class="text-center">Connect Rate</th>
                                 <th class="text-center" data-exclude="true">Actions</th>
                             </tr>
@@ -861,19 +886,21 @@ include '../../php_scripts/header.php';
                             <?php foreach ($data as $team_name => $block):
                                 $team_total = 0;
                                 $team_connected = 0;
-                                $team_busy = 0;
-                                $team_no_ans = 0;
+                                $team_interested = 0;
+                                $team_not_interested = 0;
+                                $team_followup = 0;
+                                $team_busy_no_ans = 0;
                                 $team_dnc = 0;
-                                $team_pending = 0;
-                                $team_not_called = 0;
+                                $team_other = 0;
                                 foreach ($block['TBL_USERS'] as $u) {
-                                    $team_total     += (int)$u['total'];
-                                    $team_connected += (int)$u['connected'];
-                                    $team_busy      += (int)$u['busy'];
-                                    $team_no_ans    += (int)$u['no_answer'];
-                                    $team_dnc       += (int)$u['dnc'];
-                                    $team_pending   += (int)$u['pending'];
-                                    $team_not_called+= (int)$u['not_called'];
+                                    $team_total          += (int)$u['total'];
+                                    $team_connected      += (int)$u['connected'];
+                                    $team_interested     += (int)$u['interested'];
+                                    $team_not_interested += (int)$u['not_interested'];
+                                    $team_followup       += (int)$u['followup'];
+                                    $team_busy_no_ans    += (int)$u['busy_no_ans'];
+                                    $team_dnc            += (int)$u['dnc'];
+                                    $team_other          += (int)$u['other'];
                                 }
                                 $team_rate = $team_total ? round($team_connected / $team_total * 100, 1) : 0;
                                 $sup = $block['supervisor_name'] ?? '—';
@@ -902,11 +929,12 @@ include '../../php_scripts/header.php';
                                         </td>
                                         <td class="text-center"><span class="fw-bold"><?= number_format($u['total']) ?></span></td>
                                         <td class="text-center"><span class="rp-num-badge rp-num-connected"><?= number_format($u['connected']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-busy"><?= number_format($u['busy']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-noans"><?= number_format($u['no_answer']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-interested"><?= number_format($u['interested']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-notinterested"><?= number_format($u['not_interested']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-followup"><?= number_format($u['followup']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-busy"><?= number_format($u['busy_no_ans']) ?></span></td>
                                         <td class="text-center"><span class="rp-num-badge rp-num-dnc"><?= number_format($u['dnc']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-pending"><?= number_format($u['pending']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-notcalled"><?= number_format($u['not_called']) ?></span></td>
+                                        <td class="text-center"><span class="rp-num-badge rp-num-other"><?= number_format($u['other']) ?></span></td>
                                         <td class="text-center">
                                             <span class="rp-rate-badge <?= $rateGood ? 'rp-rate-good' : 'rp-rate-poor' ?>">
                                                 <i class="bi <?= $rateGood ? 'bi-arrow-up-right' : 'bi-arrow-down-right' ?>"></i> <?= $rate ?>%
@@ -982,24 +1010,33 @@ include '../../php_scripts/header.php';
                     <table class="table align-middle rp-special-table mb-0">
                         <thead>
                             <tr>
-                                <th style="width: 18%;">Date &amp; Time</th>
-                                <th style="width: 24%;">Customer</th>
-                                <th style="width: 16%;">Mobile</th>
-                                <th style="width: 18%;">Company</th>
-                                <th style="width: 14%;">Status</th>
-                                <th style="width: 10%;">Source</th>
+                                <th style="width: 17%;">Date &amp; Time</th>
+                                <th style="width: 22%;">Customer</th>
+                                <th style="width: 15%;">Mobile</th>
+                                <th style="width: 16%;">Company</th>
+                                <th style="width: 10%;">Duration</th>
+                                <th style="width: 12%;">Status</th>
+                                <th style="width: 8%;">Source</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($detail_rows as $r):
                                 $timeStr = $r['call_time'] ? date('d M Y, h:i A', strtotime($r['call_time'])) : '—';
                                 $stLow = strtolower(trim($r['call_status']));
-                                $stBadge = 'bg-secondary-subtle text-secondary';
-                                if (in_array($stLow, ['connected', 'lead', 'interested'])) $stBadge = 'bg-success-subtle text-success border border-success-subtle';
-                                elseif ($stLow === 'busy') $stBadge = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
-                                elseif (in_array($stLow, ['no answer', 'no_answer'])) $stBadge = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
-                                elseif (in_array($stLow, ['do not call', 'dnc', 'dnd', 'dnd number', 'do not disturb', 'not_connected_dnd'])) $stBadge = 'bg-danger-subtle text-danger border border-danger-subtle';
-                                elseif (in_array($stLow, ['pending', 'call back', 'callback', 'follow up', 'follow-up'])) $stBadge = 'bg-info-subtle text-info border border-info-subtle';
+                                $stBadge = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
+                                if (in_array($stLow, ['connected', 'lead', 'interested', 'interested / hot', 'deal converted'])) {
+                                    $stBadge = 'bg-success-subtle text-success border border-success-subtle';
+                                } elseif (in_array($stLow, ['not interested', 'not_interested'])) {
+                                    $stBadge = 'bg-secondary-subtle text-dark border border-secondary';
+                                } elseif (in_array($stLow, ['busy', 'busy / no answer', 'no answer', 'no_answer'])) {
+                                    $stBadge = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                                } elseif (in_array($stLow, ['do not call', 'dnc', 'dnd', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd'])) {
+                                    $stBadge = 'bg-danger-subtle text-danger border border-danger-subtle';
+                                } elseif (in_array($stLow, ['pending', 'call back', 'callback', 'follow up', 'follow-up', 'follow-up needed', 'callback / follow-up'])) {
+                                    $stBadge = 'bg-info-subtle text-info border border-info-subtle';
+                                } elseif (in_array($stLow, ['wrong number', 'switched off', 'call cancelled'])) {
+                                    $stBadge = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
+                                }
                             ?>
                                 <tr>
                                     <td>
@@ -1017,6 +1054,16 @@ include '../../php_scripts/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td><?= htmlspecialchars($r['cust_company'] ?: '—') ?></td>
+                                    <td>
+                                        <?php if ((int)($r['call_duration'] ?? 0) > 0): ?>
+                                            <span class="badge bg-light text-dark border fw-semibold">
+                                                <i class="bi bi-stopwatch text-primary me-1"></i>
+                                                <?= (int)$r['call_duration'] >= 60 ? floor($r['call_duration']/60) . 'm ' . ($r['call_duration']%60) . 's' : $r['call_duration'] . 's' ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted small">0s</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <span class="badge rounded-pill <?= $stBadge ?> px-2 py-1">
                                             <?= htmlspecialchars($r['call_status']) ?>
@@ -1093,7 +1140,7 @@ new Chart(document.getElementById('statusChart'), {
         labels: statusLabels,
         datasets: [{
             data: statusValues,
-            backgroundColor: ['#198754','#0d6efd','#fd7e14','#ffc107','#dc3545','#6c757d','#adb5bd']
+            backgroundColor: ['#10b981', '#64748b', '#0ea5e9', '#f59e0b', '#dc2626', '#8b5cf6']
         }]
     },
     options: { responsive: true, maintainAspectRatio: false,

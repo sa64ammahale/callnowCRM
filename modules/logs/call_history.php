@@ -175,7 +175,24 @@ $result = mysqli_stmt_get_result($stmt);
 $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
 mysqli_stmt_close($stmt);
 
-$statusesList = ['Connected', 'Dialed', 'Busy', 'No Answer', 'Do Not Call', 'Pending', 'Not Called', 'Follow Up', 'Interested', 'Call Back'];
+$statusesList = [
+    'Connected',
+    'Interested / Hot',
+    'Interested',
+    'Deal Converted',
+    'Follow-up Needed',
+    'Not Interested',
+    'Busy / No Answer',
+    'Busy',
+    'No Answer',
+    'DND Number',
+    'Do Not Call',
+    'Wrong Number',
+    'Switched Off',
+    'Voicemail',
+    'Pending',
+    'Dialed'
+];
 ?>
 
 <?php
@@ -185,9 +202,15 @@ function getCallStatusBadge(string $status): string {
         case 'connected':
         case 'lead':
         case 'interested':
+        case 'interested / hot':
+        case 'deal converted':
             return '<span class="ch-badge ch-badge-success"><i class="bi bi-telephone-check-fill"></i> ' . htmlspecialchars($status) . '</span>';
+        case 'not interested':
+        case 'not_interested':
+            return '<span class="ch-badge" style="background:rgba(100,116,139,0.14);color:#475569;border:1px solid rgba(100,116,139,0.28);"><i class="bi bi-hand-thumbs-down-fill"></i> ' . htmlspecialchars($status) . '</span>';
         case 'busy':
-            return '<span class="ch-badge ch-badge-warning"><i class="bi bi-telephone-x-fill"></i> Busy</span>';
+        case 'busy / no answer':
+            return '<span class="ch-badge ch-badge-warning"><i class="bi bi-telephone-x-fill"></i> ' . htmlspecialchars($status) . '</span>';
         case 'no answer':
         case 'no_answer':
             return '<span class="ch-badge ch-badge-secondary"><i class="bi bi-telephone-minus"></i> No Answer</span>';
@@ -195,15 +218,22 @@ function getCallStatusBadge(string $status): string {
         case 'dnc':
         case 'dnd':
         case 'dnd number':
+        case 'dnd requested':
         case 'do not disturb':
         case 'not_connected_dnd':
-            return '<span class="ch-badge ch-badge-danger"><i class="bi bi-slash-circle-fill"></i> DND</span>';
+            return '<span class="ch-badge ch-badge-danger"><i class="bi bi-slash-circle-fill"></i> ' . htmlspecialchars($status) . '</span>';
         case 'pending':
         case 'follow up':
         case 'follow-up':
+        case 'follow-up needed':
+        case 'callback / follow-up':
         case 'call back':
         case 'callback':
             return '<span class="ch-badge ch-badge-info"><i class="bi bi-clock-fill"></i> ' . htmlspecialchars($status) . '</span>';
+        case 'wrong number':
+        case 'switched off':
+        case 'call cancelled':
+            return '<span class="ch-badge ch-badge-secondary"><i class="bi bi-x-circle"></i> ' . htmlspecialchars($status) . '</span>';
         case 'dialed':
             return '<span class="ch-badge ch-badge-dark"><i class="bi bi-telephone-outbound-fill"></i> Dialed</span>';
         default:
