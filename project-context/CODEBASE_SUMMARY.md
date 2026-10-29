@@ -228,6 +228,11 @@ Column mapping applied:
   - Added `syncCallToLeadsAndPipeline()` in `php_scripts/api_auth.php`: when a telecaller submits a call with status `Lead` or `Interested`, the record is automatically converted and inserted into `TBL_LEADS` (`leads_table`) with caller attribution and open follow-up in `TBL_LEAD_FOLLOWUPS`. If `Call Back` or `Follow-up` is submitted, the lead's follow-up schedule and stage are automatically updated.
   - Updated `modules/logs/Reports.php` aggregation query: included `Lead`, `Interested` in `connected` calls, and `Call Back`, `callback`, `Follow-up` in `pending` calls so productive mobile calls reflect in performance reports.
   - Updated `.htaccess` HTTPS rewrite condition: exempted private LAN IP ranges (`10.x.x.x`, `192.168.x.x`, `172.16-31.x.x`) to facilitate direct local mobile app testing over Wi-Fi without SSL rejection.
+- **Mobile App Lead Creation & Synchronization APIs (2026-10-29)**:
+  - Added `POST /api/v1/telecaller/leads`: allows mobile apps to create and send new leads to the backend CRM. Validates 10-digit mobile number, runs cross-database DND check against both `main_database` and `temporary_database`, prevents duplicate conflicts, assigns lead to the telecaller, syncs to `TBL_LEADS`, and logs activity.
+  - Added `GET /api/v1/telecaller/leads`: allows mobile apps to receive created/assigned leads with pagination, search, status filtering, and telecaller role-scoping.
+  - Added `GET /api/v1/telecaller/leads/{id}` and `PUT /api/v1/telecaller/leads/{id}`: retrieve and update existing lead details from the mobile client.
+  - Updated mobile app `ApiService` (`createLead`, `getCreatedLeads`, `updateLead`) and `LeadsScreen` with "+ Add Lead" modal bottom sheet.
 
 ## Remaining Known Issues (not yet fixed)
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.

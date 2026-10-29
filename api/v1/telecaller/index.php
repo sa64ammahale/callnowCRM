@@ -693,6 +693,379 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $relMain = $link->affected_rows;
     apiSuccess(['total_released' => $relTemp + $relMain]);
 
+} elseif ($relativePath === '/leads' || $relativePath === '/leads/') {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 30)));
+        $offset = ($page - 1) * $limit;
+        $search = trim($_GET['search'] ?? '');
+        $statusFilter = trim($_GET['status'] ?? 'all');
+        $sourceFilter = strtoupper(trim($_GET['source'] ?? 'all'));
+
+        $whereParts = [];
+        $params = [];
+        $types = '';
+
+        if ($userRole === 'Admin' || $userRole === 'Manager' || $userRole === 'Super Admin') {
+            if (!empty($_GET['user_id'])) {
+                $whereParts[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
+                $params[] = (int)$_GET['user_id'];
+                $types .= 'i';
+            } else {
+                $whereParts[] = "1=1";
+            }
+        } elseif ($userRole === 'Supervisor' && $teamId) {
+            $whereParts[] = "(u.TEAM_ID = ? OR m.MAINDATABASE_CALL_DIALED_USER = ?)";
+            $params[] = $teamId;
+            $params[] = $userId;
+            $types .= 'ii';
+        } else {
+            $whereParts[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
+            $params[] = $userId;
+            $types .= 'i';
+        }
+
+        if ($statusFilter !== '' && $statusFilter !== 'all') {
+            if (strtolower($statusFilter) === 'not_called' || strtolower($statusFilter) === 'not called') {
+                $whereParts[] = "(m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '')";
+            } elseif (strtolower($statusFilter) === 'called') {
+                $whereParts[] = "(m.MAINDATABASE_CALL_DIALED_STATUS != 'Not Called' AND m.MAINDATABASE_CALL_DIALED_STATUS IS NOT NULL AND m.MAINDATABASE_CALL_DIALED_STATUS != '')";
+            } else {
+                $whereParts[] = "m.MAINDATABASE_CALL_DIALED_STATUS = ?";
+                $params[] = $statusFilter;
+                $types .= 's';
+            }
+        }
+
+        if ($search !== '') {
+            $whereParts[] = "(m.MAINDATABASE_NAME LIKE ? OR m.MAINDATABASE_MOBILE LIKE ? OR m.MAINDATABASE_COMPANY LIKE ? OR m.MAINDATABASE_OTHER_INFO LIKE ?)";
+            $like = "%$search%";
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+            $types .= 'ssss';
+        }
+
+        $whereSql = "WHERE " . implode(" AND ", $whereParts);
+
+        $countSql = "SELECT COUNT(*) as c 
+                     FROM " . tn('TBL_MAIN') . " m 
+                     LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID 
+                     $whereSql";
+        $stmtC = $link->prepare($countSql);
+        if ($types !== '') {
+            $stmtC->bind_param($types, ...$params);
+        }
+        $stmtC->execute();
+        $total = (int)$stmtC->get_result()->fetch_assoc()['c'];
+        $stmtC->close();
+
+        $dataSql = "SELECT 
+                        m.ID,
+                        m.MAINDATABASE_NAME as name,
+                        m.MAINDATABASE_MOBILE as mobile,
+                        m.MAINDATABASE_COMPANY as company,
+                        m.MAINDATABASE_PACKAGE as package,
+                        m.MAINDATABASE_OTHER_INFO as other_info,
+                        m.MAINDATABASE_CALL_DIALED_STATUS as last_status,
+                        m.LAST_DIALED_DATE_TIME as last_call_time,
+                        m.MAINDATABASE_UPLOAD_DATETIME as upload_time,
+                        m.CALL_COUNT as call_count,
+                        u.NAME as assigned_user_name
+                    FROM " . tn('TBL_MAIN') . " m
+                    LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID
+                    $whereSql
+                    ORDER BY COALESCE(m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_UPLOAD_DATETIME) DESC
+                    LIMIT ? OFFSET ?";
+        
+        $paramsData = $params;
+        $typesData = $types . 'ii';
+        $paramsData[] = $limit;
+        $paramsData[] = $offset;
+
+        $stmtD = $link->prepare($dataSql);
+        $stmtD->bind_param($typesData, ...$paramsData);
+        $stmtD->execute();
+        $rows = $stmtD->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmtD->close();
+
+        $leadsList = [];
+        foreach ($rows as $r) {
+            $leadsList[] = [
+                'id' => (int)$r['ID'],
+                'record_id' => (int)$r['ID'],
+                'source' => 'MAIN',
+                'name' => $r['name'] ?? '',
+                'mobile' => $r['mobile'] ?? '',
+                'company' => $r['company'] ?? '',
+                'package' => $r['package'] ?? '',
+                'other_info' => $r['other_info'] ?? '',
+                'last_status' => $r['last_status'] ?? 'Not Called',
+                'last_call_time' => $r['last_call_time'],
+                'upload_time' => $r['upload_time'],
+                'call_count' => (int)($r['call_count'] ?? 0),
+                'assigned_user' => $r['assigned_user_name'] ?? null,
+            ];
+        }
+
+        apiSuccess([
+            'leads' => $leadsList,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'total_pages' => ceil($total / $limit),
+            ]
+        ]);
+
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $name = trim($input['name'] ?? ($input['customer_name'] ?? ''));
+        $rawMobile = trim($input['mobile'] ?? ($input['customer_mobile'] ?? ''));
+        $mobile = preg_replace('/[^0-9]/', '', $rawMobile);
+        if (strlen($mobile) > 10 && substr($mobile, 0, 2) === '91') {
+            $mobile = substr($mobile, 2);
+        }
+
+        if (empty($name)) {
+            apiError(400, 'Customer name is required');
+        }
+        if (empty($mobile) || strlen($mobile) < 10 || strlen($mobile) > 15) {
+            apiError(400, 'A valid 10-digit mobile number is required');
+        }
+
+        $company = trim($input['company'] ?? ($input['customer_company'] ?? ''));
+        $package = trim($input['package'] ?? ($input['customer_package'] ?? ($input['loan_amount'] ?? '')));
+        $otherInfo = trim($input['other_info'] ?? ($input['notes'] ?? ($input['remarks'] ?? '')));
+        $status = trim($input['status'] ?? ($input['call_status'] ?? 'Not Called'));
+        $source = strtoupper(trim($input['source'] ?? 'MAIN'));
+        if ($source !== 'TEMP' && $source !== 'TEMPORARY') {
+            $source = 'MAIN';
+        }
+
+        $dndSql = "SELECT ID, 'MAIN' as src FROM " . tn('TBL_MAIN') . " 
+                   WHERE MAINDATABASE_MOBILE = ? 
+                   AND LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd')
+                   UNION
+                   SELECT ID, 'TEMP' as src FROM " . tn('TBL_TEMP') . " 
+                   WHERE CUST_MOBILE = ? 
+                   AND LOWER(CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd')
+                   LIMIT 1";
+        $dStmt = $link->prepare($dndSql);
+        $dStmt->bind_param('ss', $mobile, $mobile);
+        $dStmt->execute();
+        $isDnd = $dStmt->get_result()->fetch_assoc();
+        $dStmt->close();
+
+        if ($isDnd) {
+            apiError(422, 'Cannot create lead: This mobile number is registered in the Do Not Call (DND) registry.');
+        }
+
+        $createdId = 0;
+        $isNew = true;
+
+        if ($source === 'MAIN') {
+            $chkStmt = $link->prepare("SELECT ID, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
+            $chkStmt->bind_param('s', $mobile);
+            $chkStmt->execute();
+            $exist = $chkStmt->get_result()->fetch_assoc();
+            $chkStmt->close();
+
+            if ($exist) {
+                $createdId = (int)$exist['ID'];
+                $isNew = false;
+                $uStmt = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET 
+                    MAINDATABASE_NAME = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_NAME END,
+                    MAINDATABASE_COMPANY = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_COMPANY END,
+                    MAINDATABASE_PACKAGE = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_PACKAGE END,
+                    MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
+                    MAINDATABASE_CALL_DIALED_USER = COALESCE(MAINDATABASE_CALL_DIALED_USER, ?),
+                    MAINDATABASE_CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_CALL_DIALED_STATUS END
+                    WHERE ID = ?");
+                $uStmt->bind_param('ssssssssssii', 
+                    $name, $name, 
+                    $company, $company, 
+                    $package, $package, 
+                    $otherInfo, $otherInfo, 
+                    $userId, 
+                    $status, $status, 
+                    $createdId
+                );
+                $uStmt->execute();
+                $uStmt->close();
+            } else {
+                $iStmt = $link->prepare("INSERT INTO " . tn('TBL_MAIN') . " (
+                    MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, 
+                    MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, 
+                    MAINDATABASE_CALL_DIALED_STATUS, MAINDATABASE_CALL_DIALED_USER, 
+                    MAINDATABASE_UPLOAD_DATETIME
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+                $iStmt->bind_param('ssssssi', $name, $mobile, $company, $package, $otherInfo, $status, $userId);
+                $iStmt->execute();
+                $createdId = (int)$iStmt->insert_id;
+                $iStmt->close();
+            }
+        } else {
+            $chkStmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE CUST_MOBILE = ? LIMIT 1");
+            $chkStmt->bind_param('s', $mobile);
+            $chkStmt->execute();
+            $exist = $chkStmt->get_result()->fetch_assoc();
+            $chkStmt->close();
+
+            if ($exist) {
+                $createdId = (int)$exist['ID'];
+                $isNew = false;
+                $uStmt = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET 
+                    CUST_NAME = CASE WHEN ? != '' THEN ? ELSE CUST_NAME END,
+                    CUST_COMPANY = CASE WHEN ? != '' THEN ? ELSE CUST_COMPANY END,
+                    CUST_PACKAGE = CASE WHEN ? != '' THEN ? ELSE CUST_PACKAGE END,
+                    CUST_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE CUST_OTHER_INFO END,
+                    CALL_DIALED_TELECALLER = COALESCE(CALL_DIALED_TELECALLER, ?),
+                    CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE CALL_DIALED_STATUS END
+                    WHERE ID = ?");
+                $uStmt->bind_param('ssssssssssii', 
+                    $name, $name, 
+                    $company, $company, 
+                    $package, $package, 
+                    $otherInfo, $otherInfo, 
+                    $userId, 
+                    $status, $status, 
+                    $createdId
+                );
+                $uStmt->execute();
+                $uStmt->close();
+            } else {
+                $iStmt = $link->prepare("INSERT INTO " . tn('TBL_TEMP') . " (
+                    CUST_NAME, CUST_MOBILE, CUST_COMPANY, 
+                    CUST_PACKAGE, CUST_OTHER_INFO, 
+                    CALL_DIALED_STATUS, CALL_DIALED_TELECALLER, 
+                    TEMP_UPLOAD_DATETIME
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+                $iStmt->bind_param('ssssssi', $name, $mobile, $company, $package, $otherInfo, $status, $userId);
+                $iStmt->execute();
+                $createdId = (int)$iStmt->insert_id;
+                $iStmt->close();
+            }
+        }
+
+        if ($source === 'MAIN' && $createdId > 0) {
+            $lChk = $link->prepare("SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = ? LIMIT 1");
+            if ($lChk) {
+                $lChk->bind_param('i', $createdId);
+                $lChk->execute();
+                $lExist = $lChk->get_result()->fetch_assoc();
+                $lChk->close();
+
+                if (!$lExist) {
+                    $lStmt = $link->prepare("INSERT INTO " . tn('TBL_LEADS') . " (
+                        cust_id, assigned_to, assigned_by, lead_status, lead_status_new,
+                        loan_amount, remarks, created_by, updated_by, created_at, updated_at
+                    ) VALUES (?, ?, ?, 'New', 'LEAD', ?, ?, ?, ?, NOW(), NOW())");
+                    if ($lStmt) {
+                        $lStmt->bind_param('iiisssii', $createdId, $userId, $userId, $package, $otherInfo, $userId, $userId);
+                        $lStmt->execute();
+                        $lStmt->close();
+                    }
+                }
+            }
+        }
+
+        logActivity($link, $userId, $isNew ? 'API_LEAD_CREATED' : 'API_LEAD_UPDATED', 
+            ($isNew ? "Created lead" : "Updated existing lead") . " for $name ($mobile) in $source", 
+            (string)$createdId, 
+            $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN'
+        );
+
+        apiSuccess([
+            'message' => $isNew ? 'Lead created successfully' : 'Lead updated successfully',
+            'is_new' => $isNew,
+            'lead' => [
+                'id' => $createdId,
+                'record_id' => $createdId,
+                'source' => $source,
+                'name' => $name,
+                'mobile' => $mobile,
+                'company' => $company,
+                'package' => $package,
+                'other_info' => $otherInfo,
+                'last_status' => $status,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]
+        ], $isNew ? 201 : 200);
+    } else {
+        apiError(405, 'Method not allowed');
+    }
+
+} elseif (preg_match('#^/leads/(\d+)$#', $relativePath, $matches)) {
+    $leadId = (int)$matches[1];
+    $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
+    $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        if ($source === 'TEMP') {
+            $stmt = $link->prepare("SELECT ID, CUST_NAME as name, CUST_MOBILE as mobile, CUST_COMPANY as company, CUST_PACKAGE as package, CUST_OTHER_INFO as other_info, CALL_DIALED_STATUS as last_status, LAST_DIALED_DATE_TIME as last_call_time, TEMP_UPLOAD_DATETIME as upload_time, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
+        } else {
+            $stmt = $link->prepare("SELECT ID, MAINDATABASE_NAME as name, MAINDATABASE_MOBILE as mobile, MAINDATABASE_COMPANY as company, MAINDATABASE_PACKAGE as package, MAINDATABASE_OTHER_INFO as other_info, MAINDATABASE_CALL_DIALED_STATUS as last_status, LAST_DIALED_DATE_TIME as last_call_time, MAINDATABASE_UPLOAD_DATETIME as upload_time, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+        }
+        $stmt->bind_param('i', $leadId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) apiError(404, 'Lead not found');
+
+        apiSuccess([
+            'lead' => [
+                'id' => (int)$row['ID'],
+                'record_id' => (int)$row['ID'],
+                'source' => $source,
+                'name' => $row['name'] ?? '',
+                'mobile' => $row['mobile'] ?? '',
+                'company' => $row['company'] ?? '',
+                'package' => $row['package'] ?? '',
+                'other_info' => $row['other_info'] ?? '',
+                'last_status' => $row['last_status'] ?? 'Not Called',
+                'last_call_time' => $row['last_call_time'],
+                'upload_time' => $row['upload_time'],
+            ]
+        ]);
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $name = trim($input['name'] ?? ($input['customer_name'] ?? ''));
+        $company = trim($input['company'] ?? ($input['customer_company'] ?? ''));
+        $package = trim($input['package'] ?? ($input['customer_package'] ?? ''));
+        $otherInfo = trim($input['other_info'] ?? ($input['notes'] ?? ''));
+        $status = trim($input['status'] ?? ($input['call_status'] ?? ''));
+
+        if ($source === 'TEMP') {
+            $stmt = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET 
+                CUST_NAME = CASE WHEN ? != '' THEN ? ELSE CUST_NAME END,
+                CUST_COMPANY = CASE WHEN ? != '' THEN ? ELSE CUST_COMPANY END,
+                CUST_PACKAGE = CASE WHEN ? != '' THEN ? ELSE CUST_PACKAGE END,
+                CUST_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE CUST_OTHER_INFO END,
+                CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE CALL_DIALED_STATUS END
+                WHERE ID = ?");
+            $stmt->bind_param('ssssssssssi', $name, $name, $company, $company, $package, $package, $otherInfo, $otherInfo, $status, $status, $leadId);
+        } else {
+            $stmt = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET 
+                MAINDATABASE_NAME = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_NAME END,
+                MAINDATABASE_COMPANY = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_COMPANY END,
+                MAINDATABASE_PACKAGE = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_PACKAGE END,
+                MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
+                MAINDATABASE_CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_CALL_DIALED_STATUS END
+                WHERE ID = ?");
+            $stmt->bind_param('ssssssssssi', $name, $name, $company, $company, $package, $package, $otherInfo, $otherInfo, $status, $status, $leadId);
+        }
+        $stmt->execute();
+        $stmt->close();
+
+        apiSuccess(['message' => 'Lead updated successfully']);
+    } else {
+        apiError(405, 'Method not allowed');
+    }
+
 } else {
     apiError(404, 'Telecaller endpoint not found');
 }
