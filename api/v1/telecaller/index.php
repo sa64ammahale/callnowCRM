@@ -708,50 +708,54 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 
         if ($userRole === 'Admin' || $userRole === 'Manager' || $userRole === 'Super Admin') {
             if (!empty($_GET['user_id'])) {
-                $whereParts[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
+                $whereParts[] = "l.assigned_to = ?";
                 $params[] = (int)$_GET['user_id'];
                 $types .= 'i';
             } else {
                 $whereParts[] = "1=1";
             }
         } elseif ($userRole === 'Supervisor' && $teamId) {
-            $whereParts[] = "(u.TEAM_ID = ? OR m.MAINDATABASE_CALL_DIALED_USER = ?)";
+            $whereParts[] = "(u.TEAM_ID = ? OR l.assigned_to = ? OR l.created_by = ?)";
             $params[] = $teamId;
             $params[] = $userId;
-            $types .= 'ii';
-        } else {
-            $whereParts[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
             $params[] = $userId;
-            $types .= 'i';
+            $types .= 'iii';
+        } else {
+            $whereParts[] = "(l.assigned_to = ? OR l.created_by = ?)";
+            $params[] = $userId;
+            $params[] = $userId;
+            $types .= 'ii';
         }
 
         if ($statusFilter !== '' && $statusFilter !== 'all') {
             if (strtolower($statusFilter) === 'not_called' || strtolower($statusFilter) === 'not called') {
-                $whereParts[] = "(m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '')";
+                $whereParts[] = "(m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR l.lead_status_new = 'LEAD')";
             } elseif (strtolower($statusFilter) === 'called') {
                 $whereParts[] = "(m.MAINDATABASE_CALL_DIALED_STATUS != 'Not Called' AND m.MAINDATABASE_CALL_DIALED_STATUS IS NOT NULL AND m.MAINDATABASE_CALL_DIALED_STATUS != '')";
             } else {
-                $whereParts[] = "m.MAINDATABASE_CALL_DIALED_STATUS = ?";
+                $whereParts[] = "(l.lead_status_new = ? OR l.lead_status = ? OR m.MAINDATABASE_CALL_DIALED_STATUS = ?)";
                 $params[] = $statusFilter;
-                $types .= 's';
+                $params[] = $statusFilter;
+                $params[] = $statusFilter;
+                $types .= 'sss';
             }
         }
 
         if ($search !== '') {
-            $whereParts[] = "(m.MAINDATABASE_NAME LIKE ? OR m.MAINDATABASE_MOBILE LIKE ? OR m.MAINDATABASE_COMPANY LIKE ? OR m.MAINDATABASE_OTHER_INFO LIKE ?)";
+            $whereParts[] = "(m.MAINDATABASE_NAME LIKE ? OR m.MAINDATABASE_MOBILE LIKE ? OR m.MAINDATABASE_COMPANY LIKE ? OR l.NAME LIKE ? OR l.MOBILE LIKE ? OR l.COMPANY_NAME LIKE ? OR l.remarks LIKE ?)";
             $like = "%$search%";
-            $params[] = $like;
-            $params[] = $like;
-            $params[] = $like;
-            $params[] = $like;
-            $types .= 'ssss';
+            for ($i = 0; $i < 7; $i++) {
+                $params[] = $like;
+            }
+            $types .= 'sssssss';
         }
 
         $whereSql = "WHERE " . implode(" AND ", $whereParts);
 
         $countSql = "SELECT COUNT(*) as c 
-                     FROM " . tn('TBL_MAIN') . " m 
-                     LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID 
+                     FROM " . tn('TBL_LEADS') . " l 
+                     LEFT JOIN " . tn('TBL_MAIN') . " m ON l.cust_id = m.ID 
+                     LEFT JOIN " . tn('TBL_USERS') . " u ON l.assigned_to = u.ID 
                      $whereSql";
         $stmtC = $link->prepare($countSql);
         if ($types !== '') {
@@ -762,21 +766,24 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $stmtC->close();
 
         $dataSql = "SELECT 
-                        m.ID,
-                        m.MAINDATABASE_NAME as name,
-                        m.MAINDATABASE_MOBILE as mobile,
-                        m.MAINDATABASE_COMPANY as company,
-                        m.MAINDATABASE_PACKAGE as package,
-                        m.MAINDATABASE_OTHER_INFO as other_info,
-                        m.MAINDATABASE_CALL_DIALED_STATUS as last_status,
+                        l.lead_id,
+                        l.cust_id,
+                        COALESCE(NULLIF(m.MAINDATABASE_NAME, ''), NULLIF(l.NAME, ''), CONCAT('Lead #', l.lead_id)) as name,
+                        COALESCE(NULLIF(m.MAINDATABASE_MOBILE, ''), NULLIF(l.MOBILE, ''), '') as mobile,
+                        COALESCE(NULLIF(m.MAINDATABASE_COMPANY, ''), NULLIF(l.COMPANY_NAME, ''), '') as company,
+                        COALESCE(l.loan_amount, m.MAINDATABASE_PACKAGE, '') as package,
+                        COALESCE(NULLIF(l.remarks, ''), NULLIF(l.OTHER_INFO, ''), m.MAINDATABASE_OTHER_INFO, '') as other_info,
+                        COALESCE(l.lead_status_new, l.lead_status, 'LEAD') as status,
+                        COALESCE(m.MAINDATABASE_CALL_DIALED_STATUS, 'Not Called') as last_status,
                         m.LAST_DIALED_DATE_TIME as last_call_time,
-                        m.MAINDATABASE_UPLOAD_DATETIME as upload_time,
-                        m.CALL_COUNT as call_count,
+                        COALESCE(l.created_at, m.MAINDATABASE_UPLOAD_DATETIME) as upload_time,
+                        COALESCE(m.CALL_COUNT, 0) as call_count,
                         u.NAME as assigned_user_name
-                    FROM " . tn('TBL_MAIN') . " m
-                    LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID
+                    FROM " . tn('TBL_LEADS') . " l
+                    LEFT JOIN " . tn('TBL_MAIN') . " m ON l.cust_id = m.ID
+                    LEFT JOIN " . tn('TBL_USERS') . " u ON l.assigned_to = u.ID
                     $whereSql
-                    ORDER BY COALESCE(m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_UPLOAD_DATETIME) DESC
+                    ORDER BY COALESCE(l.created_at, l.updated_at) DESC, l.lead_id DESC
                     LIMIT ? OFFSET ?";
         
         $paramsData = $params;
@@ -793,14 +800,17 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $leadsList = [];
         foreach ($rows as $r) {
             $leadsList[] = [
-                'id' => (int)$r['ID'],
-                'record_id' => (int)$r['ID'],
-                'source' => 'MAIN',
+                'id' => (int)$r['lead_id'],
+                'record_id' => (int)($r['cust_id'] ?: $r['lead_id']),
+                'lead_id' => (int)$r['lead_id'],
+                'cust_id' => (int)$r['cust_id'],
+                'source' => 'LEAD',
                 'name' => $r['name'] ?? '',
                 'mobile' => $r['mobile'] ?? '',
                 'company' => $r['company'] ?? '',
                 'package' => $r['package'] ?? '',
                 'other_info' => $r['other_info'] ?? '',
+                'status' => $r['status'] ?? 'LEAD',
                 'last_status' => $r['last_status'] ?? 'Not Called',
                 'last_call_time' => $r['last_call_time'],
                 'upload_time' => $r['upload_time'],
@@ -815,7 +825,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 'page' => $page,
                 'limit' => $limit,
                 'total' => $total,
-                'total_pages' => ceil($total / $limit),
+                'total_pages' => $total > 0 ? (int)ceil($total / $limit) : 1,
             ]
         ]);
 
@@ -950,6 +960,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             }
         }
 
+        $newLeadId = 0;
         if ($source === 'MAIN' && $createdId > 0) {
             $lChk = $link->prepare("SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = ? LIMIT 1");
             if ($lChk) {
@@ -964,10 +975,13 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                         loan_amount, remarks, created_by, updated_by, created_at, updated_at
                     ) VALUES (?, ?, ?, 'New', 'LEAD', ?, ?, ?, ?, NOW(), NOW())");
                     if ($lStmt) {
-                        $lStmt->bind_param('iiisssii', $createdId, $userId, $userId, $package, $otherInfo, $userId, $userId);
+                        $lStmt->bind_param('iiissii', $createdId, $userId, $userId, $package, $otherInfo, $userId, $userId);
                         $lStmt->execute();
+                        $newLeadId = (int)$lStmt->insert_id;
                         $lStmt->close();
                     }
+                } else {
+                    $newLeadId = (int)$lExist['lead_id'];
                 }
             }
         }
@@ -982,14 +996,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             'message' => $isNew ? 'Lead created successfully' : 'Lead updated successfully',
             'is_new' => $isNew,
             'lead' => [
-                'id' => $createdId,
+                'id' => $newLeadId > 0 ? $newLeadId : $createdId,
                 'record_id' => $createdId,
+                'lead_id' => $newLeadId > 0 ? $newLeadId : null,
                 'source' => $source,
                 'name' => $name,
                 'mobile' => $mobile,
                 'company' => $company,
                 'package' => $package,
                 'other_info' => $otherInfo,
+                'status' => $status,
                 'last_status' => $status,
                 'created_at' => date('Y-m-d H:i:s'),
             ]
