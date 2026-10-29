@@ -125,8 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else respond_json(['error' => 'Truncate failed: ' . mysqli_error($link)]);
     }
 
-    // Transfer checks TBL_MAIN for existing mobiles and updates them.
-    // This is the ONLY point where temp data merges with main data.
     if ($action === 'transfer_selected' && !empty($_POST['ids']) && is_array($_POST['ids'])) {
         if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
@@ -163,8 +161,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
-    // Transfer All: batch migrate TBL_TEMP -> TBL_MAIN with upsert, then clear TBL_TEMP.
-    // Duplicate checking happens against TBL_MAIN during this phase only.
     if ($action === 'transfer_all') {
         if (!isAdmin() && !isSuperAdmin() && !isManager()) {
             respond_json(['error' => 'Admin or Manager access required']);
@@ -406,7 +402,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     respond_json(['error' => 'Unknown action']);
 }
 
-// Stats
 $totalCount = 0;
 $tc = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP'));
 if ($tc) $totalCount = (int)mysqli_fetch_row($tc)[0];
@@ -418,244 +413,236 @@ $telecallers = [];
 $tu = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY NAME");
 if ($tu) while ($u = mysqli_fetch_assoc($tu)) $telecallers[$u['ID']] = $u['NAME'];
 
-$pageTitle = 'Temporary Database';
+$pageTitle = 'Temporary Database • CallNow CRM';
 include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
-<style>
-:root {
-    --td-accent: var(--accent);
-    --td-accent-dark: var(--accent-hover, #4f46e5);
-    --td-ink: #1e1b4b;
-    --td-ink-soft: #6b6890;
-    --td-soft: #f0f2ff;
-    --td-border: #e2e4f0;
-}
-.td-header {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-    border-radius: 1rem; padding: 1.5rem 2rem; margin-bottom: 1.5rem;
-    position: relative; overflow: hidden;
-}
-.td-header::before {
-    content: ''; position: absolute; inset: 0;
-    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    opacity: 0.3;
-}
-.td-header-content { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-.td-header-left h1 { font-size: 1.35rem; font-weight: 700; color: #fff; margin: 0 0 0.2rem 0; letter-spacing: -0.02em; display: flex; align-items: center; gap: 0.5rem; }
-.td-header-left h1 i { font-size: 1.4rem; }
-.td-header-left p { color: rgba(255,255,255,0.7); font-size: 0.8125rem; margin: 0; }
-.td-header-actions { display: flex; gap: 0.5rem; }
-.td-btn-glass {
-    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
-    color: #fff; backdrop-filter: blur(4px); font-size: 0.75rem; padding: 0.4rem 0.9rem;
-    border-radius: 0.5rem; transition: all 0.15s ease; text-decoration: none; display: flex; align-items: center; gap: 0.35rem;
-}
-.td-btn-glass:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.35); color: #fff; transform: translateY(-1px); }
+<div class="container-fluid px-3 py-3">
+    <!-- Module Header -->
+    <div class="module-header mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-xs">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Data Management</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Temporary Database</li>
+                </ol>
+            </nav>
+            <h1 class="h4 fw-bold text-dark mb-0">Temporary Database (Staging)</h1>
+            <div class="text-muted fs-xs">Isolated staging workbench for lead scrubs, validations, and bulk updates before committing to Main DB</div>
+        </div>
+        <div class="module-header-actions">
+            <a href="<?= url('modules/database/data_management_main.php') ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-database me-1"></i> Main Database
+            </a>
+            <a href="<?= url('modules/database/upload_data.php') ?>" class="btn btn-primary btn-sm">
+                <i class="bi bi-cloud-upload me-1"></i> Upload Staging CSV
+            </a>
+            <button id="activityBtn" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#activityModal">
+                <i class="bi bi-clock-history me-1"></i> Staging Logs
+            </button>
+        </div>
+    </div>
 
-.td-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
-.td-stat-card { background: var(--td-soft); border: 1px solid var(--td-border); border-radius: 0.75rem; padding: 0.875rem 1.125rem; }
-.td-stat-card .num { font-size: 1.35rem; font-weight: 700; color: var(--td-ink); line-height: 1.2; }
-.td-stat-card .lbl { font-size: 0.7rem; color: var(--td-ink-soft); margin: 0; }
-.td-stat-card .num i { font-size: 0.9rem; margin-right: 0.25rem; }
+    <!-- Alert / Sandbox Banner -->
+    <div class="alert alert-warning d-flex align-items-center mb-3 py-2 px-3 border" role="alert">
+        <i class="bi bi-shield-check text-warning fs-5 me-2"></i>
+        <div class="fs-xs">
+            <strong>Staging Isolation:</strong> Records modified or dialed in this workspace do not update the Main Database until explicitly executed via <strong>Transfer Selected</strong> or <strong>Transfer All</strong>.
+        </div>
+    </div>
 
-.td-toolbar {
-    background: #fff; border: 1px solid var(--td-border); border-radius: 0.75rem;
-    padding: 0.75rem 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-}
-.td-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.td-toolbar-row + .td-toolbar-row { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #f0f1f8; }
+    <!-- Metric KPI Cards -->
+    <div class="row g-2 mb-3">
+        <div class="col-sm-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-card-title">Staged Records</div>
+                <div class="metric-card-value text-primary"><?= number_format($totalCount) ?></div>
+                <div class="metric-card-subtitle text-muted">Awaiting transfer</div>
+            </div>
+        </div>
+        <?php foreach (array_slice($statusCounts, 0, 2) as $s): ?>
+            <div class="col-sm-6 col-md-3">
+                <div class="metric-card">
+                    <div class="metric-card-title"><?= htmlspecialchars($s['CALL_DIALED_STATUS'] ?: 'Unknown') ?></div>
+                    <div class="metric-card-value text-dark"><?= number_format((int)$s['cnt']) ?></div>
+                    <div class="metric-card-subtitle text-muted">Staged disposition</div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+        <div class="col-sm-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-card-title">Status Classes</div>
+                <div class="metric-card-value text-secondary"><?= count($statusCounts) ?></div>
+                <div class="metric-card-subtitle text-muted">Unique statuses</div>
+            </div>
+        </div>
+    </div>
 
-.td-card { background: #fff; border: 1px solid var(--td-border); border-radius: 0.875rem; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
-.td-card-body { padding: 1.25rem; }
+    <!-- Action & Filter Toolbar -->
+    <div class="crm-card mb-3">
+        <div class="crm-card-body py-2">
+            <!-- Row 1: Actions -->
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button id="transferSelected" class="btn btn-primary btn-sm" disabled>
+                        <i class="bi bi-arrow-right-circle me-1"></i> Transfer Selected (<span id="selectedCount">0</span>)
+                    </button>
+                    <button id="transferAllBtn" class="btn btn-success btn-sm" <?= $totalCount > 0 ? '' : 'disabled' ?>>
+                        <i class="bi bi-box-arrow-in-down-right me-1"></i> Transfer All to Main DB
+                    </button>
+                    <button id="deleteSelected" class="btn btn-outline-danger btn-sm" disabled>
+                        <i class="bi bi-trash3 me-1"></i> Delete Selected
+                    </button>
+                    <button id="deleteAllBtn" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-x-circle me-1"></i> Wipe Staging Table
+                    </button>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button id="refreshBtn" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                    </button>
+                    <button id="exportBtn" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Filtered
+                    </button>
+                    <button id="exportFullBtn" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-cloud-arrow-down me-1"></i> Export Full DB
+                    </button>
+                </div>
+            </div>
 
-.td-input, .td-select {
-    border: 1px solid var(--td-border) !important; border-radius: 0.5rem !important;
-    font-size: 0.75rem !important; color: var(--td-ink) !important;
-    padding: 0.35rem 0.65rem !important; background: #fff !important;
-}
-.td-input:focus, .td-select:focus {
-    border-color: var(--td-accent) !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; outline: none;
-}
-.td-btn-primary {
-    background: linear-gradient(135deg, var(--td-accent), var(--td-accent-dark)) !important;
-    border: none !important; color: #fff !important; border-radius: 0.5rem !important;
-    font-size: 0.75rem !important; font-weight: 600 !important; padding: 0.4rem 1rem !important;
-    transition: all 0.15s ease !important; box-shadow: 0 2px 6px rgba(99,102,241,0.2) !important;
-}
-.td-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.3) !important; }
-.td-btn-sm { padding: 0.3rem 0.65rem !important; font-size: 0.6875rem !important; border-radius: 0.375rem !important; }
-.td-btn-success { background: linear-gradient(135deg, #10b981, #059669) !important; border: none !important; color: #fff !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; font-weight: 600 !important; padding: 0.3rem 0.65rem !important; transition: all 0.15s ease !important; }
-.td-btn-success:hover { transform: translateY(-1px); }
-.td-btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626) !important; border: none !important; color: #fff !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; font-weight: 600 !important; padding: 0.3rem 0.65rem !important; transition: all 0.15s ease !important; }
-.td-btn-danger:hover { transform: translateY(-1px); }
-.td-btn-outline { border: 1px solid var(--td-border) !important; background: #fff !important; color: var(--td-ink-soft) !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; padding: 0.3rem 0.65rem !important; transition: all 0.12s ease !important; }
-.td-btn-outline:hover { border-color: var(--td-accent) !important; color: var(--td-accent) !important; }
-
-.td-alert { border-radius: 0.625rem; font-size: 0.8125rem; padding: 0.65rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-#notificationModal .modal-content { border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
-
-.td-modal-header { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border-radius: 0.75rem 0.75rem 0 0; padding: 1rem 1.25rem; }
-.td-modal-header .btn-close { filter: brightness(0) invert(1); }
-.td-modal-header h5 { font-size: 0.9rem; font-weight: 700; margin: 0; }
-.td-modal-body { padding: 1.25rem; }
-.td-modal-footer { border-top: 1px solid var(--td-border); padding: 0.75rem 1.25rem; }
-.td-row-click { cursor: pointer; }
-.td-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.4rem; background: #f8f9ff; border: 1px solid var(--td-border); border-radius: 0.5rem; padding: 0.75rem; margin-bottom: 0.75rem; }
-.td-info-item { font-size: 0.75rem; }
-.td-info-item strong { color: var(--td-ink-soft); display: block; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.1rem; }
-.td-info-item span { color: var(--td-ink); }
-</style>
-
-<div class="container page-wrapper">
-
-    <div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-sm">
-            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--td-border);">
-                <div class="modal-body text-center py-4">
-                    <div id="notifIcon" class="mb-2" style="font-size:2.5rem;"></div>
-                    <h5 id="notifTitle" class="fw-bold mb-1"></h5>
-                    <p id="notifMessage" class="text-muted small mb-3"></p>
-                    <button type="button" class="btn btn-primary btn-sm px-4" data-bs-dismiss="modal" style="border-radius:0.5rem;">OK</button>
+            <!-- Row 2: Search & Filters -->
+            <div class="row g-2 align-items-center">
+                <div class="col-md-4 col-12">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input id="searchQ" class="form-control" placeholder="Search name, mobile, company, or package...">
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <select id="status" class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        <option>Not Called</option>
+                        <option>Dialed</option>
+                        <option>Connected</option>
+                        <option>Busy</option>
+                        <option>No Answer</option>
+                        <option>Do Not Call</option>
+                        <option>Pending</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <input type="date" id="from" class="form-control form-control-sm" placeholder="Uploaded From">
+                </div>
+                <div class="col-md-2 col-6">
+                    <input type="date" id="to" class="form-control form-control-sm" placeholder="Uploaded To">
+                </div>
+                <div class="col-md-2 col-6">
+                    <select id="perPage" class="form-select form-select-sm">
+                        <option value="250">250 per page</option>
+                        <option value="500">500 per page</option>
+                        <option value="1000" selected>1000 per page</option>
+                    </select>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="td-header">
-        <div class="td-header-content">
-            <div class="td-header-left">
-                <h1><i class="bi bi-database-gear"></i> Temporary Database</h1>
-                <p>Manage, search, transfer, and export temporary records</p>
+    <!-- Data Table Card -->
+    <div class="crm-card">
+        <div class="crm-card-body p-0">
+            <div class="table-responsive">
+                <table id="tempTable" class="table table-hover align-middle mb-0" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th style="width:36px; text-align:center;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                            <th>ID</th>
+                            <th>Mobile</th>
+                            <th>Name</th>
+                            <th>Company</th>
+                            <th>Package</th>
+                            <th>Status</th>
+                            <th>Uploaded</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                </table>
             </div>
-            <div class="td-header-actions">
-                <a href="<?= url('modules/database/data_management_main.php') ?>" class="td-btn-glass"><i class="bi bi-database"></i> Main DB</a>
-                <a href="<?= url('modules/database/upload_data.php') ?>" class="td-btn-glass"><i class="bi bi-cloud-upload"></i> Upload</a>
-                <button id="activityBtn" class="td-btn-glass" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-list-check"></i> Activity</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="alert alert-warning py-2 mb-3 small">
-      <i class="bi bi-exclamation-triangle me-1"></i>
-      <strong>Sandbox Mode</strong> — changes here do not affect Main DB until you use <strong>Transfer Selected</strong> or <strong>Transfer All</strong>.
-    </div>
-
-    <div class="td-stat-grid">
-        <div class="td-stat-card">
-            <div class="num"><i class="bi bi-database"></i><?= number_format($totalCount) ?></div>
-            <p class="lbl">Total Records</p>
-        </div>
-        <?php foreach (array_slice($statusCounts, 0, 3) as $s): ?>
-            <div class="td-stat-card">
-                <div class="num"><i class="bi bi-tag"></i><?= number_format((int)$s['cnt']) ?></div>
-                <p class="lbl"><?= htmlspecialchars($s['CALL_DIALED_STATUS'] ?: 'Unknown') ?></p>
-            </div>
-        <?php endforeach; ?>
-        <div class="td-stat-card">
-            <div class="num"><i class="bi bi-layers"></i><?= count($statusCounts) ?></div>
-            <p class="lbl">Status Types</p>
-        </div>
-    </div>
-
-    <div class="td-toolbar">
-        <div class="td-toolbar-row">
-            <div class="btn-group" role="group">
-                <a href="<?= url('modules/database/add_single_number.php') ?>" class="td-btn-success td-btn-sm"><i class="bi bi-upload"></i> Upload Single</a>
-                <button id="transferSelected" class="td-btn-success td-btn-sm" disabled><i class="bi bi-arrow-right-circle"></i> Transfer Selected</button>
-                <button id="transferAllBtn" class="td-btn-primary td-btn-sm" <?= $totalCount > 0 ? '' : 'disabled' ?>><i class="bi bi-arrow-down-circle"></i> Transfer All</button>
-            </div>
-            <div class="btn-group ms-2" role="group">
-                <button id="deleteSelected" class="td-btn-outline-danger td-btn-sm" disabled><i class="bi bi-trash"></i> Delete Selected (<span id="selectedCount">0</span>)</button>
-                <button id="deleteAllBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-x-circle"></i> Delete All</button>
-            </div>
-            <div class="ms-auto d-flex gap-2 align-items-center">
-                <button id="refreshBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-                <button id="exportBtn" class="td-btn-outline td-btn-sm"><i class="bi bi-download"></i> Export CSV</button>
-                <button id="exportFullBtn" class="td-btn-primary td-btn-sm"><i class="bi bi-cloud-arrow-down"></i> Export Full DB</button>
-            </div>
-        </div>
-        <div class="td-toolbar-row">
-            <input id="searchQ" class="form-control td-input" placeholder="Search name / mobile / company / package" style="flex:1;min-width:200px;">
-            <select id="status" class="form-select td-select" style="width:140px;">
-                <option value="">All Status</option>
-                <option>Not Called</option><option>Dialed</option><option>Connected</option><option>Busy</option><option>No Answer</option><option>Do Not Call</option><option>Pending</option>
-            </select>
-            <input type="date" id="from" class="form-control td-input" style="width:145px;" placeholder="From">
-            <input type="date" id="to" class="form-control td-input" style="width:145px;" placeholder="To">
-            <select id="perPage" class="form-select td-select" style="width:120px;">
-                <option value="1000">1000 / page</option>
-                <option value="500">500 / page</option>
-                <option value="250">250 / page</option>
-            </select>
-        </div>
-    </div>
-
-    <div class="td-card">
-        <div class="td-card-body" style="padding:0;">
-            <table id="tempTable" class="table table-hover table-sm td-dt-table" style="width:100%;margin:0;">
-                <thead>
-                    <tr>
-                        <th style="width:36px;"><input type="checkbox" id="selectAll"></th>
-                        <th>ID</th>
-                        <th>Mobile</th>
-                        <th>Name</th>
-                        <th>Company</th>
-                        <th>Package</th>
-                        <th>Status</th>
-                        <th>Uploaded</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-            </table>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="editModal" tabindex="-1">
+<!-- Notification Modal -->
+<div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div id="notifIcon" class="mb-2" style="font-size:2rem;"></div>
+                <h6 id="notifTitle" class="fw-bold mb-1"></h6>
+                <p id="notifMessage" class="text-muted fs-xs mb-3"></p>
+                <button type="button" class="btn btn-primary btn-sm px-4" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <form id="editForm" class="modal-content" style="border-radius:0.75rem;border:1px solid var(--td-border);">
-            <div class="td-modal-header"><h5><i class="bi bi-pencil-square"></i> Edit Record</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="td-modal-body">
+        <form id="editForm" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Staged Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
                 <input type="hidden" id="editId" name="id">
-                <div class="td-info-grid" id="infoSection">
-                    <div class="td-info-item"><strong>ID</strong><span id="infoId">-</span></div>
-                    <div class="td-info-item"><strong>Upload Time</strong><span id="infoUpload">-</span></div>
-                    <div class="td-info-item"><strong>Last Dialed</strong><span id="infoLastDialed">-</span></div>
-                    <div class="td-info-item"><strong>Last Connected</strong><span id="infoLastConnected">-</span></div>
-                    <div class="td-info-item"><strong>Source</strong><span id="infoSource">-</span></div>
-                    <div class="td-info-item"><strong>Notes</strong><span id="infoNotes">-</span></div>
+                
+                <div class="p-2 mb-3 bg-light rounded border">
+                    <div class="row g-2 fs-xs">
+                        <div class="col-md-2 col-4"><span class="text-muted d-block">ID</span><strong id="infoId" class="text-dark">-</strong></div>
+                        <div class="col-md-3 col-8"><span class="text-muted d-block">Upload Time</span><strong id="infoUpload" class="text-dark">-</strong></div>
+                        <div class="col-md-3 col-6"><span class="text-muted d-block">Last Dialed</span><strong id="infoLastDialed" class="text-dark">-</strong></div>
+                        <div class="col-md-2 col-6"><span class="text-muted d-block">Duration</span><strong id="infoLastConnected" class="text-dark">-</strong></div>
+                        <div class="col-md-2 col-6"><span class="text-muted d-block">Source</span><strong id="infoSource" class="text-dark">-</strong></div>
+                    </div>
                 </div>
+
                 <div class="row g-2">
                     <div class="col-md-6">
-                        <label style="font-size:0.7rem;font-weight:600;color:var(--td-ink);margin-bottom:0.2rem;">Name</label>
-                        <input class="form-control td-input" name="CUST_NAME" id="editName" placeholder="Full name">
+                        <label class="form-label" for="editName">Name</label>
+                        <input class="form-control" name="CUST_NAME" id="editName" placeholder="Full name">
                     </div>
                     <div class="col-md-6">
-                        <label style="font-size:0.7rem;font-weight:600;color:var(--td-ink);margin-bottom:0.2rem;">Mobile</label>
-                        <input class="form-control td-input" name="CUST_MOBILE" id="editMobile" placeholder="10-digit mobile">
+                        <label class="form-label" for="editMobile">Mobile Number</label>
+                        <input class="form-control" name="CUST_MOBILE" id="editMobile" placeholder="10-digit mobile">
                     </div>
                     <div class="col-md-6">
-                        <label style="font-size:0.7rem;font-weight:600;color:var(--td-ink);margin-bottom:0.2rem;">Company</label>
-                        <input class="form-control td-input" name="CUST_COMPANY" id="editCompany" placeholder="Company name">
+                        <label class="form-label" for="editCompany">Company</label>
+                        <input class="form-control" name="CUST_COMPANY" id="editCompany" placeholder="Company name">
                     </div>
                     <div class="col-md-6">
-                        <label style="font-size:0.7rem;font-weight:600;color:var(--td-ink);margin-bottom:0.2rem;">Package</label>
-                        <input class="form-control td-input" name="CUST_PACKAGE" id="editPackage" placeholder="Package">
+                        <label class="form-label" for="editPackage">Package / Salary</label>
+                        <input class="form-control" name="CUST_PACKAGE" id="editPackage" placeholder="Package">
                     </div>
                     <div class="col-12">
-                        <label style="font-size:0.7rem;font-weight:600;color:var(--td-ink);margin-bottom:0.2rem;">Other Info</label>
-                        <textarea class="form-control td-input" name="CUST_OTHER_INFO" id="editOther" rows="2" placeholder="Additional notes"></textarea>
+                        <label class="form-label" for="editOther">Other Info</label>
+                        <textarea class="form-control" name="CUST_OTHER_INFO" id="editOther" rows="2" placeholder="Additional notes"></textarea>
                     </div>
                     <div class="col-md-6">
-                        <label style="font-size:0.7rem;font-weight:600;color:var(--td-ink);margin-bottom:0.2rem;">Status</label>
-                        <select class="form-select td-select" name="CALL_DIALED_STATUS" id="editStatus">
-                            <option>Not Called</option><option>Dialed</option><option>Connected</option><option>Busy</option><option>No Answer</option><option>Do Not Call</option><option>Pending</option>
+                        <label class="form-label" for="editStatus">Status / Disposition</label>
+                        <select class="form-select" name="CALL_DIALED_STATUS" id="editStatus">
+                            <option>Not Called</option>
+                            <option>Dialed</option>
+                            <option>Connected</option>
+                            <option>Busy</option>
+                            <option>No Answer</option>
+                            <option>Do Not Call</option>
+                            <option>Pending</option>
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label style="font-size:0.7rem;font-weight:600;color:var(--td-ink);margin-bottom:0.2rem;">Assigned To</label>
-                        <select class="form-select td-select" name="CALL_DIALED_TELECALLER" id="editTelecaller">
+                        <label class="form-label" for="editTelecaller">Assigned Telecaller</label>
+                        <select class="form-select" name="CALL_DIALED_TELECALLER" id="editTelecaller">
                             <option value="">-- Unassigned --</option>
                             <?php foreach($telecallers as $tid => $tname): ?>
                                 <option value="<?= $tid ?>"><?= htmlspecialchars($tname) ?></option>
@@ -663,26 +650,58 @@ include __DIR__ . '/../../php_scripts/header.php';
                         </select>
                     </div>
                 </div>
-                <div class="mt-2 text-danger small" id="editError" style="display:none"></div>
+                <div class="mt-2 text-danger fs-xs" id="editError" style="display:none"></div>
             </div>
-            <div class="td-modal-footer d-flex justify-content-end gap-2">
-                <button type="button" class="td-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="td-btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i> Save Changes</button>
             </div>
         </form>
     </div>
 </div>
 
-<div class="modal fade" id="activityModal" tabindex="-1">
+<!-- Activity Log Modal -->
+<div class="modal fade" id="activityModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--td-border);">
-            <div class="td-modal-header"><h5><i class="bi bi-list-check"></i> Activity Log (latest 200)</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="td-modal-body"><div id="activityList" style="max-height:60vh;overflow:auto;font-size:13px">Loading…</div></div>
-            <div class="td-modal-footer d-flex justify-content-end"><button class="td-btn-outline" data-bs-dismiss="modal">Close</button></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-list-check text-primary me-2"></i>Staging Activity Log (Latest 200)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div id="activityList" style="max-height:60vh; overflow-y:auto;">Loading…</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Transfer Progress Modal -->
+<div class="modal fade" id="transferProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-in-down-right text-primary me-2"></i>Transfer to Main Database</h5>
+                <button type="button" class="btn-close close-modal-btn" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="fs-xs text-muted">Migration Progress</span>
+                    <span id="transferPercent" class="fs-xs fw-semibold text-dark">0%</span>
+                </div>
+                <div class="progress mb-3" style="height: 16px;">
+                    <div id="transferProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%"></div>
+                </div>
+                <p class="mb-2 fs-xs text-muted" id="transferMessage">Initializing transfer...</p>
+                <div id="transferResult" class="mt-2 alert fs-xs" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
 <script src="<?= vnd('dt/dataTables.min.js') ?>"></script>
 <script src="<?= vnd('dt/dataTables.bootstrap5.min.js') ?>"></script>
 <script src="<?= vnd('dt/buttons.min.js') ?>"></script>
@@ -694,43 +713,12 @@ include __DIR__ . '/../../php_scripts/header.php';
 <script src="<?= vnd('dt/buttons.html5.min.js') ?>"></script>
 <script src="<?= vnd('dt/buttons.print.min.js') ?>"></script>
 
-<style>
-.td-dt-table thead th { background: #fafbff; color: #6b6890; font-weight: 600; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #e2e4f0; padding: 0.625rem 0.5rem; }
-.td-dt-table tbody td { padding: 0.4rem 0.5rem; font-size: 0.8rem; border-bottom: 1px solid #f0f1f8; vertical-align: middle; }
-.td-dt-table tbody tr { cursor: pointer; }
-.td-dt-table tbody tr:hover { background: #f8f9ff; }
-.badge-status { padding: 0.2rem 0.5rem; font-size: 0.68rem; font-weight: 600; border-radius: 0.3rem; }
-.dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter { margin-bottom: 0.4rem; }
-.dataTables_wrapper .dataTables_length { display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
-.dataTables_wrapper .dataTables_length label { margin-bottom: 0; }
-.dataTables_wrapper .dataTables_filter { display: flex; align-items: center; justify-content: flex-end; }
-.dataTables_wrapper .dataTables_filter label { margin-bottom: 0; display: flex; align-items: center; gap: 0.5rem; }
-.dataTables_wrapper .dataTables_length select { border: 1px solid #e2e4f0; border-radius: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; }
-.dataTables_wrapper .dataTables_filter input { border: 1px solid #e2e4f0; border-radius: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; }
-.dataTables_wrapper .dataTables_info { font-size: 0.75rem; color: #6b6890; padding-top: 0.4rem; }
-.dataTables_wrapper .dataTables_paginate { padding-top: 0.4rem; }
-.dataTables_wrapper .dataTables_paginate .paginate_button { padding: 0.2rem 0.6rem; font-size: 0.75rem; border-radius: 0.3rem; }
-.dataTables_wrapper .dataTables_paginate .paginate_button.current { background: #6366f1 !important; border-color: #6366f1 !important; color: #fff !important; }
-.dataTables_wrapper .dataTables_paginate .paginate_button:hover { background: #f0f2ff; border-color: #d4d6e8; }
-.buttons-collection { font-size: 0.75rem !important; padding: 0.3rem 0.65rem !important; border-radius: 0.5rem !important; }
-.dropdown-menu .dropdown-item { font-size: 0.75rem; padding: 0.35rem 0.75rem; border-radius: 0.35rem; margin: 0.15rem 0.25rem; width: calc(100% - 0.5rem); }
-.btn-group .btn { margin-right: 0.25rem; }
-.btn-group .btn:last-child { margin-right: 0; }
-.td-toolbar .btn-group + .btn-group { margin-left: 0.5rem; }
-.td-toolbar .btn-group + .ms-auto { margin-left: auto; }
-@media (max-width: 768px) {
-    .td-toolbar .btn-group { margin-bottom: 0.5rem; }
-    .td-toolbar .ms-auto { margin-left: 0 !important; width: 100%; justify-content: flex-start; }
-}
-</style>
-
 <script>
 const APP_BASE = <?= json_encode(APP_BASE) ?>;
 const TEMP_URL = APP_BASE + '/modules/database/temporarydatabase_ajax/datatable';
 const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 
 $(document).ready(function() {
-
     const table = $('#tempTable').DataTable({
         processing: true,
         serverSide: true,
@@ -747,46 +735,46 @@ $(document).ready(function() {
                 return json.data;
             }
         },
-        pageLength: 2500,
-        lengthMenu: [ 250, 500, 1000, 1500, 2000 ],
+        pageLength: 250,
+        lengthMenu: [ 100, 250, 500, 1000 ],
         order: [[6, 'desc']],
-        dom: '<"row align-items-center"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rtip',
+        dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
         buttons: [
             {
-                text: '<i class="bi bi-download"></i> Export',
-                className: 'btn btn-outline-primary btn-sm dropdown-toggle',
+                text: '<i class="bi bi-download me-1"></i> Quick Export',
+                className: 'btn btn-secondary btn-sm dropdown-toggle',
                 extend: 'collection',
                 buttons: [
-                    { extend: 'copy', text: '<i class="bi bi-clipboard me-1"></i> Copy', className: 'btn btn-outline-secondary btn-sm dropdown-item' },
-                    { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-outline-success btn-sm dropdown-item', title: 'TemporaryDatabase_Export_' + new Date().toISOString().slice(0,10) },
-                    { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-outline-info btn-sm dropdown-item' }
+                    { extend: 'copy', text: '<i class="bi bi-clipboard me-1"></i> Copy', className: 'btn btn-secondary btn-sm dropdown-item' },
+                    { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm dropdown-item', title: 'TemporaryDatabase_Export_' + new Date().toISOString().slice(0,10) },
+                    { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm dropdown-item' }
                 ]
             }
         ],
         columnDefs: [
-            { orderable: false, targets: 0 },
-            { visible: false, targets: 8 },
-            { width: '100px', targets: 1 },
+            { orderable: false, targets: 0, className: 'text-center' },
+            { width: '70px', targets: 1 },
+            { width: '120px', targets: 2 },
             {
-                targets: 5,
+                targets: 6,
                 render: function(data) {
                     const badge = {
-                        'Not Called': 'bg-secondary',
-                        'Dialed': 'bg-info',
-                        'Connected': 'bg-success',
-                        'Busy': 'bg-warning',
-                        'No Answer': 'bg-orange',
-                        'Do Not Call': 'bg-danger',
-                        'Pending': 'bg-primary'
-                    }[data] || 'bg-dark';
-                    return `<span class="badge ${badge} badge-status">${data || 'Not Called'}</span>`;
+                        'Not Called': 'badge-secondary',
+                        'Dialed': 'badge-info',
+                        'Connected': 'badge-success',
+                        'Busy': 'badge-warning',
+                        'No Answer': 'badge-warning',
+                        'Do Not Call': 'badge-danger',
+                        'Pending': 'badge-primary'
+                    }[data] || 'badge-secondary';
+                    return `<span class="badge ${badge}">${data || 'Not Called'}</span>`;
                 }
             }
         ],
         language: {
-            processing: "<div class='spinner-border text-primary' role='status'><span class='visually-hidden'>Loading...</span></div>",
-            lengthMenu: "Show _MENU_ records",
-            info: "Showing _START_ to _END_ of _TOTAL_ leads",
+            processing: "<div class='spinner-border spinner-border-sm text-primary' role='status'></div> Processing...",
+            lengthMenu: "Show _MENU_",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
             paginate: {
                 next: '<i class="bi bi-chevron-right"></i>',
                 previous: '<i class="bi bi-chevron-left"></i>'
@@ -801,11 +789,6 @@ $(document).ready(function() {
     });
 
     $('#tempTable tbody').on('change', 'input[type="checkbox"]', updateSelectedCount);
-
-    function updateSelectedCount() {
-        const count = $('#tempTable input[type="checkbox"]:checked').length - ($('#selectAll').is(':checked') ? 1 : 0);
-        $('#selectedCount').text(count);
-    }
 
     function showNotification(title, message, type = 'success') {
         const iconMap = {
@@ -822,7 +805,7 @@ $(document).ready(function() {
     }
 
     function getSelectedCount() {
-        return $('#tempTable input[type="checkbox"]:checked').length - ($('#selectAll').is(':checked') ? 1 : 0);
+        return $('#tempTable tbody input[type="checkbox"]:checked').length;
     }
 
     function updateSelectedCount() {
@@ -833,51 +816,15 @@ $(document).ready(function() {
 
     function getSelectedIds() {
         const ids = [];
-        $('#tempTable input[type="checkbox"]:checked').each(function() {
-            if (!$(this).is('#selectAll')) {
-                ids.push($(this).val());
-            }
+        $('#tempTable tbody input[type="checkbox"]:checked').each(function() {
+            ids.push($(this).val());
         });
         return ids;
     }
 
-    $('#doAssign').on('click', function() {
-        const userId = $('#assignUser').val();
-        if (!userId) return showNotification('Error', 'Please select a user', 'danger');
-
-        const ids = getSelectedIds();
-        if (ids.length === 0) return showNotification('Warning', 'No records selected', 'warning');
-
-        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_assign', { ids: ids, user_id: userId, csrf_token: CSRF_TOKEN }, function(res) {
-            if (res.success) {
-                table.ajax.reload();
-                showNotification('Success!', `${ids.length} records assigned successfully`, 'success');
-            } else {
-                showNotification('Error', res.message || 'Failed', 'danger');
-            }
-        }, 'json');
-    });
-
-    function bulkDelete() {
-        const ids = getSelectedIds();
-        if (!ids.length) return showNotification('No Selection', 'Please select at least one record to delete.', 'warning');
-        if (!confirm('Delete selected records permanently?')) return;
-        const loadingToast = showNotification('Deleting...', 'Please wait while records are deleted.', 'info');
-        $.post(APP_BASE + '/modules/database/temporarydatabase_ajax/bulk_delete', { ids: ids, csrf_token: CSRF_TOKEN }, function(res) {
-            if (res.success) {
-                table.ajax.reload();
-                showNotification('Deleted!', `${ids.length} records removed`, 'danger');
-            } else {
-                showNotification('Error', res.error || 'Failed', 'danger');
-            }
-        }, 'json').fail(function() {
-            showNotification('Error', 'Network error. Please try again.', 'danger');
-        });
-    }
-
     function loadEditModal(id) {
         $.post(location.href, { action:'view', id: id, csrf_token: CSRF_TOKEN }, function(resp){
-            if (!resp.row) return showNotification('Error', 'Row not found', 'danger');
+            if (!resp.row) return showNotification('Error', 'Record not found', 'danger');
             const r = resp.row;
             $('#editId').val(r.ID);
             $('#editName').val(r.CUST_NAME);
@@ -892,7 +839,6 @@ $(document).ready(function() {
             $('#infoLastDialed').text(r.LAST_DIALED_DATE_TIME || '-');
             $('#infoLastConnected').text(r.LAST_CONNECTED_PERIOD || '-');
             $('#infoSource').text(r.SOURCE || '-');
-            $('#infoNotes').text(r.NOTES || '-');
             $('#editError').hide().text('');
             new bootstrap.Modal(document.getElementById('editModal')).show();
         }, 'json');
@@ -918,10 +864,11 @@ $(document).ready(function() {
             if (resp.success) {
                 bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
                 table.ajax.reload();
+                showNotification('Updated', 'Record saved successfully', 'success');
             } else {
                 $('#editError').show().text(resp.error || 'Update failed');
             }
-        }, 'json').fail(function(){ $('#editError').show().text('Server error'); });
+        }, 'json').fail(function(){ $('#editError').show().text('Server error occurred'); });
     });
 
     $(document).on('click', '.btn-del', function(){
@@ -935,7 +882,7 @@ $(document).ready(function() {
 
     $('#deleteSelected').on('click', function(){
         const count = getSelectedCount();
-        if (!confirm('Delete ' + count + ' selected rows?')) return;
+        if (!confirm('Delete ' + count + ' selected records permanently?')) return;
         const btn = $(this);
         const originalText = btn.html();
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Deleting...');
@@ -944,6 +891,8 @@ $(document).ready(function() {
             if (resp.success) {
                 showNotification('Deleted', 'Deleted ' + (resp.affected || count) + ' records', 'success');
                 table.ajax.reload();
+                $('#selectAll').prop('checked', false);
+                updateSelectedCount();
             } else {
                 showNotification('Error', resp.error || 'unknown', 'danger');
             }
@@ -957,14 +906,20 @@ $(document).ready(function() {
     $('#transferSelected').on('click', function(){
         const count = getSelectedCount();
         if (count === 0) return showNotification('No Selection', 'Please select at least one record to transfer.', 'warning');
-        if (!confirm('Transfer ' + count + ' selected rows to TBL_MAIN?')) return;
+        if (!confirm('Transfer ' + count + ' selected rows to Main Database?')) return;
         const btn = $(this);
         const originalText = btn.html();
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Transferring...');
         const ids = getSelectedIds();
         $.post(location.href, { action:'transfer_selected', ids: ids, csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) { showNotification('Transferred', 'Affected: ' + (resp.affected || 'unknown'), 'success'); table.ajax.reload(); }
-            else showNotification('Error', resp.error || 'unknown', 'danger');
+            if (resp.success) {
+                showNotification('Transferred', 'Transferred ' + (resp.affected || 'unknown') + ' records to Main DB', 'success');
+                table.ajax.reload();
+                $('#selectAll').prop('checked', false);
+                updateSelectedCount();
+            } else {
+                showNotification('Error', resp.error || 'unknown', 'danger');
+            }
         }, 'json').fail(function() {
             showNotification('Network Error', 'Please try again.', 'danger');
         }).always(function() {
@@ -976,20 +931,23 @@ $(document).ready(function() {
     $('#transferAllBtn').on('click', function(){
         if (TOTAL_TEMP_COUNT === 0) return showNotification('Empty', 'No records to transfer', 'warning');
 
-    const modal = new bootstrap.Modal(document.getElementById('transferProgressModal'), { backdrop: 'static', keyboard: false });
-    const modalEl = document.getElementById('transferProgressModal');
-    const progressBar = $('#transferProgressBar');
-    const percentText = $('#transferPercent');
-    const messageText = $('#transferMessage');
-    const resultDiv = $('#transferResult');
+        const modal = new bootstrap.Modal(document.getElementById('transferProgressModal'), { backdrop: 'static', keyboard: false });
+        const modalEl = document.getElementById('transferProgressModal');
+        const progressBar = $('#transferProgressBar');
+        const percentText = $('#transferPercent');
+        const messageText = $('#transferMessage');
+        const resultDiv = $('#transferResult');
 
-    $(modalEl).on('hidden.bs.modal', function() {
-        resultDiv.hide().removeClass('alert-success alert-danger').empty();
-        progressBar.css('width', '0%').removeClass('bg-success bg-danger').addClass('bg-primary');
-        percentText.text('0%');
-        messageText.text('Initializing transfer...');
-        btn.prop('disabled', false).html(originalText);
-    });
+        const btn = $(this);
+        const originalText = btn.html();
+
+        $(modalEl).on('hidden.bs.modal', function() {
+            resultDiv.hide().removeClass('alert-success alert-danger').empty();
+            progressBar.css('width', '0%').removeClass('bg-success bg-danger').addClass('bg-primary');
+            percentText.text('0%');
+            messageText.text('Initializing transfer...');
+            btn.prop('disabled', false).html(originalText);
+        });
 
         modal.show();
         progressBar.css('width', '0%').removeClass('bg-success bg-danger').addClass('bg-primary');
@@ -997,9 +955,7 @@ $(document).ready(function() {
         messageText.text('Initializing transfer...');
         resultDiv.hide();
 
-        const btn = $(this);
-        const originalText = btn.html();
-        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Transferring all...');
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Transferring...');
 
         $.post(location.href, { action:'transfer_all', csrf_token: CSRF_TOKEN }, function(resp){
             if (!resp.transfer_id) {
@@ -1023,19 +979,18 @@ $(document).ready(function() {
                         messageText.text('Transfer complete!');
                         resultDiv.show().addClass('alert-success').html(
                             '<strong>Success!</strong> ' + (resp.result?.message || 'All records transferred.') +
-                            '<br><button class="btn btn-sm btn-outline-success mt-2 close-modal-btn">Close</button>'
+                            '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>'
                         );
                         btn.prop('disabled', false).html(originalText);
-                        showNotification('Transfer Complete', resp.result?.message || 'All records transferred', 'success');
+                        table.ajax.reload();
                     } else if (resp.status === 'error') {
                         progressBar.css('width', resp.percent + '%').removeClass('bg-primary bg-success').addClass('bg-danger');
                         messageText.text('Transfer failed');
                         resultDiv.show().addClass('alert-danger').html(
                             '<strong>Error:</strong> ' + (resp.error || 'Unknown error') +
-                            '<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>'
+                            '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>'
                         );
                         btn.prop('disabled', false).html(originalText);
-                        showNotification('Transfer Failed', resp.error || 'Unknown error', 'danger');
                     } else {
                         progressBar.css('width', resp.percent + '%').removeClass('bg-success bg-danger').addClass('bg-primary');
                         percentText.text(resp.percent + '%');
@@ -1045,9 +1000,8 @@ $(document).ready(function() {
                 }, 'json').fail(function(){
                     progressBar.addClass('bg-danger');
                     messageText.text('Network error');
-                    resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error during transfer.<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                    resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error during transfer.<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
                     btn.prop('disabled', false).html(originalText);
-                    showNotification('Error', 'Network error during transfer', 'danger');
                 });
             }
 
@@ -1064,14 +1018,14 @@ $(document).ready(function() {
     });
 
     $('#deleteAllBtn').on('click', function(){
-        if (!confirm('This will DELETE ALL rows in TBL_TEMP - are you sure?')) return;
+        if (!confirm('This will DELETE ALL rows in staging - are you sure?')) return;
         const token = prompt('Type YES_DELETE_ALL to confirm');
         if (token !== 'YES_DELETE_ALL') return showNotification('Cancelled', 'Operation not confirmed.', 'warning');
         const btn = $(this);
         const originalText = btn.html();
-        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Deleting all...');
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Wiping...');
         $.post(location.href, { action:'delete_all', confirm: token, csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.success) { showNotification('Deleted', 'All records removed', 'success'); table.ajax.reload(); }
+            if (resp.success) { showNotification('Deleted', 'All staging records removed', 'success'); table.ajax.reload(); }
             else showNotification('Error', resp.error || 'unknown', 'danger');
         }, 'json').fail(function() {
             showNotification('Network Error', 'Please try again.', 'danger');
@@ -1097,13 +1051,13 @@ $(document).ready(function() {
             total = parseInt(total);
             if (total === 0) return showNotification('Empty', 'No data found', 'info');
 
-            if (total > 100000 && !confirm(`Warning: ${total.toLocaleString()} records!\n\nThis will download in multiple large CSV files.\n\nContinue?`)) {
+            if (total > 100000 && !confirm(`Warning: ${total.toLocaleString()} records!\nThis will download in multiple CSV parts.\n\nContinue?`)) {
                 return;
             }
 
             const win = window.open(APP_BASE + '/modules/database/temporarydatabase_ajax/download_bach', '_blank');
             if (win) {
-                showNotification('Export Started', `${total.toLocaleString()} records → downloading in parts`, 'success');
+                showNotification('Export Started', `${total.toLocaleString()} records downloading`, 'success');
             } else {
                 showNotification('Popup Blocked!', 'Please allow popups', 'danger');
             }
@@ -1111,15 +1065,15 @@ $(document).ready(function() {
     });
 
     $('#activityModal').on('show.bs.modal', function(){
-        $('#activityList').html('<div class="small text-muted">Loading…</div>');
+        $('#activityList').html('<div class="text-center py-3 text-muted fs-xs">Loading activity logs...</div>');
         $.post(location.href, { action:'fetch_activity', csrf_token: CSRF_TOKEN }, function(resp){
-            if (resp.error) { $('#activityList').html('<div class="text-danger small">' + resp.error + '</div>'); return; }
-            let out = '<div class="list-group">';
+            if (resp.error) { $('#activityList').html('<div class="text-danger fs-xs">' + resp.error + '</div>'); return; }
+            let out = '<div class="list-group list-group-flush">';
             for (const a of resp.activities || []) {
-                out += `<div class="list-group-item small" style="border:1px solid #e2e4f0;border-radius:0.5rem;margin-bottom:0.3rem;">
-                  <div><strong>${escapeHtml(a.ACTION_TYPE)}</strong> — <span class="text-muted">${escapeHtml(a.LOG_TIME)}</span></div>
-                  <div class="text-muted small">User: ${escapeHtml(a.USER_ID)} | IP: ${escapeHtml(a.IP_ADDRESS)} | Target: ${escapeHtml(a.TARGET_TABLE)}</div>
-                  <div class="mt-1">${escapeHtml(a.ACTION_DETAILS)} <span class="text-muted">[IDs: ${escapeHtml(a.AFFECTED_IDS||'')}]</span></div>
+                out += `<div class="list-group-item px-2 py-2 fs-xs border-bottom">
+                  <div class="d-flex justify-content-between"><strong>${escapeHtml(a.ACTION_TYPE)}</strong><span class="text-muted">${escapeHtml(a.LOG_TIME)}</span></div>
+                  <div class="text-muted">User: ${escapeHtml(a.USER_ID)} | IP: ${escapeHtml(a.IP_ADDRESS)} | Target: ${escapeHtml(a.TARGET_TABLE)}</div>
+                  <div class="text-dark mt-1">${escapeHtml(a.ACTION_DETAILS)} <span class="text-muted">[IDs: ${escapeHtml(a.AFFECTED_IDS||'')}]</span></div>
                 </div>`;
             }
             out += '</div>';
@@ -1137,29 +1091,11 @@ $(document).ready(function() {
     $('#status, #from, #to').on('change', function(){ table.ajax.reload(); });
     $('#perPage').on('change', function(){ table.page.len(parseInt($(this).val())).draw(); });
 
+    $('#refreshBtn').on('click', function() {
+        table.ajax.reload();
+        showNotification('Refreshed', 'Staging table reloaded', 'info');
+    });
 });
 </script>
-
-<div class="modal fade" id="transferProgressModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-arrow-down-circle me-2"></i>Transfer to Main Database</h5>
-                <button type="button" class="btn-close close-modal-btn" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="d-flex justify-content-between mb-1">
-                    <span class="small text-muted">Progress</span>
-                    <span id="transferPercent" class="small fw-semibold">0%</span>
-                </div>
-                <div class="progress mb-3" style="height: 20px;">
-                    <div id="transferProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                </div>
-                <p class="mb-2 small text-muted" id="transferMessage">Initializing transfer...</p>
-                <div id="transferResult" class="mt-3 alert" style="display:none"></div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

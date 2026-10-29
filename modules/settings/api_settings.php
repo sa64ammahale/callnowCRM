@@ -58,8 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
         }
         
-        logActivity($link, USER_ID, 'TBL_API_SETTINGS_UPDATED', 'Updated mobile API settings');
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'API settings saved'];
+        logActivity($link, USER_ID, 'API_SETTINGS_UPDATED', 'Updated mobile API settings');
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'API settings saved successfully'];
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
     }
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $expiryDays = (int)($_POST['expiry_days'] ?? 90);
         
         if ($userId <= 0) {
-            $_SESSION['flash'] = ['type' => 'danger', 'msg' => 'User required'];
+            $_SESSION['flash'] = ['type' => 'danger', 'msg' => 'User selection is required'];
             header('Location: ' . $_SERVER['REQUEST_URI']);
             exit;
         }
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         logActivity($link, USER_ID, 'API_TOKEN_CREATED', "Created API token for user #$userId", '', 'TBL_API_TOKENS');
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => "API token created: $token (shown once only)"];
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => "API token created: $token (shown once only - copy it now)"];
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
     }
@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             logActivity($link, USER_ID, 'API_TOKEN_REVOKED', "Revoked token #$tokenId", '', 'TBL_API_TOKENS');
         }
-        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Token revoked'];
+        $_SESSION['flash'] = ['type' => 'success', 'msg' => 'Token access revoked successfully'];
         header('Location: ' . $_SERVER['REQUEST_URI']);
         exit;
     }
@@ -178,7 +178,7 @@ $perPage = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $perPage;
 
-// Fetch data
+// Fetch settings
 $settings = [];
 $res = @$link->query("SELECT setting_key, setting_value FROM " . tn('TBL_API_SETTINGS'));
 if ($res) {
@@ -207,10 +207,10 @@ if ($res) {
     while ($row = $res->fetch_assoc()) $tokens[] = $row;
 }
 
-$TBL_USERS = [];
+$activeUsers = [];
 $res = @$link->query("SELECT ID, NAME, EMAIL, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY ROLE, NAME");
 if ($res) {
-    while ($row = $res->fetch_assoc()) $TBL_USERS[] = $row;
+    while ($row = $res->fetch_assoc()) $activeUsers[] = $row;
 }
 
 $assignments = [];
@@ -233,10 +233,10 @@ if ($res) {
     while ($row = $res->fetch_assoc()) $assignments[] = $row;
 }
 
-$TBL_TEAMS = [];
+$teamsList = [];
 $res = @$link->query("SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
 if ($res) {
-    while ($row = $res->fetch_assoc()) $TBL_TEAMS[] = $row;
+    while ($row = $res->fetch_assoc()) $teamsList[] = $row;
 }
 
 $allowedDbs = $settings['allowed_databases'] ?? '["temporary","leads"]';
@@ -247,367 +247,267 @@ $allowedDbs = is_array($allowedDbs) ? $allowedDbs : [];
 $flash = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
 
-// Activity logs pagination
+// Activity logs
 $logPerPage = 20;
 $logPage = max(1, (int)($_GET['log_page'] ?? 1));
 $logOffset = ($logPage - 1) * $logPerPage;
 $totalLogs = 0;
-$res = @$link->query("SELECT COUNT(*) FROM " . tn('TBL_API_ACCESS_LOGS'));
-if ($res) {
-    $totalLogs = (int)$res->fetch_row()[0];
+$resCount = @$link->query("SELECT COUNT(*) FROM " . tn('TBL_API_ACCESS_LOGS'));
+if ($resCount) {
+    $totalLogs = (int)$resCount->fetch_row()[0];
 }
+$totalLogPages = max(1, (int)ceil($totalLogs / $logPerPage));
 
-$pageTitle = 'API Access Management';
+$pageTitle = 'Mobile API Management - CallNow CRM';
 include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0"><i class="bi bi-key me-2"></i>API Access Management</h1>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTokenModal">
-            <i class="bi bi-plus-circle me-1"></i> Create API Token
-        </button>
+<div class="container-fluid px-3 py-3">
+
+    <!-- Zoho CRM Module Header -->
+    <div class="module-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/settings/settings.php') ?>">Administration</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">API Management</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="page-title mb-0">Mobile &amp; Telecalling API</h1>
+                <span class="badge <?= ($settings['api_enabled'] ?? '1') ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' ?> border">
+                    <?= ($settings['api_enabled'] ?? '1') ? 'Service Active' : 'Service Disabled' ?>
+                </span>
+            </div>
+            <p class="text-muted small mb-0">Generate tokens for Android app, restrict database scope, and review endpoint consumption</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#apiTourGuide">
+                <i class="bi bi-book me-1"></i> Documentation Guide
+            </button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createTokenModal">
+                <i class="bi bi-plus-circle me-1"></i> Create API Token
+            </button>
+        </div>
     </div>
 
     <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
+        <div class="alert alert-<?= htmlspecialchars($flash['type']) ?> alert-dismissible fade show mb-3" role="alert">
+            <i class="bi <?= $flash['type'] === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> me-2"></i>
             <?= htmlspecialchars($flash['msg']) ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
 
-    <!-- ═══ API INTEGRATION TOUR GUIDE ═══ -->
-    <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#apiTourGuide" aria-expanded="true">
-            <h5 class="mb-0"><i class="bi bi-book-half me-2"></i>API Integration Guide</h5>
-            <i class="bi bi-chevron-down"></i>
+    <!-- KPI Metric Summary -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Active API Tokens</div>
+                <div class="metric-value text-primary"><?= number_format($totalTokens) ?></div>
+                <div class="text-muted small">Generated app keys</div>
+            </div>
         </div>
-        <div id="apiTourGuide" class="collapse show">
-            <div class="card-body">
-                <div class="row g-4">
-                    <div class="col-lg-4">
-                        <div class="d-flex align-items-start gap-3">
-                            <div class="flex-shrink-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;font-weight:700;">1</div>
-                            <div>
-                                <h6 class="mb-1">Create API Token</h6>
-                                <p class="text-muted small mb-0">Click <strong>Create API Token</strong>, select the mobile app user, set expiry days, and copy the generated token immediately. Tokens are shown only once.</p>
-                            </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Database Assignments</div>
+                <div class="metric-value text-success"><?= number_format($totalAssignments) ?></div>
+                <div class="text-muted small">Mapped permissions</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Total Requests Logged</div>
+                <div class="metric-value text-dark"><?= number_format($totalLogs) ?></div>
+                <div class="text-muted small">Audit history records</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Rate Limiting</div>
+                <div class="metric-value text-secondary"><?= (int)($settings['rate_limit_per_minute'] ?? 60) ?>/min</div>
+                <div class="text-muted small">Per client cap</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collapsible API Integration Tour -->
+    <div class="collapse mb-3" id="apiTourGuide">
+        <div class="crm-card p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-book-half text-primary me-2"></i>Mobile App Developer Quickstart</h6>
+                <button type="button" class="btn-close btn-sm" data-bs-toggle="collapse" data-bs-target="#apiTourGuide"></button>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <div class="p-3 border rounded bg-light h-100">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">1</span>
+                            <span class="fw-bold text-dark small">Create API Token</span>
                         </div>
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="d-flex align-items-start gap-3">
-                            <div class="flex-shrink-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;font-weight:700;">2</div>
-                            <div>
-                                <h6 class="mb-1">Assign Database Access</h6>
-                                <p class="text-muted small mb-0">In <strong>Database Assignments</strong>, click <strong>Add Assignment</strong> and choose which databases the app can access: Temporary, Main, and/or Leads. Optionally restrict by team.</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="d-flex align-items-start gap-3">
-                            <div class="flex-shrink-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;font-weight:700;">3</div>
-                            <div>
-                                <h6 class="mb-1">Connect Your App</h6>
-                                <p class="text-muted small mb-0">Use the token in the <code>Authorization</code> header as <code>Bearer &lt;token&gt;</code>. Base URL: <code><?= htmlspecialchars((APP_BASE ?? '') . '/api/v1') ?></code></p>
-                            </div>
-                        </div>
+                        <p class="text-muted small mb-0">Generate a unique authentication token for the mobile agent with designated expiration.</p>
                     </div>
                 </div>
-
-                <hr class="my-4">
-
-                <h6 class="fw-bold mb-3"><i class="bi bi-code-slash me-2"></i>Available Endpoints</h6>
-                <div class="accordion" id="apiEndpointsAccordion">
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingLogin"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLogin" aria-expanded="true">POST /api/v1/auth/login</button></h2>
-                        <div id="collapseLogin" class="accordion-collapse collapse show" aria-labelledby="headingLogin"><div class="accordion-body">
-                            <strong>Description:</strong> Exchange email + password for a Bearer token and DB access list.<br>
-                            <strong>Headers:</strong> <code>Content-Type: application/json</code><br>
-                            <strong>Body:</strong> <code>{"email":"user@example.com","password":"your_password"}</code><br>
-                            <strong>Response:</strong> <code>{"success":true,"data":{"token":"...","user":{...},"expires_at":"..."}}</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingMe"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMe" aria-expanded="false">GET /api/v1/auth/me</button></h2>
-                        <div id="collapseMe" class="accordion-collapse collapse" aria-labelledby="headingMe"><div class="accordion-body">
-                            <strong>Description:</strong> Get current user profile and database access.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingRefresh"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRefresh" aria-expanded="false">GET /api/v1/auth/refresh</button></h2>
-                        <div id="collapseRefresh" class="accordion-collapse collapse" aria-labelledby="headingRefresh"><div class="accordion-body">
-                            <strong>Description:</strong> Extend token expiry by configured days.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingDashboard"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDashboard" aria-expanded="false">GET /api/v1/telecaller/dashboard</button></h2>
-                        <div id="collapseDashboard" class="accordion-collapse collapse" aria-labelledby="headingDashboard"><div class="accordion-body">
-                            <strong>Description:</strong> Dashboard stats: today's calls, connected, pending, assigned total.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code><br>
-                            <strong>Response:</strong> <code>{"success":true,"data":{"today_calls":10,"today_connected":3,"today_pending":2,"total_assigned":50}}</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingNextCall"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNextCall" aria-expanded="false">GET /api/v1/telecaller/next-call</button></h2>
-                        <div id="collapseNextCall" class="accordion-collapse collapse" aria-labelledby="headingNextCall"><div class="accordion-body">
-                            <strong>Description:</strong> Get the next pending call for the telecaller.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingCalls"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCalls" aria-expanded="false">GET /api/v1/telecaller/calls</button></h2>
-                        <div id="collapseCalls" class="accordion-collapse collapse" aria-labelledby="headingCalls"><div class="accordion-body">
-                            <strong>Description:</strong> Paginated call history with filters: source, status, date range, search.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code><br>
-                            <strong>Query Params:</strong> <code>?source=temporary&status=Connected&date_from=2026-01-01&page=1&limit=20</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingCallHistory"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCallHistory" aria-expanded="false">GET /api/v1/telecaller/call-history/{record_id}</button></h2>
-                        <div id="collapseCallHistory" class="accordion-collapse collapse" aria-labelledby="headingCallHistory"><div class="accordion-body">
-                            <strong>Description:</strong> Get full call history for a specific customer record.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code><br>
-                            <strong>Example:</strong> <code>/api/v1/telecaller/call-history/123?source=TEMP</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingComplete"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseComplete" aria-expanded="false">POST /api/v1/telecaller/calls/{id}/complete</button></h2>
-                        <div id="collapseComplete" class="accordion-collapse collapse" aria-labelledby="headingComplete"><div class="accordion-body">
-                            <strong>Description:</strong> Submit call result: status, notes, duration, next follow-up.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code><br>
-                            <strong>Body:</strong> <code>{"source":"temporary","status":"Connected","notes":"Customer interested","duration_seconds":180,"next_followup_at":"2026-09-15"}</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingSubmit"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSubmit" aria-expanded="false">POST /api/v1/telecaller/submit_call.php</button></h2>
-                        <div id="collapseSubmit" class="accordion-collapse collapse" aria-labelledby="headingSubmit"><div class="accordion-body">
-                            <strong>Description:</strong> Alternative direct endpoint for submitting call outcomes with full details.<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code><br>
-                            <strong>Body:</strong> <code>{"record_id":123,"source":"TEMP","call_status":"Connected","call_duration":180,"notes":"Interested","next_followup":"2026-09-15","recording_url":"https://..."}</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingAdminSettings"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdminSettings" aria-expanded="false">GET /api/v1/admin/settings</button></h2>
-                        <div id="collapseAdminSettings" class="accordion-collapse collapse" aria-labelledby="headingAdminSettings"><div class="accordion-body">
-                            <strong>Description:</strong> List all API settings (requires <code>manage_api</code>).<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingAdminTokens"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdminTokens" aria-expanded="false">GET /api/v1/admin/tokens</button></h2>
-                        <div id="collapseAdminTokens" class="accordion-collapse collapse" aria-labelledby="headingAdminTokens"><div class="accordion-body">
-                            <strong>Description:</strong> List all API tokens with pagination (requires <code>manage_api</code>).<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingCreateToken"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCreateToken" aria-expanded="false">POST /api/v1/admin/tokens</button></h2>
-                        <div id="collapseCreateToken" class="accordion-collapse collapse" aria-labelledby="headingCreateToken"><div class="accordion-body">
-                            <strong>Description:</strong> Create a new API token (requires <code>manage_api</code>).<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingDeleteToken"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDeleteToken" aria-expanded="false">DELETE /api/v1/admin/tokens/{id}</button></h2>
-                        <div id="collapseDeleteToken" class="accordion-collapse collapse" aria-labelledby="headingDeleteToken"><div class="accordion-body">
-                            <strong>Description:</strong> Permanently delete an API token (requires <code>manage_api</code>).<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingAssignments"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAssignments" aria-expanded="false">POST /api/v1/admin/assignments</button></h2>
-                        <div id="collapseAssignments" class="accordion-collapse collapse" aria-labelledby="headingAssignments"><div class="accordion-body">
-                            <strong>Description:</strong> Assign database access to a user (requires <code>manage_api</code>).<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>, <code>Content-Type: application/json</code>
-                        </div></div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingRemoveAssignment"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRemoveAssignment" aria-expanded="false">DELETE /api/v1/admin/assignments/{id}</button></h2>
-                        <div id="collapseRemoveAssignment" class="accordion-collapse collapse" aria-labelledby="headingRemoveAssignment"><div class="accordion-body">
-                            <strong>Description:</strong> Remove a database assignment (requires <code>manage_api</code>).<br>
-                            <strong>Headers:</strong> <code>Authorization: Bearer YOUR_TOKEN</code>
-                        </div></div>
+                <div class="col-md-4">
+                    <div class="p-3 border rounded bg-light h-100">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">2</span>
+                            <span class="fw-bold text-dark small">Assign Database Access</span>
+                        </div>
+                        <p class="text-muted small mb-0">Authorize the user for Temporary, Main, or Leads database pools with optional team constraints.</p>
                     </div>
                 </div>
-
-                <hr class="my-4">
-
-                <h6 class="fw-bold mb-3"><i class="bi bi-lightbulb me-2"></i>Quick Example (Flutter / Dart)</h6>
-                <pre class="bg-dark text-light p-3 rounded small mb-0" style="overflow-x:auto;"><code>import 'package:http/http.dart' as http;
-
-Future<void> loginExample() async {
-  final baseUrl = '<?= htmlspecialchars((APP_BASE ?? '') . '/api/v1') ?>';
-  
-  // 1. Login and get token
-  final loginResponse = await http.post(
-    Uri.parse('$baseUrl/auth/login'),
-    headers: {'Content-Type': 'application/json'},
-    body: '{"email":"user@example.com","password":"your_password"}',
-  );
-  final loginData = jsonDecode(loginResponse.body);
-  final token = loginData['data']['token'];
-
-  // 2. Call telecaller dashboard
-  final dashboardResponse = await http.get(
-    Uri.parse('$baseUrl/telecaller/dashboard'),
-    headers: {'Authorization': 'Bearer $token'},
-  );
-
-  // 3. Submit a call result
-  final callResponse = await http.post(
-    Uri.parse('$baseUrl/telecaller/calls/123/complete'),
-    headers: {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    },
-    body: '{"source":"temporary","call_status":"Connected","notes":"Customer interested","duration_seconds":180}',
-  );
-}</code></pre>
-
-                <div class="alert alert-info mt-3 mb-0 small">
-                    <i class="bi bi-info-circle me-2"></i>
-                    <strong>Note:</strong> All API responses are JSON. Non-admins see only their own data. Unauthorized access returns <code>403</code>, missing token returns <code>401</code>. Rate limits apply per API settings.
+                <div class="col-md-4">
+                    <div class="p-3 border rounded bg-light h-100">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">3</span>
+                            <span class="fw-bold text-dark small">Authenticate Requests</span>
+                        </div>
+                        <p class="text-muted small mb-0">Supply header <code>Authorization: Bearer &lt;token&gt;</code> to base URL <code><?= htmlspecialchars((APP_BASE ?? '') . '/api/v1') ?></code>.</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Settings Card -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-sliders me-2"></i>API Configuration</h5>
+    <!-- API Configuration Card -->
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom">
+            <span class="fw-semibold text-dark">Service &amp; Throttle Parameters</span>
         </div>
-        <div class="card-body">
+        <div class="card-body p-3">
             <form method="POST">
                 <input type="hidden" name="action" value="save_settings">
                 <?= csrfField() ?>
                 
                 <div class="row g-3 mb-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="api_enabled" id="api_enabled" <?= ($settings['api_enabled'] ?? '1') ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="api_enabled">Enable Mobile API</label>
+                            <label class="form-check-label small fw-medium" for="api_enabled">Enable Mobile API Gateway</label>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="log_requests" id="log_requests" <?= ($settings['log_requests'] ?? '1') ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="log_requests">Log All API Requests</label>
+                            <label class="form-check-label small fw-medium" for="log_requests">Record Endpoint Request Audit Logs</label>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="require_team_assignment" id="require_team_assignment" <?= ($settings['require_team_assignment'] ?? '1') ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="require_team_assignment">Require Team Assignment for DB Access</label>
+                            <label class="form-check-label small fw-medium" for="require_team_assignment">Require Team Scope for Access</label>
                         </div>
                     </div>
                 </div>
 
-                <hr>
-
                 <div class="row g-3 mb-3">
                     <div class="col-md-4">
-                        <label class="form-label">Rate Limit (per minute)</label>
-                        <input type="number" class="form-control" name="rate_limit_per_minute" value="<?= htmlspecialchars($settings['rate_limit_per_minute'] ?? 60) ?>" min="0" max="1000">
-                        <div class="form-text">0 = unlimited</div>
+                        <label class="form-label small text-muted mb-1">Rate Limit (Requests / minute)</label>
+                        <input type="number" class="form-control form-control-sm" name="rate_limit_per_minute" value="<?= htmlspecialchars($settings['rate_limit_per_minute'] ?? 60) ?>" min="0" max="1000">
+                        <div class="text-muted small mt-1">Set 0 for unlimited calls</div>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Rate Limit (per hour)</label>
-                        <input type="number" class="form-control" name="rate_limit_per_hour" value="<?= htmlspecialchars($settings['rate_limit_per_hour'] ?? 1000) ?>" min="0" max="10000">
-                        <div class="form-text">0 = unlimited</div>
+                        <label class="form-label small text-muted mb-1">Rate Limit (Requests / hour)</label>
+                        <input type="number" class="form-control form-control-sm" name="rate_limit_per_hour" value="<?= htmlspecialchars($settings['rate_limit_per_hour'] ?? 1000) ?>" min="0" max="10000">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Token Expiry (days)</label>
-                        <input type="number" class="form-control" name="token_expiry_days" value="<?= htmlspecialchars($settings['token_expiry_days'] ?? 90) ?>" min="0" max="365">
-                        <div class="form-text">0 = never expires</div>
+                        <label class="form-label small text-muted mb-1">Default Token Lifetime (days)</label>
+                        <input type="number" class="form-control form-control-sm" name="token_expiry_days" value="<?= htmlspecialchars($settings['token_expiry_days'] ?? 90) ?>" min="0" max="365">
+                        <div class="text-muted small mt-1">Set 0 for non-expiring keys</div>
                     </div>
                 </div>
 
-                <div class="row g-3 mb-3">
-                    <div class="col-md-12">
-                        <label class="form-label">Allowed Databases for Mobile API</label>
-                        <div class="row g-2">
-                            <?php foreach (['temporary' => 'Temporary Database', 'main' => 'Main Database', 'leads' => 'Leads Table'] as $key => $label): ?>
-                                <div class="col-md-4">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" name="db_<?= $key ?>" id="db_<?= $key ?>" value="1" <?= in_array($key, $allowedDbs) ? 'checked' : '' ?>>
-                                        <label class="form-check-label" for="db_<?= $key ?>"><?= $label ?></label>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted mb-1">Permitted Databases via Mobile API</label>
+                    <div class="d-flex gap-3">
+                        <?php foreach (['temporary' => 'Temporary Database', 'main' => 'Main Database', 'leads' => 'Leads Pool'] as $key => $label): ?>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="db_<?= $key ?>" id="db_<?= $key ?>" value="1" <?= in_array($key, $allowedDbs) ? 'checked' : '' ?>>
+                                <label class="form-check-label small" for="db_<?= $key ?>"><?= $label ?></label>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save Settings</button>
+                <div class="d-flex justify-content-end pt-2 border-top">
+                    <button type="submit" class="btn btn-primary btn-sm px-4">
+                        <i class="bi bi-save me-1"></i> Save Configuration
+                    </button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- API Tokens -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-key me-2"></i>API Tokens</h5>
+    <!-- API Tokens Card -->
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold text-dark">Active Client Tokens</span>
+                <span class="badge bg-secondary-subtle text-secondary border"><?= $totalTokens ?> Total</span>
+            </div>
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createTokenModal">
-                <i class="bi bi-plus-circle me-1"></i> Create API Token
+                <i class="bi bi-plus-circle me-1"></i> New Token
             </button>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             <?php if (empty($tokens)): ?>
-                <p class="text-muted text-center py-3">No API tokens created yet</p>
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-key fs-3 d-block mb-1 text-secondary"></i>
+                    No API tokens registered. Create a token for mobile client sign-in.
+                </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                    <table class="table crm-table align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Token (click to copy)</th>
-                                <th>User</th>
-                                <th>Name</th>
-                                <th>Created</th>
-                                <th>Expires</th>
-                                <th>Last Used</th>
-                                <th>Status</th>
-                                <th>Actions</th>
+                                <th style="min-width: 170px;">Token Key</th>
+                                <th style="min-width: 180px;">User Account</th>
+                                <th style="width: 120px;">Client Label</th>
+                                <th style="width: 130px;">Created</th>
+                                <th style="width: 110px;">Expires</th>
+                                <th style="width: 130px;">Last Activity</th>
+                                <th style="width: 90px;">Status</th>
+                                <th style="width: 130px;" class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($tokens as $t): ?>
                                 <tr>
                                     <td>
-                                        <code class="text-truncate d-block" style="max-width: 200px; cursor: pointer;" title="Click to copy" onclick="navigator.clipboard.writeText('<?= $t['token'] ?>')">
-                                            <?= substr($t['token'], 0, 8) ?>...<?= substr($t['token'], -8) ?>
+                                        <code class="text-dark bg-light px-2 py-1 rounded border font-monospace small" style="cursor: pointer;" title="Click to copy full token" onclick="navigator.clipboard.writeText('<?= $t['token'] ?>'); alert('Token copied to clipboard!');">
+                                            <?= substr($t['token'], 0, 8) ?>...<?= substr($t['token'], -8) ?> <i class="bi bi-clipboard ms-1 text-muted"></i>
                                         </code>
                                     </td>
                                     <td>
-                                        <strong><?= htmlspecialchars($t['user_name']) ?></strong><br>
-                                        <small class="text-muted"><?= htmlspecialchars($t['user_email']) ?></small>
+                                        <div class="fw-medium text-dark small"><?= htmlspecialchars($t['user_name']) ?></div>
+                                        <div class="text-muted font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($t['user_email']) ?></div>
                                     </td>
-                                    <td><?= htmlspecialchars($t['name']) ?></td>
-                                    <td><?= date('M j, Y H:i', strtotime($t['created_at'])) ?></td>
-                                    <td><?= $t['expires_at'] ? date('M j, Y', strtotime($t['expires_at'])) : '<span class="text-muted">Never</span>' ?></td>
-                                    <td><?= $t['last_used_at'] ? date('M j, Y H:i', strtotime($t['last_used_at'])) : '<span class="text-muted">Never</span>' ?></td>
+                                    <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($t['name']) ?></span></td>
+                                    <td class="small text-muted"><?= date('d M Y H:i', strtotime($t['created_at'])) ?></td>
+                                    <td class="small text-muted"><?= $t['expires_at'] ? date('d M Y', strtotime($t['expires_at'])) : 'Never' ?></td>
+                                    <td class="small text-muted"><?= $t['last_used_at'] ? date('d M Y H:i', strtotime($t['last_used_at'])) : 'Never' ?></td>
                                     <td>
                                         <?php if ($t['is_active']): ?>
-                                            <span class="badge bg-success">Active</span>
+                                            <span class="badge bg-success-subtle text-success border">Active</span>
                                         <?php else: ?>
-                                            <span class="badge bg-danger">Revoked</span>
+                                            <span class="badge bg-danger-subtle text-danger border">Revoked</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
+                                    <td class="text-end">
                                         <?php if ($t['is_active']): ?>
                                             <form method="POST" class="d-inline" onsubmit="return confirm('Revoke this API token?');">
                                                 <input type="hidden" name="action" value="revoke_token">
                                                 <input type="hidden" name="token_id" value="<?= $t['id'] ?>">
                                                 <?= csrfField() ?>
-                                                <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-x-circle"></i> Revoke</button>
+                                                <button type="submit" class="btn btn-sm btn-outline-warning px-2 py-0.5" title="Revoke Access"><i class="bi bi-x-circle"></i></button>
                                             </form>
-                                            <form method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this token?');">
+                                            <form method="POST" class="d-inline ms-1" onsubmit="return confirm('Permanently delete this token?');">
                                                 <input type="hidden" name="action" value="delete_token">
                                                 <input type="hidden" name="token_id" value="<?= $t['id'] ?>">
                                                 <?= csrfField() ?>
-                                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Delete</button>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-0.5" title="Delete Token"><i class="bi bi-trash"></i></button>
                                             </form>
                                         <?php endif; ?>
                                     </td>
@@ -617,70 +517,61 @@ Future<void> loginExample() async {
                     </table>
                 </div>
             <?php endif; ?>
-            <?php if ($totalTokens > $perPage): ?>
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <small class="text-muted">Showing <?= number_format($offset + 1) ?> - <?= number_format(min($offset + $perPage, $totalTokens)) ?> of <?= number_format($totalTokens) ?> tokens</small>
-                <nav>
-                    <ul class="pagination pagination-sm mb-0">
-                        <?php for ($p = 1; $p <= max(1, (int)ceil($totalTokens / $perPage)); $p++): ?>
-                            <li class="page-item <?= $p == $page ? 'active' : '' ?>">
-                                <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['page' => $p]))) ?>"><?= $p ?></a>
-                            </li>
-                        <?php endfor; ?>
-                    </ul>
-                </nav>
-            </div>
-            <?php endif; ?>
         </div>
     </div>
 
-    <!-- Database Assignments -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-database-gear me-2"></i>Database Assignments</h5>
+    <!-- Database Assignments Card -->
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold text-dark">Database Pool Assignments</span>
+                <span class="badge bg-secondary-subtle text-secondary border"><?= $totalAssignments ?> Configured</span>
+            </div>
             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignDbModal">
                 <i class="bi bi-plus-circle me-1"></i> Add Assignment
             </button>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             <?php if (empty($assignments)): ?>
-                <p class="text-muted text-center py-3">No database assignments configured</p>
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-database-gear fs-3 d-block mb-1 text-secondary"></i>
+                    No database pool assignments configured.
+                </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                    <table class="table crm-table align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>User</th>
-                                <th>Role</th>
-                                <th>Database</th>
-                                <th>Team Filter</th>
-                                <th>Assigned By</th>
-                                <th>Date</th>
-                                <th>Actions</th>
+                                <th>User Account</th>
+                                <th style="width: 120px;">Role</th>
+                                <th style="width: 130px;">Database</th>
+                                <th style="width: 140px;">Team Scope</th>
+                                <th style="width: 140px;">Assigned By</th>
+                                <th style="width: 120px;">Date</th>
+                                <th style="width: 80px;" class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($assignments as $a): ?>
                                 <tr>
                                     <td>
-                                        <strong><?= htmlspecialchars($a['user_name']) ?></strong><br>
-                                        <small class="text-muted"><?= htmlspecialchars($a['user_email'] ?? '') ?></small>
+                                        <div class="fw-medium text-dark small"><?= htmlspecialchars($a['user_name']) ?></div>
                                     </td>
-                                    <td><span class="badge bg-info"><?= htmlspecialchars($a['user_role']) ?></span></td>
+                                    <td><span class="badge bg-info-subtle text-primary border"><?= htmlspecialchars($a['user_role']) ?></span></td>
                                     <td>
-                                        <span class="badge bg-<?= $a['database_type'] === 'temporary' ? 'success' : ($a['database_type'] === 'main' ? 'primary' : 'warning') ?>">
+                                        <span class="badge <?= $a['database_type'] === 'temporary' ? 'bg-warning-subtle text-warning border-warning' : ($a['database_type'] === 'main' ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success') ?> border">
                                             <?= ucfirst($a['database_type']) ?>
                                         </span>
                                     </td>
-                                    <td><?= $a['team_name'] ? htmlspecialchars($a['team_name']) : '<span class="text-muted">All TBL_TEAMS</span>' ?></td>
-                                    <td><?= htmlspecialchars($a['assigned_by_name'] ?? '—') ?></td>
-                                    <td><?= date('M j, Y', strtotime($a['assigned_at'])) ?></td>
-                                    <td>
-                                        <form method="POST" class="d-inline" onsubmit="return confirm('Remove this assignment?');">
+                                    <td><?= $a['team_name'] ? htmlspecialchars($a['team_name']) : '<span class="text-muted small">All Teams</span>' ?></td>
+                                    <td class="small text-muted"><?= htmlspecialchars($a['assigned_by_name'] ?? '—') ?></td>
+                                    <td class="small text-muted"><?= date('d M Y', strtotime($a['assigned_at'])) ?></td>
+                                    <td class="text-end">
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Remove this database assignment?');">
                                             <input type="hidden" name="action" value="remove_assignment">
                                             <input type="hidden" name="assign_id" value="<?= $a['id'] ?>">
                                             <?= csrfField() ?>
-                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-0.5"><i class="bi bi-trash"></i></button>
                                         </form>
                                     </td>
                                 </tr>
@@ -689,51 +580,31 @@ Future<void> loginExample() async {
                     </table>
                 </div>
             <?php endif; ?>
-            <?php if ($totalAssignments > $perPage): ?>
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <small class="text-muted">Showing <?= number_format($offset + 1) ?> - <?= number_format(min($offset + $perPage, $totalAssignments)) ?> of <?= number_format($totalAssignments) ?> assignments</small>
-                <nav>
-                    <ul class="pagination pagination-sm mb-0">
-                        <?php for ($p = 1; $p <= max(1, (int)ceil($totalAssignments / $perPage)); $p++): ?>
-                            <li class="page-item <?= $p == $page ? 'active' : '' ?>">
-                                <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['page' => $p]))) ?>"><?= $p ?></a>
-                            </li>
-                        <?php endfor; ?>
-                    </ul>
-                </nav>
-            </div>
-            <?php endif; ?>
         </div>
     </div>
 
-    <!-- Access Logs -->
-    <div class="card">
-        <div class="card-header"><h5 class="mb-0"><i class="bi bi-activity me-2"></i>Recent API Activity</h5></div>
+    <!-- Recent API Activity Logs Card -->
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-semibold text-dark">Recent Endpoint Traffic</span>
+            <span class="badge bg-secondary-subtle text-secondary border"><?= number_format($totalLogs) ?> Events</span>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table crm-table align-middle mb-0">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>User</th>
+                            <th style="width: 140px;">Timestamp</th>
+                            <th>Caller</th>
                             <th>Endpoint</th>
-                            <th>Method</th>
-                            <th>Status</th>
-                            <th>Duration</th>
-                            <th>IP</th>
+                            <th style="width: 80px;">Method</th>
+                            <th style="width: 80px;">HTTP</th>
+                            <th style="width: 90px;">Latency</th>
+                            <th style="width: 120px;">IP Address</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                        $logPage = max(1, (int)($_GET['log_page'] ?? 1));
-                        $logPerPage = 20;
-                        $logOffset = ($logPage - 1) * $logPerPage;
-                        $totalLogs = 0;
-                        $resCount = @$link->query("SELECT COUNT(*) FROM " . tn('TBL_API_ACCESS_LOGS'));
-                        if ($resCount) {
-                            $totalLogs = (int)$resCount->fetch_row()[0];
-                        }
-                        $totalLogPages = max(1, (int)ceil($totalLogs / $logPerPage));
                         $logs = $link->query("
                             SELECT al.*, u.NAME as user_name
                             FROM " . tn('TBL_API_ACCESS_LOGS') . " al
@@ -741,131 +612,130 @@ Future<void> loginExample() async {
                             ORDER BY al.created_at DESC
                             LIMIT $logPerPage OFFSET $logOffset
                         ");
-                        while ($log = $logs->fetch_assoc()):
+                        if ($logs && $logs->num_rows > 0):
+                            while ($log = $logs->fetch_assoc()):
                         ?>
                             <tr>
-                                <td class="small"><?= date('M j, Y H:i:s', strtotime($log['created_at'])) ?></td>
-                                <td><?= htmlspecialchars($log['user_name'] ?? 'Unknown') ?></td>
-                                <td><code class="small"><?= htmlspecialchars($log['endpoint']) ?></code></td>
-                                <td><span class="badge bg-<?= $log['method'] === 'GET' ? 'info' : ($log['method'] === 'POST' ? 'success' : 'warning') ?>"><?= $log['method'] ?></span></td>
+                                <td class="small text-muted font-monospace"><?= date('d M H:i:s', strtotime($log['created_at'])) ?></td>
+                                <td class="small fw-medium text-dark"><?= htmlspecialchars($log['user_name'] ?? 'Guest/Anonymous') ?></td>
+                                <td><code class="text-dark bg-light px-1.5 py-0.5 rounded border small font-monospace"><?= htmlspecialchars($log['endpoint']) ?></code></td>
+                                <td>
+                                    <span class="badge bg-<?= $log['method'] === 'GET' ? 'info' : ($log['method'] === 'POST' ? 'success' : 'warning') ?>-subtle text-<?= $log['method'] === 'GET' ? 'primary' : ($log['method'] === 'POST' ? 'success' : 'dark') ?> border">
+                                        <?= $log['method'] ?>
+                                    </span>
+                                </td>
                                 <td>
                                     <?php 
                                         $code = (int)$log['response_code'];
-                                        $cls = $code >= 500 ? 'danger' : ($code >= 400 ? 'warning' : 'success');
+                                        $cls = $code >= 500 ? 'bg-danger-subtle text-danger' : ($code >= 400 ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success');
                                     ?>
-                                    <span class="badge bg-<?= $cls ?>"><?= $code ?></span>
+                                    <span class="badge <?= $cls ?> border font-monospace"><?= $code ?></span>
                                 </td>
-                                <td class="small"><?= $log['execution_time_ms'] ?>ms</td>
-                                <td class="small text-muted"><?= htmlspecialchars($log['ip_address'] ?? '—') ?></td>
+                                <td class="small font-monospace"><?= $log['execution_time_ms'] ?>ms</td>
+                                <td class="small text-muted font-monospace"><?= htmlspecialchars($log['ip_address'] ?? '—') ?></td>
                             </tr>
-                        <?php endwhile; ?>
+                        <?php 
+                            endwhile;
+                        else:
+                        ?>
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No recent API requests logged.</td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-            <?php if ($totalLogPages > 1): ?>
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <small class="text-muted">Showing <?= number_format($logOffset + 1) ?> - <?= number_format(min($logOffset + $logPerPage, $totalLogs)) ?> of <?= number_format($totalLogs) ?> logs</small>
-                <nav>
-                    <ul class="pagination pagination-sm mb-0">
-                        <?php for ($p = 1; $p <= $totalLogPages; $p++): ?>
-                            <li class="page-item <?= $p == $logPage ? 'active' : '' ?>">
-                                <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['log_page' => $p]))) ?>"><?= $p ?></a>
-                            </li>
-                        <?php endfor; ?>
-                    </ul>
-                </nav>
-            </div>
-            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <!-- Create Token Modal -->
-<div class="modal fade" id="createTokenModal" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade" id="createTokenModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <form method="POST">
                 <input type="hidden" name="action" value="create_token">
                 <?= csrfField() ?>
                 <div class="modal-header">
-                    <h5 class="modal-title">Create API Token</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h6 class="modal-title fw-bold"><i class="bi bi-key text-primary me-2"></i> Generate Mobile API Token</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-3">
                     <div class="mb-3">
-                        <label class="form-label">User <span class="text-danger">*</span></label>
-                        <select class="form-select" name="user_id" required>
-                            <option value="">Select user...</option>
-                            <?php foreach ($TBL_USERS as $u): ?>
+                        <label class="form-label small text-muted mb-1">Target Agent Account <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" name="user_id" required>
+                            <option value="">Select agent...</option>
+                            <?php foreach ($activeUsers as $u): ?>
                                 <option value="<?= $u['ID'] ?>"><?= htmlspecialchars($u['NAME']) ?> (<?= htmlspecialchars($u['ROLE']) ?>) - <?= htmlspecialchars($u['EMAIL']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Token Name</label>
-                        <input type="text" class="form-control" name="token_name" value="Mobile App" placeholder="e.g. Mobile App, Partner Integration">
+                        <label class="form-label small text-muted mb-1">Device / Integration Label</label>
+                        <input type="text" class="form-control form-control-sm" name="token_name" value="Mobile App" placeholder="e.g. Android Handset, Field Tablet">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Expiry (days)</label>
-                        <input type="number" class="form-control" name="expiry_days" value="90" min="0" max="365">
-                        <div class="form-text">0 = never expires</div>
+                        <label class="form-label small text-muted mb-1">Validity Period (days)</label>
+                        <input type="number" class="form-control form-control-sm" name="expiry_days" value="90" min="0" max="365">
+                        <div class="text-muted small mt-1">Set 0 for perpetual validity</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-key me-1"></i> Generate Token</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-key me-1"></i> Issue Token</button>
                 </div>
             </form>
         </div>
     </div>
+</div>
 
-    <!-- Assign Database Modal -->
-    <div class="modal fade" id="assignDbModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="POST">
-                    <input type="hidden" name="action" value="assign_database">
-                    <?= csrfField() ?>
-                    <div class="modal-header">
-                        <h5 class="modal-title">Assign Database Access</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- Assign Database Modal -->
+<div class="modal fade" id="assignDbModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST">
+                <input type="hidden" name="action" value="assign_database">
+                <?= csrfField() ?>
+                <div class="modal-header">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-database-plus text-primary me-2"></i> Assign Database Scope</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted mb-1">Agent Account <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" name="assign_user_id" required>
+                            <option value="">Select agent...</option>
+                            <?php foreach ($activeUsers as $u): ?>
+                                <option value="<?= $u['ID'] ?>"><?= htmlspecialchars($u['NAME']) ?> (<?= htmlspecialchars($u['ROLE']) ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">User <span class="text-danger">*</span></label>
-                            <select class="form-select" name="assign_user_id" required>
-                                <option value="">Select user...</option>
-                                <?php foreach ($TBL_USERS as $u): ?>
-                                    <option value="<?= $u['ID'] ?>"><?= htmlspecialchars($u['NAME']) ?> (<?= htmlspecialchars($u['ROLE']) ?>)</option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Database Type <span class="text-danger">*</span></label>
-                            <select class="form-select" name="assign_db_type" required>
-                                <option value="temporary">Temporary Database</option>
-                                <option value="main">Main Database</option>
-                                <option value="leads">Leads Table</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Team Filter (optional)</label>
-                            <select class="form-select" name="assign_team_id">
-                                <option value="">All TBL_TEAMS</option>
-                                <?php foreach ($TBL_TEAMS as $t): ?>
-                                    <option value="<?= $t['ID'] ?>"><?= htmlspecialchars($t['NAME']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="form-text">Limit access to specific team's data</div>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted mb-1">Database Pool <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" name="assign_db_type" required>
+                            <option value="temporary">Temporary Database</option>
+                            <option value="main">Main Database</option>
+                            <option value="leads">Leads Pipeline</option>
+                        </select>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-database-plus me-1"></i> Assign</button>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted mb-1">Team Filter Scope (Optional)</label>
+                        <select class="form-select form-select-sm" name="assign_team_id">
+                            <option value="">All Operational Teams</option>
+                            <?php foreach ($teamsList as $t): ?>
+                                <option value="<?= $t['ID'] ?>"><?= htmlspecialchars($t['NAME']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="text-muted small mt-1">Optionally confine agent querying to a specific team</div>
                     </div>
-                </form>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i> Apply Scope</button>
+                </div>
+            </form>
         </div>
     </div>
+</div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

@@ -96,7 +96,6 @@ if (isset($_POST['archive_action']) && isset($_POST['archive_months'])) {
 }
 
 /* --- UPLOAD / IMPORT ACTION --- */
-/* Accept POST if file exists and upload OK (auto-enabled earlier if needed) */
 if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['error']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
 
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -259,18 +258,14 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
 
     $handle = fopen($path, 'r');
     if ($has_header) {
-        fgetcsv($handle, 20000, ","); // skip header
+        fgetcsv($handle, 20000, ",");
         $meta['message'] = 'Importing data...';
     }
 
-    // Resume from where the previous batch left off
     for ($i = 0; $i < $meta['processed']; $i++) {
         fgetcsv($handle, 20000, ",");
     }
 
-    // Target is isolated: duplicates are checked only within the selected target table.
-    // TBL_TEMP uploads do NOT cross-check against TBL_MAIN.
-    // Cross-table duplicate resolution happens only during transfer (Temp -> Main).
     $targets = [];
     if ($target === 'temporary' || $target === 'both') {
         $targets['temporary'] = [
@@ -448,421 +443,393 @@ if (isset($_GET['upload_progress']) && !empty($_GET['task_id'])) {
     exit;
 }
 ?>
-<?php $pageTitle = 'Upload Customer Database'; include '../../php_scripts/header.php'; ?>
+<?php 
+$pageTitle = 'Upload CSV • CallNow CRM'; 
+include '../../php_scripts/header.php'; 
+?>
 
 <style>
-#uploadProgressModal .modal-content { border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
-#notificationModal .modal-content { border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
+.file-zone {
+    border: 2px dashed var(--crm-border-color);
+    border-radius: var(--crm-radius);
+    padding: 2.25rem 1.5rem;
+    text-align: center;
+    background: #fafbfc;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.file-zone:hover, .file-zone.dragover {
+    border-color: var(--crm-primary);
+    background: #f0f7ff;
+}
+.preview-table th, .preview-table td {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+}
 </style>
 
-<div class="container py-3">
-  <div class="row mb-3 align-items-center">
-    <div class="col-md-8">
-      <h4 class="mb-0">Upload Customer Database</h4>
-      <div class="text-muted small">Import CSV into Temporary, Main, or Both. Mobile required (Indian 10-digit).</div>
-    </div>
-    <div class="col-md-4 text-md-end">
-      <div class="btn-group" role="group">
-        <a class="btn btn-outline-secondary btn-sm" href="#" id="downloadExampleBtn"><i class="bi bi-download me-1"></i>Download Example CSV</a>
-        <button class="btn btn-outline-info btn-sm" id="showHelpBtn" type="button" data-bs-toggle="collapse" data-bs-target="#helpCollapse" aria-expanded="false" aria-controls="helpCollapse">
-          <i class="bi bi-question-circle me-1"></i>Help
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <div class="collapse mb-3" id="helpCollapse">
-    <div class="card card-body">
-      <strong>Tips:</strong> You can upload CSVs with or without a header — toggle "CSV has header". Mobile must be Indian 10 digits (starting 6-9). Use Dry-run to preview changes without writing to DB.
-    </div>
-  </div>
-
-  <div class="row gy-4">
-    <!-- left column: upload and preview -->
-    <div class="col-lg-7">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <form method="post" enctype="multipart/form-data" id="uploadForm" novalidate>
-          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-            <input type="hidden" name="import" id="importHidden" value="0">
-
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <div class="d-flex align-items-center">
-                <label class="me-2 mb-0 fw-semibold">Target</label>
-                <div class="btn-group" role="group">
-                  <input type="radio" class="btn-check" name="target_database" id="t_temp" value="temporary" checked>
-                  <label class="btn btn-outline-primary btn-sm" for="t_temp">Temporary</label>
-                  <input type="radio" class="btn-check" name="target_database" id="t_main" value="main">
-                  <label class="btn btn-outline-success btn-sm" for="t_main">Main</label>
-                  <input type="radio" class="btn-check" name="target_database" id="t_both" value="both">
-                  <label class="btn btn-outline-secondary btn-sm" for="t_both">Both</label>
-                </div>
-              </div>
-
-              <div class="d-flex align-items-center gap-3">
-                <div class="form-check form-switch mb-0">
-                  <input class="form-check-input" type="checkbox" id="hasHeader" name="has_header" value="1">
-                  <label class="form-check-label small" for="hasHeader">CSV has header</label>
-                </div>
-                <div class="form-check form-switch mb-0">
-                  <input class="form-check-input" type="checkbox" id="dryRun" name="dryrun" value="1">
-                  <label class="form-check-label small" for="dryRun">Dry-run</label>
-                </div>
-              </div>
-            </div>
-
-            <div id="tempIsolationBanner" class="card mb-3" style="display:none;">
-              <div class="card-body py-2 d-flex align-items-center gap-2">
-                <i class="bi bi-info-circle text-primary"></i>
-                <span class="small text-muted mb-0">Temporary uploads are isolated. Duplicates are checked only within Temporary DB. No data in Main DB will be touched until you explicitly use Transfer.</span>
-              </div>
-            </div>
-
-            <div id="dropZone" class="file-zone mb-3" tabindex="0">
-              <div id="dropInfoContent" style="width:100%;">
-                <div class="text-center">
-                  <i class="bi bi-cloud-upload" style="font-size:2.25rem;color:#0d6efd"></i>
-                  <div id="dzText" class="mt-2 text-muted">Drop CSV here or click to choose • Max 10MB</div>
-                </div>
-              </div>
-              <input type="file" name="file" id="fileInput" accept=".csv" style="display:none;">
-            </div>
-            <div class="form-check mt-3">
-                <input type="checkbox" name="terms_agreed" class="form-check-input" id="exampleCheck1" required>
-                <label class="form-check-label" for="exampleCheck1">
-                    I Agree to all <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">Terms & Conditions</a> for Data Upload.
-                </label>
-            </div>
-
-
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="small text-muted">Preview first 10 rows below. Invalid mobiles highlighted in red.</div>
-              <div>
-                <button type="submit" name="import" value="1" id="uploadBtn" class="btn btn-primary btn-sm" disabled>
-                  <i class="bi bi-cloud-upload me-1"></i> Upload & Import
-                </button>
-              </div>
-            </div>
-          </form>
-
-          <!-- preview -->
-          <div id="previewArea" class="mt-3" style="display:none;">
-            <div class="fw-semibold mb-2">CSV Preview (first 10 data rows)</div>
-            <div class="table-responsive">
-              <table class="table table-bordered table-sm mb-0 preview-table">
-                <thead class="table-light">
-                  <tr><th>#</th><th>Name</th><th>Mobile (raw)</th><th>Norm</th><th>Valid</th><th>Company</th><th>Package</th><th>Other</th></tr>
-                </thead>
-                <tbody id="previewBody"></tbody>
-              </table>
-            </div>
-            <div class="mt-2 small text-muted" id="previewMeta"></div>
-          </div>
-
-          <!-- colorful csv example -->
-          <div class="mt-4">
-            <div class="fw-semibold mb-2">CSV Example</div>
-            <div class="table-responsive">
-              <table class="table table-sm mb-0">
-                <thead>
-                  <tr class="table-primary">
-                    <th>Name</th><th>Mobile</th><th>Company</th><th>Package</th><th>Other Info</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr class="table-success"><td>John Doe</td><td>919876543210</td><td>Acme Ltd</td><td>2 Lacks </td><td>Interested</td></tr>
-                  <tr class="table-warning"><td>(blank)</td><td>9876543210</td><td>(blank)</td><td>50000 Monthly</td><td>Called earlier</td></tr>
-                  <tr class="table-info"><td>Jane Smith</td><td>919812345678</td><td>XYZ Pvt Ltd</td><td>12000</td><td>Request callback</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="mt-2 small text-muted">Notes: Name can be blank (will be stored as NULL). Mobile is required (Indian 10 digits). You may upload CSVs with or without header.</div>
-          </div>
+<div class="container-fluid px-3 py-3">
+    <!-- Module Header -->
+    <div class="module-header mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-xs">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/database/data_management_main.php') ?>">Data Management</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Upload CSV</li>
+                </ol>
+            </nav>
+            <h1 class="h4 fw-bold text-dark mb-0">Upload Customer Database</h1>
+            <div class="text-muted fs-xs">Batch import records into Temporary Staging, Main Database, or Parallel Repositories</div>
         </div>
-      </div>
-    </div>
-
-    <!-- right column: summary & logs -->
-    <div class="col-lg-5">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="fw-semibold">Import Summary</div>
-            <div>
-              <?php if ($summary): ?>
-                <span class="badge bg-<?= htmlspecialchars($summaryType ?: 'secondary') ?>"><?= strtoupper(htmlspecialchars($summaryType ?: 'INFO')) ?></span>
-              <?php else: ?>
-                <span class="small text-muted">No actions yet</span>
-              <?php endif; ?>
-            </div>
-          </div>
-
-          <?php if ($summary): ?>
-            <div class="mb-3">
-              <div class="alert alert-<?= htmlspecialchars($summaryType) ?> py-2 mb-0"><?= $summary ?></div>
-            </div>
-          <?php endif; ?>
-
-          <div class="row g-2 mb-3">
-            <div class="col-6">
-              <div class="card text-bg-light mb-0">
-                <div class="card-body p-2">
-                  <div class="d-flex align-items-center">
-                    <div class="flex-grow-1">
-                      <div class="small text-muted">Rows processed</div>
-                      <div class="h5 mb-0"><?= $stats['rows_processed'] ?></div>
-                    </div>
-                    <i class="bi bi-list-check fs-3 text-muted"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-6">
-              <div class="card text-bg-success text-white mb-0">
-                <div class="card-body p-2">
-                  <div class="d-flex align-items-center">
-                    <div class="flex-grow-1">
-                      <div class="small">Inserted</div>
-                      <div class="h5 mb-0"><?= $stats['inserted'] ?></div>
-                    </div>
-                    <i class="bi bi-check-circle fs-3"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-6">
-              <div class="card text-bg-warning mb-0">
-                <div class="card-body p-2">
-                  <div class="d-flex align-items-center">
-                    <div class="flex-grow-1">
-                      <div class="small">Duplicates skipped</div>
-                      <div class="h5 mb-0"><?= $stats['duplicates'] ?></div>
-                    </div>
-                    <i class="bi bi-x-octagon fs-3"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-6">
-              <div class="card text-bg-danger text-white mb-0">
-                <div class="card-body p-2">
-                  <div class="d-flex align-items-center">
-                    <div class="flex-grow-1">
-                      <div class="small">Invalid mobiles</div>
-                      <div class="h5 mb-0"><?= $stats['invalid'] ?></div>
-                    </div>
-                    <i class="bi bi-exclamation-triangle fs-3"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- DRY RUN box -->
-          <?php if (isset($stats['would_insert'])): ?>
-            <div class="mb-3">
-              <div class="card border-info">
-                <div class="card-body p-2">
-                  <div class="small text-muted">Dry-run preview</div>
-                  <div class="d-flex align-items-center justify-content-between">
-                    <div class="h6 mb-0">Would insert: <span class="badge bg-info"><?= $stats['would_insert'] ?></span></div>
-                    <div class="h6 mb-0">Would skip: <span class="badge bg-secondary"><?= $stats['would_update'] ?></span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          <?php endif; ?>
-
-          <!-- Detailed log accordion -->
-          <div class="mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div class="fw-semibold small mb-0">Detailed Log</div>
-              <div class="small text-muted"><?= count($logs) ?> entries</div>
-            </div>
-
-            <?php if (empty($logs)): ?>
-              <div class="alert alert-light small mb-0">No logs yet.</div>
-            <?php else: ?>
-              <?php
-              $logPerPage = 20;
-              $logPage = max(1, (int)($_GET['log_page'] ?? 1));
-              $allLogs = array_reverse(array_slice($logs, -200));
-              $totalLogPages = max(1, (int)ceil(count($allLogs) / $logPerPage));
-              $pageLogs = array_slice($allLogs, ($logPage - 1) * $logPerPage, $logPerPage);
-              ?>
-              <div class="accordion" id="logsAccordion" style="max-height:45vh; overflow:auto;">
-                <?php foreach ($pageLogs as $idx => $l): 
-                    $lc = strtolower($l);
-                    if (strpos($lc,'error')!==false || strpos($lc,'failed')!==false) { $sev='danger'; $label='ERR'; }
-                    elseif (strpos($lc,'invalid')!==false || strpos($lc,'skip')!==false) { $sev='warning'; $label='WARN'; }
-                    elseif (strpos($lc,'insert')!==false || strpos($lc,'success')!==false) { $sev='success'; $label='OK'; }
-                    else { $sev='info'; $label='INFO'; }
-                    $itemId = "logItem" . $idx;
-                ?>
-                  <div class="accordion-item">
-                    <h2 class="accordion-header" id="heading<?= $itemId ?>">
-                      <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $itemId ?>" aria-expanded="false" aria-controls="collapse<?= $itemId ?>">
-                        <span class="badge bg-<?= $sev ?> me-2"><?= $label ?></span>
-                        <small class="text-muted"><?= htmlspecialchars($l) ?></small>
-                      </button>
-                    </h2>
-                    <div id="collapse<?= $itemId ?>" class="accordion-collapse collapse" aria-labelledby="heading<?= $itemId ?>" data-bs-parent="#logsAccordion">
-                      <div class="accordion-body small">
-                        <?= nl2br(htmlspecialchars($l)) ?>
-                      </div>
-                    </div>
-                  </div>
-                <?php endforeach; ?>
-              </div>
-              <?php if ($totalLogPages > 1): ?>
-              <div class="d-flex justify-content-between align-items-center mt-2">
-                <small class="text-muted">Page <?= $logPage ?> of <?= $totalLogPages ?></small>
-                <nav>
-                  <ul class="pagination pagination-sm mb-0">
-                    <?php for ($p = 1; $p <= $totalLogPages; $p++): ?>
-                      <li class="page-item <?= $p == $logPage ? 'active' : '' ?>">
-                        <a class="page-link" href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['log_page' => $p]))) ?>"><?= $p ?></a>
-                      </li>
-                    <?php endfor; ?>
-                  </ul>
-                </nav>
-              </div>
-              <?php endif; ?>
-            <?php endif; ?>
-          </div>
-
-          <hr>
-
-          <div class="small text-muted">Archive/Transfer old rows from Maindatabase to New Database</div>
-          <form method="post" class="mt-2" onsubmit="return confirm('Proceed to archive older rows? This will move and delete from main table.');">
-          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-            <div class="input-group input-group-sm mb-2">
-                <label class="me-2 mb-0"> Enter Months </label>
-              <input type="number" name="archive_months" class="form-control form-control-sm" min="1" value="12" aria-label="months">
-              <button class="btn btn-outline-secondary" type="submit" name="archive_action" value="1">Archive</button>
-            </div>
-            <div class="small text-muted">Creates New `TBL_MAIN_ARCHIVE` if missing. Moves rows older than Selected months.</div>
-          </form>
+        <div class="module-header-actions">
+            <a class="btn btn-secondary btn-sm" href="#" id="downloadExampleBtn">
+                <i class="bi bi-download me-1"></i> Example CSV
+            </a>
+            <button class="btn btn-secondary btn-sm" id="showHelpBtn" type="button" data-bs-toggle="collapse" data-bs-target="#helpCollapse" aria-expanded="false" aria-controls="helpCollapse">
+                <i class="bi bi-question-circle me-1"></i> Instructions
+            </button>
         </div>
-      </div>
     </div>
 
-    <div class="col-12 text-center mt-2 small text-muted">Make sure you have verified data before uploading.</div>
-    
-    <!-- Terms and Conditions Modal -->
+    <!-- Help Collapse -->
+    <div class="collapse mb-3" id="helpCollapse">
+        <div class="crm-card border-info">
+            <div class="crm-card-body py-2">
+                <div class="d-flex align-items-center gap-2 mb-1 text-primary fw-semibold fs-xs">
+                    <i class="bi bi-info-circle-fill"></i> Data Format & Hygiene Tips
+                </div>
+                <div class="fs-xs text-muted">
+                    • Header detection supports: <code>Name</code>, <code>Mobile</code>, <code>Company</code>, <code>Package</code>, <code>Other Info</code>.<br>
+                    • If headerless, columns follow positional order: 1=Name, 2=Mobile, 3=Company, 4=Package, 5=Other.<br>
+                    • Mobile numbers must normalize to 10 Indian digits (starting 6, 7, 8, or 9). Prefixes like +91 or leading 0 are auto-cleaned.<br>
+                    • Use <strong>Dry-run</strong> to test and review duplicates before writing to permanent storage.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Left Column: Upload Form & Previews -->
+        <div class="col-lg-7">
+            <!-- Upload Settings & Dropzone Card -->
+            <div class="crm-card mb-3">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-cloud-arrow-up text-primary me-2"></i>File Upload & Configuration</div>
+                </div>
+                <div class="crm-card-body">
+                    <form method="post" enctype="multipart/form-data" id="uploadForm" novalidate>
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="import" id="importHidden" value="0">
+
+                        <!-- Target selection and options -->
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="form-label mb-0 fs-xs fw-semibold">Target Database:</label>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="target_database" id="t_temp" value="temporary" checked>
+                                    <label class="btn btn-outline-primary" for="t_temp">Temporary (Staging)</label>
+                                    <input type="radio" class="btn-check" name="target_database" id="t_main" value="main">
+                                    <label class="btn btn-outline-primary" for="t_main">Main Database</label>
+                                    <input type="radio" class="btn-check" name="target_database" id="t_both" value="both">
+                                    <label class="btn btn-outline-primary" for="t_both">Both</label>
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" id="hasHeader" name="has_header" value="1">
+                                    <label class="form-check-label fs-xs" for="hasHeader">CSV has header</label>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" id="dryRun" name="dryrun" value="1">
+                                    <label class="form-check-label fs-xs" for="dryRun">Dry-run preview</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Staging isolation reminder banner -->
+                        <div id="tempIsolationBanner" class="alert alert-secondary py-2 px-3 mb-3 border fs-xs d-flex align-items-center gap-2" style="display:none;">
+                            <i class="bi bi-shield-check text-primary fs-5"></i>
+                            <div>
+                                <strong>Staging Isolation:</strong> Uploading to Temporary DB keeps records completely isolated. No Main DB rows will be altered until you transfer.
+                            </div>
+                        </div>
+
+                        <!-- Drop Zone -->
+                        <div id="dropZone" class="file-zone mb-3" tabindex="0">
+                            <div id="dropInfoContent" style="width:100%;">
+                                <div class="text-center">
+                                    <i class="bi bi-cloud-arrow-up text-primary" style="font-size:2.5rem;"></i>
+                                    <div id="dzText" class="mt-2 fw-semibold text-dark fs-sm">Choose CSV file or drag and drop here</div>
+                                    <div class="text-muted fs-xs">Standard comma-delimited (.csv) • Maximum file size 10MB</div>
+                                </div>
+                            </div>
+                            <input type="file" name="file" id="fileInput" accept=".csv" style="display:none;">
+                        </div>
+
+                        <!-- Terms & Conditions checkbox -->
+                        <div class="form-check mb-3">
+                            <input type="checkbox" name="terms_agreed" class="form-check-input" id="exampleCheck1" required>
+                            <label class="form-check-label fs-xs text-muted" for="exampleCheck1">
+                                I confirm customer consent and agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal" class="fw-semibold">Terms & Conditions</a> for uploading customer databases.
+                            </label>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="fs-xs text-muted">Previewing first 10 rows before final commit</span>
+                            <button type="submit" name="import" value="1" id="uploadBtn" class="btn btn-primary btn-sm px-3" disabled>
+                                <i class="bi bi-cloud-upload me-1"></i> Start Import
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- CSV Preview Card -->
+            <div id="previewArea" class="crm-card mb-3" style="display:none;">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-table text-primary me-2"></i>CSV Data Preview (First 10 Data Rows)</div>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 preview-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:36px;">#</th>
+                                    <th>Name</th>
+                                    <th>Mobile (Raw)</th>
+                                    <th>Normalized</th>
+                                    <th>Status</th>
+                                    <th>Company</th>
+                                    <th>Package</th>
+                                    <th>Other</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="crm-card-footer fs-xs text-muted py-2 px-3 border-top" id="previewMeta"></div>
+            </div>
+
+            <!-- CSV Example Layout Card -->
+            <div class="crm-card">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-file-earmark-spreadsheet text-primary me-2"></i>Standard Column Layout Example</div>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0 preview-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Mobile</th>
+                                    <th>Company</th>
+                                    <th>Package</th>
+                                    <th>Other Info</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Rajesh Kumar</td><td>9876543210</td><td>Tech Corp</td><td>Personal Loan</td><td>Interested in 5 Lakhs</td></tr>
+                                <tr><td><span class="text-muted">(Optional)</span></td><td>9123456789</td><td>Self Employed</td><td>Business Loan</td><td>Follow up Monday</td></tr>
+                                <tr><td>Pooja Sharma</td><td>9811223344</td><td>Apex Logistics</td><td>Home Loan</td><td>Call after 5 PM</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Summary, Metrics, Logs & Archival -->
+        <div class="col-lg-5">
+            <!-- Import KPI Summary Card -->
+            <div class="crm-card mb-3">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-bar-chart-line text-primary me-2"></i>Import Execution Summary</div>
+                    <?php if ($summary): ?>
+                        <span class="badge badge-<?= htmlspecialchars($summaryType ?: 'secondary') ?>"><?= strtoupper(htmlspecialchars($summaryType ?: 'INFO')) ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="crm-card-body">
+                    <?php if ($summary): ?>
+                        <div class="alert alert-<?= htmlspecialchars($summaryType) ?> py-2 px-3 fs-xs mb-3"><?= $summary ?></div>
+                    <?php endif; ?>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="metric-card p-2">
+                                <div class="metric-card-title">Processed</div>
+                                <div class="metric-card-value fs-4 text-dark"><?= number_format($stats['rows_processed']) ?></div>
+                                <div class="metric-card-subtitle text-muted">Rows checked</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="metric-card p-2">
+                                <div class="metric-card-title">Inserted</div>
+                                <div class="metric-card-value fs-4 text-success"><?= number_format($stats['inserted']) ?></div>
+                                <div class="metric-card-subtitle text-muted">New records</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="metric-card p-2">
+                                <div class="metric-card-title">Duplicates Skipped</div>
+                                <div class="metric-card-value fs-4 text-warning"><?= number_format($stats['duplicates']) ?></div>
+                                <div class="metric-card-subtitle text-muted">Existing mobiles</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="metric-card p-2">
+                                <div class="metric-card-title">Invalid Numbers</div>
+                                <div class="metric-card-value fs-4 text-danger"><?= number_format($stats['invalid']) ?></div>
+                                <div class="metric-card-subtitle text-muted">Formatting error</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php if (isset($stats['would_insert']) && $stats['would_insert'] > 0): ?>
+                        <div class="p-2 mb-3 rounded border bg-light fs-xs">
+                            <div class="fw-semibold text-primary mb-1">Dry-Run Simulation Results:</div>
+                            <div class="d-flex justify-content-between">
+                                <span>Simulated Inserts: <strong><?= number_format($stats['would_insert']) ?></strong></span>
+                                <span>Simulated Skips: <strong><?= number_format($stats['would_update']) ?></strong></span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Detailed Log Accordion -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fs-xs fw-semibold text-dark">Detailed Activity Logs</span>
+                            <span class="fs-xs text-muted"><?= count($logs) ?> entries</span>
+                        </div>
+
+                        <?php if (empty($logs)): ?>
+                            <div class="p-2 rounded bg-light text-center fs-xs text-muted">No execution logs in current session.</div>
+                        <?php else: ?>
+                            <?php
+                            $logPerPage = 15;
+                            $logPage = max(1, (int)($_GET['log_page'] ?? 1));
+                            $allLogs = array_reverse(array_slice($logs, -200));
+                            $totalLogPages = max(1, (int)ceil(count($allLogs) / $logPerPage));
+                            $pageLogs = array_slice($allLogs, ($logPage - 1) * $logPerPage, $logPerPage);
+                            ?>
+                            <div class="accordion" id="logsAccordion" style="max-height:35vh; overflow-y:auto;">
+                                <?php foreach ($pageLogs as $idx => $l): 
+                                    $lc = strtolower($l);
+                                    if (strpos($lc,'error')!==false || strpos($lc,'failed')!==false) { $sev='danger'; $badgeClass='badge-danger'; }
+                                    elseif (strpos($lc,'invalid')!==false || strpos($lc,'skip')!==false) { $sev='warning'; $badgeClass='badge-warning'; }
+                                    elseif (strpos($lc,'insert')!==false || strpos($lc,'success')!==false) { $sev='success'; $badgeClass='badge-success'; }
+                                    else { $sev='info'; $badgeClass='badge-info'; }
+                                    $itemId = "logItem" . $idx;
+                                ?>
+                                    <div class="accordion-item border mb-1 rounded">
+                                        <h2 class="accordion-header" id="heading<?= $itemId ?>">
+                                            <button class="accordion-button collapsed py-1 px-2 fs-xs" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $itemId ?>" aria-expanded="false" aria-controls="collapse<?= $itemId ?>">
+                                                <span class="badge <?= $badgeClass ?> me-2"><?= strtoupper($sev) ?></span>
+                                                <span class="text-truncate" style="max-width:280px;"><?= htmlspecialchars($l) ?></span>
+                                            </button>
+                                        </h2>
+                                        <div id="collapse<?= $itemId ?>" class="accordion-collapse collapse" aria-labelledby="heading<?= $itemId ?>" data-bs-parent="#logsAccordion">
+                                            <div class="accordion-body fs-xs py-2 px-3 bg-light">
+                                                <?= nl2br(htmlspecialchars($l)) ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Archival Card -->
+            <div class="crm-card">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-archive text-primary me-2"></i>Cold Storage & Archival</div>
+                </div>
+                <div class="crm-card-body">
+                    <div class="fs-xs text-muted mb-2">Move aged records from Main Database into historical archive (<code>TBL_MAIN_ARCHIVE</code>) to maintain high search performance.</div>
+                    <form method="post" onsubmit="return confirm('Archive older rows? This will move historical data and purge from main database.');">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text">Older than</span>
+                            <input type="number" name="archive_months" class="form-control" min="1" value="12" aria-label="months">
+                            <span class="input-group-text">Months</span>
+                            <button class="btn btn-secondary" type="submit" name="archive_action" value="1">
+                                <i class="bi bi-box-arrow-right me-1"></i> Archive
+                            </button>
+                        </div>
+                        <div class="fs-xs text-muted">Auto-creates archive table if not present.</div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Terms and Conditions Modal -->
 <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="termsModalLabel">Terms & Conditions for Uploading Confidential Data</h5>
+                <h5 class="modal-title fw-bold" id="termsModalLabel"><i class="bi bi-shield-lock text-primary me-2"></i>Terms & Conditions for Data Upload</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p>By uploading data to this platform, you agree to the following terms and conditions:</p>
-                <ol>
-                    <li>
-                        <strong>Responsibility of Data Upload</strong><br>
-                        - I acknowledge that the data uploaded to this platform is done entirely at my own risk and responsibility.<br>
-                        - I confirm that I am fully aware of the sensitive and confidential nature of customer data, including personal and financial details.
-                    </li>
-                    <li>
-                        <strong>Customer Consent</strong><br>
-                        - I confirm that all data being uploaded has been collected with explicit consent from the customers.<br>
-                        - I understand that it is my duty to ensure that no data is uploaded without prior approval from the data owner.
-                    </li>
-                    <li>
-                        <strong>Prohibition of Misuse</strong><br>
-                        - I guarantee that the uploaded data will not be used in any unethical, unauthorized, or illegal manner.<br>
-                        - I will take all necessary steps to prevent the data from being misused, mishandled, or disclosed to unauthorized parties.
-                    </li>
-                    <li>
-                        <strong>Data Security and Protection</strong><br>
-                        - I acknowledge that it is my responsibility to comply with all applicable laws and regulations related to the protection of confidential and personal data.<br>
-                        - I agree to use secure methods to store, process, and manage the data to prevent unauthorized access, theft, or loss.
-                    </li>
-                    <li>
-                        <strong>Non-Liability of Website and Developers</strong><br>
-                        - I understand and accept that the website and its developers are not responsible for any data stored on this platform or any consequences resulting from its usage or misuse by me or others.<br>
-                        - I agree that any misuse of data or legal implications arising from its handling are solely my responsibility.
-                    </li>
-                    <li>
-                        <strong>Compliance with Data Protection Laws</strong><br>
-                        - I confirm that the uploaded data complies with applicable data protection regulations, such as the General Data Protection Regulation (GDPR) or similar laws, if applicable.<br>
-                        - I agree to follow best practices for ensuring data integrity, security, and lawful processing.
-                    </li>
-                    <li>
-                        <strong>Accuracy of Uploaded Data</strong><br>
-                        - I confirm that the data uploaded is accurate, relevant, and not misleading.<br>
-                        - I accept that I am solely responsible for verifying the correctness and appropriateness of the data before uploading.
-                    </li>
-                    <li>
-                        <strong>Retention and Deletion of Data</strong><br>
-                        - I acknowledge that I am responsible for ensuring the timely removal of outdated or irrelevant data from the platform.<br>
-                        - I agree to follow data retention policies and ensure that no data is stored beyond its required purpose.
-                    </li>
-                    <li>
-                        <strong>Indemnification</strong><br>
-                        - I agree to indemnify and hold the website and its developers harmless from any claims, damages, or liabilities arising from the data I upload, store, or share.
-                    </li>
-                    <li>
-                        <strong>Acknowledgment of Risk</strong><br>
-                        - I understand that while the platform may provide certain security measures, absolute protection of uploaded data cannot be guaranteed.<br>
-                        - I accept full liability for any potential loss, breach, or unauthorized access to the uploaded data.
-                    </li>
+            <div class="modal-body fs-xs">
+                <p>By uploading contact records to this platform, you agree to the following terms and conditions:</p>
+                <ol class="ps-3 mb-3">
+                    <li class="mb-2"><strong>Responsibility of Data Upload:</strong> I acknowledge that data uploaded to this platform is done entirely under organization compliance and consent guidelines.</li>
+                    <li class="mb-2"><strong>Customer Consent:</strong> I confirm that data has been collected legally with valid permissions for telecalling and contact activities.</li>
+                    <li class="mb-2"><strong>Prohibition of Misuse:</strong> I guarantee uploaded data will not be exported, transferred, or disclosed outside authorized business workflows.</li>
+                    <li class="mb-2"><strong>Data Protection & Privacy:</strong> I confirm compliance with applicable telecom and data privacy regulations.</li>
+                    <li class="mb-2"><strong>Accuracy & Verification:</strong> All contact data is subject to scrubbing and internal duplicate checks upon upload.</li>
                 </ol>
-                <p>By agreeing to these terms and conditions, you confirm that you understand your responsibilities and the potential risks associated with uploading and managing confidential data. Violation of these terms may result in penalties, loss of access, or legal consequences.</p>
-                <p><strong>Effective Date: 01 January, 2025</p></strong>
+                <div class="text-muted">Effective Date: 01 January, 2025</div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">I Agree</button>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">I Understand & Agree</button>
             </div>
         </div>
     </div>
 </div>
-    
-    
-    
-  </div>
-</div>
 
+<!-- Upload Progress Modal -->
 <div class="modal fade" id="uploadProgressModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-cloud-upload me-2"></i>Uploading & Importing</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-cloud-arrow-up text-primary me-2"></i>Uploading & Importing Data</h5>
                 <button type="button" class="btn-close" id="uploadModalCloseBtn" data-bs-dismiss="modal" aria-label="Close" disabled></button>
             </div>
             <div class="modal-body">
                 <div class="d-flex justify-content-between mb-1">
-                    <span class="small text-muted">Upload Progress</span>
-                    <span id="uploadPercent" class="small fw-semibold">0%</span>
+                    <span class="fs-xs text-muted">Upload & Ingestion Progress</span>
+                    <span id="uploadPercent" class="fs-xs fw-semibold text-dark">0%</span>
                 </div>
-                <div class="progress mb-3" style="height: 20px;">
-                    <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                <div class="progress mb-3" style="height: 16px;">
+                    <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%"></div>
                 </div>
-                <p class="mb-2 small text-muted" id="uploadMessage">Uploading file...</p>
-                <div id="uploadResult" class="mt-3 alert" style="display:none;"></div>
+                <p class="mb-2 fs-xs text-muted" id="uploadMessage">Uploading file...</p>
+                <div id="uploadResult" class="mt-3 alert fs-xs" style="display:none;"></div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Notification Modal -->
 <div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content" style="border-radius:0.75rem;border:1px solid #e2e4f0;">
+        <div class="modal-content">
             <div class="modal-body text-center py-4">
-                <div id="notifIcon" class="mb-2" style="font-size:2.5rem;"></div>
-                <h5 id="notifTitle" class="fw-bold mb-1"></h5>
-                <p id="notifMessage" class="text-muted small mb-3"></p>
-                <button type="button" class="btn btn-primary btn-sm px-4" data-bs-dismiss="modal" style="border-radius:0.5rem;">OK</button>
+                <div id="notifIcon" class="mb-2" style="font-size:2rem;"></div>
+                <h6 id="notifTitle" class="fw-bold mb-1"></h6>
+                <p id="notifMessage" class="text-muted fs-xs mb-3"></p>
+                <button type="button" class="btn btn-primary btn-sm px-4" data-bs-dismiss="modal">OK</button>
             </div>
         </div>
     </div>
 </div>
-
-<?php include '../../php_scripts/footer.php'; ?>
 
 <script>
 /* Core elements */
@@ -879,12 +846,11 @@ const downloadExampleBtn = document.getElementById('downloadExampleBtn');
 
 const terms = document.getElementById('exampleCheck1');
 
-/* temp isolation banner toggle */
 function updateTempIsolationBanner() {
   const banner = document.getElementById('tempIsolationBanner');
   const target = document.querySelector('input[name="target_database"]:checked');
   if (banner && target) {
-    banner.style.display = target.value === 'temporary' ? 'block' : 'none';
+    banner.style.display = target.value === 'temporary' ? 'flex' : 'none';
   }
 }
 document.querySelectorAll('input[name="target_database"]').forEach(function(r) {
@@ -892,10 +858,8 @@ document.querySelectorAll('input[name="target_database"]').forEach(function(r) {
 });
 updateTempIsolationBanner();
 
-/* click opens file dialog */
 dropZone.addEventListener('click', ()=> fileInput.click());
 
-/* handle file selection -- fileInput stays in DOM */
 fileInput.addEventListener('change', ()=> {
   if (!fileInput.files.length) return;
   const f = fileInput.files[0];
@@ -906,7 +870,6 @@ fileInput.addEventListener('change', ()=> {
   uploadBtn.disabled = false;
 });
 
-/* drag/drop */
 ['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); }));
 ['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('dragover'); }));
 dropZone.addEventListener('drop', ev => {
@@ -919,28 +882,24 @@ dropZone.addEventListener('drop', ev => {
   }
 });
 
-/* update only display area — do NOT touch the file input element */
 function setDropInfo(file) {
   dropInfoContent.innerHTML = `
     <div class="text-center">
-      <i class="bi bi-file-earmark-spreadsheet" style="font-size:2rem;color:#0f172a"></i>
-      <div class="mt-1"><strong>${escapeHtml(file.name)}</strong></div>
-      <div class="small text-muted">${(file.size/1024/1024).toFixed(2)} MB</div>
+      <i class="bi bi-file-earmark-spreadsheet text-primary" style="font-size:2rem;"></i>
+      <div class="mt-1 fw-bold fs-xs">${escapeHtml(file.name)}</div>
+      <div class="fs-xs text-muted">${(file.size/1024/1024).toFixed(2)} MB</div>
     </div>`;
 }
 
-/* preview reader — respects hasHeader toggle */
 function handlePreview(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
     const text = e.target.result;
-    // split lines, keep empty ones to preserve rows but filter trailing blanks
     const rows = text.split(/\r\n|\n/).filter((r,i,a)=> {
-      // keep non-empty OR first row (if headerless) so preview not empty
       return r.trim() !== '';
     });
     if (rows.length === 0) {
-      previewBody.innerHTML = '<tr><td colspan="8" class="text-center small text-muted">No data rows found</td></tr>';
+      previewBody.innerHTML = '<tr><td colspan="8" class="text-center fs-xs text-muted">No data rows found</td></tr>';
       previewArea.style.display='block';
       previewMeta.textContent = '';
       return;
@@ -953,7 +912,6 @@ function handlePreview(file) {
       headerRow = rows[0].split(',');
       dataRows = rows.slice(1, Math.min(rows.length, 11)).map(r => r.split(',').map(c=>c.trim()));
     } else {
-      // headerless: show positional headers as Name,Mobile,Company,Package,Other
       headerRow = ['Name','Mobile','Company','Package','Other Info'];
       dataRows = rows.slice(0, Math.min(rows.length, 10)).map(r => r.split(',').map(c=>c.trim()));
     }
@@ -970,7 +928,7 @@ function handlePreview(file) {
       if (!valid) invalidCount++;
       const tr = document.createElement('tr');
       if (!valid) tr.classList.add('table-danger');
-      tr.innerHTML = `<td>${i+1}</td><td>${escapeHtml(name)}</td><td>${escapeHtml(raw)}</td><td>${escapeHtml(norm)}</td><td>${valid?'<span class="badge bg-success">Valid</span>':'<span class="badge bg-danger">Invalid</span>'}</td>
+      tr.innerHTML = `<td>${i+1}</td><td>${escapeHtml(name)}</td><td>${escapeHtml(raw)}</td><td>${escapeHtml(norm)}</td><td>${valid?'<span class="badge badge-success">Valid</span>':'<span class="badge badge-danger">Invalid</span>'}</td>
                       <td>${escapeHtml(r[2]||'')}</td><td>${escapeHtml(r[3]||'')}</td><td>${escapeHtml(r[4]||'')}</td>`;
       previewBody.appendChild(tr);
     }
@@ -982,7 +940,6 @@ function handlePreview(file) {
 
 function escapeHtml(s){ if(!s) return ''; return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
 
-/* Download example CSV */
 downloadExampleBtn.addEventListener('click', function(e){
   e.preventDefault();
   const example = [
@@ -992,7 +949,6 @@ downloadExampleBtn.addEventListener('click', function(e){
     ['Jane Smith','919812345678','XYZ Pvt Ltd','Silver','Request callback']
   ];
   const csv = example.map(r => r.map(cell => {
-    // Escape cells that contain comma or quote
     if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
       return '"' + cell.replaceAll('"','""') + '"';
     }
@@ -1104,14 +1060,14 @@ document.getElementById('uploadForm').addEventListener('submit', function(e){
                 } catch (err) {
                     progressBar.addClass('bg-danger');
                     messageText.text('Upload failed');
-                    resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> ' + (err.message || 'Failed to start upload.') + '<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                    resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> ' + (err.message || 'Failed to start upload.') + '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
                     setModalClosable(true);
                     showNotification('Error', err.message || 'Failed to start upload', 'danger');
                 }
             } else {
                 progressBar.addClass('bg-danger');
                 messageText.text('Server error');
-                resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Server error (HTTP ' + xhr.status + ').<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Server error (HTTP ' + xhr.status + ').<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
                 setModalClosable(true);
                 showNotification('Error', 'Server error during upload', 'danger');
             }
@@ -1121,7 +1077,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(e){
     xhr.onerror = function() {
         progressBar.addClass('bg-danger');
         messageText.text('Network error');
-        resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error during upload.<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+        resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error during upload.<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
         setModalClosable(true);
         showNotification('Error', 'Network error during upload', 'danger');
     };
@@ -1152,13 +1108,13 @@ function processUploadBatch(task_id) {
                 progressBar.css('width', '100%').removeClass('bg-primary bg-danger').addClass('bg-success');
                 percentText.text('100%');
                 messageText.text('Upload complete!');
-                resultDiv.show().addClass('alert-success').html('<strong>Success!</strong> ' + (resp.message || 'Import completed') + '<br><button class="btn btn-sm btn-outline-success mt-2 close-modal-btn">Close</button>');
+                resultDiv.show().addClass('alert-success').html('<strong>Success!</strong> ' + (resp.message || 'Import completed') + '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
                 setModalClosable(true);
                 showNotification('Upload Complete', resp.message || 'Import completed', 'success');
             } else if (resp.status === 'error') {
                 progressBar.addClass('bg-danger');
                 messageText.text('Upload failed');
-                resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> ' + (resp.message || resp.error || 'Unknown error') + '<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+                resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> ' + (resp.message || resp.error || 'Unknown error') + '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
                 setModalClosable(true);
                 showNotification('Error', resp.message || resp.error || 'Unknown error', 'danger');
             } else {
@@ -1171,7 +1127,7 @@ function processUploadBatch(task_id) {
         error: function() {
             progressBar.addClass('bg-danger');
             messageText.text('Network error');
-            resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error while checking progress.<br><button class="btn btn-sm btn-outline-danger mt-2 close-modal-btn">Close</button>');
+            resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error while checking progress.<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
             setModalClosable(true);
             showNotification('Error', 'Network error while checking progress', 'danger');
         }
@@ -1179,6 +1135,4 @@ function processUploadBatch(task_id) {
 }
 </script>
 
-
-
-
+<?php include '../../php_scripts/footer.php'; ?>

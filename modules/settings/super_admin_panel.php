@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = mysqli_prepare($link, "UPDATE `super_admin_plans` SET max_users=?, max_api_tokens=?, max_api_calls_per_minute=?, max_api_calls_per_hour=?, max_db_records=?, max_storage_mb=? WHERE id=?");
             mysqli_stmt_bind_param($stmt, "iiiiiii", $maxUsers, $maxApiTokens, $maxApiCallsPerMin, $maxApiCallsPerHour, $maxDbRecords, $maxStorageMb, $planId);
             if (mysqli_stmt_execute($stmt)) {
-                $msg = 'Limits updated successfully!';
+                $msg = 'Plan limits updated successfully!';
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'UPDATE', 'Updated super admin limits for plan #' . $planId);
             } else {
@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = mysqli_prepare($link, "UPDATE `super_admin_account` SET current_plan_id=?, company_name=?, billing_email=?, payment_status=? WHERE id=1");
             mysqli_stmt_bind_param($stmt, "isss", $planId, $companyName, $billingEmail, $paymentStatus);
             if (mysqli_stmt_execute($stmt)) {
-                $msg = 'Plan switched successfully!';
+                $msg = 'Subscription plan switched successfully!';
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'UPDATE', 'Switched super admin plan to #' . $planId);
             } else {
@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = mysqli_prepare($link, "INSERT INTO `super_admin_plans` (plan_name, plan_slug, max_users, max_api_tokens, max_api_calls_per_minute, max_api_calls_per_hour, max_db_records, max_storage_mb, price_monthly, price_yearly, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 mysqli_stmt_bind_param($stmt, "ssiiiiidddi", $planName, $planSlug, $maxUsers, $maxApiTokens, $maxApiCallsPerMin, $maxApiCallsPerHour, $maxDbRecords, $maxStorageMb, $priceMonthly, $priceYearly, $isActive);
                 if (mysqli_stmt_execute($stmt)) {
-                    $msg = 'Plan created successfully!';
+                    $msg = 'Subscription plan created successfully!';
                     $msg_type = 'success';
                     logActivity($link, USER_ID, 'INSERT', 'Created super admin plan: ' . $planName);
                 } else {
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = mysqli_prepare($link, "DELETE FROM `super_admin_plans` WHERE id=? AND is_default=0");
             mysqli_stmt_bind_param($stmt, "i", $planId);
             if (mysqli_stmt_execute($stmt)) {
-                $msg = 'Plan deleted successfully!';
+                $msg = 'Plan removed successfully.';
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'DELETE', 'Deleted super admin plan #' . $planId);
             } else {
@@ -117,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_bind_param($stmt, "ss", $key, $enabled);
             mysqli_stmt_execute($stmt);
             mysqli_stmt_close($stmt);
-            $msg = 'Access setting updated!';
+            $msg = 'Feature access setting updated.';
             $msg_type = 'success';
             logActivity($link, USER_ID, 'UPDATE', 'Toggled feature access: ' . $feature . ' = ' . ($enabled ? 'enabled' : 'disabled'));
         }
@@ -154,315 +154,188 @@ $featureFlags = [
     'settings' => isFeatureEnabled('settings', $appSettings),
     'uploads' => isFeatureEnabled('uploads', $appSettings),
 ];
-
 ?>
-<?php $pageTitle = 'Super Admin Panel - CallNow'; include __DIR__ . '/../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Super Admin Control Center - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
-<style>
-:root {
-    --sa-accent: var(--accent);
-    --sa-accent-dark: var(--accent-hover, #4f46e5);
-    --sa-ink: #1e1b4b;
-    --sa-ink-soft: #6b6890;
-    --sa-soft: #f0f2ff;
-    --sa-border: #e2e4f0;
-    --sa-danger: #ef4444;
-    --sa-warning: #f59e0b;
-    --sa-success: #10b981;
-}
+<div class="container-fluid px-3 py-3" style="max-width: 1200px;">
 
-.sa-header {
-    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%);
-    border-radius: 1rem;
-    padding: 1.5rem 2rem;
-    margin-bottom: 1.5rem;
-    position: relative;
-    overflow: hidden;
-}
-.sa-header::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    opacity: 0.4;
-}
-.sa-header-content {
-    position: relative; z-index: 1;
-    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
-}
-.sa-header-left h1 {
-    font-size: 1.35rem; font-weight: 700; color: #fff;
-    margin: 0 0 0.2rem 0; letter-spacing: -0.02em;
-    display: flex; align-items: center; gap: 0.5rem;
-}
-.sa-header-left h1 i { font-size: 1.4rem; }
-.sa-header-left p { color: rgba(255,255,255,0.7); font-size: 0.8125rem; margin: 0; }
-
-.sa-tabs {
-    display: flex; gap: 0.25rem; background: var(--sa-soft);
-    border: 1px solid var(--sa-border); border-radius: 0.75rem;
-    padding: 0.25rem; margin-bottom: 1.25rem; flex-wrap: wrap;
-}
-.sa-tab {
-    flex: 1; text-align: center; padding: 0.5rem 0.75rem;
-    border-radius: 0.625rem; font-size: 0.75rem; font-weight: 600;
-    color: var(--sa-ink-soft); text-decoration: none; transition: all 0.12s ease;
-    white-space: nowrap;
-}
-.sa-tab:hover { color: var(--sa-ink); background: rgba(255,255,255,0.6); }
-.sa-tab.active { background: #fff; color: var(--sa-accent); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.sa-tab i { margin-right: 0.35rem; }
-
-.sa-card {
-    background: #fff; border: 1px solid var(--sa-border);
-    border-radius: 0.875rem; overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.03); margin-bottom: 1.25rem;
-}
-.sa-card-body { padding: 1.5rem 1.75rem; }
-
-.sa-stat-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 1rem; margin-bottom: 1.5rem;
-}
-.sa-stat-card {
-    background: var(--sa-soft); border: 1px solid var(--sa-border);
-    border-radius: 0.75rem; padding: 1rem 1.25rem; text-align: center;
-}
-.sa-stat-card .num { font-size: 1.75rem; font-weight: 700; color: var(--sa-ink); line-height: 1.2; }
-.sa-stat-card .lbl { font-size: 0.7rem; color: var(--sa-ink-soft); margin: 0; text-transform: uppercase; letter-spacing: 0.04em; }
-
-.sa-progress { height: 0.5rem; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
-.sa-progress-bar { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
-.sa-progress-bar.danger { background: linear-gradient(90deg, #ef4444, #dc2626); }
-.sa-progress-bar.warning { background: linear-gradient(90deg, #f59e0b, #d97706); }
-.sa-progress-bar.success { background: linear-gradient(90deg, #10b981, #059669); }
-
-.sa-alert {
-    border-radius: 0.625rem; font-size: 0.8125rem;
-    padding: 0.75rem 1rem; margin-bottom: 1.25rem;
-    display: flex; align-items: center; gap: 0.5rem;
-}
-
-.sa-label { font-size: 0.75rem; font-weight: 600; color: var(--sa-ink); margin-bottom: 0.3rem; }
-.sa-hint { font-size: 0.6875rem; color: var(--sa-ink-soft); margin-top: 0.15rem; }
-.sa-input, .sa-select {
-    border: 1px solid var(--sa-border) !important;
-    border-radius: 0.5rem !important; font-size: 0.8125rem !important;
-    color: var(--sa-ink) !important; padding: 0.4rem 0.75rem !important;
-    background: #fff !important;
-}
-.sa-input:focus, .sa-select:focus {
-    border-color: var(--sa-accent) !important;
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; outline: none;
-}
-.sa-btn-primary {
-    background: linear-gradient(135deg, var(--sa-accent), var(--sa-accent-dark)) !important;
-    border: none !important; color: #fff !important; border-radius: 0.5rem !important;
-    font-size: 0.8125rem !important; font-weight: 600 !important;
-    padding: 0.5rem 1.5rem !important; transition: all 0.15s ease !important;
-    box-shadow: 0 2px 8px rgba(99,102,241,0.25) !important;
-}
-.sa-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(99,102,241,0.35) !important; }
-.sa-btn-danger {
-    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
-    border: none !important; color: #fff !important; border-radius: 0.5rem !important;
-    font-size: 0.75rem !important; font-weight: 600 !important;
-    padding: 0.35rem 1rem !important; transition: all 0.15s ease !important;
-}
-.sa-btn-outline {
-    border: 1px solid var(--sa-border) !important;
-    background: #fff !important; color: var(--sa-ink-soft) !important;
-    border-radius: 0.5rem !important; font-size: 0.75rem !important;
-    padding: 0.35rem 1rem !important;
-}
-
-.sa-badge {
-    display: inline-flex; align-items: center; gap: 0.25rem;
-    padding: 0.2rem 0.65rem; border-radius: 999px;
-    font-size: 0.6875rem; font-weight: 600; white-space: nowrap;
-}
-.sa-badge-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
-.sa-badge-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-.sa-badge-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
-.sa-badge-secondary { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
-.sa-badge-info { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
-
-.sa-access-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;
-}
-.sa-access-card {
-    background: #fff; border: 1px solid var(--sa-border);
-    border-radius: 0.75rem; padding: 1.25rem;
-    display: flex; align-items: center; justify-content: space-between;
-    transition: box-shadow 0.15s;
-}
-.sa-access-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
-.sa-access-card .info h5 { font-size: 0.875rem; font-weight: 600; color: var(--sa-ink); margin: 0 0 0.15rem 0; }
-.sa-access-card .info p { font-size: 0.7rem; color: var(--sa-ink-soft); margin: 0; }
-
-.sa-log-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem; }
-.sa-log-table thead th {
-    background: #fafbff; color: var(--sa-ink-soft); font-weight: 600;
-    font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em;
-    padding: 0.625rem 0.875rem; border-bottom: 2px solid var(--sa-border); text-align: left;
-}
-.sa-log-table tbody td { padding: 0.5rem 0.875rem; border-bottom: 1px solid #f0f1f8; color: var(--sa-ink); }
-.sa-log-table tbody tr:hover { background: #f8f9ff; }
-.sa-log-table tbody tr:last-child td { border-bottom: none; }
-
-.sa-plan-card {
-    background: #fff; border: 1px solid var(--sa-border);
-    border-radius: 0.75rem; padding: 1.25rem; position: relative;
-    transition: box-shadow 0.15s;
-}
-.sa-plan-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
-.sa-plan-card.current { border-color: var(--sa-accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
-.sa-plan-card .plan-badge {
-    position: absolute; top: 0.75rem; right: 0.75rem;
-    font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.04em; padding: 0.15rem 0.4rem; border-radius: 0.25rem;
-}
-.sa-plan-card .plan-badge.current-badge { background: var(--sa-accent); color: #fff; }
-.sa-plan-card .plan-badge.default-badge { background: var(--sa-soft); color: var(--sa-accent); border: 1px solid var(--sa-border); }
-.sa-plan-card h4 { font-size: 0.95rem; font-weight: 700; color: var(--sa-ink); margin: 0 0 0.2rem 0; }
-.sa-plan-card .plan-slug { font-size: 0.7rem; color: var(--sa-ink-soft); margin-bottom: 0.75rem; }
-.sa-plan-card .plan-price { font-size: 1.25rem; font-weight: 700; color: var(--sa-ink); }
-.sa-plan-card .plan-price small { font-size: 0.7rem; font-weight: 400; color: var(--sa-ink-soft); }
-
-@media (max-width: 767px) {
-    .sa-card-body { padding: 1.25rem; }
-    .sa-stat-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
-    .sa-access-grid { grid-template-columns: 1fr; }
-}
-</style>
-
-<div class="container page-wrapper">
-
-    <!-- ─── Header ─── -->
-    <div class="sa-header">
-        <div class="sa-header-content">
-            <div class="sa-header-left">
-                <h1><i class="bi bi-shield-lock-fill"></i> Super Admin Panel</h1>
-                <p>Manage app limits, plans, access control, and payment settings</p>
+    <!-- Zoho CRM Module Header -->
+    <div class="module-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/settings/settings.php') ?>">Administration</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Super Admin Control</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="page-title mb-0">Super Admin Panel</h1>
+                <span class="badge bg-primary-subtle text-primary border">Plan: <?= htmlspecialchars($summary['plan']['plan_name'] ?? 'Default') ?></span>
             </div>
-            <div class="sa-header-right">
-                <a href="<?= url('modules/settings/settings.php') ?>" class="sa-btn-outline" style="text-decoration:none;font-size:0.8125rem!important;padding:0.5rem 1.1rem!important;display:inline-flex;align-items:center;gap:0.4rem;">
-                    <i class="bi bi-gear"></i> General Settings
-                </a>
-            </div>
+            <p class="text-muted small mb-0">Manage multi-tier subscription quotas, hard system limits, and global feature master switches</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="<?= url('modules/settings/settings.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-sliders me-1"></i> System Settings
+            </a>
+            <a href="<?= url('modules/settings/permissions_manager.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-shield-lock me-1"></i> Access Control
+            </a>
         </div>
     </div>
 
     <?php if ($msg): ?>
-        <div class="sa-alert" style="background:<?= $msg_type==='success'?'#d1fae5':'#fee2e2' ?>;border:1px solid <?= $msg_type==='success'?'#6ee7b7':'#fca5a5' ?>;color:<?= $msg_type==='success'?'#065f46':'#991b1b' ?>;">
-            <i class="bi <?= $msg_type==='success'?'bi-check-circle-fill':'bi-x-circle-fill' ?>"></i>
-            <?= htmlspecialchars($msg) ?>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:0.65rem;"></button>
+        <div class="alert alert-<?= htmlspecialchars($msg_type ?: 'info'); ?> alert-dismissible fade show mb-3" role="alert">
+            <i class="bi <?= $msg_type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> me-2"></i>
+            <?= htmlspecialchars($msg); ?>
+            <button class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
 
-    <!-- ─── Tabs ─── -->
-    <div class="sa-tabs">
-        <a href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=overview" class="sa-tab <?= $tab==='overview'?'active':'' ?>">
-            <i class="bi bi-speedometer2"></i> Overview
-        </a>
-        <a href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=plans" class="sa-tab <?= $tab==='plans'?'active':'' ?>">
-            <i class="bi bi-box-seam"></i> Plans
-        </a>
-        <a href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=limits" class="sa-tab <?= $tab==='limits'?'active':'' ?>">
-            <i class="bi bi-sliders2"></i> Limits
-        </a>
-        <a href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=access" class="sa-tab <?= $tab==='access'?'active':'' ?>">
-            <i class="bi bi-shield-check"></i> Access Control
-        </a>
-        <a href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=logs" class="sa-tab <?= $tab==='logs'?'active':'' ?>">
-            <i class="bi bi-journal-text"></i> Limit Logs
-        </a>
-    </div>
+    <!-- Zoho Navigation Tabs -->
+    <ul class="nav nav-tabs mb-3 border-bottom">
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='overview'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=overview">
+                <i class="bi bi-speedometer2 me-1"></i> Quota Overview
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='plans'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=plans">
+                <i class="bi bi-box-seam me-1"></i> Subscription Plans
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='limits'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=limits">
+                <i class="bi bi-sliders2 me-1"></i> Plan Limits
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='access'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=access">
+                <i class="bi bi-shield-check me-1"></i> Master Feature Toggles
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='logs'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=logs">
+                <i class="bi bi-journal-text me-1"></i> Limit Violation Logs
+            </a>
+        </li>
+    </ul>
 
     <?php if ($tab === 'overview'): ?>
     <!-- ═══ Overview Dashboard ═══ -->
-    <div class="sa-card">
-        <div class="sa-card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 style="font-size:1rem;font-weight:700;color:var(--sa-ink);margin:0;">Usage Overview</h5>
-                    <p style="font-size:0.75rem;color:var(--sa-ink-soft);margin:0;">Current plan: <strong><?= htmlspecialchars($summary['plan']['plan_name'] ?? 'Free') ?></strong></p>
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-semibold text-dark">Tenant Resource Consumption</span>
+            <a href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=limits" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-sliders2 me-1"></i> Adjust Thresholds
+            </a>
+        </div>
+        <div class="card-body p-3">
+            <div class="row g-2 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="metric-card p-3">
+                        <div class="metric-label">Users Registered</div>
+                        <div class="metric-value text-dark"><?= number_format($summary['users']['current']) ?> <span class="fs-6 text-muted font-monospace">/ <?= number_format($summary['users']['max']) ?></span></div>
+                        <div class="progress mt-2" style="height: 6px;">
+                            <div class="progress-bar <?= $summary['users']['pct'] >= 90 ? 'bg-danger' : ($summary['users']['pct'] >= 70 ? 'bg-warning' : 'bg-primary') ?>" style="width: <?= min(100, $summary['users']['pct']) ?>%"></div>
+                        </div>
+                        <div class="text-muted small mt-1"><?= $summary['users']['pct'] ?>% of plan quota used</div>
+                    </div>
                 </div>
-                <a href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=limits" class="sa-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;text-decoration:none;">
-                    <i class="bi bi-sliders2"></i> Adjust Limits
-                </a>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card p-3">
+                        <div class="metric-label">Mobile API Tokens</div>
+                        <div class="metric-value text-dark"><?= number_format($summary['api_tokens']['current']) ?> <span class="fs-6 text-muted font-monospace">/ <?= number_format($summary['api_tokens']['max']) ?></span></div>
+                        <div class="progress mt-2" style="height: 6px;">
+                            <div class="progress-bar <?= $summary['api_tokens']['pct'] >= 90 ? 'bg-danger' : ($summary['api_tokens']['pct'] >= 70 ? 'bg-warning' : 'bg-success') ?>" style="width: <?= min(100, $summary['api_tokens']['pct']) ?>%"></div>
+                        </div>
+                        <div class="text-muted small mt-1"><?= $summary['api_tokens']['pct'] ?>% of token quota used</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card p-3">
+                        <div class="metric-label">Total DB Records</div>
+                        <div class="metric-value text-dark"><?= number_format($summary['storage_records']['current']) ?> <span class="fs-6 text-muted font-monospace">/ <?= number_format($summary['storage_records']['max']) ?></span></div>
+                        <div class="progress mt-2" style="height: 6px;">
+                            <div class="progress-bar <?= $summary['storage_records']['pct'] >= 90 ? 'bg-danger' : ($summary['storage_records']['pct'] >= 70 ? 'bg-warning' : 'bg-info') ?>" style="width: <?= min(100, $summary['storage_records']['pct']) ?>%"></div>
+                        </div>
+                        <div class="text-muted small mt-1"><?= $summary['storage_records']['pct'] ?>% capacity</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card p-3">
+                        <div class="metric-label">Storage Allocated</div>
+                        <div class="metric-value text-dark"><?= $summary['storage_mb']['current'] ?> MB <span class="fs-6 text-muted font-monospace">/ <?= $summary['storage_mb']['max'] ?> MB</span></div>
+                        <div class="progress mt-2" style="height: 6px;">
+                            <div class="progress-bar <?= $summary['storage_mb']['pct'] >= 90 ? 'bg-danger' : ($summary['storage_mb']['pct'] >= 70 ? 'bg-warning' : 'bg-secondary') ?>" style="width: <?= min(100, $summary['storage_mb']['pct']) ?>%"></div>
+                        </div>
+                        <div class="text-muted small mt-1"><?= $summary['storage_mb']['pct'] ?>% capacity</div>
+                    </div>
+                </div>
             </div>
-
-            <div class="sa-stat-grid">
-                <div class="sa-stat-card">
-                    <div class="num"><?= number_format($summary['users']['current']) ?> / <?= number_format($summary['users']['max']) ?></div>
-                    <p class="lbl">Users</p>
-                    <div class="sa-progress mt-2">
-                        <div class="sa-progress-bar <?= $summary['users']['pct'] >= 90 ? 'danger' : ($summary['users']['pct'] >= 70 ? 'warning' : 'success') ?>" style="width: <?= $summary['users']['pct'] ?>%"></div>
-                    </div>
-                    <small class="text-muted"><?= $summary['users']['pct'] ?>% used</small>
-                </div>
-                <div class="sa-stat-card">
-                    <div class="num"><?= number_format($summary['api_tokens']['current']) ?> / <?= number_format($summary['api_tokens']['max']) ?></div>
-                    <p class="lbl">API Tokens</p>
-                    <div class="sa-progress mt-2">
-                        <div class="sa-progress-bar <?= $summary['api_tokens']['pct'] >= 90 ? 'danger' : ($summary['api_tokens']['pct'] >= 70 ? 'warning' : 'success') ?>" style="width: <?= $summary['api_tokens']['pct'] ?>%"></div>
-                    </div>
-                    <small class="text-muted"><?= $summary['api_tokens']['pct'] ?>% used</small>
-                </div>
-                <div class="sa-stat-card">
-                    <div class="num"><?= number_format($summary['storage_records']['current']) ?> / <?= number_format($summary['storage_records']['max']) ?></div>
-                    <p class="lbl">DB Records</p>
-                    <div class="sa-progress mt-2">
-                        <div class="sa-progress-bar <?= $summary['storage_records']['pct'] >= 90 ? 'danger' : ($summary['storage_records']['pct'] >= 70 ? 'warning' : 'success') ?>" style="width: <?= $summary['storage_records']['pct'] ?>%"></div>
-                    </div>
-                    <small class="text-muted"><?= $summary['storage_records']['pct'] ?>% used</small>
-                </div>
-                <div class="sa-stat-card">
-                    <div class="num"><?= $summary['storage_mb']['current'] ?> MB / <?= $summary['storage_mb']['max'] ?> MB</div>
-                    <p class="lbl">Storage</p>
-                    <div class="sa-progress mt-2">
-                        <div class="sa-progress-bar <?= $summary['storage_mb']['pct'] >= 90 ? 'danger' : ($summary['storage_mb']['pct'] >= 70 ? 'warning' : 'success') ?>" style="width: <?= $summary['storage_mb']['pct'] ?>%"></div>
-                    </div>
-                    <small class="text-muted"><?= $summary['storage_mb']['pct'] ?>% used</small>
-                </div>
-            </div>
-
-            <hr style="border-color:var(--sa-border);margin:1.25rem 0;">
 
             <div class="row g-3">
                 <div class="col-md-6">
-                    <h6 style="font-size:0.8125rem;font-weight:700;color:var(--sa-ink);margin:0 0 0.75rem 0;">
-                        <i class="bi bi-gear me-1"></i> Account Details
-                    </h6>
-                    <table class="table table-sm mb-0" style="font-size:0.8125rem;">
-                        <tr><td style="color:var(--sa-ink-soft);width:40%;">Company</td><td><strong><?= htmlspecialchars($account['company_name'] ?? 'CallNow') ?></strong></td></tr>
-                        <tr><td style="color:var(--sa-ink-soft);">Billing Email</td><td><?= htmlspecialchars($account['billing_email'] ?? '—') ?></td></tr>
-                        <tr><td style="color:var(--sa-ink-soft);">Payment Status</td><td>
-                            <?php $ps = $account['payment_status'] ?? 'trial'; ?>
-                            <span class="sa-badge sa-badge-<?= $ps==='active'?'success':($ps==='trial'?'info':($ps==='overdue'?'danger':'secondary')) ?>">
-                                <?= ucfirst($ps) ?>
-                            </span>
-                        </td></tr>
-                        <tr><td style="color:var(--sa-ink-soft);">Current Plan</td><td><strong><?= htmlspecialchars($currentPlan['plan_name'] ?? 'Free') ?></strong></td></tr>
-                        <?php if ($account['trial_ends_at']): ?>
-                        <tr><td style="color:var(--sa-ink-soft);">Trial Ends</td><td><?= date('d M Y', strtotime($account['trial_ends_at'])) ?></td></tr>
-                        <?php endif; ?>
-                        <?php if ($account['current_period_ends_at']): ?>
-                        <tr><td style="color:var(--sa-ink-soft);">Next Billing</td><td><?= date('d M Y', strtotime($account['current_period_ends_at'])) ?></td></tr>
-                        <?php endif; ?>
-                    </table>
+                    <div class="p-3 border rounded bg-light">
+                        <h6 class="fw-bold text-dark small mb-3"><i class="bi bi-building text-primary me-2"></i>Account &amp; Billing Profile</h6>
+                        <table class="table table-sm crm-table align-middle mb-0">
+                            <tbody>
+                                <tr>
+                                    <th class="text-muted" style="width: 40%;">Company Entity</th>
+                                    <td class="fw-semibold text-dark"><?= htmlspecialchars($account['company_name'] ?? 'CallNow') ?></td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Billing Email</th>
+                                    <td class="font-monospace small"><?= htmlspecialchars($account['billing_email'] ?? '—') ?></td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Payment Status</th>
+                                    <td>
+                                        <?php $ps = $account['payment_status'] ?? 'trial'; ?>
+                                        <span class="badge <?= $ps==='active'?'bg-success-subtle text-success':($ps==='trial'?'bg-info-subtle text-info':($ps==='overdue'?'bg-danger-subtle text-danger':'bg-secondary-subtle text-secondary')) ?> border">
+                                            <?= ucfirst($ps) ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Active Plan</th>
+                                    <td><span class="badge bg-primary-subtle text-primary border"><?= htmlspecialchars($currentPlan['plan_name'] ?? 'Free') ?></span></td>
+                                </tr>
+                                <?php if ($account['trial_ends_at']): ?>
+                                <tr>
+                                    <th class="text-muted">Trial Expiry</th>
+                                    <td class="small text-muted"><?= date('d M Y', strtotime($account['trial_ends_at'])) ?></td>
+                                </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 <div class="col-md-6">
-                    <h6 style="font-size:0.8125rem;font-weight:700;color:var(--sa-ink);margin:0 0 0.75rem 0;">
-                        <i class="bi bi-lightning me-1"></i> API Limits
-                    </h6>
-                    <table class="table table-sm mb-0" style="font-size:0.8125rem;">
-                        <tr><td style="color:var(--sa-ink-soft);width:40%;">Calls per minute</td><td><strong><?= number_format($summary['api_calls']['max_per_min']) ?></strong></td></tr>
-                        <tr><td style="color:var(--sa-ink-soft);">Calls per hour</td><td><strong><?= number_format($summary['api_calls']['max_per_hour']) ?></strong></td></tr>
-                        <tr><td style="color:var(--sa-ink-soft);">Active Tokens</td><td><strong><?= number_format($summary['api_tokens']['current']) ?> / <?= number_format($summary['api_tokens']['max']) ?></strong></td></tr>
-                    </table>
+                    <div class="p-3 border rounded bg-light">
+                        <h6 class="fw-bold text-dark small mb-3"><i class="bi bi-lightning-charge text-primary me-2"></i>API Gateway Thresholds</h6>
+                        <table class="table table-sm crm-table align-middle mb-0">
+                            <tbody>
+                                <tr>
+                                    <th class="text-muted" style="width: 45%;">Requests / minute</th>
+                                    <td class="fw-bold font-monospace"><?= number_format($summary['api_calls']['max_per_min']) ?></td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Requests / hour</th>
+                                    <td class="fw-bold font-monospace"><?= number_format($summary['api_calls']['max_per_hour']) ?></td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Active Tokens / Allowed</th>
+                                    <td class="font-monospace"><?= number_format($summary['api_tokens']['current']) ?> / <?= number_format($summary['api_tokens']['max']) ?></td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Rate Enforced</th>
+                                    <td><span class="badge bg-success-subtle text-success border">Protected</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -470,65 +343,64 @@ $featureFlags = [
 
     <?php elseif ($tab === 'plans'): ?>
     <!-- ═══ Plans Management ═══ -->
-    <div class="sa-card">
-        <div class="sa-card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 style="font-size:1rem;font-weight:700;color:var(--sa-ink);margin:0;">Subscription Plans</h5>
-                    <p style="font-size:0.75rem;color:var(--sa-ink-soft);margin:0;">Manage plans for future payment integration</p>
-                </div>
-                <button class="sa-btn-primary" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;" data-bs-toggle="modal" data-bs-target="#createPlanModal">
-                    <i class="bi bi-plus-circle"></i> New Plan
-                </button>
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-semibold text-dark">Subscription Tier Offerings</span>
+                <span class="text-muted small ms-2">Configure feature plans and tier limits</span>
             </div>
-
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createPlanModal">
+                <i class="bi bi-plus-circle me-1"></i> New Plan
+            </button>
+        </div>
+        <div class="card-body p-3">
             <div class="row g-3">
                 <?php foreach ($plans as $p): ?>
                 <div class="col-md-6 col-lg-3">
-                    <div class="sa-plan-card <?= ($currentPlan && $currentPlan['id'] == $p['id']) ? 'current' : '' ?>">
-                        <?php if ($p['is_default']): ?>
-                            <span class="plan-badge default-badge">Default</span>
-                        <?php elseif ($currentPlan && $currentPlan['id'] == $p['id']): ?>
-                            <span class="plan-badge current-badge">Active</span>
-                        <?php endif; ?>
-                        <h4><?= htmlspecialchars($p['plan_name']) ?></h4>
-                        <div class="plan-slug"><?= htmlspecialchars($p['plan_slug']) ?></div>
-                        <div class="plan-price">
-                            <?php if ($p['price_monthly'] > 0): ?>
-                                $<?= number_format($p['price_monthly'], 2) ?><small>/mo</small>
-                            <?php else: ?>
-                                <small>Free</small>
+                    <div class="crm-card p-3 h-100 <?= ($currentPlan && $currentPlan['id'] == $p['id']) ? 'border-primary' : '' ?>">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="fw-bold text-dark mb-0 small"><?= htmlspecialchars($p['plan_name']) ?></h5>
+                            <?php if ($p['is_default']): ?>
+                                <span class="badge bg-light text-secondary border">Default</span>
+                            <?php elseif ($currentPlan && $currentPlan['id'] == $p['id']): ?>
+                                <span class="badge bg-success-subtle text-success border">Active</span>
                             <?php endif; ?>
                         </div>
-                        <?php if ($p['price_yearly'] > 0): ?>
-                            <div style="font-size:0.75rem;color:var(--sa-ink-soft);">$<?= number_format($p['price_yearly'], 2) ?>/yr</div>
-                        <?php endif; ?>
-                        <hr style="border-color:var(--sa-border);margin:0.75rem 0;">
-                        <ul style="font-size:0.75rem;color:var(--sa-ink-soft);list-style:none;padding:0;margin:0 0 0.75rem 0;">
-                            <li><i class="bi bi-people me-1"></i> <?= number_format($p['max_users']) ?> users</li>
-                            <li><i class="bi bi-key me-1"></i> <?= number_format($p['max_api_tokens']) ?> API tokens</li>
-                            <li><i class="bi bi-database me-1"></i> <?= number_format($p['max_db_records']) ?> records</li>
-                            <li><i class="bi bi-hdd me-1"></i> <?= number_format($p['max_storage_mb']) ?> MB storage</li>
+                        <div class="text-muted font-monospace small mb-2"><?= htmlspecialchars($p['plan_slug']) ?></div>
+                        <div class="fw-bold fs-5 text-dark mb-3">
+                            <?php if ($p['price_monthly'] > 0): ?>
+                                $<?= number_format($p['price_monthly'], 2) ?><small class="text-muted fs-6">/mo</small>
+                            <?php else: ?>
+                                Free
+                            <?php endif; ?>
+                        </div>
+                        <ul class="list-unstyled small text-muted mb-3 d-flex flex-column gap-1">
+                            <li><i class="bi bi-check2 text-primary me-1"></i> <?= number_format($p['max_users']) ?> Users</li>
+                            <li><i class="bi bi-check2 text-primary me-1"></i> <?= number_format($p['max_api_tokens']) ?> API Tokens</li>
+                            <li><i class="bi bi-check2 text-primary me-1"></i> <?= number_format($p['max_db_records']) ?> Records</li>
+                            <li><i class="bi bi-check2 text-primary me-1"></i> <?= number_format($p['max_storage_mb']) ?> MB Storage</li>
                         </ul>
-                        <form method="POST" class="d-inline" onsubmit="return confirm('Switch to this plan?');">
-                            <input type="hidden" name="sa_action" value="switch_plan">
-                            <input type="hidden" name="plan_id" value="<?= $p['id'] ?>">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                            <input type="hidden" name="company_name" value="<?= htmlspecialchars($account['company_name'] ?? 'CallNow') ?>">
-                            <input type="hidden" name="billing_email" value="<?= htmlspecialchars($account['billing_email'] ?? '') ?>">
-                            <input type="hidden" name="payment_status" value="<?= htmlspecialchars($account['payment_status'] ?? 'trial') ?>">
-                            <button type="submit" class="sa-btn-primary w-100" style="font-size:0.75rem!important;padding:0.35rem 0.75rem!important;" <?= $currentPlan && $currentPlan['id'] == $p['id'] ? 'disabled' : '' ?>>
-                                <?= $currentPlan && $currentPlan['id'] == $p['id'] ? 'Current Plan' : 'Activate' ?>
-                            </button>
-                        </form>
-                        <?php if (!$p['is_default']): ?>
-                        <form method="POST" class="d-inline w-100 mt-1" onsubmit="return confirm('Delete this plan?');">
-                            <input type="hidden" name="sa_action" value="delete_plan">
-                            <input type="hidden" name="plan_id" value="<?= $p['id'] ?>">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                            <button type="submit" class="sa-btn-danger w-100" style="font-size:0.7rem!important;padding:0.3rem 0.75rem!important;">Delete</button>
-                        </form>
-                        <?php endif; ?>
+                        <div class="d-flex flex-column gap-1 pt-2 border-top mt-auto">
+                            <form method="POST" onsubmit="return confirm('Switch active tier to «<?= htmlspecialchars($p['plan_name']) ?>»?');">
+                                <input type="hidden" name="sa_action" value="switch_plan">
+                                <input type="hidden" name="plan_id" value="<?= $p['id'] ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                <input type="hidden" name="company_name" value="<?= htmlspecialchars($account['company_name'] ?? 'CallNow') ?>">
+                                <input type="hidden" name="billing_email" value="<?= htmlspecialchars($account['billing_email'] ?? '') ?>">
+                                <input type="hidden" name="payment_status" value="<?= htmlspecialchars($account['payment_status'] ?? 'trial') ?>">
+                                <button type="submit" class="btn btn-sm <?= $currentPlan && $currentPlan['id'] == $p['id'] ? 'btn-light text-muted border' : 'btn-primary' ?> w-100" <?= $currentPlan && $currentPlan['id'] == $p['id'] ? 'disabled' : '' ?>>
+                                    <?= $currentPlan && $currentPlan['id'] == $p['id'] ? 'Current Plan' : 'Activate Plan' ?>
+                                </button>
+                            </form>
+                            <?php if (!$p['is_default']): ?>
+                            <form method="POST" onsubmit="return confirm('Permanently remove plan «<?= htmlspecialchars($p['plan_name']) ?>»?');">
+                                <input type="hidden" name="sa_action" value="delete_plan">
+                                <input type="hidden" name="plan_id" value="<?= $p['id'] ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                <button type="submit" class="btn btn-outline-danger btn-sm w-100 py-0.5">Delete</button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -536,17 +408,86 @@ $featureFlags = [
         </div>
     </div>
 
+    <!-- Create Plan Modal -->
+    <div class="modal fade" id="createPlanModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="sa_action" value="create_plan">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-box-seam text-primary me-2"></i> Define New Subscription Tier</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Plan Display Name <span class="text-danger">*</span></label>
+                                <input type="text" name="plan_name" class="form-control form-control-sm" placeholder="e.g. Professional Growth" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Plan Slug <span class="text-danger">*</span></label>
+                                <input type="text" name="plan_slug" class="form-control form-control-sm font-monospace" placeholder="e.g. professional_growth" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Max Users</label>
+                                <input type="number" name="max_users" class="form-control form-control-sm" value="10" min="1">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Max API Tokens</label>
+                                <input type="number" name="max_api_tokens" class="form-control form-control-sm" value="5" min="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Max API Calls / Min</label>
+                                <input type="number" name="max_api_calls_per_minute" class="form-control form-control-sm" value="60" min="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Max API Calls / Hour</label>
+                                <input type="number" name="max_api_calls_per_hour" class="form-control form-control-sm" value="1000" min="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Max DB Records</label>
+                                <input type="number" name="max_db_records" class="form-control form-control-sm" value="50000" min="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Max Storage (MB)</label>
+                                <input type="number" name="max_storage_mb" class="form-control form-control-sm" value="500" min="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Monthly Price ($)</label>
+                                <input type="number" step="0.01" name="price_monthly" class="form-control form-control-sm" placeholder="0.00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Yearly Price ($)</label>
+                                <input type="number" step="0.01" name="price_yearly" class="form-control form-control-sm" placeholder="0.00">
+                            </div>
+                            <div class="col-md-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="is_active" id="plan_active" checked>
+                                    <label class="form-check-label small" for="plan_active">Enable this plan for subscription</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle me-1"></i> Create Plan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <?php elseif ($tab === 'limits'): ?>
     <!-- ═══ Limits Configuration ═══ -->
-    <div class="sa-card">
-        <div class="sa-card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 style="font-size:1rem;font-weight:700;color:var(--sa-ink);margin:0;">Configure Limits</h5>
-                    <p style="font-size:0.75rem;color:var(--sa-ink-soft);margin:0;">Editing: <strong><?= htmlspecialchars($currentPlan['plan_name'] ?? 'Free') ?></strong> plan</p>
-                </div>
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-semibold text-dark">Configure Threshold Limits</span>
+                <span class="text-muted small ms-2">Currently Editing: <strong><?= htmlspecialchars($currentPlan['plan_name'] ?? 'Free') ?></strong></span>
             </div>
-
+        </div>
+        <div class="card-body p-3">
             <form method="POST">
                 <input type="hidden" name="sa_action" value="update_limits">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
@@ -554,40 +495,39 @@ $featureFlags = [
 
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
-                        <label class="sa-label">Max Users</label>
-                        <input type="number" name="max_users" class="form-control sa-input" value="<?= (int)($currentPlan['max_users'] ?? 10) ?>" min="1" max="99999">
-                        <div class="sa-hint">Total user accounts allowed</div>
+                        <label class="form-label small text-muted mb-1">Maximum User Accounts</label>
+                        <input type="number" name="max_users" class="form-control form-control-sm" value="<?= (int)($currentPlan['max_users'] ?? 10) ?>" min="1" max="99999">
+                        <div class="text-muted small mt-1">Ceiling on registered agent logins</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="sa-label">Max API Tokens</label>
-                        <input type="number" name="max_api_tokens" class="form-control sa-input" value="<?= (int)($currentPlan['max_api_tokens'] ?? 5) ?>" min="0" max="9999">
-                        <div class="sa-hint">Active mobile API tokens</div>
+                        <label class="form-label small text-muted mb-1">Maximum API Tokens</label>
+                        <input type="number" name="max_api_tokens" class="form-control form-control-sm" value="<?= (int)($currentPlan['max_api_tokens'] ?? 5) ?>" min="0" max="9999">
+                        <div class="text-muted small mt-1">Max concurrent mobile app bearer tokens</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="sa-label">Max API Calls / Minute</label>
-                        <input type="number" name="max_api_calls_per_minute" class="form-control sa-input" value="<?= (int)($currentPlan['max_api_calls_per_minute'] ?? 60) ?>" min="0" max="99999">
-                        <div class="sa-hint">0 = unlimited</div>
+                        <label class="form-label small text-muted mb-1">API Requests / Minute</label>
+                        <input type="number" name="max_api_calls_per_minute" class="form-control form-control-sm" value="<?= (int)($currentPlan['max_api_calls_per_minute'] ?? 60) ?>" min="0" max="99999">
+                        <div class="text-muted small mt-1">Set 0 for unlimited calls</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="sa-label">Max API Calls / Hour</label>
-                        <input type="number" name="max_api_calls_per_hour" class="form-control sa-input" value="<?= (int)($currentPlan['max_api_calls_per_hour'] ?? 1000) ?>" min="0" max="999999">
-                        <div class="sa-hint">0 = unlimited</div>
+                        <label class="form-label small text-muted mb-1">API Requests / Hour</label>
+                        <input type="number" name="max_api_calls_per_hour" class="form-control form-control-sm" value="<?= (int)($currentPlan['max_api_calls_per_hour'] ?? 1000) ?>" min="0" max="999999">
                     </div>
                     <div class="col-md-6">
-                        <label class="sa-label">Max DB Records</label>
-                        <input type="number" name="max_db_records" class="form-control sa-input" value="<?= (int)($currentPlan['max_db_records'] ?? 50000) ?>" min="0" max="99999999">
-                        <div class="sa-hint">Combined across Temporary, Main, and Leads</div>
+                        <label class="form-label small text-muted mb-1">Maximum Database Records</label>
+                        <input type="number" name="max_db_records" class="form-control form-control-sm" value="<?= (int)($currentPlan['max_db_records'] ?? 50000) ?>" min="0" max="99999999">
+                        <div class="text-muted small mt-1">Combined total across Temporary, Main, and Leads pools</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="sa-label">Max Storage (MB)</label>
-                        <input type="number" name="max_storage_mb" class="form-control sa-input" value="<?= (int)($currentPlan['max_storage_mb'] ?? 500) ?>" min="0" max="999999">
-                        <div class="sa-hint">Estimated database size</div>
+                        <label class="form-label small text-muted mb-1">Maximum Database Storage (MB)</label>
+                        <input type="number" name="max_storage_mb" class="form-control form-control-sm" value="<?= (int)($currentPlan['max_storage_mb'] ?? 500) ?>" min="0" max="999999">
                     </div>
                 </div>
 
-                <hr style="border-color:var(--sa-border);margin:1.25rem 0;">
-                <div class="text-end">
-                    <button type="submit" class="sa-btn-primary"><i class="bi bi-check-lg"></i> Save Limits</button>
+                <div class="d-flex justify-content-end pt-2 border-top">
+                    <button type="submit" class="btn btn-primary btn-sm px-4">
+                        <i class="bi bi-check-lg me-1"></i> Save Plan Thresholds
+                    </button>
                 </div>
             </form>
         </div>
@@ -595,76 +535,86 @@ $featureFlags = [
 
     <?php elseif ($tab === 'access'): ?>
     <!-- ═══ Access Control ═══ -->
-    <div class="sa-card">
-        <div class="sa-card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 style="font-size:1rem;font-weight:700;color:var(--sa-ink);margin:0;">Feature Access Control</h5>
-                    <p style="font-size:0.75rem;color:var(--sa-ink-soft);margin:0;">Enable or disable entire modules for all users</p>
-                </div>
-            </div>
-
-            <div class="sa-access-grid">
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom">
+            <span class="fw-semibold text-dark">Global Module Master Switches</span>
+        </div>
+        <div class="card-body p-3">
+            <div class="row g-3">
                 <?php foreach ($featureFlags as $feature => $enabled): ?>
-                <div class="sa-access-card">
-                    <div class="info">
-                        <h5><i class="bi bi-<?= $feature==='users'?'people':($feature==='leads'?'journal-text':($feature==='database'?'database':($feature==='reports'?'bar-chart':($feature==='api'?'phone':($feature==='teams'?'diagram-3':($feature==='settings'?'gear':'cloud-upload')))))) ?> me-2"></i><?= ucfirst($feature) ?></h5>
-                        <p><?= $enabled ? 'Currently enabled' : 'Currently disabled' ?></p>
-                    </div>
-                    <form method="POST" class="text-end">
-                        <input type="hidden" name="sa_action" value="toggle_access">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                        <input type="hidden" name="feature" value="<?= $feature ?>">
-                        <input type="hidden" name="enabled" value="<?= $enabled ? '0' : '1' ?>">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" <?= $enabled ? 'checked' : '' ?> onchange="this.form.submit()">
+                <div class="col-md-6 col-lg-3">
+                    <div class="p-3 border rounded bg-light d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark small">
+                                <i class="bi bi-<?= $feature==='users'?'people':($feature==='leads'?'journal-text':($feature==='database'?'database':($feature==='reports'?'bar-chart':($feature==='api'?'phone':($feature==='teams'?'diagram-3':($feature==='settings'?'gear':'cloud-upload')))))) ?> text-primary me-1"></i>
+                                <?= ucfirst($feature) ?>
+                            </h6>
+                            <span class="text-muted" style="font-size: 0.72rem;"><?= $enabled ? 'Module Enabled' : 'Module Blocked' ?></span>
                         </div>
-                    </form>
+                        <form method="POST">
+                            <input type="hidden" name="sa_action" value="toggle_access">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                            <input type="hidden" name="feature" value="<?= $feature ?>">
+                            <input type="hidden" name="enabled" value="<?= $enabled ? '0' : '1' ?>">
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" <?= $enabled ? 'checked' : '' ?> onchange="this.form.submit()">
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 <?php endforeach; ?>
             </div>
 
-            <hr style="border-color:var(--sa-border);margin:1.25rem 0;">
-            <div class="sa-hint">
+            <div class="alert alert-info py-2 px-3 mt-4 mb-0 small">
                 <i class="bi bi-info-circle me-1"></i>
-                Disabling a feature here will block access to the corresponding module for all non-super-admin users. Super Admin always retains access.
+                Disabling a module blocks access for all non-super-admin users platform-wide. Super Admin always retains unrestricted root access.
             </div>
         </div>
     </div>
 
     <?php elseif ($tab === 'logs'): ?>
     <!-- ═══ Limit Logs ═══ -->
-    <div class="sa-card">
-        <div class="sa-card-body">
-            <h5 style="font-size:1rem;font-weight:700;color:var(--sa-ink);margin:0 0 1rem 0;">Recent Limit Violations</h5>
+    <div class="crm-card mb-3">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-semibold text-dark">Quota Enforcement Log</span>
+            <span class="badge bg-secondary-subtle text-secondary border"><?= count($recentLogs) ?> Violations</span>
+        </div>
+        <div class="card-body p-0">
             <?php if (empty($recentLogs)): ?>
-                <p class="text-muted text-center py-3">No limit violations recorded yet.</p>
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-shield-check fs-2 d-block mb-2 text-success"></i>
+                    No limit violations recorded. Platform operating smoothly within designated quotas.
+                </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="sa-log-table">
+                    <table class="table crm-table align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Time</th>
-                                <th>Type</th>
-                                <th>Action</th>
-                                <th>Requested</th>
-                                <th>Allowed</th>
-                                <th>Current Usage</th>
+                                <th style="width: 140px;">Timestamp</th>
+                                <th style="width: 120px;">Limit Type</th>
+                                <th>Action Attempted</th>
+                                <th style="width: 90px;">Requested</th>
+                                <th style="width: 90px;">Threshold</th>
+                                <th style="width: 110px;">Current Usage</th>
                                 <th>User</th>
-                                <th>IP</th>
+                                <th style="width: 110px;">IP Address</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($recentLogs as $log): ?>
                                 <tr>
-                                    <td class="small"><?= date('d M Y H:i', strtotime($log['created_at'])) ?></td>
-                                    <td><span class="sa-badge sa-badge-<?= $log['limit_type']==='users'?'info':($log['limit_type']==='api_tokens'?'warning':($log['limit_type']==='storage'?'danger':'secondary')) ?>"><?= ucfirst(str_replace('_', ' ', $log['limit_type'])) ?></span></td>
-                                    <td><?= htmlspecialchars($log['action']) ?></td>
-                                    <td><?= htmlspecialchars($log['requested_value'] ?? '—') ?></td>
-                                    <td><?= htmlspecialchars($log['allowed_value'] ?? '—') ?></td>
-                                    <td><?= htmlspecialchars($log['current_usage'] ?? '—') ?></td>
-                                    <td><?= htmlspecialchars($log['user_name'] ?? 'System') ?></td>
-                                    <td class="small text-muted"><?= htmlspecialchars($log['ip_address'] ?? '—') ?></td>
+                                    <td class="small text-muted font-monospace"><?= date('d M H:i', strtotime($log['created_at'])) ?></td>
+                                    <td>
+                                        <span class="badge bg-<?= $log['limit_type']==='users'?'info':($log['limit_type']==='api_tokens'?'warning':($log['limit_type']==='storage'?'danger':'secondary')) ?>-subtle text-dark border">
+                                            <?= ucfirst(str_replace('_', ' ', $log['limit_type'])) ?>
+                                        </span>
+                                    </td>
+                                    <td class="small text-dark fw-medium"><?= htmlspecialchars($log['action']) ?></td>
+                                    <td class="small font-monospace"><?= htmlspecialchars($log['requested_value'] ?? '—') ?></td>
+                                    <td class="small font-monospace"><?= htmlspecialchars($log['allowed_value'] ?? '—') ?></td>
+                                    <td class="small font-monospace"><?= htmlspecialchars($log['current_usage'] ?? '—') ?></td>
+                                    <td class="small"><?= htmlspecialchars($log['user_name'] ?? 'System') ?></td>
+                                    <td class="small text-muted font-monospace"><?= htmlspecialchars($log['ip_address'] ?? '—') ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -673,81 +623,8 @@ $featureFlags = [
             <?php endif; ?>
         </div>
     </div>
-
     <?php endif; ?>
 
-</div>
-
-<!-- Create Plan Modal -->
-<div class="modal fade" id="createPlanModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <form method="POST">
-                <input type="hidden" name="sa_action" value="create_plan">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                <div class="modal-header">
-                    <h5 class="modal-title">Create New Plan</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="sa-label">Plan Name <span class="text-danger">*</span></label>
-                            <input type="text" name="plan_name" class="form-control sa-input" placeholder="e.g. Professional" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Plan Slug <span class="text-danger">*</span></label>
-                            <input type="text" name="plan_slug" class="form-control sa-input" placeholder="e.g. professional" required>
-                            <div class="sa-hint">Lowercase, no spaces. Used for payment integration.</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Max Users</label>
-                            <input type="number" name="max_users" class="form-control sa-input" value="10" min="1">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Max API Tokens</label>
-                            <input type="number" name="max_api_tokens" class="form-control sa-input" value="5" min="0">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Max API Calls / Min</label>
-                            <input type="number" name="max_api_calls_per_minute" class="form-control sa-input" value="60" min="0">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Max API Calls / Hour</label>
-                            <input type="number" name="max_api_calls_per_hour" class="form-control sa-input" value="1000" min="0">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Max DB Records</label>
-                            <input type="number" name="max_db_records" class="form-control sa-input" value="50000" min="0">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Max Storage (MB)</label>
-                            <input type="number" name="max_storage_mb" class="form-control sa-input" value="500" min="0">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Monthly Price ($)</label>
-                            <input type="number" step="0.01" name="price_monthly" class="form-control sa-input" placeholder="0.00">
-                            <div class="sa-hint">0 for free plan</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="sa-label">Yearly Price ($)</label>
-                            <input type="number" step="0.01" name="price_yearly" class="form-control sa-input" placeholder="0.00">
-                        </div>
-                        <div class="col-md-12">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="is_active" id="plan_active" checked>
-                                <label class="form-check-label" for="plan_active">Active</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="sa-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="sa-btn-primary"><i class="bi bi-plus-circle me-1"></i> Create Plan</button>
-                </div>
-            </form>
-        </div>
-    </div>
 </div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

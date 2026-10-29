@@ -1,6 +1,4 @@
 <?php
-// manage_activity.php - fixed delete-on-view bug + compact mobile-friendly UI
-
 require_once '../../php_scripts/auth.php';
 
 requirePermission('view_activity');
@@ -78,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-/* ---------------- Filtering & pagination ---------------- */
+/* Filtering & pagination */
 $perPage = 15;
 $page = max(1, intval($_GET['page'] ?? 1));
 $offset = ($page - 1) * $perPage;
@@ -124,7 +122,7 @@ $sort = in_array($rawSort, $allowedSort) ? $rawSort : 'LOG_TIME';
 $dir = (isset($_GET['dir']) && strtoupper($_GET['dir']) === 'ASC') ? 'ASC' : 'DESC';
 $sort_col = '`' . $sort . '`';
 
-/* Count total (JOIN users for name filter correctness) */
+/* Count total */
 $count_sql = "SELECT COUNT(*) FROM " . tn('TBL_ACTIVITY_LOG') . " a LEFT JOIN " . tn('TBL_USERS') . " u ON a.USER_ID = u.ID $where_sql";
 $total = 0;
 if ($stmt = mysqli_prepare($link, $count_sql)) {
@@ -203,7 +201,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     }
 }
 
-/* Build filter dropdown values (users with names) */
+/* Filter dropdown values */
 $TBL_USERSList = [];
 $res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin' ORDER BY NAME ASC");
 if ($res) {
@@ -229,268 +227,410 @@ $baseQuery = $_GET;
 ?>
 <?php $pageTitle = 'Activity Log Management'; include '../../php_scripts/header.php'; ?>
 
-<div class="container py-3">
+<div class="container-fluid px-3 py-3">
 
-    <div class="topbar d-flex justify-content-between align-items-center flex-wrap">
+    <!-- Zoho CRM Module Header -->
+    <div class="module-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-            <h1><i class="bi bi-journal-text me-2"></i> Activity Log</h1>
-            <div class="small-muted">Audit trail — filter, view, export, manage logs</div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/logs/Reports.php') ?>">Logs & Audit</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Activity Trail</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="page-title mb-0">System Activity Logs</h1>
+                <span class="badge bg-secondary-subtle text-secondary border"><?= number_format($total) ?> events</span>
+            </div>
+            <p class="text-muted small mb-0">Complete audit trail of user actions, database mutations, and system access</p>
         </div>
-        <div class="mt-2 mt-sm-0">
-            <a role="button" type="button" class="btn btn-sm btn-light border shadow-sm" href="?<?php echo htmlspecialchars(http_build_query(array_merge($_GET, ['export'=>'csv']))); ?>">
+        <div class="d-flex align-items-center gap-2">
+            <a role="button" class="btn btn-outline-secondary btn-sm" href="?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>">
                 <i class="bi bi-download me-1"></i> Export CSV
             </a>
             <?php if ($userRole === 'Admin'): ?>
-                <button type="button" class="btn btn-sm btn-gradient ms-2" data-bs-toggle="modal" data-bs-target="#bulkDeleteConfirm"><i class="bi bi-trash me-1"></i> Bulk Delete</button>
+                <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#bulkDeleteConfirm">
+                    <i class="bi bi-trash me-1"></i> Bulk Delete
+                </button>
             <?php endif; ?>
         </div>
     </div>
 
     <?php if ($alertMsg): ?>
-        <div class="alert alert-<?php echo htmlspecialchars($alertType ?: 'info'); ?> alert-dismissible fade show mt-3">
-            <?php echo htmlspecialchars($alertMsg); ?>
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-<?= htmlspecialchars($alertType ?: 'info'); ?> alert-dismissible fade show mb-3" role="alert">
+            <i class="bi <?= $alertType === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> me-2"></i>
+            <?= htmlspecialchars($alertMsg); ?>
+            <button class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
 
-    <div class="card card-modern my-3 p-3">
+    <!-- KPI Metric Summary -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Total Audit Events</div>
+                <div class="metric-value text-primary"><?= number_format($total) ?></div>
+                <div class="text-muted small">Recorded system actions</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Active Users Tracked</div>
+                <div class="metric-value text-success"><?= count($TBL_USERSList) ?></div>
+                <div class="text-muted small">Users with recorded events</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Action Categories</div>
+                <div class="metric-value text-dark"><?= count($actionTypes) ?></div>
+                <div class="text-muted small">Event operations</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Entities Monitored</div>
+                <div class="metric-value text-secondary"><?= count($targetTables) ?></div>
+                <div class="text-muted small">Target schema tables</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Toolbar -->
+    <div class="crm-card mb-3 p-3">
         <form class="row g-2 align-items-end" method="GET">
-            <div class="col-12 col-sm-6 col-md-3">
-                <label class="form-label small mb-1">User</label>
+            <div class="col-12 col-sm-6 col-md-2">
+                <label class="form-label small text-muted mb-1">User</label>
                 <select name="filter_user" class="form-select form-select-sm">
-                    <option value="">All TBL_USERS</option>
+                    <option value="">All Users</option>
                     <?php foreach ($TBL_USERSList as $uid => $uname): ?>
-                        <option value="<?php echo (int)$uid; ?>" <?php if((string)$uid === (string)$filter_user) echo 'selected'; ?>><?php echo htmlspecialchars($uname); ?></option>
+                        <option value="<?= (int)$uid; ?>" <?= (string)$uid === (string)$filter_user ? 'selected' : '' ?>><?= htmlspecialchars($uname); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
 
-            <div class="col-6 col-sm-4 col-md-2">
-                <label class="form-label small mb-1">Action</label>
+            <div class="col-6 col-sm-3 col-md-2">
+                <label class="form-label small text-muted mb-1">Action Type</label>
                 <select name="filter_action" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">All Actions</option>
                     <?php foreach ($actionTypes as $a): ?>
-                        <option value="<?php echo htmlspecialchars($a); ?>" <?php if($a === $filter_action) echo 'selected'; ?>><?php echo htmlspecialchars($a); ?></option>
+                        <option value="<?= htmlspecialchars($a); ?>" <?= $a === $filter_action ? 'selected' : '' ?>><?= htmlspecialchars($a); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
 
-            <div class="col-6 col-sm-4 col-md-2">
-                <label class="form-label small mb-1">Target</label>
+            <div class="col-6 col-sm-3 col-md-2">
+                <label class="form-label small text-muted mb-1">Target Table</label>
                 <select name="filter_table" class="form-select form-select-sm">
-                    <option value="">All</option>
+                    <option value="">All Tables</option>
                     <?php foreach ($targetTables as $t): ?>
-                        <option value="<?php echo htmlspecialchars($t); ?>" <?php if($t === $filter_table) echo 'selected'; ?>><?php echo htmlspecialchars($t); ?></option>
+                        <option value="<?= htmlspecialchars($t); ?>" <?= $t === $filter_table ? 'selected' : '' ?>><?= htmlspecialchars($t); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
 
-            <div class="col-6 col-sm-4 col-md-2">
-                <label class="form-label small mb-1">From</label>
-                <input type="date" name="date_from" class="form-control form-control-sm" value="<?php echo htmlspecialchars($date_from); ?>">
+            <div class="col-6 col-sm-3 col-md-2">
+                <label class="form-label small text-muted mb-1">From Date</label>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="<?= htmlspecialchars($date_from); ?>">
             </div>
 
-            <div class="col-6 col-sm-4 col-md-2">
-                <label class="form-label small mb-1">To</label>
-                <input type="date" name="date_to" class="form-control form-control-sm" value="<?php echo htmlspecialchars($date_to); ?>">
+            <div class="col-6 col-sm-3 col-md-2">
+                <label class="form-label small text-muted mb-1">To Date</label>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="<?= htmlspecialchars($date_to); ?>">
             </div>
 
-            <div class="col-12 col-md-3">
-                <label class="form-label small mb-1">Search</label>
-                <div class="input-group search-box">
-                    <input type="text" name="q" class="form-control form-control-sm" placeholder="Search details, action, user..." value="<?php echo htmlspecialchars($q); ?>">
-                    <button class="btn btn-gradient btn-sm" type="submit"><i class="bi bi-search"></i></button>
+            <div class="col-12 col-md-2">
+                <label class="form-label small text-muted mb-1">Search Details</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" name="q" class="form-control" placeholder="Search keywords..." value="<?= htmlspecialchars($q); ?>">
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
+                    <?php if ($filter_user !== '' || $filter_action !== '' || $filter_table !== '' || $date_from !== '' || $date_to !== '' || $q !== ''): ?>
+                        <a href="manage_activity.php" class="btn btn-outline-secondary" title="Reset Filters"><i class="bi bi-x-lg"></i></a>
+                    <?php endif; ?>
                 </div>
             </div>
         </form>
     </div>
 
-    <div class="card card-modern">
-        <div class="card-body p-0">
-            <form id="bulkForm" method="POST">
-                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf); ?>">
-                <input type="hidden" name="action" value="delete_bulk">
+    <!-- Activity Log Register Table -->
+    <div class="crm-card">
+        <form id="bulkForm" method="POST">
+            <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf); ?>">
+            <input type="hidden" name="action" value="delete_bulk">
 
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="small">
+            <div class="table-responsive">
+                <table class="table crm-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 38px;" class="text-center"><input id="select_all" type="checkbox" class="form-check-input"></th>
+                            <th style="width: 70px;">Log ID</th>
+                            <th style="min-width: 180px;">User</th>
+                            <th style="width: 110px;">Action</th>
+                            <th style="min-width: 140px;">Target</th>
+                            <th>Details</th>
+                            <th style="width: 160px;">Timestamp</th>
+                            <th style="width: 120px;">IP Address</th>
+                            <th style="width: 130px;" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php if (count($rows) === 0): ?>
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-5">
+                                <i class="bi bi-journal-x fs-2 d-block mb-2 text-secondary"></i>
+                                No activity logs match the selected filter criteria.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($rows as $r): ?>
+                            <?php 
+                                $act = strtoupper($r['ACTION_TYPE'] ?? '');
+                                $badgeClass = 'bg-secondary-subtle text-secondary';
+                                if ($act === 'INSERT') $badgeClass = 'bg-success-subtle text-success';
+                                elseif ($act === 'UPDATE') $badgeClass = 'bg-primary-subtle text-primary';
+                                elseif ($act === 'DELETE') $badgeClass = 'bg-danger-subtle text-danger';
+                                elseif ($act === 'LOGIN') $badgeClass = 'bg-info-subtle text-info';
+                            ?>
                             <tr>
-                                <th style="width:34px;"><input id="select_all" type="checkbox"></th>
-                                <th style="width:64px;">ID</th>
-                                <th>User</th>
-                                <th style="width:96px;">Action</th>
-                                <th>Target</th>
-                                <th>Details</th>
-                                <th style="width:150px;">Time</th>
-                                <th style="width:100px;">IP</th>
-                                <th style="width:130px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php if (count($rows) === 0): ?>
-                            <tr><td colspan="9" class="text-center small-muted py-4">No activity logs found for selected filters.</td></tr>
-                        <?php else: ?>
-                            <?php foreach ($rows as $r): ?>
-                                <?php $actionBadgeClass = in_array($r['ACTION_TYPE'], ['INSERT','UPDATE','DELETE']) ? $r['ACTION_TYPE'] : 'OTHER'; ?>
-                                <tr>
-                                    <td><input type="checkbox" class="row_cb" name="bulk_ids[]" value="<?php echo (int)$r['LOG_ID']; ?>"></td>
-                                    <td class="fw-semibold small"><?php echo (int)$r['LOG_ID']; ?></td>
-                                    <td class="small">
-                                        <div class="d-flex align-items-center">
-                                            <div class="me-2">
-                                                <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#eef2ff,#f7f7ff);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent-1);font-size:0.95rem;">
-                                                    <?php echo htmlspecialchars(mb_substr($r['USER_NAME'] ?? 'U',0,1)); ?>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div class="fw-semibold small mb-0"><?php echo htmlspecialchars($r['USER_NAME'] ?? ('User #' . (int)$r['USER_ID'])); ?></div>
-                                                <div class="small-muted small mt-0"><span class="badge role-badge <?php echo htmlspecialchars($r['USER_ROLE'] ?? ''); ?>"><?php echo htmlspecialchars($r['USER_ROLE'] ?? '—'); ?></span></div>
-                                            </div>
+                                <td class="text-center"><input type="checkbox" class="form-check-input row_cb" name="bulk_ids[]" value="<?= (int)$r['LOG_ID']; ?>"></td>
+                                <td class="fw-semibold text-secondary">#<?= (int)$r['LOG_ID']; ?></td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-primary bg-primary-subtle flex-shrink-0" style="width: 30px; height: 30px; font-size: 0.8rem;">
+                                            <?= htmlspecialchars(mb_substr($r['USER_NAME'] ?? 'U', 0, 1)); ?>
                                         </div>
-                                    </td>
-                                    <td><span class="badge action-badge <?php echo htmlspecialchars($actionBadgeClass); ?>"><?php echo htmlspecialchars($r['ACTION_TYPE']); ?></span></td>
-                                    <td class="small"><?php echo htmlspecialchars($r['TARGET_TABLE']); ?></td>
-                                    <td class="text-truncate-200 small" title="<?php echo htmlspecialchars($r['ACTION_DETAILS']); ?>"><?php echo htmlspecialchars(mb_strimwidth($r['ACTION_DETAILS'],0,100,'...')); ?></td>
-                                    <td class="small"><?php echo htmlspecialchars($r['LOG_TIME']); ?></td>
-                                    <td class="small"><?php echo htmlspecialchars($r['IP_ADDRESS']); ?></td>
-                                    <td>
-                                        <!-- VIEW should NOT submit the form: set type="button" -->
-                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewModal" data-log='<?php echo htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8'); ?>'>
-                                            <i class="bi bi-eye"></i> <span class="d-none d-sm-inline">View</span>
+                                        <div class="text-truncate" style="max-width: 150px;">
+                                            <div class="fw-medium text-dark small text-truncate"><?= htmlspecialchars($r['USER_NAME'] ?? ('User #' . (int)$r['USER_ID'])); ?></div>
+                                            <div class="text-muted" style="font-size: 0.72rem;"><?= htmlspecialchars($r['USER_ROLE'] ?? '—'); ?></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="badge <?= $badgeClass ?> border"><?= htmlspecialchars($r['ACTION_TYPE']); ?></span></td>
+                                <td><code class="text-dark bg-light px-2 py-0.5 rounded border small font-monospace"><?= htmlspecialchars($r['TARGET_TABLE'] ?: '—'); ?></code></td>
+                                <td class="small text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($r['ACTION_DETAILS']); ?>">
+                                    <?= htmlspecialchars(mb_strimwidth($r['ACTION_DETAILS'], 0, 90, '...')); ?>
+                                </td>
+                                <td class="small text-muted font-monospace"><?= htmlspecialchars($r['LOG_TIME']); ?></td>
+                                <td class="small text-muted font-monospace"><?= htmlspecialchars($r['IP_ADDRESS'] ?: '—'); ?></td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-1" data-bs-toggle="modal" data-bs-target="#viewModal" data-log='<?= htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8'); ?>' title="View Record">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <?php if ($userRole === 'Admin'): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-danger px-2 py-1 ms-1 single-delete-btn" data-id="<?= (int)$r['LOG_ID']; ?>" title="Delete Record">
+                                            <i class="bi bi-trash"></i>
                                         </button>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
 
-                                        <?php if ($userRole === 'Admin'): ?>
-                                            <form method="POST" class="d-inline-block ms-1" onsubmit="return confirm('Delete this activity log?');">
-                                                <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($csrf); ?>">
-                                                <input type="hidden" name="action" value="delete_single">
-                                                <input type="hidden" name="id" value="<?php echo (int)$r['LOG_ID']; ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Delete</span></button>
-                                            </form>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
+            <!-- Table Footer Toolbar -->
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-2 border-top bg-light">
+                <div class="d-flex align-items-center gap-2">
+                    <?php if ($userRole === 'Admin'): ?>
+                        <button class="btn btn-sm btn-danger" type="button" id="bulkDeleteTriggerBtn">
+                            <i class="bi bi-trash me-1"></i> Delete Selected
+                        </button>
+                    <?php endif; ?>
+                    <span class="text-muted small">Showing <?= count($rows); ?> of <?= number_format($total); ?> entries</span>
+                </div>
+
+                <nav aria-label="Activity page navigation">
+                    <ul class="pagination pagination-sm mb-0">
+                        <?php 
+                            $startPage = max(1, $page - 2);
+                            $endPage = min($totalPages, $page + 2);
+                        ?>
+                        <?php if ($page > 1): ?>
+                            <li class="page-item">
+                                <a class="page-link" href="?<?= htmlspecialchars(http_build_query(array_merge($baseQuery, ['page' => 1]))); ?>">&laquo;</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?<?= htmlspecialchars(http_build_query(array_merge($baseQuery, ['page' => $page - 1]))); ?>">&lsaquo;</a>
+                            </li>
                         <?php endif; ?>
+
+                        <?php for ($p = $startPage; $p <= $endPage; $p++): ?>
+                            <li class="page-item <?= $p == $page ? 'active' : '' ?>">
+                                <a class="page-link" href="?<?= htmlspecialchars(http_build_query(array_merge($baseQuery, ['page' => $p]))); ?>"><?= $p; ?></a>
+                            </li>
+                        <?php endfor; ?>
+
+                        <?php if ($page < $totalPages): ?>
+                            <li class="page-item">
+                                <a class="page-link" href="?<?= htmlspecialchars(http_build_query(array_merge($baseQuery, ['page' => $page + 1]))); ?>">&rsaquo;</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?<?= htmlspecialchars(http_build_query(array_merge($baseQuery, ['page' => $totalPages]))); ?>">&raquo;</a>
+                            </li>
+                        <?php endif; ?>
+                    </ul>
+                </nav>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Standalone Single Delete Form -->
+<form id="singleDeleteForm" method="POST" style="display: none;">
+    <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf); ?>">
+    <input type="hidden" name="action" value="delete_single">
+    <input type="hidden" name="id" id="singleDeleteId" value="">
+</form>
+
+<!-- View Activity Modal -->
+<div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewModalLabel"><i class="bi bi-info-circle text-primary me-2"></i> Activity Log Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered crm-table align-middle">
+                        <tbody>
+                            <tr>
+                                <th class="bg-light text-muted" style="width: 25%;">Log ID</th>
+                                <td><span id="v_logid" class="fw-bold"></span></td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light text-muted">User Account</th>
+                                <td>
+                                    <span id="v_user" class="fw-semibold"></span>
+                                    <span id="v_userrole" class="badge bg-secondary-subtle text-secondary border ms-2"></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light text-muted">Action Type</th>
+                                <td><span id="v_action" class="badge bg-primary-subtle text-primary border"></span></td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light text-muted">Target Table</th>
+                                <td><code id="v_table" class="bg-light px-2 py-1 rounded border font-monospace"></code></td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light text-muted">Affected Entity ID(s)</th>
+                                <td><span id="v_affected" class="font-monospace text-dark"></span></td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light text-muted">Recorded Timestamp</th>
+                                <td><span id="v_time" class="font-monospace"></span></td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light text-muted">Client IP Address</th>
+                                <td><span id="v_ip" class="font-monospace"></span></td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light text-muted align-top">Action Details</th>
+                                <td>
+                                    <pre id="v_details" class="p-3 bg-light rounded border text-wrap mb-0 font-monospace small" style="max-height: 250px; overflow-y: auto;"></pre>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
-                <div class="d-flex justify-content-between align-items-center p-2 border-top">
-                    <div>
-                        <?php if ($userRole === 'Admin'): ?>
-                            <button class="btn btn-sm btn-danger" type="submit" onclick="return confirm('Delete selected logs?');"><i class="bi bi-trash me-1"></i> Delete Selected</button>
-                        <?php endif; ?>
-                        <span class="ms-3 small-muted">Showing <?php echo count($rows); ?> of <?php echo (int)$total; ?> results</span>
-                    </div>
-
-                    <nav>
-                        <ul class="pagination pagination-sm mb-0">
-                            <?php for ($p = 1; $p <= $totalPages; $p++):
-                                $baseQuery['page'] = $p;
-                                $linkUrl = '?' . htmlspecialchars(http_build_query($baseQuery));
-                                ?>
-                                <li class="page-item <?php if ($p == $page) echo 'active'; ?>"><a class="page-link" href="<?php echo $linkUrl; ?>"><?php echo $p; ?></a></li>
-                            <?php endfor; ?>
-                        </ul>
-                    </nav>
+<!-- Bulk Delete Confirm Modal -->
+<div class="modal fade" id="bulkDeleteConfirm" tabindex="-1" aria-labelledby="bulkDeleteConfirmLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="rounded-circle bg-danger-subtle text-danger d-inline-flex align-items-center justify-content-center mb-3" style="width: 50px; height: 50px;">
+                    <i class="bi bi-trash fs-4"></i>
                 </div>
-
-            </form>
+                <h6 class="modal-title fw-bold mb-2" id="bulkDeleteConfirmLabel">Delete Selected Logs?</h6>
+                <p class="text-muted small mb-3">This action will permanently purge the selected activity records from the database audit trail.</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button id="confirmBulkDeleteBtn" type="button" class="btn btn-danger btn-sm">Yes, Delete</button>
+                </div>
+            </div>
         </div>
     </div>
-</div>
-
-<!-- View Modal -->
-<div class="modal fade" id="viewModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-info-circle"></i> Activity Details</h5>
-        <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <dl class="row mb-0">
-            <dt class="col-sm-4 small-muted">Log ID</dt><dd class="col-sm-8" id="v_logid"></dd>
-            <dt class="col-sm-4 small-muted">User</dt><dd class="col-sm-8" id="v_user"></dd>
-            <dt class="col-sm-4 small-muted">User Role</dt><dd class="col-sm-8" id="v_userrole"></dd>
-            <dt class="col-sm-4 small-muted">Action</dt><dd class="col-sm-8" id="v_action"></dd>
-            <dt class="col-sm-4 small-muted">Target Table</dt><dd class="col-sm-8" id="v_table"></dd>
-            <dt class="col-sm-4 small-muted">Affected IDs</dt><dd class="col-sm-8" id="v_affected"></dd>
-            <dt class="col-sm-4 small-muted">Time</dt><dd class="col-sm-8" id="v_time"></dd>
-            <dt class="col-sm-4 small-muted">IP</dt><dd class="col-sm-8" id="v_ip"></dd>
-            <dt class="col-sm-4 small-muted">Details</dt><dd class="col-sm-8"><pre id="v_details" style="white-space:pre-wrap;"></pre></dd>
-        </dl>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Bulk Delete Confirm Modal (Admin) -->
-<div class="modal fade" id="bulkDeleteConfirm" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-body text-center p-4">
-        <h5 class="mb-3">Bulk delete selected logs?</h5>
-        <p class="small-muted mb-3">This will permanently remove the selected activity logs.</p>
-        <div class="d-flex justify-content-center gap-2">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button id="confirmBulkDeleteBtn" type="button" class="btn btn-danger">Delete</button>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <?php include '../../php_scripts/footer.php'; ?>
 
 <script>
-    // guard DOM queries
-    (function(){
-        const selectAll = document.getElementById('select_all');
-        if (selectAll) {
-            selectAll.addEventListener('change', function(){
-                document.querySelectorAll('.row_cb').forEach(cb => cb.checked = this.checked);
-            });
-        }
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select_all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.row_cb').forEach(cb => cb.checked = this.checked);
+        });
+    }
 
-        // View modal fill
-        const viewModal = document.getElementById('viewModal');
-        if (viewModal) {
-            viewModal.addEventListener('show.bs.modal', function (event) {
-                const btn = event.relatedTarget;
-                const data = btn.getAttribute('data-log');
-                let obj = {};
-                try { obj = JSON.parse(data); } catch(e){ obj = {}; }
+    // Single delete action
+    document.querySelectorAll('.single-delete-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            if (confirm('Are you sure you want to delete activity log #' + id + '?')) {
+                document.getElementById('singleDeleteId').value = id;
+                document.getElementById('singleDeleteForm').submit();
+            }
+        });
+    });
 
-                document.getElementById('v_logid').textContent = obj.LOG_ID || '';
-                const userDisplay = (obj.USER_NAME ? obj.USER_NAME : ('User #' + (obj.USER_ID || '')));
-                document.getElementById('v_user').textContent = userDisplay;
-                document.getElementById('v_userrole').textContent = obj.USER_ROLE || '';
-                document.getElementById('v_action').textContent = obj.ACTION_TYPE || '';
-                document.getElementById('v_table').textContent = obj.TARGET_TABLE || '';
-                document.getElementById('v_affected').textContent = obj.AFFECTED_IDS || '';
-                document.getElementById('v_time').textContent = obj.LOG_TIME || '';
-                document.getElementById('v_ip').textContent = obj.IP_ADDRESS || '';
-                document.getElementById('v_details').textContent = obj.ACTION_DETAILS || '';
-            });
-        }
+    // View modal fill
+    const viewModal = document.getElementById('viewModal');
+    if (viewModal) {
+        viewModal.addEventListener('show.bs.modal', function(event) {
+            const btn = event.relatedTarget;
+            const data = btn.getAttribute('data-log');
+            let obj = {};
+            try { obj = JSON.parse(data); } catch(e) { obj = {}; }
 
-        // Bulk delete confirm - submits bulkForm
-        const confirmBulkBtn = document.getElementById('confirmBulkDeleteBtn');
-        if (confirmBulkBtn) {
-            confirmBulkBtn.addEventListener('click', function(){
-                const selected = document.querySelectorAll('.row_cb:checked');
-                if (selected.length === 0) {
-                    alert('Please select at least one row to delete.');
-                    return;
-                }
-                // submit the bulk form
-                const bulkForm = document.getElementById('bulkForm');
-                if (bulkForm) bulkForm.submit();
-            });
-        }
-    })();
+            document.getElementById('v_logid').textContent = '#' + (obj.LOG_ID || '');
+            const userDisplay = (obj.USER_NAME ? obj.USER_NAME : ('User #' + (obj.USER_ID || '')));
+            document.getElementById('v_user').textContent = userDisplay;
+            document.getElementById('v_userrole').textContent = obj.USER_ROLE || '—';
+            document.getElementById('v_action').textContent = obj.ACTION_TYPE || '—';
+            document.getElementById('v_table').textContent = obj.TARGET_TABLE || '—';
+            document.getElementById('v_affected').textContent = obj.AFFECTED_IDS || '—';
+            document.getElementById('v_time').textContent = obj.LOG_TIME || '—';
+            document.getElementById('v_ip').textContent = obj.IP_ADDRESS || '—';
+            document.getElementById('v_details').textContent = obj.ACTION_DETAILS || '—';
+        });
+    }
+
+    // Bulk delete confirmation
+    const bulkTriggerBtn = document.getElementById('bulkDeleteTriggerBtn');
+    if (bulkTriggerBtn) {
+        bulkTriggerBtn.addEventListener('click', function() {
+            const selected = document.querySelectorAll('.row_cb:checked');
+            if (selected.length === 0) {
+                alert('Please select at least one log entry to delete.');
+                return;
+            }
+            const modal = new bootstrap.Modal(document.getElementById('bulkDeleteConfirm'));
+            modal.show();
+        });
+    }
+
+    const confirmBulkBtn = document.getElementById('confirmBulkDeleteBtn');
+    if (confirmBulkBtn) {
+        confirmBulkBtn.addEventListener('click', function() {
+            const selected = document.querySelectorAll('.row_cb:checked');
+            if (selected.length === 0) {
+                alert('Please select at least one row to delete.');
+                return;
+            }
+            document.getElementById('bulkForm').submit();
+        });
+    }
+});
 </script>

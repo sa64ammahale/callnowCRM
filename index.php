@@ -101,155 +101,103 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($link) @mysqli_close($link);
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CallNow | Professional Communication Platform</title>
+    <title>Sign In &bull; CallNow CRM</title>
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
+    <link href="<?= vnd('css/bootstrap-icons.css') ?>" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
-    <link rel="stylesheet" href="<?= vnd('css/bootstrap-icons.css') ?>">
-    <style>
-        .login-header {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            color: #fff;
-            padding: 1.25rem 1rem;
-            text-align: center;
-        }
-        .login-header h1 { color: #fff; font-size: 1.25rem; margin: 0.5rem 0 0; }
-        .login-header .logo-container {
-            max-height: 60px;
-            width: auto;
-            max-width: 200px;
-            object-fit: contain;
-        }
-        .links-section a { font-weight: 500; transition: color 0.2s; }
-        .links-section a:hover { text-decoration: underline; }
-        .password-toggle { cursor: pointer; transition: color 0.2s; }
-    </style>
 </head>
-<body>
+<body class="bg-app">
     <div class="login-shell">
         <div class="login-card">
-            <div class="login-header">
+            <div class="login-brand">
                 <?php if ($loginLogo): ?>
-                    <img src="<?= htmlspecialchars($loginLogo, ENT_QUOTES, 'UTF-8') ?>" alt="CallNow" class="logo-container">
+                    <img src="<?= htmlspecialchars($loginLogo, ENT_QUOTES, 'UTF-8') ?>" alt="CallNow" style="max-height:36px; max-width:180px; object-fit:contain;">
                 <?php else: ?>
-                    <i class="bi bi-telephone-fill" style="font-size:2.25rem;"></i>
+                    <span class="brand-mark"><i class="bi bi-telephone-fill"></i></span>
+                    <span class="brand-text">CallNow CRM</span>
                 <?php endif; ?>
-                <h1>CallNow V5.00</h1>
             </div>
-            <div class="p-4">
-                <form action="<?= htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
-                    <div class="mb-3">
-                        <label for="company" class="form-label">Company Name</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-building"></i></span>
-                            <input type="text" id="company" class="form-control" name="CompanyName"
-                                   placeholder="Enter your registered company name" required
-                                   value="<?= htmlspecialchars($CompanyName) ?>">
-                        </div>
+
+            <h1 class="login-title">Sign in to your account</h1>
+            <p class="login-subtitle">Enter your organization credentials to continue</p>
+
+            <?php if ($ErrorMessage): ?>
+            <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                <i class="bi bi-exclamation-circle me-1"></i>
+                <?= htmlspecialchars($ErrorMessage, ENT_QUOTES, 'UTF-8') ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            <?php endif; ?>
+
+            <form action="<?= htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post" novalidate>
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
+                
+                <div class="mb-3">
+                    <label for="company" class="form-label">Company Name <span class="req">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-building"></i></span>
+                        <input type="text" id="company" class="form-control" name="CompanyName"
+                               placeholder="e.g. Acme Corp" required
+                               value="<?= htmlspecialchars($CompanyName) ?>">
                     </div>
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username / Email</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-person"></i></span>
-                            <input type="text" id="username" class="form-control" name="username"
-                                   placeholder="Enter your registered email" required
-                                   value="<?= htmlspecialchars($username) ?>">
-                        </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="username" class="form-label">Email Address <span class="req">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                        <input type="email" id="username" class="form-control" name="username"
+                               placeholder="name@company.com" required
+                               value="<?= htmlspecialchars($username) ?>">
                     </div>
-                    <div class="mb-4">
-                        <label for="password" class="form-label">Password</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                            <input type="password" id="password" class="form-control" name="password"
-                                   placeholder="Enter your password" required>
-                            <span class="input-group-text password-toggle" id="togglePassword">
-                                <i class="bi bi-eye"></i>
-                            </span>
-                        </div>
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" id="showPassword">
-                            <label class="form-check-label" for="showPassword" style="font-size: 0.85rem;">Show Password</label>
-                        </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label for="password" class="form-label mb-0">Password <span class="req">*</span></label>
+                        <a href="forgot-password" class="small text-decoration-none">Forgot password?</a>
                     </div>
-                    <?php if ($ErrorMessage): ?>
-                    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-                        <i class="bi bi-exclamation-circle me-2"></i>
-                        <?= htmlspecialchars($ErrorMessage, ENT_QUOTES, 'UTF-8') ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                    <?php endif; ?>
-                    <div class="d-grid mb-4">
-                        <button type="submit" class="btn btn-primary btn-lg w-100">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>Log In
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                        <input type="password" id="password" class="form-control" name="password"
+                               placeholder="Enter your password" required>
+                        <button type="button" class="btn btn-secondary" id="togglePassword" type="button">
+                            <i class="bi bi-eye"></i>
                         </button>
                     </div>
-                    <div class="links-section text-center">
-                        <div class="mb-2">
-                            <a href="forgot-password"><i class="bi bi-key me-1"></i>Forgot Password?</a>
-                        </div>
-                        <div>
-                            <p class="mb-1">Don't have an account?</p>
-                            <a href="CallNowSignUp" class="fw-bold"><i class="bi bi-person-plus me-1"></i>Sign Up Now</a>
-                        </div>
-                    </div>
-                </form>
-            </div>
+                </div>
+
+                <div class="d-grid mt-4 mb-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Sign In to CRM
+                    </button>
+                </div>
+
+                <div class="auth-footer">
+                    <span>Don't have an account? </span>
+                    <a href="CallNowSignUp" class="fw-semibold">Request Access</a>
+                </div>
+            </form>
         </div>
     </div>
-    <footer class="app-footer">
-        <div class="container text-center">
-            <p class="mb-0">
-                Copyright &copy; <span class="text-primary fw-semibold">Sangam Mahale</span>
-                <script>document.write(new Date().getFullYear())</script>
-            </p>
-            <p class="mb-0 small mt-1">Callnow V5.00</p>
-        </div>
-    </footer>
+
     <script src="<?= vnd('js/bootstrap.bundle.min.js') ?>"></script>
     <script>
-        document.getElementById('showPassword').addEventListener('change', function() {
-            const passwordField = document.getElementById('password');
-            const toggleIcon = document.getElementById('togglePassword').querySelector('i');
-            if (this.checked) {
-                passwordField.type = 'text';
-                toggleIcon.classList.remove('bi-eye');
-                toggleIcon.classList.add('bi-eye-slash');
-            } else {
-                passwordField.type = 'password';
-                toggleIcon.classList.remove('bi-eye-slash');
-                toggleIcon.classList.add('bi-eye');
-            }
-        });
         document.getElementById('togglePassword').addEventListener('click', function() {
             const passwordField = document.getElementById('password');
-            const toggleIcon = this.querySelector('i');
-            const showPasswordCheckbox = document.getElementById('showPassword');
+            const icon = this.querySelector('i');
             if (passwordField.type === 'password') {
                 passwordField.type = 'text';
-                toggleIcon.classList.remove('bi-eye');
-                toggleIcon.classList.add('bi-eye-slash');
-                showPasswordCheckbox.checked = true;
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
             } else {
                 passwordField.type = 'password';
-                toggleIcon.classList.remove('bi-eye-slash');
-                toggleIcon.classList.add('bi-eye');
-                showPasswordCheckbox.checked = false;
-            }
-        });
-        document.addEventListener('DOMContentLoaded', function() {
-            const alert = document.querySelector('.alert');
-            if (alert) {
-                setTimeout(function() {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                }, 5000);
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
             }
         });
     </script>

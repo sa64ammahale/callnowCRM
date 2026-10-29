@@ -1,14 +1,10 @@
 <?php
 require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php'; // Gives USER_ROLE, USER_ID, USER_TEAM_ID
+require_once '../../php_scripts/team_auth.php';
 
-// Access gate
 requirePermission('view_reports');
 
-
-// ──────────────────────────────────────────────────────────────
 // Date range (default: Today) + presets
-// ──────────────────────────────────────────────────────────────
 $range = $_GET['range'] ?? 'today';
 $from  = $_GET['from'] ?? '';
 $to    = $_GET['to']   ?? '';
@@ -31,9 +27,6 @@ $rangeLabels = [
     'custom'       => 'Custom Range',
 ];
 
-/**
- * Resolve $from / $to (inclusive Y-m-d) for a given preset.
- */
 if (!function_exists('computeRange')) {
 function computeRange(string $preset, string &$from, string &$to): void {
     $today = new DateTime('today');
@@ -71,7 +64,6 @@ function computeRange(string $preset, string &$from, string &$to): void {
             $from = $today->format('Y-01-01');
             break;
         case 'custom':
-            // keep GET values; fall back handled by caller
             break;
         case 'today':
         default:
@@ -91,15 +83,12 @@ if ($range === 'custom') {
 }
 
 $rangeLabel = $rangeLabels[$range] ?? 'Today';
-$spanDays   = (new DateTime($to))->diff(new DateTime($from))->days + 1;
+$spanDays   = (new DateTime($to ?: 'today'))->diff(new DateTime($from ?: 'today'))->days + 1;
 $bucket     = $spanDays > 31 ? 'month' : 'day';
 $missingCustom = ($range === 'custom' && (!$from || !$to));
 $runQueries = !$missingCustom;
 
-
-// ──────────────────────────────────────────────────────────────
 // Query parameters + WHERE
-// ──────────────────────────────────────────────────────────────
 $paramsBase = [$from, $to];
 $typesBase  = "ss";
 
@@ -126,9 +115,6 @@ $whereSql = $whereParts
     ? "WHERE " . implode(" AND ", $whereParts)
     : "";
 
-/**
- * Unified call log: TBL_CALL_LOGS as canonical call log joined with source tables
- */
 $unionSubquery = "
     SELECT
         cl.id                  AS ID,
@@ -146,9 +132,6 @@ $unionSubquery = "
     LEFT JOIN " . tn('TBL_LEADS') . " l ON cl.source = 'LEADS' AND cl.record_id = l.lead_id
 ";
 
-/**
- * SUMMARY QUERY: per-telecaller stats
- */
 $sqlSummary = "
     SELECT
         u.ID   AS user_id,
@@ -234,14 +217,10 @@ if ($runQueries) {
 
 $grand_rate = $grand_total ? round($grand_connected / $grand_total * 100, 1) : 0;
 
-// TBL_TEAMS for filter dropdown
 $TBL_TEAMS = (in_array(USER_ROLE, ['Admin','Manager']) || USER_ROLE === 'Super Admin')
     ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC)
     : [];
 
-/**
- * TREND QUERY: calls over time (daily or monthly bucket)
- */
 $trend = [];
 $bucketExpr = $bucket === 'month'
     ? "DATE_FORMAT(m.call_time, '%Y-%m-01')"
@@ -285,7 +264,6 @@ if ($runQueries) {
     mysqli_stmt_close($stmtT);
 }
 
-// Per-user series (for bar chart)
 $userLabels = [];
 $userTotals = [];
 foreach ($data as $block) {
@@ -305,9 +283,6 @@ $statusValues = [
     (int)$grand_other
 ];
 
-/**
- * DETAIL QUERY: calls of a single telecaller (if requested)
- */
 $detail_rows = [];
 $selected_user_name = null;
 
@@ -367,8 +342,6 @@ LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
     }
 }
 
-// Build a query-string helper that preserves current filters.
-// User selection is only included when explicitly passed via $extra['user'].
 if (!function_exists('reportQs')) {
 function reportQs(array $extra = []): string {
     global $range, $from, $to, $team_filter;
@@ -384,9 +357,6 @@ function reportQs(array $extra = []): string {
 }
 $self = htmlspecialchars($_SERVER['PHP_SELF']);
 
-// ──────────────────────────────────────────────────────────────
-// Clean CSV / Excel Export Handler
-// ──────────────────────────────────────────────────────────────
 if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: text/csv; charset=UTF-8');
@@ -395,7 +365,6 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
     header('Expires: 0');
 
     $out = fopen('php://output', 'w');
-    // UTF-8 BOM so Excel opens with proper encoding
     fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
     fputcsv($out, ['CALLNOW CRM - CALL PERFORMANCE REPORT']);
@@ -403,7 +372,6 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
     fputcsv($out, ['Total Calls', $grand_total, 'Connected', $grand_connected, 'Connect Rate', $grand_rate . '%']);
     fputcsv($out, []);
 
-    // Summary Section
     fputcsv($out, ['--- TEAM & TELECALLER SUMMARY ---']);
     fputcsv($out, ['Team', 'Supervisor', 'Telecaller', 'Total Calls', 'Connected', 'Interested', 'Not Interested', 'Follow-up', 'Busy / No Answer', 'DNC', 'Other', 'Connect Rate (%)']);
 
@@ -413,7 +381,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
             fputcsv($out, [
                 $team_name,
                 $sup,
-                $u['user_name'], // Clean employee name without initials or HTML tags
+                $u['user_name'],
                 (int)$u['total'],
                 (int)$u['connected'],
                 (int)$u['interested'],
@@ -427,7 +395,6 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
         }
     }
 
-    // Detailed Calls Section
     if (!empty($detail_rows)) {
         fputcsv($out, []);
         fputcsv($out, []);
@@ -452,378 +419,134 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
     exit;
 }
 
-$pageTitle = 'Call Report - CallNow';
+$pageTitle = 'Call Reports • CallNow CRM';
 include '../../php_scripts/header.php';
 ?>
 
-<style>
-/* ── Hero ───────────────────────────────────────────── */
-.rp-hero {
-    background: linear-gradient(135deg, var(--accent) 0%, #6d5dd3 55%, #8b5cf6 100%);
-    color: #ffffff !important;
-    padding: 1.6rem 0 1.4rem;
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-    box-shadow: var(--shadow-md);
-    margin-bottom: 1.5rem;
-}
-.rp-hero * { color: inherit; }
-.rp-eyebrow {
-    font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
-    color: rgba(255,255,255,.85) !important; font-weight: 600;
-}
-.rp-title { font-size: 1.5rem; font-weight: 700; margin: .15rem 0 .25rem; letter-spacing: -.02em; color: #ffffff !important; }
-.rp-scope { font-weight: 500; color: rgba(255,255,255,.85) !important; font-size: 1rem; }
-.rp-sub { font-size: .85rem; color: rgba(255,255,255,.92) !important; }
-.rp-sub strong { font-weight: 600; color: #ffffff !important; }
-.rp-kpis { display: flex; gap: .65rem; flex-wrap: wrap; }
-.rp-kpi {
-    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
-    border-radius: var(--radius-lg); padding: .55rem .95rem; min-width: 96px; text-align: center;
-    backdrop-filter: blur(6px);
-}
-.rp-kpi-label { display: block; font-size: .68rem; color: rgba(255,255,255,.85) !important; text-transform: uppercase; letter-spacing: .04em; }
-.rp-kpi-value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.25; color: #ffffff !important; }
-.rp-kpi-value.text-success { color: #6ee7b7 !important; }
-.rp-kpi-value.text-danger  { color: #fca5a5 !important; }
-
-/* ── Summary table ──────────────────────────────────── */
-.rp-table thead th { white-space: nowrap; }
-.rp-avatar-sm { flex-shrink: 0; }
-.rp-btn-hero {
-    background: #ffffff !important;
-    color: #4f46e5 !important;
-    font-weight: 600 !important;
-    border: none !important;
-    border-radius: var(--radius-lg) !important;
-    padding: 0.55rem 1.15rem !important;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16) !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 0.45rem !important;
-    transition: all 0.2s ease !important;
-    text-decoration: none !important;
-}
-.rp-btn-hero:hover {
-    background: #f8fafc !important;
-    color: #4338ca !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22) !important;
-}
-.rp-btn-hero i {
-    color: #4f46e5 !important;
-    font-size: 1rem !important;
-}
-
-/* ── Special Card & Colored Headers ────────────────── */
-.rp-special-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
-    overflow: hidden;
-    margin-bottom: 2rem;
-    transition: box-shadow 0.2s ease;
-}
-.rp-special-card:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.03);
-}
-
-.rp-special-card-head {
-    padding: 1.15rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-}
-.rp-special-card-head.summary-head {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
-    border-bottom: 2px solid rgba(99, 102, 241, 0.18);
-}
-.rp-special-card-head.detail-head {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%);
-    border-bottom: 2px solid rgba(14, 165, 233, 0.18);
-}
-
-.rp-head-icon {
-    width: 42px; height: 42px; border-radius: var(--radius-lg);
-    background: linear-gradient(135deg, var(--accent, #6366f1), #8b5cf6);
-    color: #ffffff !important; display: flex; align-items: center; justify-content: center;
-    font-size: 1.25rem; flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-.rp-head-icon i { color: #ffffff !important; }
-.rp-head-title { font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--ink); }
-.rp-head-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 0.1rem; }
-
-/* ── Modern Table with Alternative Coloring ──────────── */
-.rp-special-table {
-    margin-bottom: 0;
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-}
-.rp-special-table thead th {
-    background: var(--surface-2) !important;
-    color: var(--ink-soft) !important;
-    font-size: 0.72rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.04em !important;
-    font-weight: 700 !important;
-    padding: 0.95rem 1rem !important;
-    border-bottom: 2px solid var(--border) !important;
-    white-space: nowrap !important;
-    vertical-align: middle !important;
-}
-.rp-special-table tbody td {
-    padding: 0.9rem 1rem;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.86rem;
-    transition: background 0.15s ease;
-}
-
-/* Alternating row zebra styling */
-.rp-special-table tbody tr:nth-child(even) td {
-    background-color: rgba(99, 102, 241, 0.025);
-}
-.rp-special-table tbody tr:hover td {
-    background-color: rgba(99, 102, 241, 0.08) !important;
-}
-.rp-special-table tbody tr.table-selected td {
-    background-color: rgba(99, 102, 241, 0.14) !important;
-}
-
-/* Metric count pills */
-.rp-num-badge {
-    display: inline-block;
-    min-width: 34px;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 0.82rem;
-    text-align: center;
-}
-.rp-num-connected     { background: rgba(16, 185, 129, 0.12); color: #059669; }
-.rp-num-interested    { background: rgba(5, 150, 105, 0.14); color: #047857; }
-.rp-num-notinterested { background: rgba(100, 116, 139, 0.14); color: #475569; }
-.rp-num-followup      { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
-.rp-num-busy          { background: rgba(245, 158, 11, 0.12); color: #d97706; }
-.rp-num-dnc           { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
-.rp-num-other         { background: rgba(139, 92, 246, 0.12); color: #7c3aed; }
-
-.rp-rate-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.65rem;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 0.82rem;
-}
-.rp-rate-good { background: rgba(16, 185, 129, 0.14); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); }
-.rp-rate-poor { background: rgba(239, 68, 68, 0.14); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
-
-/* ── Card base ─────────────────────────────────────── */
-.rp-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
-    padding: 1rem 1.1rem; margin-bottom: 1.25rem;
-}
-.rp-card-head {
-    display: flex; align-items: center; gap: .5rem;
-    font-weight: 600; font-size: .9rem; color: var(--ink); margin-bottom: .85rem;
-}
-.rp-card-head i { color: var(--accent); font-size: 1rem; }
-
-/* ── Toolbar ───────────────────────────────────────── */
-.rp-toolbar { padding: .85rem 1rem; margin-bottom: 1.25rem; }
-.rp-toolbar .form-select, .rp-toolbar .form-control { font-size: .85rem; }
-.rp-toolbar .form-label { font-size: .75rem; color: var(--ink-soft); margin-bottom: .15rem; }
-
-/* ── Charts ────────────────────────────────────────── */
-.rp-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 1.25rem; margin-bottom: 0; }
-.rp-chart-wrap { position: relative; height: 260px; }
-@media (max-width: 767px) { .rp-charts { grid-template-columns: 1fr; } }
-
-/* ── Team grid ─────────────────────────────────────── */
-.rp-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 1.25rem; margin-bottom: .5rem;
-}
-.rp-team {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden;
-}
-.rp-team-head {
-    display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
-    padding: .9rem 1.1rem; background: var(--surface-2); border-bottom: 1px solid var(--border);
-}
-.rp-team-name { font-weight: 700; font-size: 1rem; }
-.rp-team-sub { font-size: .8rem; color: var(--ink-soft); margin-top: .1rem; }
-.rp-team-total { font-weight: 700; font-size: 1.1rem; }
-.rp-team-total span { font-size: .78rem; font-weight: 500; color: var(--ink-soft); margin-left: .2rem; }
-.rp-team-rate { font-size: .85rem; font-weight: 600; }
-.rp-team-body { padding: .35rem .6rem; }
-
-/* ── User row ──────────────────────────────────────── */
-.rp-user {
-    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-    padding: .7rem .5rem; border-radius: var(--radius); transition: background .15s ease;
-}
-.rp-user + .rp-user { border-top: 1px solid var(--border); }
-.rp-user:hover { background: var(--surface-2); }
-.rp-user.is-selected { background: var(--accent-soft); }
-.rp-user-id { display: flex; align-items: center; gap: .75rem; flex: 1; min-width: 0; }
-.rp-avatar {
-    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
-    background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: .82rem;
-}
-.rp-user-name { font-weight: 600; display: flex; align-items: center; gap: .4rem; }
-.rp-pills { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
-.rp-pill {
-    font-size: .72rem; color: var(--ink-soft); background: var(--surface-2);
-    border: 1px solid var(--border); padding: .12rem .5rem; border-radius: 999px; white-space: nowrap;
-}
-.rp-pill b { color: var(--ink); font-weight: 600; }
-.rp-pill-ok { color: var(--success); border-color: var(--success-soft); background: var(--success-soft); }
-.rp-pill-ok b { color: var(--success); }
-.rp-pill-danger { color: var(--danger); border-color: var(--danger-soft); background: var(--danger-soft); }
-.rp-pill-danger b { color: var(--danger); }
-.rp-user-act { display: flex; align-items: center; gap: .9rem; flex-shrink: 0; }
-.rp-rate { font-weight: 700; font-size: 1.05rem; }
-.rp-rate.rate-good { color: var(--success); }
-.rp-rate.rate-poor { color: var(--danger); }
-
-/* ── Empty state ───────────────────────────────────── */
-.rp-empty { text-align: center; padding: 3rem 1rem; color: var(--ink-soft); }
-.rp-empty > i { font-size: 2.6rem; opacity: .35; display: block; margin-bottom: .75rem; }
-.rp-empty h5, .rp-empty h6 { color: var(--ink-soft); font-weight: 600; }
-
-/* ── Detail ────────────────────────────────────────── */
-.rp-detail { padding: 0; overflow: hidden; }
-.rp-detail-head {
-    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-    padding: 1rem 1.1rem; border-bottom: 1px solid var(--border); background: var(--surface-2);
-}
-.rp-detail-head h5 { margin: 0; font-size: 1rem; }
-.rp-table th {
-    font-size: .72rem; text-transform: uppercase; letter-spacing: .03em;
-    color: var(--ink-soft); background: var(--surface-2); font-weight: 600; white-space: nowrap;
-}
-
-/* ── Export ────────────────────────────────────────── */
-.rp-export { text-align: center; margin: 1.5rem 0 .25rem; }
-</style>
-
-<!-- Hero -->
-<div class="rp-hero">
-    <div class="container">
-        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
-            <div>
-                <div class="rp-eyebrow"><i class="bi bi-bar-chart"></i> Reports</div>
-                <h1 class="rp-title">
-                    Call Performance Report
-                    <?php if (USER_ROLE === 'Supervisor'): ?><span class="rp-scope">· My Team</span><?php endif; ?>
-                    <?php if (USER_ROLE === 'Officer'): ?><span class="rp-scope">· My Calls</span><?php endif; ?>
-                </h1>
-                <div class="rp-sub">
-                    Range: <strong><?= htmlspecialchars($rangeLabel) ?></strong>
-                    · <?= htmlspecialchars($from) ?> → <?= htmlspecialchars($to) ?>
-                </div>
-            </div>
-                <div class="rp-kpis">
-                    <div class="rp-kpi">
-                        <span class="rp-kpi-label">Total Calls</span>
-                        <span class="rp-kpi-value"><?= number_format($grand_total) ?></span>
-                    </div>
-                    <div class="rp-kpi">
-                        <span class="rp-kpi-label">Connected</span>
-                        <span class="rp-kpi-value text-success"><?= number_format($grand_connected) ?></span>
-                    </div>
-                    <div class="rp-kpi">
-                        <span class="rp-kpi-label">Interested</span>
-                        <span class="rp-kpi-value text-success"><?= number_format($grand_interested) ?></span>
-                    </div>
-                    <div class="rp-kpi">
-                        <span class="rp-kpi-label">Not Interested</span>
-                        <span class="rp-kpi-value" style="color:#e2e8f0;"><?= number_format($grand_not_interested) ?></span>
-                    </div>
-                    <div class="rp-kpi">
-                        <span class="rp-kpi-label">Connect Rate</span>
-                        <span class="rp-kpi-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?>"><?= $grand_rate ?>%</span>
-                    </div>
-                    <a href="<?= htmlspecialchars(url('modules/logs/call_history.php')) ?>" class="btn rp-btn-hero btn-sm ms-auto" style="align-self:center;">
-                        <i class="bi bi-clock-history"></i> View Full Call History
-                    </a>
-                </div>
+<div class="container-fluid px-3 py-3">
+    <!-- Module Header -->
+    <div class="module-header mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-xs">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Activities & Reports</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Call Reports</li>
+                </ol>
+            </nav>
+            <h1 class="h4 fw-bold text-dark mb-0">
+                Call Performance Reports
+                <?php if (USER_ROLE === 'Supervisor'): ?><span class="text-muted fs-6 fw-normal ms-1">(My Team)</span><?php endif; ?>
+                <?php if (USER_ROLE === 'Officer'): ?><span class="text-muted fs-6 fw-normal ms-1">(My Calls)</span><?php endif; ?>
+            </h1>
+            <div class="text-muted fs-xs">Range: <strong><?= htmlspecialchars($rangeLabel) ?></strong> &bull; <?= htmlspecialchars($from) ?> to <?= htmlspecialchars($to) ?></div>
+        </div>
+        <div class="module-header-actions">
+            <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['export' => 'csv'])) ?>" class="btn btn-primary btn-sm">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Excel
+            </a>
+            <a href="<?= htmlspecialchars(url('modules/logs/call_history.php')) ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-clock-history me-1"></i> Call History Log
+            </a>
         </div>
     </div>
-</div>
 
-<div class="container py-4">
-    <!-- Filters -->
-    <div class="rp-card rp-toolbar">
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-auto">
-                <label class="form-label d-block">Time Range</label>
-                <select name="range" class="form-select" id="rangeSelect">
-                    <option value="today"        <?= $range==='today'?'selected':'' ?>>Today</option>
-                    <option value="yesterday"    <?= $range==='yesterday'?'selected':'' ?>>Yesterday</option>
-                    <option value="last7"        <?= $range==='last7'?'selected':'' ?>>Last 7 Days</option>
-                    <option value="last30"       <?= $range==='last30'?'selected':'' ?>>Last 30 Days</option>
-                    <option value="last90"       <?= $range==='last90'?'selected':'' ?>>Last 90 Days</option>
-                    <option value="this_month"   <?= $range==='this_month'?'selected':'' ?>>This Month</option>
-                    <option value="last_month"   <?= $range==='last_month'?'selected':'' ?>>Last Month</option>
-                    <option value="last3"        <?= $range==='last3'?'selected':'' ?>>Last 3 Months</option>
-                    <option value="last6"        <?= $range==='last6'?'selected':'' ?>>Last 6 Months</option>
-                    <option value="current_year" <?= $range==='current_year'?'selected':'' ?>>Current Year</option>
-                    <option value="custom"       <?= $range==='custom'?'selected':'' ?>>Custom Range</option>
-                </select>
+    <!-- Metric KPI Cards -->
+    <div class="row g-2 mb-3">
+        <div class="col-sm-6 col-md-2">
+            <div class="metric-card">
+                <div class="metric-card-title">Total Calls</div>
+                <div class="metric-card-value text-dark"><?= number_format($grand_total) ?></div>
+                <div class="metric-card-subtitle text-muted">Dialed in period</div>
             </div>
-
-            <div id="customDateRange" class="row g-3 <?= $range === 'custom' ? '' : 'd-none' ?>">
-                <div class="col-auto">
-                    <label class="form-label d-block">From</label>
-                    <input type="date" name="from" class="form-control" value="<?= htmlspecialchars($from) ?>" required>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label d-block">To</label>
-                    <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($to) ?>" required>
-                </div>
+        </div>
+        <div class="col-sm-6 col-md-2">
+            <div class="metric-card">
+                <div class="metric-card-title">Connected</div>
+                <div class="metric-card-value text-primary"><?= number_format($grand_connected) ?></div>
+                <div class="metric-card-subtitle text-muted">Duration > 0s</div>
             </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-card-title">Interested / Hot</div>
+                <div class="metric-card-value text-success"><?= number_format($grand_interested) ?></div>
+                <div class="metric-card-subtitle text-muted">Positive conversion</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-card-title">Not Interested</div>
+                <div class="metric-card-value text-secondary"><?= number_format($grand_not_interested) ?></div>
+                <div class="metric-card-subtitle text-muted">Customer declined</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-2">
+            <div class="metric-card">
+                <div class="metric-card-title">Connect Rate</div>
+                <div class="metric-card-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?>"><?= $grand_rate ?>%</div>
+                <div class="metric-card-subtitle text-muted">Fleet benchmark</div>
+            </div>
+        </div>
+    </div>
 
-            <?php if ($missingCustom): ?>
-                <div class="col-12">
-                    <div class="alert alert-danger py-2 mb-0">Please select both From and To dates.</div>
-                </div>
-            <?php endif; ?>
-
-            <?php if (in_array(USER_ROLE, ['Admin','Manager']) || USER_ROLE === 'Super Admin'): ?>
-                <div class="col-auto">
-                    <label class="form-label d-block">Team</label>
-                    <select name="team" class="form-select" onchange="this.form.submit()">
-                        <option value="">All TBL_TEAMS</option>
-                        <?php foreach($TBL_TEAMS as $t): ?>
-                            <option value="<?= $t['ID'] ?>" <?= $team_filter==$t['ID']?'selected':'' ?>>
-                                <?= htmlspecialchars($t['NAME']) ?>
-                            </option>
-                        <?php endforeach; ?>
+    <!-- Filter Toolbar Card -->
+    <div class="crm-card mb-3">
+        <div class="crm-card-body py-2">
+            <form method="GET" class="row g-2 align-items-end">
+                <div class="col-md-3 col-6">
+                    <label class="form-label fs-xs mb-1" for="rangeSelect">Time Preset</label>
+                    <select name="range" class="form-select form-select-sm" id="rangeSelect">
+                        <option value="today"        <?= $range==='today'?'selected':'' ?>>Today</option>
+                        <option value="yesterday"    <?= $range==='yesterday'?'selected':'' ?>>Yesterday</option>
+                        <option value="last7"        <?= $range==='last7'?'selected':'' ?>>Last 7 Days</option>
+                        <option value="last30"       <?= $range==='last30'?'selected':'' ?>>Last 30 Days</option>
+                        <option value="last90"       <?= $range==='last90'?'selected':'' ?>>Last 90 Days</option>
+                        <option value="this_month"   <?= $range==='this_month'?'selected':'' ?>>This Month</option>
+                        <option value="last_month"   <?= $range==='last_month'?'selected':'' ?>>Last Month</option>
+                        <option value="last3"        <?= $range==='last3'?'selected':'' ?>>Last 3 Months</option>
+                        <option value="last6"        <?= $range==='last6'?'selected':'' ?>>Last 6 Months</option>
+                        <option value="current_year" <?= $range==='current_year'?'selected':'' ?>>Current Year</option>
+                        <option value="custom"       <?= $range==='custom'?'selected':'' ?>>Custom Range</option>
                     </select>
                 </div>
-            <?php endif; ?>
 
-            <?php if ($selected_user_id): ?>
-                <input type="hidden" name="user" value="<?= (int)$selected_user_id ?>">
-            <?php endif; ?>
+                <div id="customDateRange" class="col-md-4 col-12 <?= $range === 'custom' ? 'd-flex' : 'd-none' ?> gap-2">
+                    <div class="w-50">
+                        <label class="form-label fs-xs mb-1">From Date</label>
+                        <input type="date" name="from" class="form-control form-control-sm" value="<?= htmlspecialchars($from) ?>">
+                    </div>
+                    <div class="w-50">
+                        <label class="form-label fs-xs mb-1">To Date</label>
+                        <input type="date" name="to" class="form-control form-control-sm" value="<?= htmlspecialchars($to) ?>">
+                    </div>
+                </div>
 
-            <div class="col-auto ms-auto">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-funnel"></i> Apply Filters
-                </button>
-            </div>
-        </form>
+                <?php if (in_array(USER_ROLE, ['Admin','Manager']) || USER_ROLE === 'Super Admin'): ?>
+                    <div class="col-md-3 col-6">
+                        <label class="form-label fs-xs mb-1">Team Filter</label>
+                        <select name="team" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Teams</option>
+                            <?php foreach($TBL_TEAMS as $t): ?>
+                                <option value="<?= $t['ID'] ?>" <?= $team_filter==$t['ID']?'selected':'' ?>>
+                                    <?= htmlspecialchars($t['NAME']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($selected_user_id): ?>
+                    <input type="hidden" name="user" value="<?= (int)$selected_user_id ?>">
+                <?php endif; ?>
+
+                <div class="col-auto ms-auto">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-funnel me-1"></i> Apply Filter
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script>
@@ -831,8 +554,10 @@ include '../../php_scripts/header.php';
         var el = document.getElementById('customDateRange');
         if (this.value === 'custom') {
             el.classList.remove('d-none');
+            el.classList.add('d-flex');
         } else {
             el.classList.add('d-none');
+            el.classList.remove('d-flex');
             this.form.submit();
         }
     });
@@ -841,33 +566,27 @@ include '../../php_scripts/header.php';
     <!-- Team & Telecaller Summary -->
     <div id="exportArea">
     <?php if (!empty($data)): ?>
-        <div class="card rp-special-card mb-4">
-            <div class="rp-special-card-head summary-head">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="rp-head-icon"><i class="bi bi-people-fill"></i></div>
-                    <div>
-                        <h5 class="rp-head-title">Team &amp; Telecaller Summary</h5>
-                        <div class="rp-head-sub">Performance metrics and connect rates grouped by team</div>
-                    </div>
-                </div>
+        <div class="crm-card mb-3">
+            <div class="crm-card-header">
+                <div class="crm-card-title"><i class="bi bi-people text-primary me-2"></i>Team & Telecaller Performance Summary</div>
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-white text-primary border rounded-pill px-3 py-2 fw-bold shadow-sm">
-                        <i class="bi bi-person-badge me-1"></i><?= number_format(count($TBL_USERS_index)) ?> Active Telecallers
+                    <span class="badge badge-secondary fs-xs">
+                        <?= number_format(count($TBL_USERS_index)) ?> Active Telecallers
                     </span>
-                    <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['export' => 'csv'])) ?>" class="btn btn-sm btn-success rounded-pill px-3 fw-semibold shadow-sm">
-                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Excel
-                    </a>
+                    <button id="btnExport" class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
+                        <i class="bi bi-file-earmark-excel me-1 text-success"></i> Export Grid
+                    </button>
                 </div>
             </div>
-            <div class="card-body p-0">
+            <div class="crm-card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle rp-special-table mb-0">
+                    <table class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
                                 <th>Team</th>
                                 <th>Supervisor</th>
                                 <th>Telecaller</th>
-                                <th class="text-center">Total Calls</th>
+                                <th class="text-center">Total Dials</th>
                                 <th class="text-center">Connected</th>
                                 <th class="text-center">Interested</th>
                                 <th class="text-center">Not Interested</th>
@@ -875,72 +594,58 @@ include '../../php_scripts/header.php';
                                 <th class="text-center">Busy / No Ans</th>
                                 <th class="text-center">DNC</th>
                                 <th class="text-center">Other</th>
-                                <th class="text-center">Connect Rate</th>
-                                <th class="text-center" data-exclude="true">Actions</th>
+                                <th class="text-center">Connect %</th>
+                                <th class="text-center" data-exclude="true">Details</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($data as $team_name => $block):
                                 $team_total = 0;
                                 $team_connected = 0;
-                                $team_interested = 0;
-                                $team_not_interested = 0;
-                                $team_followup = 0;
-                                $team_busy_no_ans = 0;
-                                $team_dnc = 0;
-                                $team_other = 0;
                                 foreach ($block['TBL_USERS'] as $u) {
-                                    $team_total          += (int)$u['total'];
-                                    $team_connected      += (int)$u['connected'];
-                                    $team_interested     += (int)$u['interested'];
-                                    $team_not_interested += (int)$u['not_interested'];
-                                    $team_followup       += (int)$u['followup'];
-                                    $team_busy_no_ans    += (int)$u['busy_no_ans'];
-                                    $team_dnc            += (int)$u['dnc'];
-                                    $team_other          += (int)$u['other'];
+                                    $team_total     += (int)$u['total'];
+                                    $team_connected += (int)$u['connected'];
                                 }
-                                $team_rate = $team_total ? round($team_connected / $team_total * 100, 1) : 0;
                                 $sup = $block['supervisor_name'] ?? '—';
                             ?>
                                 <?php foreach ($block['TBL_USERS'] as $u):
                                     $rate = $u['rate'];
                                     $rateGood = $rate >= 40;
                                     $isSelected = $selected_user_id && $selected_user_id == $u['user_id'];
-                                    $initials = strtoupper(substr($u['user_name'] ?? '?', 0, 2));
                                 ?>
-                                    <tr class="<?= $isSelected ? 'table-selected' : '' ?>">
-                                        <td class="fw-semibold text-secondary"><?= htmlspecialchars($team_name) ?></td>
-                                        <td class="text-muted"><?= htmlspecialchars($sup ?: '—') ?></td>
+                                    <tr class="<?= $isSelected ? 'table-active' : '' ?>">
+                                        <td class="fw-semibold text-secondary fs-xs"><?= htmlspecialchars($team_name) ?></td>
+                                        <td class="text-muted fs-xs"><?= htmlspecialchars($sup ?: '—') ?></td>
                                         <td>
                                             <div class="d-flex align-items-center gap-2">
-                                                <div class="rp-avatar-sm rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:34px;height:34px;background:var(--accent);font-size:.78rem;flex-shrink:0;">
-                                                    <?= $initials ?>
+                                                <div class="avatar-circle" style="width:28px; height:28px; font-size:11px; background:#e2e8f0; color:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">
+                                                    <?= strtoupper(substr($u['user_name'] ?? '?', 0, 2)) ?>
                                                 </div>
                                                 <div>
-                                                    <div class="fw-bold text-dark rp-emp-name"><?= htmlspecialchars($u['user_name'] ?? 'Unknown') ?></div>
+                                                    <strong class="text-dark fs-xs rp-emp-name"><?= htmlspecialchars($u['user_name'] ?? 'Unknown') ?></strong>
                                                     <?php if ($isSelected): ?>
-                                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-0" style="font-size:0.68rem;" data-exclude="true">Active Filter</span>
+                                                        <span class="badge badge-primary fs-xs ms-1" data-exclude="true">Filtered</span>
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="text-center"><span class="fw-bold"><?= number_format($u['total']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-connected"><?= number_format($u['connected']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-interested"><?= number_format($u['interested']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-notinterested"><?= number_format($u['not_interested']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-followup"><?= number_format($u['followup']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-busy"><?= number_format($u['busy_no_ans']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-dnc"><?= number_format($u['dnc']) ?></span></td>
-                                        <td class="text-center"><span class="rp-num-badge rp-num-other"><?= number_format($u['other']) ?></span></td>
-                                        <td class="text-center">
-                                            <span class="rp-rate-badge <?= $rateGood ? 'rp-rate-good' : 'rp-rate-poor' ?>">
-                                                <i class="bi <?= $rateGood ? 'bi-arrow-up-right' : 'bi-arrow-down-right' ?>"></i> <?= $rate ?>%
+                                        <td class="text-center fs-xs fw-bold"><?= number_format($u['total']) ?></td>
+                                        <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($u['connected']) ?></span></td>
+                                        <td class="text-center fs-xs"><span class="badge badge-success"><?= number_format($u['interested']) ?></span></td>
+                                        <td class="text-center fs-xs text-muted"><?= number_format($u['not_interested']) ?></td>
+                                        <td class="text-center fs-xs"><span class="badge badge-info"><?= number_format($u['followup']) ?></span></td>
+                                        <td class="text-center fs-xs text-muted"><?= number_format($u['busy_no_ans']) ?></td>
+                                        <td class="text-center fs-xs"><span class="badge badge-danger"><?= number_format($u['dnc']) ?></span></td>
+                                        <td class="text-center fs-xs text-muted"><?= number_format($u['other']) ?></td>
+                                        <td class="text-center fs-xs">
+                                            <span class="badge <?= $rateGood ? 'badge-success' : 'badge-danger' ?>">
+                                                <?= $rate ?>%
                                             </span>
                                         </td>
                                         <td class="text-center" data-exclude="true">
                                             <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => $u['user_id']])) ?>"
-                                               class="btn btn-outline-primary btn-sm rounded-pill px-3 py-1 fw-semibold">
-                                                <i class="bi bi-person-lines-fill me-1"></i> Details
+                                               class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
+                                                <i class="bi bi-list-check me-1"></i> Logs
                                             </a>
                                         </td>
                                     </tr>
@@ -953,121 +658,127 @@ include '../../php_scripts/header.php';
         </div>
     <?php endif; ?>
 
-
-    <!-- Charts -->
+    <!-- Charts Row -->
     <?php if ($grand_total > 0): ?>
-    <div class="rp-charts">
-        <div class="rp-card">
-            <div class="rp-card-head"><i class="bi bi-graph-up"></i> Call Trend (<?= $bucket==='month'?'Monthly':'Daily' ?>)</div>
-            <div class="rp-chart-wrap"><canvas id="trendChart"></canvas></div>
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+            <div class="crm-card h-100">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-graph-up text-primary me-2"></i>Call Trend (<?= $bucket==='month'?'Monthly':'Daily' ?>)</div>
+                </div>
+                <div class="crm-card-body">
+                    <div style="position:relative; height:240px;"><canvas id="trendChart"></canvas></div>
+                </div>
+            </div>
         </div>
-        <div class="rp-card">
-            <div class="rp-card-head"><i class="bi bi-pie-chart"></i> Status Breakdown</div>
-            <div class="rp-chart-wrap"><canvas id="statusChart"></canvas></div>
+        <div class="col-lg-4">
+            <div class="crm-card h-100">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-pie-chart text-primary me-2"></i>Disposition Breakdown</div>
+                </div>
+                <div class="crm-card-body">
+                    <div style="position:relative; height:240px;"><canvas id="statusChart"></canvas></div>
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="rp-card">
-        <div class="rp-card-head"><i class="bi bi-bar-chart"></i> Calls per Telecaller</div>
-        <div class="rp-chart-wrap" style="height:300px;"><canvas id="userChart"></canvas></div>
+        <div class="col-12">
+            <div class="crm-card">
+                <div class="crm-card-header">
+                    <div class="crm-card-title"><i class="bi bi-bar-chart text-primary me-2"></i>Calls per Telecaller Comparison</div>
+                </div>
+                <div class="crm-card-body">
+                    <div style="position:relative; height:260px;"><canvas id="userChart"></canvas></div>
+                </div>
+            </div>
+        </div>
     </div>
     <?php else: ?>
-        <div class="rp-card rp-empty">
-            <i class="bi bi-telephone-outbound"></i>
-            <h5 class="mt-2">No calls found for the selected period</h5>
-            <p class="text-muted mb-0">Try widening the date range or clearing filters.</p>
+        <div class="crm-card mb-3 text-center py-5">
+            <i class="bi bi-telephone-x text-muted fs-1 mb-2"></i>
+            <h6 class="fw-bold text-dark">No call records found for this period</h6>
+            <p class="fs-xs text-muted mb-0">Try adjusting your date range or clearing the active filters.</p>
         </div>
     <?php endif; ?>
 
     <!-- Detailed Calls for selected telecaller -->
     <?php if ($selected_user_id && !empty($detail_rows)): ?>
-        <div class="card rp-special-card mt-4">
-            <div class="rp-special-card-head detail-head">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="rp-head-icon" style="background: linear-gradient(135deg, #0ea5e9, var(--accent));">
-                        <i class="bi bi-person-lines-fill"></i>
-                    </div>
-                    <div>
-                        <h5 class="rp-head-title">
-                            Detailed Calls &bull; <?= htmlspecialchars($selected_user_name ?? ('User #' . $selected_user_id)) ?>
-                        </h5>
-                        <div class="rp-head-sub">Log of all dialed calls for this telecaller with applied date filters</div>
-                    </div>
+        <div class="crm-card mt-3">
+            <div class="crm-card-header">
+                <div class="crm-card-title">
+                    <i class="bi bi-person-lines-fill text-primary me-2"></i>
+                    Call Logs Drilldown &bull; <?= htmlspecialchars($selected_user_name ?? ('User #' . $selected_user_id)) ?>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill px-3 py-2 fw-bold">
-                        <?= count($detail_rows) ?> calls recorded
-                    </span>
-                    <a href="<?= $self ?>?<?= htmlspecialchars(reportQs()) ?>" class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
-                        <i class="bi bi-x-circle me-1"></i> Clear Selection
+                    <span class="badge badge-primary fs-xs"><?= count($detail_rows) ?> calls</span>
+                    <a href="<?= $self ?>?<?= htmlspecialchars(reportQs()) ?>" class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
+                        <i class="bi bi-x-lg me-1"></i> Clear Selection
                     </a>
                 </div>
             </div>
-            <div class="card-body p-0">
+            <div class="crm-card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle rp-special-table mb-0">
+                    <table class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th style="width: 17%;">Date &amp; Time</th>
-                                <th style="width: 22%;">Customer</th>
-                                <th style="width: 15%;">Mobile</th>
-                                <th style="width: 16%;">Company</th>
-                                <th style="width: 10%;">Duration</th>
-                                <th style="width: 12%;">Status</th>
-                                <th style="width: 8%;">Source</th>
+                                <th>Date & Time</th>
+                                <th>Customer Name</th>
+                                <th>Mobile Number</th>
+                                <th>Company</th>
+                                <th>Duration</th>
+                                <th>Call Status</th>
+                                <th>Source</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($detail_rows as $r):
                                 $timeStr = $r['call_time'] ? date('d M Y, h:i A', strtotime($r['call_time'])) : '—';
                                 $stLow = strtolower(trim($r['call_status']));
-                                $stBadge = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
+                                $badgeCls = 'badge-secondary';
                                 if (in_array($stLow, ['connected', 'lead', 'interested', 'interested / hot', 'deal converted'])) {
-                                    $stBadge = 'bg-success-subtle text-success border border-success-subtle';
+                                    $badgeCls = 'badge-success';
                                 } elseif (in_array($stLow, ['not interested', 'not_interested'])) {
-                                    $stBadge = 'bg-secondary-subtle text-dark border border-secondary';
+                                    $badgeCls = 'badge-secondary';
                                 } elseif (in_array($stLow, ['busy', 'busy / no answer', 'no answer', 'no_answer'])) {
-                                    $stBadge = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                                    $badgeCls = 'badge-warning';
                                 } elseif (in_array($stLow, ['do not call', 'dnc', 'dnd', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd'])) {
-                                    $stBadge = 'bg-danger-subtle text-danger border border-danger-subtle';
+                                    $badgeCls = 'badge-danger';
                                 } elseif (in_array($stLow, ['pending', 'call back', 'callback', 'follow up', 'follow-up', 'follow-up needed', 'callback / follow-up'])) {
-                                    $stBadge = 'bg-info-subtle text-info border border-info-subtle';
-                                } elseif (in_array($stLow, ['wrong number', 'switched off', 'call cancelled'])) {
-                                    $stBadge = 'bg-secondary-subtle text-secondary border border-secondary-subtle';
+                                    $badgeCls = 'badge-info';
                                 }
                             ?>
                                 <tr>
                                     <td>
-                                        <div class="fw-semibold"><?= htmlspecialchars(date('d M Y', strtotime($r['call_time']))) ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars(date('h:i A', strtotime($r['call_time']))) ?></small>
+                                        <div class="fw-semibold fs-xs text-dark"><?= htmlspecialchars(date('d M Y', strtotime($r['call_time']))) ?></div>
+                                        <small class="text-muted fs-xs"><?= htmlspecialchars(date('h:i A', strtotime($r['call_time']))) ?></small>
                                     </td>
-                                    <td><span class="fw-bold text-dark"><?= htmlspecialchars($r['cust_name'] ?: '—') ?></span></td>
+                                    <td><strong class="text-dark fs-xs"><?= htmlspecialchars($r['cust_name'] ?: '—') ?></strong></td>
                                     <td>
                                         <?php if ($r['cust_mobile']): ?>
-                                            <a href="tel:<?= urlencode($r['cust_mobile']) ?>" class="text-decoration-none text-muted fw-semibold">
+                                            <a href="tel:<?= urlencode($r['cust_mobile']) ?>" class="text-decoration-none font-monospace fs-xs">
                                                 <i class="bi bi-telephone me-1 text-primary"></i><?= htmlspecialchars($r['cust_mobile']) ?>
                                             </a>
                                         <?php else: ?>
-                                            <span class="text-muted">—</span>
+                                            <span class="text-muted fs-xs">—</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= htmlspecialchars($r['cust_company'] ?: '—') ?></td>
+                                    <td><span class="text-muted fs-xs"><?= htmlspecialchars($r['cust_company'] ?: '—') ?></span></td>
                                     <td>
                                         <?php if ((int)($r['call_duration'] ?? 0) > 0): ?>
-                                            <span class="badge bg-light text-dark border fw-semibold">
-                                                <i class="bi bi-stopwatch text-primary me-1"></i>
+                                            <span class="badge badge-secondary fs-xs">
+                                                <i class="bi bi-stopwatch me-1"></i>
                                                 <?= (int)$r['call_duration'] >= 60 ? floor($r['call_duration']/60) . 'm ' . ($r['call_duration']%60) . 's' : $r['call_duration'] . 's' ?>
                                             </span>
                                         <?php else: ?>
-                                            <span class="text-muted small">0s</span>
+                                            <span class="text-muted fs-xs">0s</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <span class="badge rounded-pill <?= $stBadge ?> px-2 py-1">
+                                        <span class="badge <?= $badgeCls ?> fs-xs">
                                             <?= htmlspecialchars($r['call_status']) ?>
                                         </span>
                                     </td>
                                     <td>
-                                        <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                        <span class="badge badge-secondary fs-xs">
                                             <?= htmlspecialchars($r['source']) ?>
                                         </span>
                                     </td>
@@ -1078,24 +789,8 @@ include '../../php_scripts/header.php';
                 </div>
             </div>
         </div>
-    <?php elseif ($selected_user_id && empty($detail_rows)): ?>
-        <div class="rp-card rp-empty mt-4">
-            <i class="bi bi-inbox"></i>
-            <h6 class="mt-2 mb-0">No calls found for this telecaller with selected filters.</h6>
-        </div>
     <?php endif; ?>
     </div><!-- /exportArea -->
-
-    <?php if ($grand_total > 0): ?>
-    <div class="rp-export my-4 d-flex justify-content-center gap-3 flex-wrap">
-        <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['export' => 'csv'])) ?>" class="btn btn-success btn-lg px-4 shadow-sm fw-semibold rounded-pill">
-            <i class="bi bi-file-earmark-spreadsheet me-2"></i> Download Clean Excel / CSV
-        </a>
-        <button id="btnExport" class="btn btn-outline-success btn-lg px-4 shadow-sm fw-semibold rounded-pill">
-            <i class="bi bi-file-earmark-excel me-2"></i> Export Table View
-        </button>
-    </div>
-    <?php endif; ?>
 </div>
 
 <?php include '../../php_scripts/footer.php'; ?>
@@ -1104,11 +799,10 @@ include '../../php_scripts/header.php';
 <script src="<?= vnd('js/table2excel.min.js') ?>"></script>
 <script>
 <?php if ($grand_total > 0): ?>
-// Adapt chart colors to the active theme
 const css = getComputedStyle(document.documentElement);
-Chart.defaults.color = css.getPropertyValue('--ink-soft').trim() || '#666';
-Chart.defaults.borderColor = css.getPropertyValue('--border').trim() || 'rgba(0,0,0,.06)';
-Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+Chart.defaults.color = css.getPropertyValue('--crm-text-secondary').trim() || '#64748b';
+Chart.defaults.borderColor = css.getPropertyValue('--crm-border-color').trim() || '#e2e8f0';
+Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
 
 const trendLabels   = <?= json_encode(array_column($trend, 'label')) ?>;
 const trendTotal    = <?= json_encode(array_column($trend, 'total')) ?>;
@@ -1123,12 +817,16 @@ new Chart(document.getElementById('trendChart'), {
     data: {
         labels: trendLabels,
         datasets: [
-            { label: 'Total Calls', data: trendTotal, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.15)', fill: true, tension: .3 },
-            { label: 'Connected', data: trendConnected, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.15)', fill: true, tension: .3 }
+            { label: 'Total Calls', data: trendTotal, borderColor: '#0066cc', backgroundColor: 'rgba(0,102,204,0.08)', fill: true, tension: .2 },
+            { label: 'Connected', data: trendConnected, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: .2 }
         ]
     },
-    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { position: 'bottom' } } }
+    options: { 
+        responsive: true, 
+        maintainAspectRatio: false, 
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom' } } 
+    }
 });
 
 new Chart(document.getElementById('statusChart'), {
@@ -1137,36 +835,38 @@ new Chart(document.getElementById('statusChart'), {
         labels: statusLabels,
         datasets: [{
             data: statusValues,
-            backgroundColor: ['#10b981', '#64748b', '#0ea5e9', '#f59e0b', '#dc2626', '#8b5cf6']
+            backgroundColor: ['#10b981', '#64748b', '#0066cc', '#f59e0b', '#ef4444', '#8b5cf6']
         }]
     },
-    options: { responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom' } } }
+    options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } } 
+    }
 });
 
 new Chart(document.getElementById('userChart'), {
     type: 'bar',
     data: {
         labels: userLabels,
-        datasets: [{ label: 'Total Calls', data: userTotals, backgroundColor: '#6366f1', borderRadius: 4 }]
+        datasets: [{ label: 'Total Calls', data: userTotals, backgroundColor: '#0066cc', borderRadius: 4 }]
     },
-    options: { responsive: true, maintainAspectRatio: false,
+    options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
         plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } 
+    }
 });
 <?php endif; ?>
 
-// Export tables inside exportArea with DOM sanitation
 document.getElementById('btnExport')?.addEventListener('click', () => {
-    // Clone exportArea and clean up avatars, badges, and action columns
     const container = document.getElementById('exportArea');
     if (!container) return;
 
     const clone = container.cloneNode(true);
-    // Remove avatar elements and badges
-    clone.querySelectorAll('.rp-avatar-sm, [data-exclude="true"]').forEach(el => el.remove());
+    clone.querySelectorAll('.avatar-circle, [data-exclude="true"]').forEach(el => el.remove());
 
-    // Replace composite telecaller cells with just clean name
     clone.querySelectorAll('.rp-emp-name').forEach(el => {
         const text = el.textContent.trim();
         const parentTd = el.closest('td');

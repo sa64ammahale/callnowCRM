@@ -177,7 +177,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CallNow | Sign Up</title>
+    <title>Create Account &bull; CallNow CRM</title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
@@ -186,14 +186,14 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     <link rel="stylesheet" href="<?= vnd('css/bootstrap-icons.css') ?>">
     
     <style>
-        .signup-card { max-width: 550px; }
+        .signup-card { max-width: 520px; }
         .signup-header {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            color: #fff;
+            background: var(--bg-surface);
+            color: var(--text-primary);
             padding: 1.5rem 1.5rem;
             text-align: center;
         }
-        .signup-header h1 { color: #fff; font-size: 1.25rem; margin: 0.5rem 0 0.25rem; }
+        .signup-header h1 { color: var(--text-primary); font-size: 1.25rem; margin: 0.5rem 0 0.25rem; }
         .signup-header .bi { font-size: 2rem; }
         .signup-header p { opacity: 0.9; font-size: 0.8rem; margin: 0; }
         .form-label { font-size: 0.8rem; text-transform: none; letter-spacing: 0; font-weight: 600; }
@@ -517,7 +517,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                     
                     <!-- Submit Button -->
                     <div class="d-grid mb-3">
-                        <button type="submit" class="btn btn-success btn-lg w-100" id="submitBtn">
+                        <button type="submit" class="btn btn-primary w-100" id="submitBtn">
                             <i class="bi bi-person-plus me-2"></i>Create Account
                         </button>
                     </div>
@@ -531,7 +531,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                     
                     <!-- Back to Login -->
                     <div class="d-grid">
-                        <a href="index" class="btn btn-primary w-100">
+                        <a href="index" class="btn btn-secondary w-100">
                             <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
                         </a>
                     </div>

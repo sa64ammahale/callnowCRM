@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['pm_action'] ?? '';
 
-        // ── Role permission matrix ──
+        // Role permission matrix
         if ($action === 'save_role_perms') {
             $role = $_POST['role'] ?? '';
             $cs = $link->prepare("SELECT role_name FROM " . tn('TBL_ROLES') . " WHERE role_name = ?");
@@ -29,20 +29,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg_type = 'danger';
             } else {
                 $stmt = $link->prepare("INSERT INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
-                foreach (array_keys(getTBL_PERMISSIONSeed()) as $pk) {
+                foreach (array_keys(getPermissionSeed()) as $pk) {
                     $v = ($role === 'Admin') ? 1 : (isset($_POST["perm_$pk"]) ? 1 : 0);
                     $stmt->bind_param('ssi', $role, $pk, $v);
                     $stmt->execute();
                 }
                 clearRbacCache();
-                $msg = "TBL_PERMISSIONS updated for role '$role'.";
+                $msg = "Permissions updated successfully for role '$role'.";
                 $msg_type = 'success';
-                logActivity($link, USER_ID, 'UPDATE', "Updated role TBL_PERMISSIONS for $role");
+                logActivity($link, USER_ID, 'UPDATE', "Updated role permissions for $role");
             }
             $selectedRole = $role;
         }
 
-        // ── Per-user override matrix ──
+        // Per-user override matrix
         if ($action === 'save_user_perms') {
             $uid = (int)($_POST['user_id'] ?? 0);
             $role = $_POST['role'] ?? '';
@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg_type = 'danger';
             } else {
                 $stmt = $link->prepare("INSERT INTO " . tn('TBL_USER_PERMISSIONS') . " (user_id, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
-                foreach (array_keys(getTBL_PERMISSIONSeed()) as $pk) {
+                foreach (array_keys(getPermissionSeed()) as $pk) {
                     $v = isset($_POST["uperm_$pk"]) ? 1 : 0;
                     $stmt->bind_param('iis', $uid, $pk, $v);
                     $stmt->execute();
@@ -68,17 +68,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $selectedRole = $role;
         }
 
-        // ── Clear per-user overrides ──
+        // Clear per-user overrides
         if ($action === 'clear_user_perms') {
             $uid = (int)($_POST['user_id'] ?? 0);
             $link->query("DELETE FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = $uid");
             clearRbacCache();
-            $msg = "Overrides cleared; user #$uid now inherits role TBL_PERMISSIONS.";
+            $msg = "Overrides cleared; user #$uid now inherits base role permissions.";
             $msg_type = 'success';
             $selectedUser = $uid;
         }
 
-        // ── Assign role to user ──
+        // Assign role to user
         if ($action === 'assign_role') {
             $uid = (int)($_POST['user_id'] ?? 0);
             $role = $_POST['role'] ?? '';
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $selectedUser = $uid;
         }
 
-        // ── Add / edit role ──
+        // Add / edit role
         if ($action === 'save_role') {
             $roleName = trim($_POST['role_name'] ?? '');
             $roleDesc = trim($_POST['role_description'] ?? '');
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $cs->execute();
                     $cr = $cs->get_result()->fetch_assoc();
                     if ($cr && $cr['is_system']) {
-                        $msg = 'System TBL_ROLES cannot be renamed.';
+                        $msg = 'System roles cannot be renamed.';
                         $msg_type = 'danger';
                     } else {
                         $oldName = $cr['role_name'];
@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $up2->bind_param('ss', $roleName, $oldName);
                         $up2->execute();
                         clearRbacCache();
-                        $msg = "Role '$oldName' renamed to '$roleName'.";
+                        $msg = "Role '$oldName' updated to '$roleName'.";
                         $msg_type = 'success';
                         logActivity($link, USER_ID, 'UPDATE', "Renamed role $oldName to $roleName");
                     }
@@ -139,12 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $s->bind_param('ss', $roleName, $roleDesc);
                     if ($s->execute()) {
                         $is2 = $link->prepare("INSERT IGNORE INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, 0)");
-                        foreach (array_keys(getTBL_PERMISSIONSeed()) as $pk) {
+                        foreach (array_keys(getPermissionSeed()) as $pk) {
                             $is2->bind_param('ss', $roleName, $pk);
                             $is2->execute();
                         }
                         clearRbacCache();
-                        $msg = "Role '$roleName' created.";
+                        $msg = "Role '$roleName' created successfully.";
                         $msg_type = 'success';
                         logActivity($link, USER_ID, 'INSERT', "Created role $roleName");
                     } else {
@@ -155,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // ── Delete role ──
+        // Delete role
         if ($action === 'delete_role') {
             $roleId = (int)($_POST['role_id'] ?? 0);
             $cs = $link->prepare("SELECT role_name, is_system FROM " . tn('TBL_ROLES') . " WHERE id = ?");
@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'Role not found.';
                 $msg_type = 'danger';
             } elseif ($cr['is_system']) {
-                $msg = 'System TBL_ROLES cannot be deleted.';
+                $msg = 'System roles cannot be deleted.';
                 $msg_type = 'danger';
             } else {
                 $roleName = $cr['role_name'];
@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $uc->execute();
                 $ucr = $uc->get_result()->fetch_assoc();
                 if ((int)$ucr['c'] > 0) {
-                    $msg = "Cannot delete: {$ucr['c']} user(s) still have this role. Reassign them first.";
+                    $msg = "Cannot delete: {$ucr['c']} user(s) still assigned to this role. Please reassign them first.";
                     $msg_type = 'danger';
                 } else {
                     $dp = $link->prepare("DELETE FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = ?");
@@ -185,21 +185,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $dr->bind_param('i', $roleId);
                     $dr->execute();
                     clearRbacCache();
-                    $msg = "Role '$roleName' deleted.";
+                    $msg = "Role '$roleName' removed.";
                     $msg_type = 'success';
                     logActivity($link, USER_ID, 'DELETE', "Deleted role $roleName");
                 }
             }
         }
 
-        // ── Add feature (permission key) ──
+        // Add feature
         if ($action === 'add_feature') {
             $pkey = strtolower(trim($_POST['perm_key'] ?? ''));
             $plabel = trim($_POST['perm_label'] ?? '');
             $pcat = trim($_POST['perm_category'] ?? 'General');
             $pdesc = trim($_POST['perm_description'] ?? '');
             if (!preg_match('/^[a-z][a-z0-9_]*$/', $pkey)) {
-                $msg = 'Key must be lowercase letters, numbers and underscores (start with a letter).';
+                $msg = 'Key must be lowercase letters, numbers, and underscores (starting with letter).';
                 $msg_type = 'danger';
             } elseif ($plabel === '') {
                 $msg = 'Label is required.';
@@ -211,7 +211,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $link->prepare("INSERT INTO " . tn('TBL_PERMISSIONS') . " (permission_key, label, category, description, is_system) VALUES (?, ?, ?, ?, 0)");
                 $stmt->bind_param('ssss', $pkey, $plabel, $pcat, $pdesc);
                 $stmt->execute();
-                // Backfill a row for every existing role (default 0)
                 $ins = $link->prepare("INSERT IGNORE INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, 0)");
                 $rr = mysqli_query($link, "SELECT role_name FROM " . tn('TBL_ROLES'));
                 while ($rr && $x = mysqli_fetch_assoc($rr)) {
@@ -219,13 +218,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $ins->execute();
                 }
                 clearRbacCache();
-                $msg = "Permission '$pkey' added.";
+                $msg = "Permission feature '$pkey' registered.";
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'INSERT', "Added permission key $pkey");
             }
         }
 
-        // ── Edit feature ──
+        // Edit feature
         if ($action === 'edit_feature') {
             $pkey = $_POST['perm_key'] ?? '';
             $plabel = trim($_POST['perm_label'] ?? '');
@@ -246,13 +245,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $s = $link->prepare("UPDATE " . tn('TBL_PERMISSIONS') . " SET label = ?, category = ?, description = ? WHERE id = ?");
                 $s->bind_param('sssi', $plabel, $pcat, $pdesc, $id);
                 $s->execute();
-                $msg = 'Permission updated.';
+                $msg = 'Permission feature updated.';
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'UPDATE', "Edited permission $pkey");
             }
         }
 
-        // ── Delete feature ──
+        // Delete feature
         if ($action === 'delete_feature') {
             $id = (int)($_POST['perm_id'] ?? 0);
             $cs = $link->prepare("SELECT permission_key, is_system FROM " . tn('TBL_PERMISSIONS') . " WHERE id = ?");
@@ -270,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dp->bind_param('i', $id);
                 $dp->execute();
                 clearRbacCache();
-                $msg = "Permission '{$cr['permission_key']}' deleted.";
+                $msg = "Permission '{$cr['permission_key']}' removed.";
                 $msg_type = 'success';
                 logActivity($link, USER_ID, 'DELETE', "Deleted permission {$cr['permission_key']}");
             }
@@ -279,17 +278,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ─── Fetch data ───
-$allTBL_ROLES = [];
+$allRoles = [];
 $ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ROLE = r.role_name AND ROLE != 'Super Admin') as user_count FROM " . tn('TBL_ROLES') . " r WHERE r.role_name != 'Super Admin' ORDER BY r.is_system DESC, r.id");
-if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allTBL_ROLES[] = $a;
+if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allRoles[] = $a;
 
-$allTBL_PERMISSIONS = getAllTBL_PERMISSIONS($link);
-$permsByCat = getTBL_PERMISSIONSByCategory($link);
-$seedKeys = array_keys(getTBL_PERMISSIONSeed());
+$allPermissions = getAllPermissions($link);
+$permsByCat = getPermissionsByCategory($link);
+$seedKeys = array_keys(getPermissionSeed());
 
-// Default selected role = first role
-if ($selectedRole === null && !empty($allTBL_ROLES)) {
-    $selectedRole = $allTBL_ROLES[0]['role_name'];
+if ($selectedRole === null && !empty($allRoles)) {
+    $selectedRole = $allRoles[0]['role_name'];
 }
 $rolePerms = [];
 if ($selectedRole) {
@@ -297,13 +295,12 @@ if ($selectedRole) {
     while ($rp && $row = mysqli_fetch_assoc($rp)) $rolePerms[$row['permission_key']] = (int)$row['permission_value'];
 }
 
-// TBL_USERS for access tab
-$allTBL_USERS = [];
+$allUsers = [];
 $ur = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin' ORDER BY NAME");
-if ($ur) while ($u = mysqli_fetch_assoc($ur)) $allTBL_USERS[] = $u;
+if ($ur) while ($u = mysqli_fetch_assoc($ur)) $allUsers[] = $u;
 
-if ($selectedUser === null && !empty($allTBL_USERS)) {
-    $selectedUser = (int)$allTBL_USERS[0]['ID'];
+if ($selectedUser === null && !empty($allUsers)) {
+    $selectedUser = (int)$allUsers[0]['ID'];
 }
 $userInfo = null;
 $userPerms = [];
@@ -315,7 +312,6 @@ if ($selectedUser) {
     $userInfo = $us->get_result()->fetch_assoc();
     $up = mysqli_query($link, "SELECT permission_key, permission_value FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = $selectedUser");
     while ($up && $row = mysqli_fetch_assoc($up)) $userPerms[$row['permission_key']] = (int)$row['permission_value'];
-    // effective perms for this user (reuse can() logic approximation)
     if ($userInfo) {
         $rp = mysqli_query($link, "SELECT permission_key, permission_value FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = '" . mysqli_real_escape_string($link, $userInfo['ROLE']) . "'");
         $userRolePerms = [];
@@ -326,129 +322,330 @@ if ($selectedUser) {
     }
 }
 ?>
-<?php $pageTitle = 'Access Control - CallNow Admin'; include __DIR__ . '/../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Access Control - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
-<style>
-:root {
-    --st-accent: var(--accent);
-    --st-accent-dark: var(--accent-hover, #4f46e5);
-    --st-ink: #1e1b4b;
-    --st-ink-soft: #6b6890;
-    --st-soft: #f0f2ff;
-    --st-border: #e2e4f0;
-}
-.pm-header {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-    border-radius: 1rem; padding: 1.5rem 2rem; margin-bottom: 1.5rem; position: relative; overflow: hidden;
-}
-.pm-header h1 { font-size: 1.35rem; font-weight: 700; color: #fff; margin: 0 0 0.2rem 0; }
-.pm-header p { color: rgba(255,255,255,0.7); font-size: 0.8125rem; margin: 0; }
-.pm-tabs { display: flex; gap: 0.25rem; background: var(--st-soft); border: 1px solid var(--st-border); border-radius: 0.75rem; padding: 0.25rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
-.pm-tab { flex: 1; text-align: center; padding: 0.5rem 1rem; border-radius: 0.625rem; font-size: 0.8125rem; font-weight: 600; color: var(--st-ink-soft); text-decoration: none; transition: all 0.12s ease; white-space: nowrap; }
-.pm-tab:hover { color: var(--st-ink); background: rgba(255,255,255,0.6); }
-.pm-tab.active { background: #fff; color: var(--st-accent); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.pm-tab i { margin-right: 0.35rem; }
-.pm-card { background: #fff; border: 1px solid var(--st-border); border-radius: 0.875rem; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
-.pm-card-body { padding: 1.75rem 2rem; }
-.pm-alert { border-radius: 0.625rem; font-size: 0.8125rem; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem; }
-.pm-label { font-size: 0.75rem; font-weight: 600; color: var(--st-ink); margin-bottom: 0.3rem; }
-.pm-hint { font-size: 0.6875rem; color: var(--st-ink-soft); margin-top: 0.15rem; }
-.pm-input, .pm-select { border: 1px solid var(--st-border) !important; border-radius: 0.5rem !important; font-size: 0.8125rem !important; color: var(--st-ink) !important; padding: 0.4rem 0.75rem !important; background: #fff !important; }
-.pm-input:focus, .pm-select:focus { border-color: var(--st-accent) !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; outline: none; }
-.pm-btn-primary { background: linear-gradient(135deg, var(--st-accent), var(--st-accent-dark)) !important; border: none !important; color: #fff !important; border-radius: 0.5rem !important; font-size: 0.8125rem !important; font-weight: 600 !important; padding: 0.5rem 1.5rem !important; box-shadow: 0 2px 8px rgba(99,102,241,0.25) !important; }
-.pm-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(99,102,241,0.35) !important; }
-.pm-btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626) !important; border: none !important; color: #fff !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; font-weight: 600 !important; padding: 0.35rem 1rem !important; }
-.pm-btn-outline { border: 1px solid var(--st-border) !important; background: #fff !important; color: var(--st-ink-soft) !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; padding: 0.35rem 1rem !important; }
-.pm-perm-grid { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem; }
-.pm-perm-grid thead th { background: #fafbff; color: var(--st-ink-soft); font-weight: 600; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.625rem 0.875rem; border-bottom: 2px solid var(--st-border); text-align: center; white-space: nowrap; }
-.pm-perm-grid thead th:first-child { text-align: left; }
-.pm-perm-grid tbody td { padding: 0.5rem 0.875rem; border-bottom: 1px solid #f0f1f8; text-align: center; vertical-align: middle; }
-.pm-perm-grid tbody td:first-child { text-align: left; font-weight: 600; color: var(--st-ink); }
-.pm-perm-grid tbody tr:hover { background: #f8f9ff; }
-.pm-perm-grid tbody tr:last-child td { border-bottom: none; }
-.pm-perm-grid .cat-row td { background: #f5f6ff; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--st-accent); font-weight: 700; text-align: left; }
-.pm-switch { width: 38px; height: 22px; position: relative; display: inline-block; }
-.pm-switch input { opacity: 0; width: 0; height: 0; }
-.pm-slider { position: absolute; cursor: pointer; inset: 0; background: #d4d6e8; border-radius: 22px; transition: 0.2s; }
-.pm-slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
-.pm-switch input:checked + .pm-slider { background: var(--st-accent); }
-.pm-switch input:checked + .pm-slider::before { transform: translateX(16px); }
-.pm-role-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
-.pm-role-pill { border: 1px solid var(--st-border); border-radius: 2rem; padding: 0.4rem 1rem; font-size: 0.8125rem; font-weight: 600; color: var(--st-ink-soft); text-decoration: none; background: #fff; }
-.pm-role-pill:hover { color: var(--st-ink); }
-.pm-role-pill.active { background: var(--st-accent); color: #fff; border-color: var(--st-accent); }
-.pm-role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
-.pm-role-card { background: #fff; border: 1px solid var(--st-border); border-radius: 0.75rem; padding: 1.25rem; transition: box-shadow 0.15s; }
-.pm-role-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
-.pm-role-card h4 { font-size: 0.95rem; font-weight: 700; color: var(--st-ink); margin: 0 0 0.2rem 0; display: flex; align-items: center; gap: 0.4rem; }
-.pm-badge { display: inline-block; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.15rem 0.4rem; border-radius: 0.25rem; }
-.pm-badge.system { background: #6366f1; color: #fff; }
-.pm-badge.custom { background: #f0f2ff; color: #6366f1; }
-.pm-feat-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem; }
-.pm-feat-tbl th { background: #fafbff; color: var(--st-ink-soft); font-weight: 600; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.625rem 0.875rem; border-bottom: 2px solid var(--st-border); text-align: left; }
-.pm-feat-tbl td { padding: 0.55rem 0.875rem; border-bottom: 1px solid #f0f1f8; }
-.pm-feat-tbl tr:hover { background: #f8f9ff; }
-.pm-feat-tbl code { font-size: 0.75rem; color: var(--st-accent-dark); }
-@media (max-width: 767px) { .pm-card-body { padding: 1.25rem; } .pm-perm-grid { font-size: 0.7rem; } .pm-perm-grid thead th, .pm-perm-grid tbody td { padding: 0.4rem 0.4rem; } }
-</style>
+<div class="container-fluid px-3 py-3" style="max-width: 1200px;">
 
-<div class="container page-wrapper">
-
-    <div class="pm-header">
-        <h1><i class="bi bi-shield-lock"></i> Access Control</h1>
-        <p>Manage permission keys, TBL_ROLES, role TBL_PERMISSIONS, and per-user access</p>
+    <!-- Zoho CRM Module Header -->
+    <div class="module-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/settings/settings.php') ?>">Administration</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Access Control</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="page-title mb-0">Role &amp; Permission Hub</h1>
+                <span class="badge bg-secondary-subtle text-secondary border">RBAC</span>
+            </div>
+            <p class="text-muted small mb-0">Govern role definitions, fine-grained capability switches, and user-level overrides</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="<?= url('modules/settings/settings.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-sliders me-1"></i> General Settings
+            </a>
+            <a href="<?= url('modules/users/users_view.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-people me-1"></i> User Directory
+            </a>
+        </div>
     </div>
 
     <?php if ($msg): ?>
-        <div class="pm-alert" style="background:<?= $msg_type==='success'?'#d1fae5':'#fee2e2' ?>;border:1px solid <?= $msg_type==='success'?'#6ee7b7':'#fca5a5' ?>;color:<?= $msg_type==='success'?'#065f46':'#991b1b' ?>;">
-            <i class="bi <?= $msg_type==='success'?'bi-check-circle-fill':'bi-x-circle-fill' ?>"></i>
-            <?= htmlspecialchars($msg) ?>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:0.65rem;"></button>
+        <div class="alert alert-<?= htmlspecialchars($msg_type ?: 'info'); ?> alert-dismissible fade show mb-3" role="alert">
+            <i class="bi <?= $msg_type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> me-2"></i>
+            <?= htmlspecialchars($msg); ?>
+            <button class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
 
-    <div class="pm-tabs">
-        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=features" class="pm-tab <?= $tab==='features'?'active':'' ?>"><i class="bi bi-key"></i> Features</a>
-        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=TBL_ROLES" class="pm-tab <?= $tab==='TBL_ROLES'?'active':'' ?>"><i class="bi bi-diagram-3"></i> TBL_ROLES</a>
-        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=role_perms" class="pm-tab <?= $tab==='role_perms'?'active':'' ?>"><i class="bi bi-shield-check"></i> Role TBL_PERMISSIONS</a>
-        <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=user_access" class="pm-tab <?= $tab==='user_access'?'active':'' ?>"><i class="bi bi-person-gear"></i> User Access</a>
+    <!-- Zoho Navigation Tabs -->
+    <ul class="nav nav-tabs mb-3 border-bottom">
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='role_perms'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>?tab=role_perms">
+                <i class="bi bi-shield-check me-1"></i> Role Permissions Matrix
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='roles'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>?tab=roles">
+                <i class="bi bi-diagram-3 me-1"></i> Roles Directory
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='features'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>?tab=features">
+                <i class="bi bi-key me-1"></i> Feature Registry
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='user_access'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>?tab=user_access">
+                <i class="bi bi-person-gear me-1"></i> User Overrides
+            </a>
+        </li>
+    </ul>
+
+    <?php if ($tab === 'role_perms'): ?>
+    <!-- ═══ Role Permissions Matrix ═══ -->
+    <div class="crm-card">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <span class="fw-semibold text-dark">Role Authorization Matrix</span>
+                <span class="text-muted small ms-2">Select a role below to configure its module permissions</span>
+            </div>
+            <span class="badge bg-primary-subtle text-primary border">Active Role: <?= htmlspecialchars($selectedRole ?? 'None') ?></span>
+        </div>
+        <div class="p-3 bg-light border-bottom">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="small text-muted fw-semibold">Target Role:</span>
+                <?php foreach ($allRoles as $role): ?>
+                    <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=role_perms&role=<?= urlencode($role['role_name']) ?>" class="btn btn-sm <?= $selectedRole===$role['role_name']?'btn-primary':'btn-outline-secondary' ?> py-1 px-3">
+                        <i class="bi bi-person-badge me-1"></i> <?= htmlspecialchars($role['role_name']) ?>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <?php if ($selectedRole): ?>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                <input type="hidden" name="pm_action" value="save_role_perms">
+                <input type="hidden" name="role" value="<?= htmlspecialchars($selectedRole) ?>">
+
+                <div class="table-responsive">
+                    <table class="table crm-table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th style="min-width: 250px;">Capability &amp; Code</th>
+                                <th style="width: 140px;" class="text-center">Access Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($permsByCat as $cat => $plist): ?>
+                                <tr class="table-light">
+                                    <td colspan="2" class="fw-bold text-uppercase text-secondary py-1 px-3" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                                        <i class="bi bi-folder2-open me-1"></i> <?= htmlspecialchars($cat) ?> Module
+                                    </td>
+                                </tr>
+                                <?php foreach ($plist as $p): ?>
+                                <tr>
+                                    <td class="ps-3">
+                                        <div class="fw-medium text-dark small"><?= htmlspecialchars($p['label']) ?></div>
+                                        <code class="text-muted font-monospace" style="font-size: 0.72rem;"><?= htmlspecialchars($p['permission_key']) ?></code>
+                                        <?php if (!empty($p['description'])): ?>
+                                            <div class="text-muted" style="font-size: 0.72rem;"><?= htmlspecialchars($p['description']) ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <?php if ($selectedRole === 'Admin'): ?>
+                                            <span class="badge bg-success-subtle text-success border">
+                                                <i class="bi bi-check-lg me-1"></i> Full Access
+                                            </span>
+                                        <?php else: ?>
+                                            <div class="form-check form-switch d-inline-block">
+                                                <input class="form-check-input" type="checkbox" name="perm_<?= $p['permission_key'] ?>" value="1" <?= ($rolePerms[$p['permission_key']] ?? 0) ? 'checked' : '' ?>>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <?php if ($selectedRole !== 'Admin'): ?>
+                <div class="d-flex justify-content-end p-3 border-top bg-light">
+                    <button type="submit" class="btn btn-primary btn-sm px-4">
+                        <i class="bi bi-check-lg me-1"></i> Save Role Permissions
+                    </button>
+                </div>
+                <?php endif; ?>
+            </form>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <?php if ($tab === 'features'): ?>
-    <!-- ═══ Features (permission keys) ═══ -->
-    <div class="pm-card">
-        <div class="pm-card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 style="font-size:1rem;font-weight:700;color:var(--st-ink);margin:0;"><i class="bi bi-key"></i> Permission Features</h5>
-                    <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0;">These keys gate every action in the app. System keys are protected.</p>
-                </div>
-                <button type="button" class="pm-btn-primary" data-bs-toggle="modal" data-bs-target="#addFeatureModal" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;"><i class="bi bi-plus-lg"></i> New Feature</button>
+    <?php elseif ($tab === 'roles'): ?>
+    <!-- ═══ Roles Directory ═══ -->
+    <div class="crm-card">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-semibold text-dark">Defined Security Roles</span>
+                <span class="text-muted small ms-2">System roles cannot be deleted</span>
             </div>
-
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addRoleModal">
+                <i class="bi bi-plus-circle me-1"></i> Create Role
+            </button>
+        </div>
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="pm-feat-tbl">
-                    <thead><tr><th>Key</th><th>Label</th><th>Category</th><th>Description</th><th>Type</th><th></th></tr></thead>
-                    <tbody>
-                        <?php foreach ($allTBL_PERMISSIONS as $p): ?>
+                <table class="table crm-table align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td><code><?= htmlspecialchars($p['permission_key']) ?></code></td>
-                            <td><?= htmlspecialchars($p['label']) ?></td>
-                            <td><?= htmlspecialchars($p['category']) ?></td>
-                            <td style="color:var(--st-ink-soft);"><?= htmlspecialchars($p['description'] ?: '—') ?></td>
-                            <td><?= (int)$p['is_system']===1 ? '<span class="pm-badge system">System</span>' : '<span class="pm-badge custom">Custom</span>' ?></td>
-                            <td class="text-end" style="white-space:nowrap;">
-                                <button type="button" class="pm-btn-outline" style="padding:0.2rem 0.6rem!important;" data-bs-toggle="modal" data-bs-target="#editFeatureModal"
-                                    data-id="<?= $p['id'] ?>" data-label="<?= htmlspecialchars($p['label']) ?>" data-cat="<?= htmlspecialchars($p['category']) ?>" data-desc="<?= htmlspecialchars($p['description']) ?>"><i class="bi bi-pencil"></i></button>
+                            <th style="min-width: 160px;">Role Name</th>
+                            <th>Description</th>
+                            <th style="width: 110px;">Classification</th>
+                            <th style="width: 110px;" class="text-center">Assigned Users</th>
+                            <th style="width: 120px;" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($allRoles as $role): ?>
+                            <?php $isSys = (int)$role['is_system'] === 1; ?>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold <?= $isSys ? 'text-primary bg-primary-subtle' : 'text-secondary bg-secondary-subtle' ?>" style="width: 28px; height: 28px; font-size: 0.75rem;">
+                                            <i class="bi bi-person-badge"></i>
+                                        </div>
+                                        <span class="fw-semibold text-dark small"><?= htmlspecialchars($role['role_name']) ?></span>
+                                    </div>
+                                </td>
+                                <td class="small text-muted"><?= htmlspecialchars($role['description'] ?: '—') ?></td>
+                                <td>
+                                    <span class="badge <?= $isSys ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary' ?> border">
+                                        <?= $isSys ? 'System' : 'Custom' ?>
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-dark border"><?= (int)$role['user_count'] ?> users</span>
+                                </td>
+                                <td class="text-end">
+                                    <?php if (!$isSys): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-1" data-bs-toggle="modal" data-bs-target="#editRoleModal" data-id="<?= $role['id'] ?>" data-name="<?= htmlspecialchars($role['role_name']) ?>" data-desc="<?= htmlspecialchars($role['description']) ?>" title="Edit Role">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form method="POST" class="d-inline ms-1" onsubmit="return confirm('Delete custom role &quot;<?= htmlspecialchars($role['role_name']) ?>&quot;?');">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                                            <input type="hidden" name="pm_action" value="delete_role">
+                                            <input type="hidden" name="role_id" value="<?= $role['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1" title="Delete Role">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    <?php else: ?>
+                                        <span class="badge bg-light text-muted border"><i class="bi bi-shield-lock me-1"></i>Protected</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Role Modal -->
+    <div class="modal fade" id="addRoleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="pm_action" value="save_role">
+                    <input type="hidden" name="role_id" value="0">
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-plus-circle text-primary me-2"></i> Create Custom Role</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted mb-1">Role Identifier <span class="text-danger">*</span></label>
+                            <input type="text" name="role_name" class="form-control form-control-sm" required maxlength="50" placeholder="e.g. Senior Underwriter">
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-1">Role Description</label>
+                            <input type="text" name="role_description" class="form-control form-control-sm" placeholder="Purpose and authority scope" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Create Role</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Role Modal -->
+    <div class="modal fade" id="editRoleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="pm_action" value="save_role">
+                    <input type="hidden" name="role_id" id="edit_role_id" value="0">
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i> Edit Custom Role</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted mb-1">Role Identifier <span class="text-danger">*</span></label>
+                            <input type="text" name="role_name" id="edit_role_name" class="form-control form-control-sm" required maxlength="50">
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-1">Role Description</label>
+                            <input type="text" name="role_description" id="edit_role_desc" class="form-control form-control-sm" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <?php elseif ($tab === 'features'): ?>
+    <!-- ═══ Feature Registry ═══ -->
+    <div class="crm-card">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-semibold text-dark">Registered Capability Keys</span>
+                <span class="text-muted small ms-2">Keys enforced via <code>can('key')</code></span>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addFeatureModal">
+                <i class="bi bi-plus-circle me-1"></i> New Capability Key
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table crm-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="min-width: 170px;">Permission Key</th>
+                            <th style="min-width: 160px;">Display Label</th>
+                            <th style="width: 120px;">Category</th>
+                            <th>Description</th>
+                            <th style="width: 100px;">Classification</th>
+                            <th style="width: 100px;" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($allPermissions as $p): ?>
+                        <tr>
+                            <td><code class="text-dark bg-light px-2 py-0.5 rounded border small font-monospace"><?= htmlspecialchars($p['permission_key']) ?></code></td>
+                            <td class="fw-medium text-dark small"><?= htmlspecialchars($p['label']) ?></td>
+                            <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($p['category']) ?></span></td>
+                            <td class="text-muted small"><?= htmlspecialchars($p['description'] ?: '—') ?></td>
+                            <td>
+                                <span class="badge <?= (int)$p['is_system']===1 ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary' ?> border">
+                                    <?= (int)$p['is_system']===1 ? 'System' : 'Custom' ?>
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-1" data-bs-toggle="modal" data-bs-target="#editFeatureModal"
+                                    data-id="<?= $p['id'] ?>" data-label="<?= htmlspecialchars($p['label']) ?>" data-cat="<?= htmlspecialchars($p['category']) ?>" data-desc="<?= htmlspecialchars($p['description']) ?>">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
                                 <?php if ((int)$p['is_system'] !== 1): ?>
-                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete feature &quot;<?= htmlspecialchars($p['permission_key']) ?>&quot;? This removes it for all TBL_ROLES.')">
+                                <form method="POST" class="d-inline ms-1" onsubmit="return confirm('Delete capability key &quot;<?= htmlspecialchars($p['permission_key']) ?>&quot;?');">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                                     <input type="hidden" name="pm_action" value="delete_feature">
                                     <input type="hidden" name="perm_id" value="<?= $p['id'] ?>">
-                                    <button type="submit" class="pm-btn-outline" style="padding:0.2rem 0.6rem!important;color:#ef4444!important;border-color:#fca5a5!important;"><i class="bi bi-trash"></i></button>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1"><i class="bi bi-trash"></i></button>
                                 </form>
-                                <?php else: ?>
-                                    <span style="font-size:0.6rem;color:#a3a3a3;"><i class="bi bi-lock"></i></span>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -460,38 +657,38 @@ if ($selectedUser) {
     </div>
 
     <!-- Add Feature Modal -->
-    <div class="modal fade" id="addFeatureModal" tabindex="-1">
+    <div class="modal fade" id="addFeatureModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--st-border);">
+            <div class="modal-content">
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" name="pm_action" value="add_feature">
-                    <div class="modal-header" style="border-bottom-color:var(--st-border);padding:1rem 1.25rem;">
-                        <h6 style="font-weight:700;font-size:0.9rem;margin:0;"><i class="bi bi-plus-circle"></i> New Permission Feature</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:0.7rem;"></button>
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-plus-circle text-primary me-2"></i> Register New Feature Key</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body" style="padding:1.25rem;">
+                    <div class="modal-body p-3">
                         <div class="mb-3">
-                            <label class="pm-label">Key (machine name)</label>
-                            <input type="text" name="perm_key" class="form-control pm-input" required pattern="[a-z][a-z0-9_]*" placeholder="e.g. export_reports" maxlength="50">
-                            <div class="pm-hint">Lowercase letters, numbers, underscores. Used in code via can('key').</div>
+                            <label class="form-label small text-muted mb-1">Unique Key (machine name) <span class="text-danger">*</span></label>
+                            <input type="text" name="perm_key" class="form-control form-control-sm font-monospace" required pattern="[a-z][a-z0-9_]*" placeholder="e.g. export_reports" maxlength="50">
+                            <div class="text-muted small mt-1">Lowercase letters, numbers, underscores only</div>
                         </div>
                         <div class="mb-3">
-                            <label class="pm-label">Label</label>
-                            <input type="text" name="perm_label" class="form-control pm-input" required maxlength="100" placeholder="Export Reports">
+                            <label class="form-label small text-muted mb-1">Human Label <span class="text-danger">*</span></label>
+                            <input type="text" name="perm_label" class="form-control form-control-sm" required maxlength="100" placeholder="Export Analytics Reports">
                         </div>
                         <div class="mb-3">
-                            <label class="pm-label">Category</label>
-                            <input type="text" name="perm_category" class="form-control pm-input" value="General" maxlength="50">
+                            <label class="form-label small text-muted mb-1">Category Group</label>
+                            <input type="text" name="perm_category" class="form-control form-control-sm" value="General" maxlength="50">
                         </div>
                         <div>
-                            <label class="pm-label">Description</label>
-                            <input type="text" name="perm_description" class="form-control pm-input" maxlength="255" placeholder="What this permission allows">
+                            <label class="form-label small text-muted mb-1">Description</label>
+                            <input type="text" name="perm_description" class="form-control form-control-sm" maxlength="255" placeholder="Detailed purpose of this permission">
                         </div>
                     </div>
-                    <div class="modal-footer" style="border-top-color:var(--st-border);padding:0.75rem 1.25rem;">
-                        <button type="button" class="pm-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="pm-btn-primary" style="padding:0.4rem 1.2rem!important;">Add Feature</button>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Register Feature</button>
                     </div>
                 </form>
             </div>
@@ -499,330 +696,207 @@ if ($selectedUser) {
     </div>
 
     <!-- Edit Feature Modal -->
-    <div class="modal fade" id="editFeatureModal" tabindex="-1">
+    <div class="modal fade" id="editFeatureModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--st-border);">
+            <div class="modal-content">
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" name="pm_action" value="edit_feature">
                     <input type="hidden" name="perm_id" id="edit_perm_id" value="0">
-                    <div class="modal-header" style="border-bottom-color:var(--st-border);padding:1rem 1.25rem;">
-                        <h6 style="font-weight:700;font-size:0.9rem;margin:0;"><i class="bi bi-pencil-square"></i> Edit Feature</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:0.7rem;"></button>
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i> Edit Feature Definition</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body" style="padding:1.25rem;">
+                    <div class="modal-body p-3">
                         <div class="mb-3">
-                            <label class="pm-label">Label</label>
-                            <input type="text" name="perm_label" id="edit_perm_label" class="form-control pm-input" required maxlength="100">
+                            <label class="form-label small text-muted mb-1">Human Label <span class="text-danger">*</span></label>
+                            <input type="text" name="perm_label" id="edit_perm_label" class="form-control form-control-sm" required maxlength="100">
                         </div>
                         <div class="mb-3">
-                            <label class="pm-label">Category</label>
-                            <input type="text" name="perm_category" id="edit_perm_cat" class="form-control pm-input" maxlength="50">
+                            <label class="form-label small text-muted mb-1">Category</label>
+                            <input type="text" name="perm_category" id="edit_perm_cat" class="form-control form-control-sm" maxlength="50">
                         </div>
                         <div>
-                            <label class="pm-label">Description</label>
-                            <input type="text" name="perm_description" id="edit_perm_desc" class="form-control pm-input" maxlength="255">
+                            <label class="form-label small text-muted mb-1">Description</label>
+                            <input type="text" name="perm_description" id="edit_perm_desc" class="form-control form-control-sm" maxlength="255">
                         </div>
                     </div>
-                    <div class="modal-footer" style="border-top-color:var(--st-border);padding:0.75rem 1.25rem;">
-                        <button type="button" class="pm-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="pm-btn-primary" style="padding:0.4rem 1.2rem!important;">Save</button>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
                     </div>
                 </form>
             </div>
-        </div>
-    </div>
-
-    <?php elseif ($tab === 'TBL_ROLES'): ?>
-    <!-- ═══ TBL_ROLES ═══ -->
-    <div class="pm-card">
-        <div class="pm-card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 style="font-size:1rem;font-weight:700;color:var(--st-ink);margin:0;"><i class="bi bi-diagram-3"></i> TBL_ROLES</h5>
-                    <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0;">Create TBL_ROLES. New custom TBL_ROLES start with <strong>all TBL_PERMISSIONS OFF</strong> (secure by default).</p>
-                </div>
-                <button type="button" class="pm-btn-primary" data-bs-toggle="modal" data-bs-target="#addRoleModal" style="font-size:0.75rem!important;padding:0.4rem 1rem!important;"><i class="bi bi-plus-lg"></i> New Role</button>
-            </div>
-
-            <div class="pm-role-grid">
-                <?php foreach ($allTBL_ROLES as $role): ?>
-                    <?php $isSys = (int)$role['is_system'] === 1; ?>
-                    <div class="pm-role-card">
-                        <h4>
-                            <i class="bi bi-person-badge" style="color:<?= $isSys?'#6366f1':'#a3a3a3' ?>;"></i>
-                            <?= htmlspecialchars($role['role_name']) ?>
-                            <span class="pm-badge <?= $isSys ? 'system' : 'custom' ?>"><?= $isSys ? 'System' : 'Custom' ?></span>
-                        </h4>
-                        <div style="font-size:0.75rem;color:var(--st-ink-soft);"><?= htmlspecialchars($role['description'] ?: 'No description') ?></div>
-                        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.75rem;color:var(--st-ink-soft);margin-top:0.6rem;">
-                            <span><i class="bi bi-people"></i> <?= (int)$role['user_count'] ?> user(s)</span>
-                            <div style="display:flex;gap:0.4rem;">
-                                <?php if (!$isSys): ?>
-                                    <button type="button" class="pm-btn-outline" style="padding:0.2rem 0.6rem!important;" data-bs-toggle="modal" data-bs-target="#editRoleModal"
-                                        data-id="<?= $role['id'] ?>" data-name="<?= htmlspecialchars($role['role_name']) ?>" data-desc="<?= htmlspecialchars($role['description']) ?>"><i class="bi bi-pencil"></i></button>
-                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Delete role &quot;<?= htmlspecialchars($role['role_name']) ?>&quot;?')">
-                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                        <input type="hidden" name="pm_action" value="delete_role">
-                                        <input type="hidden" name="role_id" value="<?= $role['id'] ?>">
-                                        <button type="submit" class="pm-btn-outline" style="padding:0.2rem 0.6rem!important;color:#ef4444!important;border-color:#fca5a5!important;"><i class="bi bi-trash"></i></button>
-                                    </form>
-                                <?php else: ?>
-                                    <span style="font-size:0.6rem;color:#a3a3a3;"><i class="bi bi-lock"></i> Protected</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="addRoleModal" tabindex="-1">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--st-border);">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="pm_action" value="save_role">
-                    <input type="hidden" name="role_id" value="0">
-                    <div class="modal-header" style="border-bottom-color:var(--st-border);padding:1rem 1.25rem;">
-                        <h6 style="font-weight:700;font-size:0.9rem;margin:0;"><i class="bi bi-plus-circle"></i> New Role</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:0.7rem;"></button>
-                    </div>
-                    <div class="modal-body" style="padding:1.25rem;">
-                        <div class="mb-3">
-                            <label class="pm-label">Role Name</label>
-                            <input type="text" name="role_name" class="form-control pm-input" required maxlength="50" placeholder="e.g. Team Lead">
-                        </div>
-                        <div>
-                            <label class="pm-label">Description</label>
-                            <input type="text" name="role_description" class="form-control pm-input" placeholder="Brief description" maxlength="255">
-                        </div>
-                    </div>
-                    <div class="modal-footer" style="border-top-color:var(--st-border);padding:0.75rem 1.25rem;">
-                        <button type="button" class="pm-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="pm-btn-primary" style="padding:0.4rem 1.2rem!important;">Create Role</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="editRoleModal" tabindex="-1">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--st-border);">
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                    <input type="hidden" name="pm_action" value="save_role">
-                    <input type="hidden" name="role_id" id="edit_role_id" value="0">
-                    <div class="modal-header" style="border-bottom-color:var(--st-border);padding:1rem 1.25rem;">
-                        <h6 style="font-weight:700;font-size:0.9rem;margin:0;"><i class="bi bi-pencil-square"></i> Edit Role</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:0.7rem;"></button>
-                    </div>
-                    <div class="modal-body" style="padding:1.25rem;">
-                        <div class="mb-3">
-                            <label class="pm-label">Role Name</label>
-                            <input type="text" name="role_name" id="edit_role_name" class="form-control pm-input" required maxlength="50">
-                        </div>
-                        <div>
-                            <label class="pm-label">Description</label>
-                            <input type="text" name="role_description" id="edit_role_desc" class="form-control pm-input" maxlength="255">
-                        </div>
-                    </div>
-                    <div class="modal-footer" style="border-top-color:var(--st-border);padding:0.75rem 1.25rem;">
-                        <button type="button" class="pm-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="pm-btn-primary" style="padding:0.4rem 1.2rem!important;">Save Changes</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <?php elseif ($tab === 'role_perms'): ?>
-    <!-- ═══ Role TBL_PERMISSIONS (main) ═══ -->
-    <div class="pm-card">
-        <div class="pm-card-body">
-            <h5 style="font-size:1rem;font-weight:700;color:var(--st-ink);margin:0 0 0.2rem 0;"><i class="bi bi-shield-check"></i> Role TBL_PERMISSIONS</h5>
-            <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0 0 1rem 0;">Select a role, then toggle its TBL_PERMISSIONS. <strong>Admin</strong> always has full access.</p>
-
-            <div class="pm-role-pills">
-                <?php foreach ($allTBL_ROLES as $role): ?>
-                    <a href="<?= url('modules/settings/permissions_manager.php') ?>?tab=role_perms&role=<?= urlencode($role['role_name']) ?>" class="pm-role-pill <?= $selectedRole===$role['role_name']?'active':'' ?>"><?= htmlspecialchars($role['role_name']) ?></a>
-                <?php endforeach; ?>
-            </div>
-
-            <?php if ($selectedRole): ?>
-            <form method="POST">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                <input type="hidden" name="pm_action" value="save_role_perms">
-                <input type="hidden" name="role" value="<?= htmlspecialchars($selectedRole) ?>">
-                <div class="table-responsive">
-                    <table class="pm-perm-grid">
-                        <thead>
-                            <tr><th>Permission</th><th><i class="bi bi-person"></i> <?= htmlspecialchars($selectedRole) ?></th></tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($permsByCat as $cat => $plist): ?>
-                                <tr class="cat-row"><td colspan="2"><?= htmlspecialchars($cat) ?></td></tr>
-                                <?php foreach ($plist as $p): ?>
-                                <tr>
-                                    <td>
-                                        <strong><?= htmlspecialchars($p['label']) ?></strong>
-                                        <br><span style="font-size:0.6875rem;color:var(--st-ink-soft);"><?= htmlspecialchars($p['permission_key']) ?></span>
-                                    </td>
-                                    <td>
-                                        <?php if ($selectedRole === 'Admin'): ?>
-                                            <span style="color:#10b981;font-size:0.75rem;font-weight:600;"><i class="bi bi-check-lg"></i> Full</span>
-                                        <?php else: ?>
-                                            <label class="pm-switch">
-                                                <input type="checkbox" name="perm_<?= $p['permission_key'] ?>" value="1" <?= ($rolePerms[$p['permission_key']] ?? 0) ? 'checked' : '' ?>>
-                                                <span class="pm-slider"></span>
-                                            </label>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php if ($selectedRole !== 'Admin'): ?>
-                <hr style="border-color:var(--st-border);margin:1.25rem 0;">
-                <div class="text-end">
-                    <button type="submit" class="pm-btn-primary"><i class="bi bi-check-lg"></i> Save TBL_PERMISSIONS</button>
-                </div>
-                <?php endif; ?>
-            </form>
-            <?php endif; ?>
         </div>
     </div>
 
     <?php elseif ($tab === 'user_access'): ?>
-    <!-- ═══ User Access ═══ -->
-    <div class="pm-card">
-        <div class="pm-card-body">
-            <h5 style="font-size:1rem;font-weight:700;color:var(--st-ink);margin:0 0 0.2rem 0;"><i class="bi bi-person-gear"></i> User Access</h5>
-            <p style="font-size:0.75rem;color:var(--st-ink-soft);margin:0 0 1rem 0;">Assign a role and set per-user permission overrides (overrides win over the role).</p>
-
-            <form method="GET" class="mb-4">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-6">
-                        <label class="pm-label">User</label>
-                        <select name="user" class="form-select pm-select" onchange="this.form.submit()">
-                            <?php foreach ($allTBL_USERS as $u): ?>
-                                <option value="<?= $u['ID'] ?>" <?= $selectedUser===(int)$u['ID']?'selected':'' ?>><?= htmlspecialchars($u['NAME'] . ' (' . $u['ROLE'] . ')') ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+    <!-- ═══ User Access Overrides ═══ -->
+    <div class="crm-card">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-semibold text-dark">User-Level Access Overrides</span>
+                <span class="text-muted small ms-2">Overrides take absolute precedence over role defaults</span>
+            </div>
+            <a href="<?= url('modules/users/users_view.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-people me-1"></i> User Directory
+            </a>
+        </div>
+        <div class="p-3 bg-light border-bottom">
+            <form method="GET" class="row g-2 align-items-end">
+                <input type="hidden" name="tab" value="user_access">
+                <div class="col-md-6">
+                    <label class="form-label small text-muted mb-1">Select User Account</label>
+                    <select name="user" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <?php foreach ($allUsers as $u): ?>
+                            <option value="<?= $u['ID'] ?>" <?= $selectedUser===(int)$u['ID']?'selected':'' ?>>
+                                <?= htmlspecialchars($u['NAME'] . ' (' . $u['ROLE'] . ')') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </form>
-
+        </div>
+        <div class="card-body p-0">
             <?php if ($userInfo): ?>
-            <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                    <form method="POST">
+                <div class="p-3 border-bottom bg-white">
+                    <form method="POST" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="pm_action" value="assign_role">
                         <input type="hidden" name="user_id" value="<?= $userInfo['ID'] ?>">
-                        <label class="pm-label">Assigned Role</label>
-                        <div class="input-group">
-                            <select name="role" class="form-select pm-select">
-                                <?php foreach ($allTBL_ROLES as $role): ?>
-                                    <option value="<?= htmlspecialchars($role['role_name']) ?>" <?= $userInfo['ROLE']===$role['role_name']?'selected':'' ?>><?= htmlspecialchars($role['role_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="submit" class="pm-btn-primary" style="padding:0.4rem 1rem!important;"><i class="bi bi-check-lg"></i> Assign</button>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted mb-1">Assigned Security Role</label>
+                            <div class="input-group input-group-sm">
+                                <select name="role" class="form-select">
+                                    <?php foreach ($allRoles as $role): ?>
+                                        <option value="<?= htmlspecialchars($role['role_name']) ?>" <?= $userInfo['ROLE']===$role['role_name']?'selected':'' ?>>
+                                            <?= htmlspecialchars($role['role_name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button type="submit" class="btn btn-outline-primary">Update Role</button>
+                            </div>
                         </div>
                     </form>
                 </div>
-                <div class="col-md-6 d-flex align-items-end">
-                    <a href="<?= url('modules/users/users_view.php') ?>" class="pm-btn-outline"><i class="bi bi-arrow-right"></i> Open in User Management</a>
-                </div>
-            </div>
 
-            <form method="POST">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                <input type="hidden" name="pm_action" value="save_user_perms">
-                <input type="hidden" name="user_id" value="<?= $userInfo['ID'] ?>">
-                <input type="hidden" name="role" value="<?= htmlspecialchars($userInfo['ROLE']) ?>">
-                <div class="table-responsive">
-                    <table class="pm-perm-grid">
-                        <thead>
-                            <tr><th>Permission</th><th>Role Default</th><th>User Override</th></tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($permsByCat as $cat => $plist): ?>
-                                <tr class="cat-row"><td colspan="3"><?= htmlspecialchars($cat) ?></td></tr>
-                                <?php foreach ($plist as $p): ?>
-                                <?php $eff = $effectivePerms[$p['permission_key']] ?? 0; $hasOverride = array_key_exists($p['permission_key'], $userPerms); ?>
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="pm_action" value="save_user_perms">
+                    <input type="hidden" name="user_id" value="<?= $userInfo['ID'] ?>">
+                    <input type="hidden" name="role" value="<?= htmlspecialchars($userInfo['ROLE']) ?>">
+
+                    <div class="table-responsive">
+                        <table class="table crm-table align-middle mb-0">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        <strong><?= htmlspecialchars($p['label']) ?></strong>
-                                        <br><span style="font-size:0.6875rem;color:var(--st-ink-soft);"><?= htmlspecialchars($p['permission_key']) ?></span>
-                                    </td>
-                                    <td>
-                                        <?php if (($userRolePerms[$p['permission_key']] ?? 0)): ?><span style="color:#10b981;font-weight:600;"><i class="bi bi-check-lg"></i> On</span><?php else: ?><span style="color:#ef4444;font-weight:600;"><i class="bi bi-x-lg"></i> Off</span><?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <label class="pm-switch">
-                                            <input type="checkbox" name="uperm_<?= $p['permission_key'] ?>" value="1" <?= $eff ? 'checked' : '' ?>>
-                                            <span class="pm-slider"></span>
-                                        </label>
-                                        <?php if ($hasOverride): ?><div style="font-size:0.6rem;color:var(--st-accent);">override set</div><?php endif; ?>
-                                    </td>
+                                    <th style="min-width: 250px;">Permission Capability</th>
+                                    <th style="width: 140px;" class="text-center">Role Baseline</th>
+                                    <th style="width: 160px;" class="text-center">Explicit Override</th>
                                 </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($permsByCat as $cat => $plist): ?>
+                                    <tr class="table-light">
+                                        <td colspan="3" class="fw-bold text-uppercase text-secondary py-1 px-3" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                                            <?= htmlspecialchars($cat) ?> Module
+                                        </td>
+                                    </tr>
+                                    <?php foreach ($plist as $p): ?>
+                                    <?php 
+                                        $eff = $effectivePerms[$p['permission_key']] ?? 0;
+                                        $hasOverride = array_key_exists($p['permission_key'], $userPerms);
+                                    ?>
+                                    <tr>
+                                        <td class="ps-3">
+                                            <div class="fw-medium text-dark small"><?= htmlspecialchars($p['label']) ?></div>
+                                            <code class="text-muted font-monospace" style="font-size: 0.72rem;"><?= htmlspecialchars($p['permission_key']) ?></code>
+                                        </td>
+                                        <td class="text-center">
+                                            <?php if (($userRolePerms[$p['permission_key']] ?? 0)): ?>
+                                                <span class="badge bg-success-subtle text-success border">Enabled</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-muted border">Disabled</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-switch d-inline-block">
+                                                <input class="form-check-input" type="checkbox" name="uperm_<?= $p['permission_key'] ?>" value="1" <?= $eff ? 'checked' : '' ?>>
+                                            </div>
+                                            <?php if ($hasOverride): ?>
+                                                <div class="text-primary fw-medium" style="font-size: 0.65rem;">Override active</div>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
                                 <?php endforeach; ?>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <hr style="border-color:var(--st-border);margin:1.25rem 0;">
-                <div class="text-end">
-                    <button type="submit" class="pm-btn-primary"><i class="bi bi-check-lg"></i> Save Overrides</button>
-                    <button type="button" class="pm-btn-outline" data-bs-toggle="modal" data-bs-target="#clearOverrideModal"><i class="bi bi-arrow-counterclockwise"></i> Clear Overrides</button>
-                </div>
-            </form>
+                            </tbody>
+                        </table>
+                    </div>
 
-            <div class="modal fade" id="clearOverrideModal" tabindex="-1">
-                <div class="modal-dialog modal-sm modal-dialog-centered">
-                    <div class="modal-content" style="border-radius:0.75rem;border:1px solid var(--st-border);">
-                        <form method="POST">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                            <input type="hidden" name="pm_action" value="clear_user_perms">
-                            <input type="hidden" name="user_id" value="<?= $userInfo['ID'] ?>">
-                            <div class="modal-body text-center" style="padding:1.5rem;">
-                                <i class="bi bi-exclamation-triangle" style="font-size:2rem;color:#f59e0b;"></i>
-                                <p style="margin:0.75rem 0;font-size:0.8125rem;">Remove all per-user overrides for <strong><?= htmlspecialchars($userInfo['NAME']) ?></strong>? They will inherit the role's TBL_PERMISSIONS.</p>
-                            </div>
-                            <div class="modal-footer" style="border-top-color:var(--st-border);padding:0.75rem 1.25rem;justify-content:center;">
-                                <button type="button" class="pm-btn-outline" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="pm-btn-danger">Clear Overrides</button>
-                            </div>
-                        </form>
+                    <div class="d-flex justify-content-between align-items-center p-3 border-top bg-light">
+                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#clearOverrideModal">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Role Defaults
+                        </button>
+                        <button type="submit" class="btn btn-primary btn-sm px-4">
+                            <i class="bi bi-check-lg me-1"></i> Save Overrides
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Clear Override Modal -->
+                <div class="modal fade" id="clearOverrideModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-sm modal-dialog-centered">
+                        <div class="modal-content">
+                            <form method="POST">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                                <input type="hidden" name="pm_action" value="clear_user_perms">
+                                <input type="hidden" name="user_id" value="<?= $userInfo['ID'] ?>">
+                                <div class="modal-body text-center p-4">
+                                    <div class="rounded-circle bg-warning-subtle text-warning d-inline-flex align-items-center justify-content-center mb-3" style="width: 50px; height: 50px;">
+                                        <i class="bi bi-exclamation-triangle fs-4"></i>
+                                    </div>
+                                    <h6 class="modal-title fw-bold mb-2">Clear Access Overrides?</h6>
+                                    <p class="text-muted small mb-3">All custom permission overrides for <strong><?= htmlspecialchars($userInfo['NAME']) ?></strong> will be removed. The user will strictly inherit their role's baseline permissions.</p>
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-danger btn-sm">Yes, Clear</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
-            </div>
             <?php endif; ?>
         </div>
     </div>
-
     <?php endif; ?>
+
 </div>
 
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
+
 <script>
-document.getElementById('editRoleModal')?.addEventListener('show.bs.modal', function (e) {
-    const btn = e.relatedTarget;
-    document.getElementById('edit_role_id').value = btn.dataset.id;
-    document.getElementById('edit_role_name').value = btn.dataset.name;
-    document.getElementById('edit_role_desc').value = btn.dataset.desc;
-});
-document.getElementById('editFeatureModal')?.addEventListener('show.bs.modal', function (e) {
-    const btn = e.relatedTarget;
-    document.getElementById('edit_perm_id').value = btn.dataset.id;
-    document.getElementById('edit_perm_label').value = btn.dataset.label;
-    document.getElementById('edit_perm_cat').value = btn.dataset.cat;
-    document.getElementById('edit_perm_desc').value = btn.dataset.desc;
+document.addEventListener('DOMContentLoaded', function() {
+    const editRoleModal = document.getElementById('editRoleModal');
+    if (editRoleModal) {
+        editRoleModal.addEventListener('show.bs.modal', function(e) {
+            const btn = e.relatedTarget;
+            document.getElementById('edit_role_id').value = btn.dataset.id;
+            document.getElementById('edit_role_name').value = btn.dataset.name;
+            document.getElementById('edit_role_desc').value = btn.dataset.desc;
+        });
+    }
+
+    const editFeatureModal = document.getElementById('editFeatureModal');
+    if (editFeatureModal) {
+        editFeatureModal.addEventListener('show.bs.modal', function(e) {
+            const btn = e.relatedTarget;
+            document.getElementById('edit_perm_id').value = btn.dataset.id;
+            document.getElementById('edit_perm_label').value = btn.dataset.label;
+            document.getElementById('edit_perm_cat').value = btn.dataset.cat;
+            document.getElementById('edit_perm_desc').value = btn.dataset.desc;
+        });
+    }
 });
 </script>
-
-<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

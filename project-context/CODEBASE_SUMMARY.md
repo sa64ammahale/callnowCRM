@@ -188,6 +188,48 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Major Fix (2026-10-29): Full Zoho CRM NextGen Enterprise UI/UX Overhaul
+Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise high density, slate/neutral theme with navy accent `#0066cc`, 4–8px radius, no bubbly gradients or oversized cards, crisp standard components):
+- **Core Design Tokens & Theme Engine (`assets/css/app-theme.css`)**:
+  - Replaced purple/gradient styles with Zoho CRM NextGen design tokens (`--crm-primary: #0066cc`, `--crm-navy: #0b1f3a`, `--crm-surface: #ffffff`, `--crm-bg: #f4f6f9`, `--crm-border: #e2e8f0`).
+  - Standardized enterprise heights: 38–44px table rows, 34–36px input fields & buttons, 11–13px typography.
+  - Implemented standard components: `.crm-card`, `.metric-card`, `.module-header`, `.crm-table`, status badges, high-contrast modal chrome, and accessible focus states.
+- **Master Navigation & Chrome**:
+  - `php_scripts/header.php`: Standardized Inter font, document head, dynamic title format, responsive meta tags.
+  - `php_scripts/sidebar.php`: Zoho CRM NextGen 6-section sidebar with telecalling status pill, active tint highlights, and smooth collapse toggling.
+  - `php_scripts/topbar.php`: Global OmniSearch trigger (`Ctrl+K`), quick `+ Create` action menu, system telecalling indicator, user profile dropdown.
+  - `php_scripts/footer.php`: Global Omni-Search modal (`#omniSearchModal`) with keyboard shortcut handler (`Ctrl+K`) and keyboard navigation.
+- **Authentication & Account Shells**:
+  - `index.php`, `forgot-password.php`, `CallNowSignUp.php`, `profile.php`: Rebuilt with clean enterprise cards, standard input fields, password toggle visibility, and unified feedback alerts.
+- **Leads & Pipeline Management**:
+  - `modules/leads/leads_dashboard.php`: 5 compact KPI metric cards, stage funnel, bank login distribution, follow-ups table.
+  - `modules/leads/lead_pipeline.php`: Zoho CRM Kanban board, stage count strip, column color badges, instant filter.
+  - `modules/leads/lead_list.php`: Filter bar with 7 dropdowns, compact lead cards grid, batch selection, pagination.
+  - `modules/leads/lead_view.php`: Customer record detail view, workflow pipeline bar, ownership handover banner, 2-column detail sections, threaded notes, follow-up scheduler, sticky bottom action strip.
+  - `modules/leads/lead_insert.php`: 2-column lead creation form with datalists and clean action buttons.
+- **Database & Data Management**:
+  - `modules/database/data_management_main.php`: High density DataTables table, 4 KPI cards, edit & assign modals.
+  - `modules/database/data_management_temporary.php`: Dual-tier toolbar (bulk actions + filters), staging alert, transfer progress modals.
+  - `modules/database/upload_data.php`: Dashed dropzone, target radio pills, terms modal, KPI cards, activity log accordion.
+  - `modules/database/ViewDND.php`: DND repository with tabs (All, Main, Temp), search, restore and delete actions.
+  - `modules/database/add_single_number.php`: Standard 2-column customer entry card.
+  - `modules/database/add_update_status.php`: Side-by-side single and range update cards with recent logs table.
+  - `modules/database/maindatabase_ajax/download_bach.php` & `temporarydatabase_ajax/download_bach.php`: Multi-part CSV batch export orchestrators.
+- **Logs & Audit Trails**:
+  - `modules/logs/Reports.php`: High-density performance analytics, 5 KPI cards, date range presets, Chart.js trends, telecaller drilldown, Excel export.
+  - `modules/logs/call_history.php`: Comprehensive call logs table with audio recording playback, disposition badges, and pagination.
+  - `modules/logs/manage_activity.php`: Enterprise audit trail with multi-faceted filtering, detail inspector modal, and bulk delete.
+- **Users, Teams & Administration**:
+  - `modules/users/users_view.php`: User directory, 5 KPI cards, search toolbar, active/inactive collapsibles, Table2Excel export.
+  - `modules/users/users_add.php`: 2-column user creation and editing form with role privileges helper.
+  - `modules/users/teams_dashboard.php`: Squad directory, supervisor indicators, member inspector modal, quick reassign.
+  - `modules/users/team_members.php`: 2-column allocation hub with supervisor changes and inline team reassignment.
+  - `modules/settings/settings.php`: General settings, branding logo uploader with preview, staff breakdown.
+  - `modules/settings/permissions_manager.php`: 4-tab Access Control Hub (Role Matrix, Roles Directory, Feature Registry, User Overrides).
+  - `modules/settings/api_settings.php`: Mobile API configuration, token generator modal, database scoping, endpoint documentation guide, live traffic logs.
+  - `modules/settings/super_admin_panel.php`: 5-tab Super Admin Control Center, usage gauges, subscription plan CRUD, limit thresholds, global module master switches, limit violation logs.
+- **Verification**: Batch PHP lint across all 74 repository files (`& "C:\xampp\php\php.exe" -l`) passed with 100% zero syntax errors.
+
 ## Completed Major Fix (2026-07-21): `tn()` Safe Table Resolver
 - **Root cause of HTTP 500s**: Stale config.php on Hostinger (missing new `TBL_*` constants) + opcache. Global `mysqli_report(MYSQLI_REPORT_ERROR)` added to prevent PHP 8.2 from throwing exceptions on query failures.
 - **`tn()` function**: Defined in `config.php` — resolves table names safely via constant, falls back to a global override map. All ~40+ PHP files converted to use `tn('TBL_*')` instead of bare constants.

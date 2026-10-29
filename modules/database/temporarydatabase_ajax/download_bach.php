@@ -6,62 +6,80 @@ requirePermission('export_data');
 api_init();
 
 $csrfToken = $_SESSION['csrf_token'] ?? '';
-// === CONFIG ===
-$batchSize = 10000; // 50k rows per file (perfect balance)
-$delay = 0.1;       // small delay to prevent server overload (optional)
+$batchSize = 10000;
+$delay = 0.1;
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Export Full Database &bull; CallNow</title>
+    <title>Export Staging Database • CallNow CRM</title>
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="<?= vnd('css/bootstrap-icons.css') ?>" rel="stylesheet">
     <link href="<?= defined('APP_BASE') ? APP_BASE . '/assets/css/app-theme.css' : 'assets/css/app-theme.css' ?>" rel="stylesheet">
+    <style>
+        body { background-color: var(--crm-bg); }
+    </style>
 </head>
-<body>
+<body class="py-4">
 
-<div class="container py-5">
-    <div class="card p-5">
-        <div class="text-center mb-5">
-            <i class="bi bi-cloud-download display-1 text-primary mb-4"></i>
-            <h1 class="fw-bold">Export Full Database</h1>
-            <p class="lead text-muted">Safe & fast export in multiple CSV parts (50,000 rows each)</p>
+<div class="container" style="max-width: 900px;">
+    <div class="module-header mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-xs">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/database/data_management_temporary.php') ?>">Temporary DB</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Batch Export</li>
+                </ol>
+            </nav>
+            <h1 class="h4 fw-bold text-dark mb-0">Export Temporary Database</h1>
+            <div class="text-muted fs-xs">Segmented CSV download for high-volume lead export</div>
         </div>
-
-        <div id="exportStatus">
-            <div class="text-center">
-                <div class="spinner-border text-primary" style="width:4rem;height:4rem;" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <h4 class="mt-4">Counting total records...</h4>
-            </div>
-        </div>
-
-        <div id="progressSection" class="d-none">
-            <h5>Export Progress</h5>
-            <div class="progress mb-3">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%">0%</div>
-            </div>
-            <p class="text-muted mb-4"><span id="current">0</span> / <span id="total">0</span> records &bull; Part <span id="part">1</span></p>
-
-            <div id="filesList" class="row g-3"></div>
-        </div>
-
-        <div class="text-center mt-5">
-            <button id="startExport" class="btn btn-success btn-lg shadow-lg" disabled>
-                <i class="bi bi-play-fill"></i> Start Export Now
+        <div class="module-header-actions">
+            <button onclick="window.close()" class="btn btn-secondary btn-sm">
+                <i class="bi bi-x-lg me-1"></i> Close Window
             </button>
+        </div>
+    </div>
+
+    <div class="crm-card mb-3">
+        <div class="crm-card-body p-4 text-center">
+            <div id="exportStatus" class="py-4">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <div class="mt-2 fs-xs text-muted">Calculating total staging records...</div>
+            </div>
+
+            <div id="progressSection" class="d-none text-start">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fs-xs text-muted">Batch Export Progress</span>
+                    <span class="fs-xs fw-semibold text-dark"><span id="current">0</span> / <span id="total">0</span> rows</span>
+                </div>
+                <div class="progress mb-3" style="height: 16px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width:0%">0%</div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="fs-xs text-muted">File Part <strong id="part" class="text-dark">1</strong> (<?= number_format($batchSize) ?> rows per batch)</span>
+                    <button id="startExport" class="btn btn-primary btn-sm px-3" disabled>
+                        <i class="bi bi-play-fill me-1"></i> Begin Export
+                    </button>
+                </div>
+
+                <hr>
+
+                <div class="fs-xs fw-semibold text-dark mb-2">Generated CSV Files:</div>
+                <div id="filesList" class="row g-2"></div>
+            </div>
         </div>
     </div>
 </div>
 
-
-    <script src="<?= vnd('js/jquery.min.js') ?>"></script>
+<script src="<?= vnd('js/jquery.min.js') ?>"></script>
+<script src="<?= vnd('js/bootstrap.bundle.min.js') ?>"></script>
 
 <script>
-// Auto-start when page loads
 $(document).ready(function() {
     getTotalCount();
 });
@@ -72,7 +90,7 @@ function getTotalCount() {
     $.get('get_total_count', function(total) {
         total = parseInt(total);
         if (total === 0) {
-            $('#exportStatus').html('<div class="alert alert-warning"><strong>No data found!</strong> Your database is empty.</div>');
+            $('#exportStatus').html('<div class="alert alert-warning fs-xs mb-0"><strong>No records found!</strong> Temporary database is empty.</div>');
             return;
         }
 
@@ -85,7 +103,7 @@ function getTotalCount() {
 }
 
 $('#startExport').on('click', function() {
-    $(this).prop('disabled', true).html('<i class="spinner-border spinner-border-sm"></i> Exporting...');
+    $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Processing...');
     startExport(0);
 });
 
@@ -102,38 +120,38 @@ function startExport(offset) {
             $('#current').text(current.toLocaleString());
             $('#part').text(part);
 
-            // Add downloadable file
             const blob = b64toBlob(res.csv, 'text/csv');
             const url = URL.createObjectURL(blob);
-            const fileName = 'TBL_TEMP_part_' + part + '_(' + current.toLocaleString() + 'rows).csv';
+            const fileName = 'TempDB_part_' + part + '_(' + current.toLocaleString() + 'rows).csv';
 
             $('#filesList').append(`
                 <div class="col-md-6">
-                    <div class="file-item card p-4 text-center">
-                        <i class="bi bi-file-earmark-text display-4 text-success mb-3"></i>
-                        <h6 class="fw-bold">${fileName}</h6>
-                        <a href="${url}" download="${fileName}" class="btn btn-success btn-sm">
-                            <i class="bi bi-download"></i> Download Part ${part}
-                        </a>
-                        <small class="d-block text-muted mt-2">${res.count.toLocaleString()} rows</small>
+                    <div class="crm-card p-2 border">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="fw-bold fs-xs text-dark text-truncate" style="max-width:240px;">${fileName}</div>
+                                <div class="text-muted fs-xs">${res.count.toLocaleString()} rows</div>
+                            </div>
+                            <a href="${url}" download="${fileName}" class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
+                                <i class="bi bi-download me-1 text-primary"></i> Save
+                            </a>
+                        </div>
                     </div>
                 </div>
             `);
 
             if (current < total) {
-                setTimeout(() => startExport(offset + batchSize), 100); // small delay
+                setTimeout(() => startExport(offset + batchSize), 100);
             } else {
                 $('.progress-bar').removeClass('progress-bar-animated').addClass('bg-success');
-                $('#startExport').html('<i class="bi bi-check2-all"></i> Complete!').prop('disabled', false);
-                showToast('Success!', 'Full export completed successfully!', 'success');
+                $('#startExport').html('<i class="bi bi-check-lg me-1"></i> Completed').prop('disabled', false);
             }
         } else {
-            alert('Error: ' + res.message);
+            alert('Export Error: ' + res.message);
         }
     }, 'json');
 }
 
-// Helper: Convert base64 to Blob
 function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
     const byteCharacters = atob(b64Data);
     const byteArrays = [];
@@ -146,15 +164,6 @@ function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
         byteArrays.push(new Uint8Array(byteNumbers));
     }
     return new Blob(byteArrays, { type: contentType });
-}
-
-function showToast(title, message, type = 'success') {
-    const toast = `<div class="toast align-items-center text-white bg-${type} border-0" role="alert">
-        <div class="d-flex"><div class="toast-body"><strong>${title}</strong><br><small>${message}</small></div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
-    $('body').append(toast);
-    $('.toast').last().toast({ delay: 5000 }).toast('show');
-    setTimeout(() => $('.toast').last().remove(), 6000);
 }
 </script>
 </body>

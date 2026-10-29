@@ -54,8 +54,6 @@ if (!function_exists('ensureCallHistorySchema')) {
 }
 ensureCallHistorySchema($link);
 
-$pageTitle = 'Call History - CallNow';
-
 $sourceFilter = $_GET['source'] ?? 'all';
 $statusFilter = $_GET['status'] ?? '';
 $dateFrom = $_GET['from'] ?? '';
@@ -123,7 +121,7 @@ $countSql = "
 $countStmt = mysqli_prepare($link, $countSql);
 if ($countStmt === false) {
     $err = mysqli_error($link);
-    die('Count prepare failed: ' . htmlspecialchars($err ?: 'Unknown database error') . '<br><small>' . htmlspecialchars($countSql) . '</small>');
+    die('Count prepare failed: ' . htmlspecialchars($err ?: 'Unknown database error'));
 }
 if ($types !== '') {
     mysqli_stmt_bind_param($countStmt, $types, ...$params);
@@ -167,7 +165,7 @@ $types .= 'ii';
 $stmt = mysqli_prepare($link, $sql);
 if ($stmt === false) {
     $err = mysqli_error($link);
-    die('Prepare failed: ' . htmlspecialchars($err ?: 'Unknown database error') . '<br><small>' . htmlspecialchars($sql) . '</small>');
+    die('Prepare failed: ' . htmlspecialchars($err ?: 'Unknown database error'));
 }
 mysqli_stmt_bind_param($stmt, $types, ...$params);
 mysqli_stmt_execute($stmt);
@@ -193,9 +191,7 @@ $statusesList = [
     'Pending',
     'Dialed'
 ];
-?>
 
-<?php
 function getCallStatusBadge(string $status): string {
     $norm = strtolower(trim($status));
     switch ($norm) {
@@ -204,16 +200,16 @@ function getCallStatusBadge(string $status): string {
         case 'interested':
         case 'interested / hot':
         case 'deal converted':
-            return '<span class="ch-badge ch-badge-success"><i class="bi bi-telephone-check-fill"></i> ' . htmlspecialchars($status) . '</span>';
+            return '<span class="badge badge-success fs-xs"><i class="bi bi-telephone-check me-1"></i>' . htmlspecialchars($status) . '</span>';
         case 'not interested':
         case 'not_interested':
-            return '<span class="ch-badge" style="background:rgba(100,116,139,0.14);color:#475569;border:1px solid rgba(100,116,139,0.28);"><i class="bi bi-hand-thumbs-down-fill"></i> ' . htmlspecialchars($status) . '</span>';
+            return '<span class="badge badge-secondary fs-xs"><i class="bi bi-hand-thumbs-down me-1"></i>' . htmlspecialchars($status) . '</span>';
         case 'busy':
         case 'busy / no answer':
-            return '<span class="ch-badge ch-badge-warning"><i class="bi bi-telephone-x-fill"></i> ' . htmlspecialchars($status) . '</span>';
+            return '<span class="badge badge-warning fs-xs"><i class="bi bi-telephone-x me-1"></i>' . htmlspecialchars($status) . '</span>';
         case 'no answer':
         case 'no_answer':
-            return '<span class="ch-badge ch-badge-secondary"><i class="bi bi-telephone-minus"></i> No Answer</span>';
+            return '<span class="badge badge-secondary fs-xs"><i class="bi bi-telephone-minus me-1"></i>No Answer</span>';
         case 'do not call':
         case 'dnc':
         case 'dnd':
@@ -221,7 +217,7 @@ function getCallStatusBadge(string $status): string {
         case 'dnd requested':
         case 'do not disturb':
         case 'not_connected_dnd':
-            return '<span class="ch-badge ch-badge-danger"><i class="bi bi-slash-circle-fill"></i> ' . htmlspecialchars($status) . '</span>';
+            return '<span class="badge badge-danger fs-xs"><i class="bi bi-slash-circle me-1"></i>' . htmlspecialchars($status) . '</span>';
         case 'pending':
         case 'follow up':
         case 'follow-up':
@@ -229,229 +225,133 @@ function getCallStatusBadge(string $status): string {
         case 'callback / follow-up':
         case 'call back':
         case 'callback':
-            return '<span class="ch-badge ch-badge-info"><i class="bi bi-clock-fill"></i> ' . htmlspecialchars($status) . '</span>';
-        case 'wrong number':
-        case 'switched off':
-        case 'call cancelled':
-            return '<span class="ch-badge ch-badge-secondary"><i class="bi bi-x-circle"></i> ' . htmlspecialchars($status) . '</span>';
+            return '<span class="badge badge-info fs-xs"><i class="bi bi-clock me-1"></i>' . htmlspecialchars($status) . '</span>';
         case 'dialed':
-            return '<span class="ch-badge ch-badge-dark"><i class="bi bi-telephone-outbound-fill"></i> Dialed</span>';
+            return '<span class="badge badge-primary fs-xs"><i class="bi bi-telephone-outbound me-1"></i>Dialed</span>';
         default:
-            return '<span class="ch-badge ch-badge-neutral">' . htmlspecialchars($status) . '</span>';
+            return '<span class="badge badge-secondary fs-xs">' . htmlspecialchars($status) . '</span>';
     }
 }
 
 function getSourceBadge(string $source): string {
     switch (strtoupper($source)) {
         case 'TEMP':
-            return '<span class="badge rounded-pill bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="bi bi-table me-1"></i>Temporary</span>';
+            return '<span class="badge badge-warning fs-xs"><i class="bi bi-clock-history me-1"></i>Temporary</span>';
         case 'MAIN':
-            return '<span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="bi bi-database me-1"></i>Main DB</span>';
+            return '<span class="badge badge-primary fs-xs"><i class="bi bi-database me-1"></i>Main DB</span>';
         case 'LEADS':
-            return '<span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-bookmark-star me-1"></i>Leads</span>';
+            return '<span class="badge badge-success fs-xs"><i class="bi bi-kanban me-1"></i>Leads</span>';
         default:
-            return '<span class="badge rounded-pill bg-secondary-subtle text-secondary px-2 py-1">' . htmlspecialchars($source) . '</span>';
+            return '<span class="badge badge-secondary fs-xs">' . htmlspecialchars($source) . '</span>';
     }
 }
+
+$pageTitle = 'Call History • CallNow CRM';
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
-<?php $pageTitle = 'Call History - CallNow'; include __DIR__ . '/../../php_scripts/header.php'; ?>
-
-<style>
-/* ── Hero ───────────────────────────────────────────── */
-.ch-hero {
-    background: linear-gradient(135deg, var(--accent) 0%, #6d5dd3 55%, #8b5cf6 100%);
-    color: #ffffff !important;
-    padding: 1.6rem 0 1.4rem;
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-    box-shadow: var(--shadow-md);
-    margin-bottom: 1.5rem;
-}
-.ch-hero * { color: inherit; }
-.ch-eyebrow {
-    font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
-    color: rgba(255,255,255,.85) !important; font-weight: 600;
-}
-.ch-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; margin: .15rem 0 .25rem; color: #ffffff !important; }
-.ch-sub { font-size: .88rem; color: rgba(255,255,255,.9) !important; margin: 0; }
-.ch-stat-badge {
-    background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.25);
-    border-radius: var(--radius-lg); padding: .45rem .95rem; text-align: center;
-    backdrop-filter: blur(6px);
-}
-.ch-stat-num { display: block; font-size: 1.25rem; font-weight: 700; line-height: 1.2; color: #ffffff !important; }
-.ch-stat-lbl { display: block; font-size: .65rem; text-transform: uppercase; letter-spacing: .04em; color: rgba(255,255,255,.85) !important; }
-
-/* ── Filter Card ────────────────────────────────────── */
-.ch-filter-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    padding: 1.15rem 1.25rem;
-    margin-bottom: 1.5rem;
-}
-.ch-filter-card .form-label {
-    font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
-    color: var(--ink-soft); margin-bottom: .25rem;
-}
-.ch-filter-card .form-select, .ch-filter-card .form-control {
-    font-size: .85rem; border-radius: var(--radius);
-}
-
-/* ── Table Card ─────────────────────────────────────── */
-.ch-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-    margin-bottom: 2rem;
-}
-.ch-card-header {
-    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem;
-    padding: 1rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--border);
-}
-.ch-card-title {
-    font-weight: 600; font-size: .95rem; margin: 0; display: flex; align-items: center; gap: .5rem;
-}
-.ch-table { margin-bottom: 0; }
-.ch-table th {
-    font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
-    color: var(--ink-soft); background: var(--surface-2); font-weight: 600; white-space: nowrap;
-    padding: .85rem 1rem; border-bottom: 1px solid var(--border);
-}
-.ch-table td {
-    padding: .85rem 1rem; vertical-align: middle; border-bottom: 1px solid var(--border);
-    font-size: .85rem;
-}
-.ch-table tr:hover td {
-    background: var(--surface-2);
-}
-
-/* ── Badges & Details ───────────────────────────────── */
-.ch-badge {
-    display: inline-flex; align-items: center; gap: .35rem;
-    font-size: .75rem; font-weight: 600; padding: .3rem .65rem;
-    border-radius: 999px; white-space: nowrap;
-}
-.ch-badge-success { background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16, 185, 129, 0.28); }
-.ch-badge-warning { background: rgba(245, 158, 11, 0.12); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.28); }
-.ch-badge-danger  { background: rgba(239, 68, 68, 0.12); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.28); }
-.ch-badge-info    { background: rgba(14, 165, 233, 0.12); color: #0284c7; border: 1px solid rgba(14, 165, 233, 0.28); }
-.ch-badge-secondary { background: rgba(100, 116, 139, 0.12); color: #475569; border: 1px solid rgba(100, 116, 139, 0.28); }
-.ch-badge-dark    { background: rgba(99, 102, 241, 0.12); color: #4f46e5; border: 1px solid rgba(99, 102, 241, 0.28); }
-.ch-badge-neutral { background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--border); }
-
-.ch-dur-pill {
-    display: inline-flex; align-items: center; gap: .3rem;
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: .2rem .55rem; font-size: .78rem; font-weight: 600; color: var(--ink);
-}
-
-.ch-avatar {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--accent); color: #ffffff; display: flex;
-    align-items: center; justify-content: center; font-weight: 700; font-size: .72rem; flex-shrink: 0;
-}
-
-.ch-empty { text-align: center; padding: 3.5rem 1rem; color: var(--ink-soft); }
-.ch-empty > i { font-size: 2.8rem; opacity: .35; display: block; margin-bottom: .75rem; color: var(--accent); }
-</style>
-
-<div class="ch-hero">
-    <div class="container">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-                <div class="ch-eyebrow"><i class="bi bi-clock-history"></i> Audit Trail</div>
-                <h1 class="ch-title"><i class="bi bi-telephone-inbound me-2"></i>Call History</h1>
-                <div class="ch-sub">Real-time log of every call dialed from mobile app &amp; web CRM</div>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <div class="ch-stat-badge">
-                    <span class="ch-stat-num"><?= number_format($totalRows) ?></span>
-                    <span class="ch-stat-lbl">Total Logs</span>
-                </div>
-                <a href="<?= htmlspecialchars(url('modules/logs/Reports.php')) ?>" class="btn btn-light btn-sm px-3 fw-semibold shadow-sm">
-                    <i class="bi bi-bar-chart-fill me-1"></i> Reports Dashboard
-                </a>
-            </div>
+<div class="container-fluid px-3 py-3">
+    <!-- Module Header -->
+    <div class="module-header mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-xs">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Activities & Reports</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Call History</li>
+                </ol>
+            </nav>
+            <h1 class="h4 fw-bold text-dark mb-0">Call History & Audit Trail</h1>
+            <div class="text-muted fs-xs">Centralized audit trail of every outbound phone interaction logged via mobile or web CRM</div>
+        </div>
+        <div class="module-header-actions">
+            <a href="<?= htmlspecialchars(url('modules/logs/Reports.php')) ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-bar-chart me-1"></i> Performance Reports
+            </a>
         </div>
     </div>
-</div>
 
-<div class="container pb-5">
-    <!-- Filter Toolbar -->
-    <div class="ch-filter-card">
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-2 col-sm-6">
-                <label class="form-label d-block"><i class="bi bi-diagram-3 me-1"></i>Source</label>
-                <select name="source" class="form-select">
-                    <option value="all" <?= $sourceFilter==='all'?'selected':'' ?>>All Sources</option>
-                    <option value="TEMP" <?= $sourceFilter==='TEMP'?'selected':'' ?>>Temporary DB</option>
-                    <option value="MAIN" <?= $sourceFilter==='MAIN'?'selected':'' ?>>Main DB</option>
-                    <option value="LEADS" <?= $sourceFilter==='LEADS'?'selected':'' ?>>Leads</option>
-                </select>
-            </div>
-            <div class="col-md-2 col-sm-6">
-                <label class="form-label d-block"><i class="bi bi-flag me-1"></i>Status</label>
-                <select name="status" class="form-select">
-                    <option value="">All Statuses</option>
-                    <?php foreach ($statusesList as $s): ?>
-                        <option value="<?= htmlspecialchars($s) ?>" <?= $statusFilter===$s?'selected':'' ?>><?= htmlspecialchars($s) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-2 col-sm-6">
-                <label class="form-label d-block"><i class="bi bi-calendar-event me-1"></i>From Date</label>
-                <input type="date" name="from" class="form-control" value="<?= htmlspecialchars($dateFrom) ?>">
-            </div>
-            <div class="col-md-2 col-sm-6">
-                <label class="form-label d-block"><i class="bi bi-calendar-check me-1"></i>To Date</label>
-                <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($dateTo) ?>">
-            </div>
-            <div class="col-md-4 col-sm-12">
-                <label class="form-label d-block"><i class="bi bi-search me-1"></i>Search</label>
-                <input type="text" name="search" class="form-control" placeholder="Customer name / mobile / notes..." value="<?= htmlspecialchars($search) ?>">
-            </div>
-            <div class="col-12 d-flex justify-content-end gap-2 pt-1">
-                <button type="submit" class="btn btn-primary btn-sm px-4"><i class="bi bi-funnel-fill me-1"></i> Apply Filters</button>
-                <a href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="btn btn-outline-secondary btn-sm px-3"><i class="bi bi-arrow-counterclockwise me-1"></i> Reset</a>
-            </div>
-        </form>
+    <!-- Filter Card -->
+    <div class="crm-card mb-3">
+        <div class="crm-card-body py-2">
+            <form method="GET" class="row g-2 align-items-end">
+                <div class="col-md-2 col-6">
+                    <label class="form-label fs-xs mb-1" for="source">Source DB</label>
+                    <select name="source" id="source" class="form-select form-select-sm">
+                        <option value="all" <?= $sourceFilter==='all'?'selected':'' ?>>All Sources</option>
+                        <option value="TEMP" <?= $sourceFilter==='TEMP'?'selected':'' ?>>Temporary DB</option>
+                        <option value="MAIN" <?= $sourceFilter==='MAIN'?'selected':'' ?>>Main DB</option>
+                        <option value="LEADS" <?= $sourceFilter==='LEADS'?'selected':'' ?>>Leads</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label fs-xs mb-1" for="status">Call Status</label>
+                    <select name="status" id="status" class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        <?php foreach ($statusesList as $s): ?>
+                            <option value="<?= htmlspecialchars($s) ?>" <?= $statusFilter===$s?'selected':'' ?>><?= htmlspecialchars($s) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label fs-xs mb-1" for="from">From Date</label>
+                    <input type="date" name="from" id="from" class="form-control form-control-sm" value="<?= htmlspecialchars($dateFrom) ?>">
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label fs-xs mb-1" for="to">To Date</label>
+                    <input type="date" name="to" id="to" class="form-control form-control-sm" value="<?= htmlspecialchars($dateTo) ?>">
+                </div>
+                <div class="col-md-3 col-12">
+                    <label class="form-label fs-xs mb-1" for="search">Customer / Notes</label>
+                    <input type="text" name="search" id="search" class="form-control form-control-sm" placeholder="Name, mobile, or note..." value="<?= htmlspecialchars($search) ?>">
+                </div>
+                <div class="col-md-1 col-6">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-funnel me-1"></i> Filter
+                    </button>
+                </div>
+                <?php if ($sourceFilter !== 'all' || $statusFilter !== '' || $dateFrom || $dateTo || $search): ?>
+                    <div class="col-md-1 col-6">
+                        <a href="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="btn btn-secondary btn-sm w-100" title="Reset Filters">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </form>
+        </div>
     </div>
 
     <!-- Table Card -->
-    <div class="ch-card">
-        <div class="ch-card-header">
-            <h5 class="ch-card-title">
-                <i class="bi bi-table text-primary"></i> Call Records
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill ms-2"><?= number_format($totalRows) ?> total</span>
-            </h5>
-            <div class="text-muted small">
-                Showing <?= number_format(empty($rows) ? 0 : $offset + 1) ?> – <?= number_format(min($offset + $limit, $totalRows)) ?>
+    <div class="crm-card">
+        <div class="crm-card-header">
+            <div class="crm-card-title">
+                <i class="bi bi-telephone-inbound text-primary me-2"></i>Call Activity Logs
+                <span class="badge badge-secondary fs-xs ms-2"><?= number_format($totalRows) ?> total</span>
+            </div>
+            <div class="fs-xs text-muted">
+                Showing <?= number_format(empty($rows) ? 0 : $offset + 1) ?>–<?= number_format(min($offset + $limit, $totalRows)) ?>
             </div>
         </div>
-        <div class="card-body p-0">
+        <div class="crm-card-body p-0">
             <?php if (empty($rows)): ?>
-                <div class="ch-empty">
-                    <i class="bi bi-inbox"></i>
-                    <h5 class="mt-2 fw-semibold">No call records found</h5>
-                    <p class="text-muted mb-0">Try adjusting your filters or search keywords.</p>
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox text-muted fs-1 mb-2"></i>
+                    <h6 class="fw-bold text-dark">No call logs found</h6>
+                    <p class="fs-xs text-muted mb-0">Try clearing filters or checking other dates.</p>
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle ch-table">
+                    <table class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th style="width:14%;">Date &amp; Time</th>
-                                <th style="width:20%;">Customer / Contact</th>
+                                <th style="width:14%;">Date & Time</th>
+                                <th style="width:22%;">Customer / Contact</th>
                                 <th style="width:10%;">Source</th>
-                                <th style="width:14%;">Call Status</th>
+                                <th style="width:14%;">Status</th>
                                 <th style="width:10%;">Duration</th>
                                 <th style="width:14%;">Telecaller</th>
                                 <th style="width:10%;">Follow-up</th>
-                                <th style="width:8%;">Recording</th>
+                                <th style="width:6%;">Audio</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -459,24 +359,23 @@ function getSourceBadge(string $source): string {
                                 $callTimeVal = $r['call_time'] ?? $r['created_at'];
                                 $formattedDate = $callTimeVal ? date('d M Y', strtotime($callTimeVal)) : '—';
                                 $formattedTime = $callTimeVal ? date('h:i A', strtotime($callTimeVal)) : '';
-                                $userInitial = strtoupper(substr($r['user_name'] ?? '?', 0, 2));
                             ?>
                                 <tr>
                                     <td>
-                                        <div class="fw-semibold text-nowrap"><?= htmlspecialchars($formattedDate) ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($formattedTime) ?></small>
+                                        <div class="fw-semibold text-dark fs-xs"><?= htmlspecialchars($formattedDate) ?></div>
+                                        <small class="text-muted fs-xs"><?= htmlspecialchars($formattedTime) ?></small>
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($r['cust_name'] ?: ('Record #' . $r['record_id'])) ?></div>
+                                        <strong class="text-dark fs-xs"><?= htmlspecialchars($r['cust_name'] ?: ('Record #' . $r['record_id'])) ?></strong>
                                         <?php if ($r['cust_mobile']): ?>
-                                            <div class="small">
-                                                <a href="tel:<?= urlencode($r['cust_mobile']) ?>" class="text-decoration-none text-muted">
-                                                    <i class="bi bi-telephone me-1 text-primary"></i><?= htmlspecialchars($r['cust_mobile']) ?>
+                                            <div class="fs-xs">
+                                                <a href="tel:<?= urlencode($r['cust_mobile']) ?>" class="text-decoration-none font-monospace text-muted">
+                                                    <i class="bi bi-telephone text-primary me-1"></i><?= htmlspecialchars($r['cust_mobile']) ?>
                                                 </a>
                                             </div>
                                         <?php endif; ?>
                                         <?php if ($r['cust_company']): ?>
-                                            <div class="small text-muted text-truncate" style="max-width:200px;">
+                                            <div class="fs-xs text-muted text-truncate" style="max-width:200px;">
                                                 <i class="bi bi-building me-1"></i><?= htmlspecialchars($r['cust_company']) ?>
                                             </div>
                                         <?php endif; ?>
@@ -487,45 +386,47 @@ function getSourceBadge(string $source): string {
                                     <td>
                                         <?= getCallStatusBadge($r['call_status'] ?? 'Connected') ?>
                                         <?php if ($r['notes']): ?>
-                                            <div class="text-muted small mt-1 text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($r['notes']) ?>">
-                                                <i class="bi bi-card-text me-1 text-muted"></i><?= htmlspecialchars($r['notes']) ?>
+                                            <div class="text-muted fs-xs mt-1 text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($r['notes']) ?>">
+                                                <i class="bi bi-chat-left-text me-1"></i><?= htmlspecialchars($r['notes']) ?>
                                             </div>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if ((int)$r['call_duration'] > 0): ?>
-                                            <span class="ch-dur-pill">
-                                                <i class="bi bi-stopwatch text-primary"></i>
+                                            <span class="badge badge-secondary fs-xs">
+                                                <i class="bi bi-stopwatch me-1"></i>
                                                 <?= (int)$r['call_duration'] >= 60 ? floor($r['call_duration']/60) . 'm ' . ($r['call_duration']%60) . 's' : $r['call_duration'] . 's' ?>
                                             </span>
                                         <?php else: ?>
-                                            <span class="text-muted small">0s</span>
+                                            <span class="text-muted fs-xs">0s</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
-                                            <div class="ch-avatar"><?= $userInitial ?></div>
-                                            <div class="fw-semibold small text-truncate" style="max-width: 120px;" title="<?= htmlspecialchars($r['user_name'] ?? '—') ?>">
+                                            <div style="width:26px; height:26px; font-size:10px; background:#e2e8f0; color:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">
+                                                <?= strtoupper(substr($r['user_name'] ?? '?', 0, 2)) ?>
+                                            </div>
+                                            <div class="fw-semibold fs-xs text-truncate" style="max-width: 120px;" title="<?= htmlspecialchars($r['user_name'] ?? '—') ?>">
                                                 <?= htmlspecialchars($r['user_name'] ?? '—') ?>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
                                         <?php if ($r['next_followup']): ?>
-                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                                            <span class="badge badge-warning fs-xs">
                                                 <i class="bi bi-calendar-event me-1"></i><?= date('d M Y', strtotime($r['next_followup'])) ?>
                                             </span>
                                         <?php else: ?>
-                                            <span class="text-muted small">—</span>
+                                            <span class="text-muted fs-xs">—</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if ($r['recording_url']): ?>
-                                            <a href="<?= htmlspecialchars($r['recording_url']) ?>" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill px-2 py-0 text-nowrap" title="Play Recording">
-                                                <i class="bi bi-play-circle me-1"></i>Play
+                                            <a href="<?= htmlspecialchars($r['recording_url']) ?>" target="_blank" class="btn btn-secondary btn-sm py-1 px-2 fs-xs" title="Play Recording">
+                                                <i class="bi bi-play-circle text-primary"></i>
                                             </a>
                                         <?php else: ?>
-                                            <span class="text-muted small">—</span>
+                                            <span class="text-muted fs-xs">—</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -533,46 +434,45 @@ function getSourceBadge(string $source): string {
                         </tbody>
                     </table>
                 </div>
+
                 <?php if ($totalPages > 1): ?>
-                <div class="d-flex justify-content-between align-items-center p-3 border-top">
-                    <span class="text-muted small">
-                        Showing <?= number_format($offset + 1) ?> – <?= number_format(min($offset + $limit, $totalRows)) ?> of <?= number_format($totalRows) ?>
-                    </span>
-                    <nav aria-label="Call history pagination">
-                        <ul class="pagination pagination-sm mb-0">
-                            <?php if ($page > 1): ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">
-                                        <i class="bi bi-chevron-left"></i> Prev
-                                    </a>
-                                </li>
-                            <?php else: ?>
-                                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i> Prev</span></li>
-                            <?php endif; ?>
+                    <div class="crm-card-footer d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-2 border-top">
+                        <span class="text-muted fs-xs">
+                            Showing <?= number_format($offset + 1) ?>–<?= number_format(min($offset + $limit, $totalRows)) ?> of <?= number_format($totalRows) ?>
+                        </span>
+                        <nav aria-label="Call history pagination">
+                            <ul class="pagination pagination-sm mb-0">
+                                <?php if ($page > 1): ?>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">
+                                            &laquo;
+                                        </a>
+                                    </li>
+                                <?php else: ?>
+                                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                                <?php endif; ?>
 
-                            <li class="page-item active">
-                                <span class="page-link"><?= $page ?> / <?= $totalPages ?></span>
-                            </li>
-
-                            <?php if ($page < $totalPages): ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">
-                                        Next <i class="bi bi-chevron-right"></i>
-                                    </a>
+                                <li class="page-item active">
+                                    <span class="page-link"><?= $page ?> / <?= $totalPages ?></span>
                                 </li>
-                            <?php else: ?>
-                                <li class="page-item disabled"><span class="page-link">Next <i class="bi bi-chevron-right"></i></span></li>
-                            <?php endif; ?>
-                        </ul>
-                    </nav>
-                </div>
+
+                                <?php if ($page < $totalPages): ?>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">
+                                            &raquo;
+                                        </a>
+                                    </li>
+                                <?php else: ?>
+                                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                                <?php endif; ?>
+                            </ul>
+                        </nav>
+                    </div>
                 <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
 </div>
-
-<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script>
 (function() {
@@ -585,3 +485,5 @@ function getSourceBadge(string $source): string {
     setInterval(keepAlive, 300000);
 })();
 </script>
+
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

@@ -114,7 +114,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             } else {
                                 recordFailedAttemptWeb($link, 'forgot_password', $username);
                                 $ErrorMessage = "Unable to reset the password with the provided details.";
-                                $success = false;
+                                self: $success = false;
                             }
                         } else {
                             $ErrorMessage = "Oops! Something went wrong. Please try again later.";
@@ -136,215 +136,95 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CallNow | Reset Password</title>
-    
-    <!-- Bootstrap 5 CSS -->
+    <title>Reset Password &bull; CallNow CRM</title>
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
+    <link href="<?= vnd('css/bootstrap-icons.css') ?>" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
-    
-    <link rel="stylesheet" href="<?= vnd('css/bootstrap-icons.css') ?>">
-    
-    <style>
-        .login-header {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            color: #fff;
-            padding: 1.25rem 1rem;
-            text-align: center;
-        }
-        .login-header h1 { color: #fff; font-size: 1.125rem; margin: 0.5rem 0 0.25rem; }
-        .login-header .bi { font-size: 2rem; }
-        .login-header p { opacity: 0.9; font-size: 0.8rem; margin: 0; }
-        .instructions {
-            background-color: var(--surface-2);
-            border-radius: var(--radius-lg);
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid var(--accent);
-        }
-        .instructions h6 { color: var(--accent); font-weight: 600; margin-bottom: 0.5rem; }
-        .instructions ul { margin-bottom: 0; padding-left: 1rem; }
-        .instructions li { font-size: 0.85rem; margin-bottom: 0.25rem; }
-        .alert-custom {
-            border: none;
-            border-left: 4px solid;
-            border-radius: 6px;
-            padding: 1rem;
-            font-size: 0.95rem;
-        }
-        .alert-success-custom {
-            background-color: var(--success-soft);
-            border-left-color: var(--success);
-            color: var(--success);
-        }
-        .alert-danger-custom {
-            background-color: var(--danger-soft);
-            border-left-color: var(--danger);
-            color: var(--danger);
-        }
-    </style>
 </head>
-
-<body>
+<body class="bg-app">
     <div class="login-shell">
-        <div class="login-card" style="max-width:450px">
-            <!-- Header -->
-            <div class="login-header">
-                <i class="bi bi-key"></i>
-                <h1>Reset Password</h1>
-                <p>CallNow Account Recovery</p>
+        <div class="login-card" style="max-width:420px;">
+            <div class="login-brand">
+                <span class="brand-mark"><i class="bi bi-key-fill"></i></span>
+                <span class="brand-text">CallNow CRM</span>
             </div>
-            
-            <!-- Reset Form -->
-            <div class="p-4">
-                <?php if($success && !empty($ErrorMessage)): ?>
-                    <!-- Success Message -->
-                    <div class="alert alert-success-custom alert-custom fade-in-up mb-4" role="alert">
-                        <div class="d-flex">
-                            <div class="me-3">
-                                <i class="bi bi-check-circle" style="font-size: 1.5rem;"></i>
-                            </div>
-                            <div>
-                                <h5 class="alert-heading mb-2">Password Reset Successful!</h5>
-                                <p class="mb-0"><?php echo $ErrorMessage; ?></p>
-                                <?php if(strpos($ErrorMessage, 'Your new password is:') !== false): ?>
-                                    <div class="mt-3 p-2 bg-light rounded">
-                                        <small class="text-muted d-block">Please save this password securely:</small>
-                                        <code class="d-block mt-1 p-2 bg-white rounded border"><?php echo htmlspecialchars($NewPassword); ?></code>
-                                    </div>
-                                <?php endif; ?>
-                                <div class="mt-3">
-                                    <a href="index" class="btn btn-primary w-100">
-                                        <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <!-- Instructions -->
-                    <div class="instructions mb-4">
-                        <h6><i class="bi bi-info-circle me-2"></i>Password Reset Instructions</h6>
-                        <ul>
-                            <li>Enter your registered company name</li>
-                            <li>Enter your registered email address</li>
-                            <li>A new password will be generated and sent to your email</li>
-                            <li>Login with the new password and change it immediately</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Reset Form -->
-                    <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        <!-- Company Name -->
-                        <div class="mb-4">
-                            <label for="company" class="form-label">Company Name</label>
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="bi bi-building"></i>
-                                </span>
-                                <input 
-                                    type="text" 
-                                    id="company" 
-                                    class="form-control" 
-                                    name="CompanyName" 
-                                    placeholder="Enter your registered company name" 
-                                    required
-                                    value="<?php echo isset($_POST['CompanyName']) ? htmlspecialchars($_POST['CompanyName']) : ''; ?>"
-                                >
-                            </div>
-                        </div>
-                        
-                        <!-- Email Address -->
-                        <div class="mb-4">
-                            <label for="username" class="form-label">Email Address</label>
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="bi bi-envelope"></i>
-                                </span>
-                                <input 
-                                    type="email" 
-                                    id="username" 
-                                    class="form-control" 
-                                    name="username" 
-                                    placeholder="Enter your registered email address" 
-                                    required
-                                    value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>"
-                                >
-                            </div>
-                        </div>
-                        
-                        <!-- Error Message -->
-                        <?php if(!empty($ErrorMessage) && !$success): ?>
-                            <div class="alert alert-danger-custom alert-custom mb-4 fade-in-up" role="alert">
-                                <div class="d-flex">
-                                    <div class="me-3">
-                                        <i class="bi bi-exclamation-triangle" style="font-size: 1.5rem;"></i>
-                                    </div>
-                                    <div>
-                                        <h5 class="alert-heading mb-1">Unable to Reset Password</h5>
-                                        <p class="mb-0"><?php echo $ErrorMessage; ?></p>
-                                    </div>
-                                </div>
+
+            <h1 class="login-title">Reset Your Password</h1>
+            <p class="login-subtitle">Enter your organization credentials to recover your account</p>
+
+            <?php if($success && !empty($ErrorMessage)): ?>
+                <div class="alert alert-success d-flex align-items-start gap-2 mb-3" role="alert">
+                    <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                    <div>
+                        <div class="fw-semibold">Password Reset Successful</div>
+                        <div class="small mt-1"><?= $ErrorMessage ?></div>
+                        <?php if(strpos($ErrorMessage, 'Your new password is:') !== false): ?>
+                            <div class="mt-2 p-2 bg-white rounded border">
+                                <code class="fw-bold fs-6 text-dark"><?= htmlspecialchars($NewPassword) ?></code>
                             </div>
                         <?php endif; ?>
-                        
-                        <!-- Submit Button -->
-                        <div class="d-grid mb-3">
-                            <button type="submit" class="btn btn-primary btn-lg w-100">
-                                <i class="bi bi-arrow-repeat me-2"></i>Reset Password
-                            </button>
-                        </div>
-                        
-                        <!-- Back to Login -->
-                        <div class="d-grid">
-                            <a href="index" class="btn btn-secondary w-100">
-                                <i class="bi bi-arrow-left me-2"></i>Back to Login
-                            </a>
-                        </div>
-                    </form>
+                    </div>
+                </div>
+                <div class="d-grid mt-3">
+                    <a href="index" class="btn btn-primary">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Proceed to Login
+                    </a>
+                </div>
+            <?php else: ?>
+                <div class="p-3 border rounded bg-subtle mb-3 small">
+                    <div class="fw-semibold text-dark mb-1"><i class="bi bi-info-circle text-primary me-1"></i>Account Verification</div>
+                    <div class="text-secondary">Enter your registered company name and login email. Your credentials will be verified against system records.</div>
+                </div>
+
+                <?php if(!empty($ErrorMessage) && !$success): ?>
+                    <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        <?= htmlspecialchars($ErrorMessage, ENT_QUOTES, 'UTF-8') ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                 <?php endif; ?>
-            </div>
+
+                <form action="<?= htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post" novalidate>
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    
+                    <div class="mb-3">
+                        <label for="company" class="form-label">Company Name <span class="req">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-building"></i></span>
+                            <input type="text" id="company" class="form-control" name="CompanyName" 
+                                   placeholder="Registered company name" required
+                                   value="<?= isset($_POST['CompanyName']) ? htmlspecialchars($_POST['CompanyName']) : ''; ?>">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Email Address <span class="req">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                            <input type="email" id="username" class="form-control" name="username" 
+                                   placeholder="registered@company.com" required
+                                   value="<?= isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-arrow-repeat me-1"></i> Generate New Password
+                        </button>
+                        <a href="index" class="btn btn-secondary">
+                            Back to Sign In
+                        </a>
+                    </div>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
-    
-    <!-- Footer -->
-    <footer class="app-footer">
-        <div class="container text-center">
-            <p class="mb-0">
-                Copyright &copy; <span class="text-primary fw-semibold">Sangam Mahale</span> 
-                <script>document.write(new Date().getFullYear())</script>
-            </p>
-            <p class="mb-0 small mt-1">CallNow V5.00</p>
-        </div>
-    </footer>
-    
-    <!-- Bootstrap JS Bundle with Popper -->
+
     <script src="<?= vnd('js/bootstrap.bundle.min.js') ?>"></script>
-    
-    <!-- Custom JS -->
-    <script>
-        // Auto-hide alerts after 8 seconds
-        document.addEventListener('DOMContentLoaded', function() {
-            const alerts = document.querySelectorAll('.alert-custom');
-            alerts.forEach(function(alert) {
-                setTimeout(function() {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                }, 8000);
-            });
-            
-            // Focus on first input field
-            const companyInput = document.getElementById('company');
-            if (companyInput) {
-                companyInput.focus();
-            }
-        });
-    </script>
 </body>
 </html>

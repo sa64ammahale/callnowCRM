@@ -19,7 +19,7 @@ $search_name = trim($_GET['search_name'] ?? '');
 $filter_role = $_GET['role'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 
-if ($_POST['action'] === 'assign_member') {
+if (($_POST['action'] ?? '') === 'assign_member') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $msg = "Invalid session token"; $msg_type = "danger";
     } else {
@@ -47,15 +47,15 @@ if ($_POST['action'] === 'assign_member') {
                         : $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = ? WHERE ID = ?");
                     if ($team_id === null) $upd->bind_param("i", $user_id);
                     else $upd->bind_param("ii", $team_id, $user_id);
-                    if ($upd->execute()) { $msg = "Member assignment updated."; $msg_type = "success"; }
-                    else { $msg = "Failed to update."; $msg_type = "danger"; }
+                    if ($upd->execute()) { $msg = "Member assignment updated successfully."; $msg_type = "success"; }
+                    else { $msg = "Failed to update team assignment."; $msg_type = "danger"; }
                 }
             }
         }
     }
 }
 
-if ($_POST['action'] === 'change_supervisor') {
+if (($_POST['action'] ?? '') === 'change_supervisor') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $msg = "Invalid session token"; $msg_type = "danger";
     } else {
@@ -72,7 +72,7 @@ if ($_POST['action'] === 'change_supervisor') {
                     $checkTeam = $link->prepare("SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = ? AND ID != ? LIMIT 1");
                     $checkTeam->bind_param("ii", $supervisor_id, $team_id); $checkTeam->execute();
                     $existing = $checkTeam->get_result()->fetch_assoc();
-                    if ($existing) { $msg = "Supervisor already assigned to \"{$existing['NAME']}\"."; $msg_type = "danger"; }
+                    if ($existing) { $msg = "Supervisor already assigned to team \"{$existing['NAME']}\"."; $msg_type = "danger"; }
                 }
             }
             if (empty($msg)) {
@@ -90,28 +90,28 @@ if ($_POST['action'] === 'change_supervisor') {
                         $upd = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = ? WHERE ID = ?");
                         $upd->bind_param("ii", $team_id, $supervisor_id); $upd->execute();
                     }
-                    $msg = "Supervisor updated."; $msg_type = "success";
+                    $msg = "Supervisor updated successfully."; $msg_type = "success";
                 } else { $msg = "Failed to update supervisor."; $msg_type = "danger"; }
             }
         }
     }
 }
 
-// ─── Fetch data ───
+// Fetch teams
 if (isAdmin()) {
-    $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
+    $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
         FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID ORDER BY t.NAME";
 } elseif (isManager()) {
     $ids_str = implode(',', array_map('intval', $managerTeamIds));
-    $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
+    $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
         FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID IN ($ids_str) ORDER BY t.NAME";
 } else { // Supervisor
-    $TBL_TEAMS_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
+    $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
         FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID = " . (int)USER_TEAM_ID . " ORDER BY t.NAME";
 }
-$TBL_TEAMS = mysqli_fetch_all(mysqli_query($link, $TBL_TEAMS_sql), MYSQLI_ASSOC);
+$teamsList = mysqli_fetch_all(mysqli_query($link, $teams_sql), MYSQLI_ASSOC);
 
 $supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY NAME"), MYSQLI_ASSOC);
 
@@ -119,7 +119,6 @@ $supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn
 $memberCounts = [];
 $mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IS NOT NULL AND ROLE != 'Super Admin' GROUP BY TEAM_ID");
 if ($mc) while ($m = mysqli_fetch_assoc($mc)) $memberCounts[(int)$m['TEAM_ID']] = (int)$m['cnt'];
-$totalMembers = 0;
 
 $where = '';
 if (isAdmin() || isSuperAdmin()) {
@@ -135,204 +134,144 @@ if ($filter_team_id > 0) { $where .= " AND u.TEAM_ID = ?"; $types .= 'i'; $param
 if ($search_name !== '') { $where .= " AND u.NAME LIKE ?"; $types .= 's'; $params[] = "%$search_name%"; }
 if ($filter_role !== '') { $where .= " AND u.ROLE = ?"; $types .= 's'; $params[] = $filter_role; }
 if ($filter_status !== '') { $where .= " AND u.STATUS = ?"; $types .= 's'; $params[] = $filter_status; }
-$TBL_USERS_sql = "SELECT u.ID, u.NAME, u.MOBILE, u.LOGIN_ID, u.ROLE, u.STATUS, u.TEAM_ID, t.NAME AS TEAM_NAME
+$users_sql = "SELECT u.ID, u.NAME, u.MOBILE, u.LOGIN_ID, u.ROLE, u.STATUS, u.TEAM_ID, t.NAME AS TEAM_NAME
     FROM " . tn('TBL_USERS') . " u LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE $where AND u.ROLE != 'Super Admin' ORDER BY t.NAME, u.NAME";
-$stmt = $link->prepare($TBL_USERS_sql);
+$stmt = $link->prepare($users_sql);
 if ($types !== '') $stmt->bind_param($types, ...$params);
 $stmt->execute();
-$TBL_USERS_res = $stmt->get_result();
-$TBL_USERSList = $TBL_USERS_res->fetch_all(MYSQLI_ASSOC);
-$totalMembers = count($TBL_USERSList);
+$usersRes = $stmt->get_result();
+$membersList = $usersRes->fetch_all(MYSQLI_ASSOC);
+$totalMembers = count($membersList);
 
 $unassignedCount = 0;
-$TBL_TEAMSupervisedCount = 0;
-foreach ($TBL_TEAMS as $t) { if ($t['SUPERVISOR_ID']) $TBL_TEAMSupervisedCount++; }
-foreach ($TBL_USERSList as $u) { if (!$u['TEAM_ID']) $unassignedCount++; }
+$teamSupervisedCount = 0;
+foreach ($teamsList as $t) { if ($t['SUPERVISOR_ID']) $teamSupervisedCount++; }
+foreach ($membersList as $u) { if (!$u['TEAM_ID']) $unassignedCount++; }
 
 // Role description lookup
 $roleDesc = [];
 $rd = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES'));
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 ?>
-<?php $pageTitle = 'Team Members - CallNow'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Team Members - CallNow CRM'; include '../../php_scripts/header.php'; ?>
 
-<style>
-:root {
-    --tm-accent: var(--accent);
-    --tm-accent-dark: var(--accent-hover, #4f46e5);
-    --tm-ink: #1e1b4b;
-    --tm-ink-soft: #6b6890;
-    --tm-soft: #f0f2ff;
-    --tm-border: #e2e4f0;
-    --tm-success: #10b981;
-    --tm-warning: #f59e0b;
-    --tm-danger: #ef4444;
-}
+<div class="container-fluid px-3 py-3">
 
-.tm-header {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-    border-radius: 1rem; padding: 1.5rem 2rem; margin-bottom: 1.5rem;
-    position: relative; overflow: hidden;
-}
-.tm-header::before {
-    content: ''; position: absolute; inset: 0;
-    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    opacity: 0.3;
-}
-.tm-header-content { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-.tm-header-left h1 { font-size: 1.35rem; font-weight: 700; color: #fff; margin: 0 0 0.2rem 0; letter-spacing: -0.02em; display: flex; align-items: center; gap: 0.5rem; }
-.tm-header-left h1 i { font-size: 1.4rem; }
-.tm-header-left p { color: rgba(255,255,255,0.7); font-size: 0.8125rem; margin: 0; }
-.tm-header-actions { display: flex; gap: 0.5rem; }
-.tm-header-actions .tm-btn-glass {
-    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
-    color: #fff; backdrop-filter: blur(4px); font-size: 0.75rem; padding: 0.4rem 0.9rem;
-    border-radius: 0.5rem; transition: all 0.15s ease; text-decoration: none; display: flex; align-items: center; gap: 0.35rem;
-}
-.tm-header-actions .tm-btn-glass:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.35); color: #fff; transform: translateY(-1px); }
-
-.tm-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
-.tm-stat-card { background: var(--tm-soft); border: 1px solid var(--tm-border); border-radius: 0.75rem; padding: 0.875rem 1.125rem; }
-.tm-stat-card .num { font-size: 1.35rem; font-weight: 700; color: var(--tm-ink); line-height: 1.2; }
-.tm-stat-card .lbl { font-size: 0.7rem; color: var(--tm-ink-soft); margin: 0; }
-.tm-stat-card .num i { font-size: 0.9rem; margin-right: 0.25rem; }
-
-.tm-card { background: #fff; border: 1px solid var(--tm-border); border-radius: 0.875rem; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
-.tm-card-body { padding: 1.25rem 1.5rem; }
-
-.tm-alert { border-radius: 0.625rem; font-size: 0.8125rem; padding: 0.65rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-
-.tm-label { font-size: 0.7rem; font-weight: 600; color: var(--tm-ink); margin-bottom: 0.25rem; }
-
-.tm-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem; }
-.tm-table thead th {
-    background: #fafbff; color: var(--tm-ink-soft); font-weight: 600; font-size: 0.6875rem;
-    text-transform: uppercase; letter-spacing: 0.04em; padding: 0.625rem 0.75rem;
-    border-bottom: 2px solid var(--tm-border); white-space: nowrap;
-}
-.tm-table tbody td { padding: 0.55rem 0.75rem; border-bottom: 1px solid #f0f1f8; vertical-align: middle; }
-.tm-table tbody tr:hover { background: #f8f9ff; }
-.tm-table tbody tr:last-child td { border-bottom: none; }
-
-.tm-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff; flex-shrink: 0; }
-
-.tm-badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.55rem; border-radius: 0.375rem; font-size: 0.6875rem; font-weight: 600; }
-.tm-badge-role { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
-.tm-badge-active { background: #d1fae5; color: #065f46; }
-.tm-badge-inactive { background: #fef3c7; color: #92400e; }
-.tm-badge-suspended { background: #fee2e2; color: #991b1b; }
-.tm-badge-team { background: #dbeafe; color: #1e40af; }
-.tm-badge-noteam { background: #f5f5f5; color: #a3a3a3; }
-
-.tm-input, .tm-select { border: 1px solid var(--tm-border) !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; color: var(--tm-ink) !important; padding: 0.35rem 0.65rem !important; background: #fff !important; }
-.tm-input:focus, .tm-select:focus { border-color: var(--tm-accent) !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; outline: none; }
-.tm-btn-primary { background: linear-gradient(135deg, var(--tm-accent), var(--tm-accent-dark)) !important; border: none !important; color: #fff !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; font-weight: 600 !important; padding: 0.4rem 1rem !important; transition: all 0.15s ease !important; box-shadow: 0 2px 6px rgba(99,102,241,0.2) !important; }
-.tm-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.3) !important; }
-.tm-btn-sm { padding: 0.25rem 0.6rem !important; font-size: 0.6875rem !important; border-radius: 0.375rem !important; }
-.tm-btn-outline { border: 1px solid var(--tm-border) !important; background: #fff !important; color: var(--tm-ink-soft) !important; border-radius: 0.5rem !important; font-size: 0.75rem !important; padding: 0.35rem 0.85rem !important; transition: all 0.12s ease !important; }
-.tm-btn-outline:hover { border-color: var(--tm-accent) !important; color: var(--tm-accent) !important; }
-.tm-member-info { display: flex; align-items: center; gap: 0.6rem; }
-.tm-member-info .name { font-weight: 600; color: var(--tm-ink); font-size: 0.8125rem; }
-.tm-member-info .meta { font-size: 0.65rem; color: var(--tm-ink-soft); }
-
-/* Supervisor card */
-.tm-sup-grid { display: flex; flex-direction: column; gap: 0.625rem; }
-.tm-sup-item { background: #fafbff; border: 1px solid var(--tm-border); border-radius: 0.625rem; padding: 0.75rem; }
-.tm-sup-item h6 { font-size: 0.8125rem; font-weight: 700; color: var(--tm-ink); margin: 0 0 0.15rem 0; }
-.tm-sup-item .sup-meta { font-size: 0.65rem; color: var(--tm-ink-soft); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-.tm-sup-item .sup-meta i { font-size: 0.6rem; }
-
-@media (max-width: 991px) {
-    .tm-card-body { padding: 1rem; }
-    .tm-stat-grid { grid-template-columns: repeat(3, 1fr); }
-}
-</style>
-
-<div class="container page-wrapper">
-
-    <div class="tm-header">
-        <div class="tm-header-content">
-            <div class="tm-header-left">
-                <h1><i class="bi bi-people-fill"></i> Team Members</h1>
-                <p>Assign members to TBL_TEAMS, transfer between TBL_TEAMS, and manage supervisors</p>
+    <!-- Zoho CRM Module Header -->
+    <div class="module-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/users/teams_dashboard.php') ?>">Teams Hub</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Team Members</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="page-title mb-0">Team Member Assignments</h1>
+                <span class="badge bg-secondary-subtle text-secondary border"><?= $totalMembers ?> Members</span>
             </div>
-            <div class="tm-header-actions">
-                <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-diagram-3"></i> TBL_TEAMS</a>
-                <a href="<?= url('modules/users/users_view.php') ?>" class="tm-btn-glass"><i class="bi bi-person-gear"></i> TBL_USERS</a>
-                <a href="<?= url('dashboard.php') ?>" class="tm-btn-glass"><i class="bi bi-speedometer2"></i> Dashboard</a>
-            </div>
+            <p class="text-muted small mb-0">Assign personnel to squads, transfer between teams, and manage assigned supervisors</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-diagram-3 me-1"></i> Teams Hub
+            </a>
+            <a href="<?= url('modules/users/users_view.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-person-lines-fill me-1"></i> User Directory
+            </a>
         </div>
     </div>
 
     <?php if ($msg): ?>
-        <div class="tm-alert" style="background:<?= $msg_type==='success'?'#d1fae5':'#fee2e2' ?>;border:1px solid <?= $msg_type==='success'?'#6ee7b7':'#fca5a5' ?>;color:<?= $msg_type==='success'?'#065f46':'#991b1b' ?>;">
-            <i class="bi <?= $msg_type==='success'?'bi-check-circle-fill':'bi-x-circle-fill' ?>"></i>
-            <?= htmlspecialchars($msg) ?>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:0.65rem;"></button>
+        <div class="alert alert-<?= htmlspecialchars($msg_type ?: 'info'); ?> alert-dismissible fade show mb-3" role="alert">
+            <i class="bi <?= $msg_type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> me-2"></i>
+            <?= htmlspecialchars($msg); ?>
+            <button class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
 
-    <div class="tm-stat-grid">
-        <div class="tm-stat-card">
-            <div class="num"><?= $totalMembers ?></div>
-            <p class="lbl"><i class="bi bi-people"></i> Total Members</p>
+    <!-- KPI Metric Summary -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Active Members</div>
+                <div class="metric-value text-primary"><?= $totalMembers ?></div>
+                <div class="text-muted small">Assigned & unassigned</div>
+            </div>
         </div>
-        <div class="tm-stat-card">
-            <div class="num"><?= count($TBL_TEAMS) ?></div>
-            <p class="lbl"><i class="bi bi-diagram-3"></i> TBL_TEAMS</p>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Operational Teams</div>
+                <div class="metric-value text-dark"><?= count($teamsList) ?></div>
+                <div class="text-muted small">Managed squads</div>
+            </div>
         </div>
-        <div class="tm-stat-card">
-            <div class="num"><?= $unassignedCount ?></div>
-            <p class="lbl"><i class="bi bi-person-dash"></i> Unassigned</p>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Unassigned Personnel</div>
+                <div class="metric-value <?= $unassignedCount > 0 ? 'text-warning' : 'text-success' ?>"><?= $unassignedCount ?></div>
+                <div class="text-muted small">Awaiting squad allocation</div>
+            </div>
         </div>
-        <div class="tm-stat-card">
-            <div class="num"><?= $TBL_TEAMSupervisedCount ?>/<?= count($TBL_TEAMS) ?></div>
-            <p class="lbl"><i class="bi bi-person-badge"></i> TBL_TEAMS with Supervisor</p>
+        <div class="col-6 col-md-3">
+            <div class="metric-card">
+                <div class="metric-label">Supervised Teams</div>
+                <div class="metric-value text-success"><?= $teamSupervisedCount ?> / <?= count($teamsList) ?></div>
+                <div class="text-muted small">Teams with active leader</div>
+            </div>
         </div>
     </div>
 
     <div class="row g-3">
-
-        <!-- LEFT: Team Supervisors -->
+        <!-- LEFT: Team Supervisors Card -->
         <div class="col-lg-4">
-            <div class="tm-card h-100">
-                <div class="tm-card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 style="font-size:0.85rem;font-weight:700;color:var(--tm-ink);margin:0;">
-                            <i class="bi bi-person-badge" style="color:var(--tm-accent);"></i> Team Supervisors
-                        </h6>
-                    </div>
-                    <p style="font-size:0.7rem;color:var(--tm-ink-soft);margin-bottom:0.75rem;">Assign a supervisor to each team. A supervisor can oversee only one team.</p>
+            <div class="crm-card h-100">
+                <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold text-dark">
+                        <i class="bi bi-person-badge text-primary me-1"></i> Team Supervisors
+                    </span>
+                    <span class="badge bg-secondary-subtle text-secondary border"><?= count($teamsList) ?></span>
+                </div>
+                <div class="card-body p-3">
+                    <p class="text-muted small mb-3">Assign a designated supervisor to lead each team's calling workflow.</p>
 
-                    <?php if (empty($TBL_TEAMS)): ?>
-                        <div style="text-align:center;padding:2rem 0;color:var(--tm-ink-soft);font-size:0.8125rem;">
-                            <i class="bi bi-diagram-3" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>
-                            No TBL_TEAMS found. Create TBL_TEAMS first.
+                    <?php if (empty($teamsList)): ?>
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-diagram-3 fs-3 d-block mb-1 text-secondary"></i>
+                            No teams found. Create teams first in the Teams Hub.
                         </div>
                     <?php else: ?>
-                        <div class="tm-sup-grid">
-                            <?php foreach ($TBL_TEAMS as $t): ?>
-                                <div class="tm-sup-item">
-                                    <h6><i class="bi bi-people" style="color:var(--tm-accent);font-size:0.7rem;"></i> <?= htmlspecialchars($t['NAME']) ?></h6>
-                                    <div class="sup-meta">
-                                        <?php if (!empty($t['MANAGER_NAME'])): ?>
-                                            <span><i class="bi bi-person-workspace"></i> <?= htmlspecialchars($t['MANAGER_NAME']) ?></span>
-                                        <?php else: ?>
-                                            <span style="color:#a3a3a3;">No Manager</span>
-                                        <?php endif; ?>
-                                        <span><i class="bi bi-people"></i> <?= $memberCounts[(int)$t['ID']] ?? 0 ?> members</span>
+                        <div class="d-flex flex-column gap-2">
+                            <?php foreach ($teamsList as $t): ?>
+                                <div class="p-2 border rounded bg-light">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="fw-bold mb-0 text-dark small">
+                                            <i class="bi bi-diagram-3 text-primary me-1"></i>
+                                            <?= htmlspecialchars($t['NAME']) ?>
+                                        </h6>
+                                        <span class="badge bg-secondary-subtle text-secondary border" style="font-size: 0.68rem;">
+                                            <?= $memberCounts[(int)$t['ID']] ?? 0 ?> members
+                                        </span>
+                                    </div>
+                                    <div class="text-muted small mb-2" style="font-size: 0.75rem;">
+                                        Manager: <?= !empty($t['MANAGER_NAME']) ? htmlspecialchars($t['MANAGER_NAME']) : 'None' ?>
                                     </div>
                                     <form method="POST" class="d-flex gap-1 align-items-center">
                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                         <input type="hidden" name="action" value="change_supervisor">
                                         <input type="hidden" name="team_id" value="<?= (int)$t['ID'] ?>">
-                                        <select name="supervisor_id" class="form-select tm-select" style="flex:1;min-width:0;">
+                                        <select name="supervisor_id" class="form-select form-select-sm" style="flex: 1; font-size: 0.75rem;">
                                             <option value="">No Supervisor</option>
                                             <?php foreach ($supervisors as $s): ?>
-                                                <option value="<?= (int)$s['ID'] ?>" <?= ($t['SUPERVISOR_ID'] == $s['ID']) ? 'selected' : '' ?>><?= htmlspecialchars($s['NAME']) ?></option>
+                                                <option value="<?= (int)$s['ID'] ?>" <?= ($t['SUPERVISOR_ID'] == $s['ID']) ? 'selected' : '' ?>>
+                                                    <?= htmlspecialchars($s['NAME']) ?>
+                                                </option>
                                             <?php endforeach; ?>
                                         </select>
-                                        <button type="submit" class="tm-btn-primary tm-btn-sm"><i class="bi bi-check-lg"></i></button>
+                                        <button type="submit" class="btn btn-primary btn-sm px-2" title="Save Supervisor">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
                                     </form>
                                 </div>
                             <?php endforeach; ?>
@@ -342,113 +281,138 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
             </div>
         </div>
 
-        <!-- RIGHT: Members & Assignment -->
+        <!-- RIGHT: Member Assignments Table -->
         <div class="col-lg-8">
-            <div class="tm-card h-100">
-                <div class="tm-card-body">
-                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-                        <div>
-                            <h6 style="font-size:0.85rem;font-weight:700;color:var(--tm-ink);margin:0;">
-                                <i class="bi bi-people" style="color:var(--tm-accent);"></i> Members &amp; Team Assignment
-                            </h6>
-                            <p style="font-size:0.7rem;color:var(--tm-ink-soft);margin:0;">Assign or transfer members between TBL_TEAMS</p>
+            <div class="crm-card h-100">
+                <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span class="fw-semibold text-dark">
+                        <i class="bi bi-people text-primary me-1"></i> Member Roster &amp; Team Allocations
+                    </span>
+                    <span class="text-muted small">Instant assignment updates</span>
+                </div>
+                <div class="p-3 border-bottom bg-light">
+                    <!-- Filter Toolbar -->
+                    <form method="GET" class="row g-2 align-items-end">
+                        <div class="col-12 col-sm-6 col-md-3">
+                            <label class="form-label small text-muted mb-1">Search Name</label>
+                            <input type="text" name="search_name" class="form-control form-control-sm" placeholder="Member name..." value="<?= htmlspecialchars($search_name) ?>">
                         </div>
-                    </div>
-
-                    <form method="GET" class="d-flex align-items-center gap-2 flex-wrap mb-3" style="background:var(--tm-soft);border:1px solid var(--tm-border);border-radius:0.625rem;padding:0.5rem 0.75rem;">
-                        <div class="input-group input-group-sm" style="max-width:180px;">
-                            <span class="input-group-text" style="background:#fff;border-color:var(--tm-border);font-size:0.7rem;"><i class="bi bi-search"></i></span>
-                            <input type="text" name="search_name" class="form-control tm-input" placeholder="Search name..." value="<?= htmlspecialchars($search_name) ?>">
+                        <div class="col-6 col-sm-3 col-md-3">
+                            <label class="form-label small text-muted mb-1">Team</label>
+                            <select name="team_id" class="form-select form-select-sm">
+                                <option value="0">All Teams</option>
+                                <?php foreach ($teamsList as $t): ?>
+                                    <option value="<?= (int)$t['ID'] ?>" <?= $filter_team_id == $t['ID'] ? 'selected' : '' ?>><?= htmlspecialchars($t['NAME']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
-                        <select name="team_id" class="form-select tm-select" style="width:auto;min-width:130px;">
-                            <option value="0">All TBL_TEAMS</option>
-                            <?php foreach ($TBL_TEAMS as $t): ?>
-                                <option value="<?= (int)$t['ID'] ?>" <?= $filter_team_id == $t['ID'] ? 'selected' : '' ?>><?= htmlspecialchars($t['NAME']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select name="role" class="form-select tm-select" style="width:auto;min-width:110px;">
-                            <option value="">All TBL_ROLES</option>
-                            <option value="Admin" <?= $filter_role==='Admin'?'selected':'' ?>>Admin</option>
-                            <option value="Manager" <?= $filter_role==='Manager'?'selected':'' ?>>Manager</option>
-                            <option value="Supervisor" <?= $filter_role==='Supervisor'?'selected':'' ?>>Supervisor</option>
-                            <option value="Officer" <?= $filter_role==='Officer'?'selected':'' ?>>Officer</option>
-                        </select>
-                        <select name="status" class="form-select tm-select" style="width:auto;min-width:110px;">
-                            <option value="">All Status</option>
-                            <option value="Active" <?= $filter_status==='Active'?'selected':'' ?>>Active</option>
-                            <option value="Inactive" <?= $filter_status==='Inactive'?'selected':'' ?>>Inactive</option>
-                            <option value="Suspended" <?= $filter_status==='Suspended'?'selected':'' ?>>Suspended</option>
-                        </select>
-                        <button type="submit" class="tm-btn-primary tm-btn-sm"><i class="bi bi-funnel"></i> Filter</button>
-                        <a href="<?= url('modules/users/team_members.php') ?>" class="tm-btn-outline tm-btn-sm"><i class="bi bi-x-lg"></i></a>
+                        <div class="col-6 col-sm-3 col-md-2">
+                            <label class="form-label small text-muted mb-1">Role</label>
+                            <select name="role" class="form-select form-select-sm">
+                                <option value="">All Roles</option>
+                                <option value="Admin" <?= $filter_role==='Admin'?'selected':'' ?>>Admin</option>
+                                <option value="Manager" <?= $filter_role==='Manager'?'selected':'' ?>>Manager</option>
+                                <option value="Supervisor" <?= $filter_role==='Supervisor'?'selected':'' ?>>Supervisor</option>
+                                <option value="Officer" <?= $filter_role==='Officer'?'selected':'' ?>>Officer</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-sm-3 col-md-2">
+                            <label class="form-label small text-muted mb-1">Status</label>
+                            <select name="status" class="form-select form-select-sm">
+                                <option value="">All Statuses</option>
+                                <option value="Active" <?= $filter_status==='Active'?'selected':'' ?>>Active</option>
+                                <option value="Inactive" <?= $filter_status==='Inactive'?'selected':'' ?>>Inactive</option>
+                                <option value="Suspended" <?= $filter_status==='Suspended'?'selected':'' ?>>Suspended</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-sm-3 col-md-2">
+                            <div class="d-flex gap-1">
+                                <button type="submit" class="btn btn-primary btn-sm w-100" title="Apply Filter">
+                                    <i class="bi bi-funnel"></i>
+                                </button>
+                                <?php if ($search_name !== '' || $filter_team_id > 0 || $filter_role !== '' || $filter_status !== ''): ?>
+                                    <a href="team_members.php" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
+                                        <i class="bi bi-x-lg"></i>
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                     </form>
-
+                </div>
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="tm-table">
+                        <table class="table crm-table align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>Member</th>
-                                    <th>Role</th>
-                                    <th>Mobile</th>
-                                    <th>Team</th>
-                                    <th class="text-end" style="min-width:200px;">Assign / Transfer</th>
+                                    <th style="min-width: 170px;">Member</th>
+                                    <th style="width: 110px;">Role</th>
+                                    <th style="width: 120px;">Mobile</th>
+                                    <th style="width: 110px;">Current Team</th>
+                                    <th style="min-width: 220px;" class="text-end">Assign / Transfer</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (empty($TBL_USERSList)): ?>
+                                <?php if (empty($membersList)): ?>
                                     <tr>
-                                        <td colspan="5" class="text-center py-4" style="color:var(--tm-ink-soft);font-size:0.8125rem;">
-                                            <i class="bi bi-info-circle"></i> No members found.
+                                        <td colspan="5" class="text-center text-muted py-5">
+                                            <i class="bi bi-people fs-2 d-block mb-2 text-secondary"></i>
+                                            No personnel found matching filter criteria.
                                         </td>
                                     </tr>
                                 <?php else: ?>
-                                    <?php foreach ($TBL_USERSList as $u):
+                                    <?php foreach ($membersList as $u):
                                         $initial = strtoupper(substr($u['NAME'], 0, 1));
-                                        $colors = ['#6366f1','#8b5cf6','#a855f7','#ec4899','#f43f5e','#10b981','#14b8a6','#06b6d4','#0ea5e9','#2563eb'];
-                                        $colorIdx = (int)$u['ID'] % count($colors);
-                                        $badgeClass = $u['STATUS'] === 'Active' ? 'tm-badge-active' : ($u['STATUS'] === 'Suspended' ? 'tm-badge-suspended' : 'tm-badge-inactive');
+                                        $stClass = 'bg-secondary-subtle text-secondary';
+                                        if ($u['STATUS'] === 'Active') $stClass = 'bg-success-subtle text-success';
+                                        elseif ($u['STATUS'] === 'Suspended') $stClass = 'bg-warning-subtle text-warning';
+                                        elseif ($u['STATUS'] === 'Inactive') $stClass = 'bg-danger-subtle text-danger';
                                     ?>
                                         <tr>
                                             <td>
-                                                <div class="tm-member-info">
-                                                    <div class="tm-avatar" style="background:<?= $colors[$colorIdx] ?>;"><?= $initial ?></div>
-                                                    <div>
-                                                        <div class="name"><?= htmlspecialchars($u['NAME']) ?></div>
-                                                        <div class="meta"><?= htmlspecialchars($u['LOGIN_ID'] ?? '-') ?></div>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-primary bg-primary-subtle flex-shrink-0" style="width: 30px; height: 30px; font-size: 0.78rem;">
+                                                        <?= $initial ?>
+                                                    </div>
+                                                    <div class="text-truncate" style="max-width: 140px;">
+                                                        <div class="fw-medium text-dark small text-truncate"><?= htmlspecialchars($u['NAME']) ?></div>
+                                                        <div class="text-muted font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($u['LOGIN_ID'] ?? '—') ?></div>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td>
-                                                <span class="tm-badge tm-badge-role" title="<?= htmlspecialchars($roleDesc[$u['ROLE']] ?? '') ?>"><?= htmlspecialchars($u['ROLE']) ?></span>
+                                                <span class="badge bg-info-subtle text-primary border" title="<?= htmlspecialchars($roleDesc[$u['ROLE']] ?? '') ?>"><?= htmlspecialchars($u['ROLE']) ?></span>
                                             </td>
                                             <td>
                                                 <?php if (!empty($u['MOBILE'])): ?>
-                                                    <a href="tel:<?= htmlspecialchars($u['MOBILE']) ?>" style="color:var(--tm-accent);text-decoration:none;font-size:0.75rem;"><?= htmlspecialchars($u['MOBILE']) ?></a>
+                                                    <a href="tel:<?= htmlspecialchars($u['MOBILE']) ?>" class="text-primary small font-monospace text-decoration-none"><?= htmlspecialchars($u['MOBILE']) ?></a>
                                                 <?php else: ?>
-                                                    <span style="color:var(--tm-ink-soft);font-size:0.75rem;">—</span>
+                                                    <span class="text-muted small">—</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <span class="tm-badge <?= $badgeClass ?>" style="display:inline-flex;align-items:center;gap:0.3rem;"><i class="bi bi-circle-fill" style="font-size:0.4rem;"></i> <?= htmlspecialchars($u['STATUS']) ?></span>
-                                                <br>
                                                 <?php if ($u['TEAM_ID']): ?>
-                                                    <span class="tm-badge tm-badge-team" style="margin-top:0.2rem;"><?= htmlspecialchars($u['TEAM_NAME']) ?></span>
+                                                    <span class="badge bg-primary-subtle text-primary border"><?= htmlspecialchars($u['TEAM_NAME']) ?></span>
                                                 <?php else: ?>
-                                                    <span class="tm-badge tm-badge-noteam" style="margin-top:0.2rem;">No Team</span>
+                                                    <span class="badge bg-light text-muted border">Unassigned</span>
                                                 <?php endif; ?>
+                                                <div class="mt-1">
+                                                    <span class="badge <?= $stClass ?> border" style="font-size: 0.65rem;"><i class="bi bi-circle-fill me-1" style="font-size: 0.35rem;"></i><?= htmlspecialchars($u['STATUS']) ?></span>
+                                                </div>
                                             </td>
                                             <td class="text-end">
-                                                <form method="POST" class="d-inline-flex gap-1 align-items-center">
+                                                <form method="POST" class="d-inline-flex gap-1 align-items-center justify-content-end">
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                                     <input type="hidden" name="action" value="assign_member">
                                                     <input type="hidden" name="user_id" value="<?= (int)$u['ID'] ?>">
-                                                    <select name="team_id" class="form-select tm-select" style="width:auto;min-width:130px;">
+                                                    <select name="team_id" class="form-select form-select-sm" style="width: auto; min-width: 140px; font-size: 0.78rem;">
                                                         <option value="">No Team</option>
-                                                        <?php foreach ($TBL_TEAMS as $t): ?>
+                                                        <?php foreach ($teamsList as $t): ?>
                                                             <option value="<?= (int)$t['ID'] ?>" <?= ($u['TEAM_ID'] == $t['ID']) ? 'selected' : '' ?>><?= htmlspecialchars($t['NAME']) ?></option>
                                                         <?php endforeach; ?>
                                                     </select>
-                                                    <button type="submit" class="tm-btn-primary tm-btn-sm"><i class="bi bi-check-lg"></i> Save</button>
+                                                    <button type="submit" class="btn btn-outline-primary btn-sm px-2" title="Update Assignment">
+                                                        <i class="bi bi-check-lg"></i>
+                                                    </button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -460,7 +424,6 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                 </div>
             </div>
         </div>
-
     </div>
 </div>
 

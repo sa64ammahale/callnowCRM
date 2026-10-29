@@ -158,135 +158,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // --- Pagination & Search setup
-$limit = 25;
 $page = max(1, intval($_GET['page'] ?? 1));
+$limit = 50;
 $offset = ($page - 1) * $limit;
 $search = trim($_GET['search'] ?? '');
 $dbFilter = strtoupper(trim($_GET['source'] ?? 'ALL'));
-if (!in_array($dbFilter, ['ALL', 'MAIN', 'TEMP'], true)) {
+if (!in_array($dbFilter, ['ALL', 'TEMP', 'MAIN'], true)) {
     $dbFilter = 'ALL';
 }
 
-// Construct WHERE clauses matching DND statuses across both tables
-$dndStatusInSql = "'do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'";
-$whereMain = "LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ($dndStatusInSql)";
-$whereTemp = "LOWER(t.CALL_DIALED_STATUS) IN ($dndStatusInSql)";
-
-$searchParamsMain = [];
-$searchParamsTemp = [];
-$searchTypesMain = '';
-$searchTypesTemp = '';
+$searchCondition = "";
+$searchParams = [];
+$searchTypes = "";
 
 if ($search !== '') {
-    $searchParam = "%{$search}%";
-    $whereMain .= " AND (m.MAINDATABASE_MOBILE LIKE ? OR m.MAINDATABASE_NAME LIKE ? OR m.MAINDATABASE_COMPANY LIKE ?)";
-    $searchParamsMain = [$searchParam, $searchParam, $searchParam];
-    $searchTypesMain = 'sss';
-
-    $whereTemp .= " AND (t.CUST_MOBILE LIKE ? OR t.CUST_NAME LIKE ? OR t.CUST_COMPANY LIKE ?)";
-    $searchParamsTemp = [$searchParam, $searchParam, $searchParam];
-    $searchTypesTemp = 'sss';
-}
-
-// Total Count
-$countSqlMain = "SELECT COUNT(*) AS cnt FROM " . tn('TBL_MAIN') . " m WHERE $whereMain";
-$countSqlTemp = "SELECT COUNT(*) AS cnt FROM " . tn('TBL_TEMP') . " t WHERE $whereTemp";
-
-$totalMain = 0;
-$totalTemp = 0;
-
-if ($dbFilter === 'ALL' || $dbFilter === 'MAIN') {
-    if ($stmt = mysqli_prepare($link, $countSqlMain)) {
-        if ($searchTypesMain !== '') {
-            mysqli_stmt_bind_param($stmt, $searchTypesMain, ...$searchParamsMain);
-        }
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        if ($r = mysqli_fetch_assoc($res)) $totalMain = intval($r['cnt'] ?? 0);
-        mysqli_stmt_close($stmt);
+    $cleanDigits = preg_replace('/\D/', '', $search);
+    if ($cleanDigits !== '') {
+        $searchCondition = "AND (mobile LIKE ? OR name LIKE ? OR company LIKE ?)";
+        $searchParams = ["%$cleanDigits%", "%$search%", "%$search%"];
+        $searchTypes = "sss";
+    } else {
+        $searchCondition = "AND (name LIKE ? OR company LIKE ?)";
+        $searchParams = ["%$search%", "%$search%"];
+        $searchTypes = "ss";
     }
 }
 
+$dndVariants = "LOWER(status) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')";
+
+$cntTempRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP') . " WHERE LOWER(CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')");
+$totalTemp = ($cntTempRes && $r = mysqli_fetch_row($cntTempRes)) ? intval($r[0]) : 0;
+
+$cntMainRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_MAIN') . " WHERE LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')");
+$totalMain = ($cntMainRes && $r = mysqli_fetch_row($cntMainRes)) ? intval($r[0]) : 0;
+
+$unionQueries = [];
 if ($dbFilter === 'ALL' || $dbFilter === 'TEMP') {
-    if ($stmt = mysqli_prepare($link, $countSqlTemp)) {
-        if ($searchTypesTemp !== '') {
-            mysqli_stmt_bind_param($stmt, $searchTypesTemp, ...$searchParamsTemp);
-        }
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        if ($r = mysqli_fetch_assoc($res)) $totalTemp = intval($r['cnt'] ?? 0);
-        mysqli_stmt_close($stmt);
-    }
+    $unionQueries[] = "
+        SELECT 
+            ID, 
+            CUST_NAME AS name, 
+            CUST_MOBILE AS mobile, 
+            CUST_COMPANY AS company, 
+            CALL_DIALED_STATUS AS status,
+            'TEMP' AS source, 
+            COALESCE(LAST_DIALED_DATE_TIME, TEMP_UPLOAD_DATETIME) AS marked_at 
+        FROM " . tn('TBL_TEMP') . " 
+        WHERE LOWER(CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+    ";
 }
-
-$totalRecords = ($dbFilter === 'MAIN') ? $totalMain : (($dbFilter === 'TEMP') ? $totalTemp : ($totalMain + $totalTemp));
-$totalPages = max(1, (int)ceil($totalRecords / $limit));
-if ($page > $totalPages) $page = $totalPages;
-$offset = ($page - 1) * $limit;
-
-// Unified Data Fetch Query
-$queries = [];
-$bindParams = [];
-$bindTypes = '';
-
 if ($dbFilter === 'ALL' || $dbFilter === 'MAIN') {
-    $queries[] = "SELECT 
-        m.ID, 
-        m.MAINDATABASE_NAME AS name, 
-        m.MAINDATABASE_MOBILE AS mobile, 
-        m.MAINDATABASE_COMPANY AS company, 
-        COALESCE(m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_CALL_DIAL_TIME) AS marked_at,
-        m.MAINDATABASE_CALL_DIALED_STATUS AS status,
-        'MAIN' AS source
-    FROM " . tn('TBL_MAIN') . " m
-    WHERE $whereMain";
-    
-    foreach ($searchParamsMain as $p) $bindParams[] = $p;
-    $bindTypes .= $searchTypesMain;
+    $unionQueries[] = "
+        SELECT 
+            ID, 
+            MAINDATABASE_NAME AS name, 
+            MAINDATABASE_MOBILE AS mobile, 
+            MAINDATABASE_COMPANY AS company, 
+            MAINDATABASE_CALL_DIALED_STATUS AS status,
+            'MAIN' AS source, 
+            COALESCE(MAINDATABASE_CALL_DIAL_TIME, LAST_DIALED_DATE_TIME, MAINDATABASE_UPLOAD_DATETIME) AS marked_at 
+        FROM " . tn('TBL_MAIN') . " 
+        WHERE LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+    ";
 }
 
-if ($dbFilter === 'ALL' || $dbFilter === 'TEMP') {
-    $queries[] = "SELECT 
-        t.ID, 
-        t.CUST_NAME AS name, 
-        t.CUST_MOBILE AS mobile, 
-        t.CUST_COMPANY AS company, 
-        COALESCE(t.LAST_DIALED_DATE_TIME, t.TEMP_UPLOAD_DATETIME) AS marked_at,
-        t.CALL_DIALED_STATUS AS status,
-        'TEMP' AS source
-    FROM " . tn('TBL_TEMP') . " t
-    WHERE $whereTemp";
-    
-    foreach ($searchParamsTemp as $p) $bindParams[] = $p;
-    $bindTypes .= $searchTypesTemp;
-}
+$baseUnionSql = implode(" UNION ALL ", $unionQueries);
 
-$unionSql = implode(" UNION ALL ", $queries) . " ORDER BY marked_at DESC, ID DESC LIMIT ? OFFSET ?";
-$bindParams[] = $limit;
-$bindParams[] = $offset;
-$bindTypes .= 'ii';
-
-$dndRecords = [];
-if ($stmt = mysqli_prepare($link, $unionSql)) {
-    mysqli_stmt_bind_param($stmt, $bindTypes, ...$bindParams);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
-    if ($res) {
-        while ($r = mysqli_fetch_assoc($res)) {
-            $dndRecords[] = $r;
-        }
+$countSql = "SELECT COUNT(*) FROM ($baseUnionSql) AS combined WHERE 1=1 $searchCondition";
+$stmtCount = mysqli_prepare($link, $countSql);
+if ($stmtCount) {
+    if (!empty($searchParams)) {
+        mysqli_stmt_bind_param($stmtCount, $searchTypes, ...$searchParams);
     }
-    mysqli_stmt_close($stmt);
+    mysqli_stmt_execute($stmtCount);
+    $resCount = mysqli_stmt_get_result($stmtCount);
+    $totalRecords = ($resCount && $row = mysqli_fetch_row($resCount)) ? intval($row[0]) : 0;
+    mysqli_stmt_close($stmtCount);
 } else {
-    $alertMsg = "Failed to load DND records: " . mysqli_error($link);
-    $alertType = "danger";
+    $totalRecords = 0;
 }
 
-function fmtDateTime($raw) {
-    if (empty($raw) || $raw === '0000-00-00' || $raw === '0000-00-00 00:00:00') return '<span class="text-muted">—</span>';
-    $ts = strtotime($raw);
-    if ($ts === false) return '<span class="text-muted">—</span>';
-    return '<span class="fw-semibold">' . date("d M Y", $ts) . '</span><br><small class="text-muted">' . date("h:i A", $ts) . '</small>';
+$totalPages = max(1, intval(ceil($totalRecords / $limit)));
+if ($page > $totalPages) $page = $totalPages;
+
+$dataSql = "
+    SELECT ID, name, mobile, company, status, source, marked_at 
+    FROM ($baseUnionSql) AS combined 
+    WHERE 1=1 $searchCondition 
+    ORDER BY marked_at DESC, ID DESC 
+    LIMIT ? OFFSET ?
+";
+$stmtData = mysqli_prepare($link, $dataSql);
+$dndRecords = [];
+
+if ($stmtData) {
+    if (!empty($searchParams)) {
+        $combinedTypes = $searchTypes . "ii";
+        $combinedParams = array_merge($searchParams, [$limit, $offset]);
+        mysqli_stmt_bind_param($stmtData, $combinedTypes, ...$combinedParams);
+    } else {
+        mysqli_stmt_bind_param($stmtData, "ii", $limit, $offset);
+    }
+    mysqli_stmt_execute($stmtData);
+    $resData = mysqli_stmt_get_result($stmtData);
+    if ($resData) {
+        while ($row = mysqli_fetch_assoc($resData)) {
+            $dndRecords[] = $row;
+        }
+    }
+    mysqli_stmt_close($stmtData);
+}
+
+function fmtDateTime($val) {
+    if (empty($val) || $val === '0000-00-00 00:00:00') return '<span class="text-muted fs-xs">Not Recorded</span>';
+    $t = strtotime($val);
+    if (!$t) return htmlspecialchars($val);
+    return '<span class="fw-semibold text-dark fs-xs">' . date('d M Y', $t) . '</span> <span class="text-muted fs-xs">' . date('h:i A', $t) . '</span>';
 }
 
 function buildQuery($overrides = []) {
@@ -294,327 +281,203 @@ function buildQuery($overrides = []) {
     return http_build_query($q);
 }
 
-$pageTitle = 'DND Numbers List - CallNow';
+$pageTitle = 'Do Not Disturb (DND) • CallNow CRM';
 include '../../php_scripts/header.php';
 ?>
 
-<style>
-/* ── Hero ───────────────────────────────────────────── */
-.dnd-hero {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 55%, #7f1d1d 100%);
-    color: #ffffff !important;
-    padding: 1.75rem 0;
-    margin-bottom: 1.75rem;
-    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.18);
-}
-.dnd-hero * { color: inherit; }
-.dnd-hero h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
-.dnd-hero p { margin: 0; opacity: 0.9; font-size: 0.9rem; }
-
-.dnd-stat-pill {
-    background: rgba(255, 255, 255, 0.16);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: var(--radius-lg);
-    padding: 0.55rem 1rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.65rem;
-}
-.dnd-stat-val { font-size: 1.25rem; font-weight: 800; color: #ffffff !important; line-height: 1; }
-.dnd-stat-lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.85; }
-
-/* ── Special Card ───────────────────────────────────── */
-.rp-special-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
-    overflow: hidden;
-    margin-bottom: 2rem;
-    transition: box-shadow 0.2s ease;
-}
-.rp-special-card:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.03);
-}
-
-.rp-special-card-head.dnd-head {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.04) 100%);
-    border-bottom: 2px solid rgba(239, 68, 68, 0.18);
-    padding: 1.15rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-}
-
-.rp-head-icon-dnd {
-    width: 42px; height: 42px; border-radius: var(--radius-lg);
-    background: linear-gradient(135deg, #ef4444, #b91c1c);
-    color: #ffffff !important; display: flex; align-items: center; justify-content: center;
-    font-size: 1.25rem; flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-}
-.rp-head-icon-dnd i { color: #ffffff !important; }
-
-/* ── Special Table with Alternating Colors ──────────── */
-.rp-special-table {
-    margin-bottom: 0;
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-}
-.rp-special-table thead th {
-    background: var(--surface-2) !important;
-    color: var(--ink-soft) !important;
-    font-size: 0.72rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.04em !important;
-    font-weight: 700 !important;
-    padding: 0.95rem 1rem !important;
-    border-bottom: 2px solid var(--border) !important;
-    white-space: nowrap !important;
-    vertical-align: middle !important;
-}
-.rp-special-table tbody td {
-    padding: 0.85rem 1rem;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.86rem;
-    transition: background 0.15s ease;
-}
-.rp-special-table tbody tr:nth-child(even) td {
-    background-color: rgba(239, 68, 68, 0.02);
-}
-.rp-special-table tbody tr:hover td {
-    background-color: rgba(239, 68, 68, 0.06) !important;
-}
-
-.badge-mobile {
-    font-family: var(--font-mono, monospace);
-    font-weight: 600;
-    font-size: 0.84rem;
-    color: var(--ink);
-    background: var(--surface-2);
-    padding: 0.25rem 0.55rem;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-}
-
-.source-badge-main {
-    background: rgba(99, 102, 241, 0.12);
-    color: #4f46e5;
-    font-size: 0.74rem;
-    font-weight: 700;
-    padding: 0.25rem 0.55rem;
-    border-radius: 999px;
-    border: 1px solid rgba(99, 102, 241, 0.25);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-}
-.source-badge-temp {
-    background: rgba(245, 158, 11, 0.12);
-    color: #d97706;
-    font-size: 0.74rem;
-    font-weight: 700;
-    padding: 0.25rem 0.55rem;
-    border-radius: 999px;
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-}
-
-.dnd-badge {
-    background: rgba(239, 68, 68, 0.14);
-    color: #dc2626;
-    font-size: 0.74rem;
-    font-weight: 700;
-    padding: 0.25rem 0.55rem;
-    border-radius: 999px;
-    border: 1px solid rgba(239, 68, 68, 0.28);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-}
-</style>
-
-<!-- Hero Section -->
-<div class="dnd-hero">
-    <div class="container-fluid px-4">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-            <div>
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <span class="badge bg-white text-danger fw-bold text-uppercase px-2 py-1" style="font-size:0.7rem; letter-spacing:0.05em;">
-                        <i class="bi bi-shield-slash-fill me-1"></i> Global Call Protection
-                    </span>
-                </div>
-                <h1>Do Not Disturb (DND) List</h1>
-                <p>Numbers marked as DND in Temporary or Main databases are strictly blocked from mobile and queue dialing.</p>
-            </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="dnd-stat-pill">
-                    <i class="bi bi-slash-circle fs-4 text-white"></i>
-                    <div>
-                        <div class="dnd-stat-val"><?= number_format($totalRecords) ?></div>
-                        <div class="dnd-stat-lbl">Active DND Numbers</div>
-                    </div>
-                </div>
-                <div class="dnd-stat-pill">
-                    <i class="bi bi-database fs-4 text-white"></i>
-                    <div>
-                        <div class="dnd-stat-val"><?= number_format($totalTemp) ?> / <?= number_format($totalMain) ?></div>
-                        <div class="dnd-stat-lbl">Temp / Main DB</div>
-                    </div>
-                </div>
-                <button type="button" class="btn btn-light text-danger fw-bold shadow-sm d-inline-flex align-items-center gap-2 px-3 py-2" style="border-radius: var(--radius-lg);" data-bs-toggle="modal" data-bs-target="#addDndModal">
-                    <i class="bi bi-plus-circle-fill fs-5"></i>
-                    <span>Add DND Number</span>
-                </button>
-            </div>
+<div class="container-fluid px-3 py-3">
+    <!-- Module Header -->
+    <div class="module-header mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-xs">
+                    <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/database/data_management_main.php') ?>">Data Management</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Do Not Disturb (DND)</li>
+                </ol>
+            </nav>
+            <h1 class="h4 fw-bold text-dark mb-0">Do Not Disturb (DND) Register</h1>
+            <div class="text-muted fs-xs">Globally excluded phone numbers protected against telecalling dials and automated batch queue allocation</div>
+        </div>
+        <div class="module-header-actions">
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addDndModal">
+                <i class="bi bi-shield-plus me-1"></i> Add DND Number
+            </button>
+            <a href="<?= url('modules/database/data_management_main.php') ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-database me-1"></i> Main DB
+            </a>
+            <a href="<?= url('modules/database/data_management_temporary.php') ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-database-gear me-1"></i> Temp DB
+            </a>
         </div>
     </div>
-</div>
 
-<div class="container-fluid px-4">
     <?php if ($alertMsg): ?>
-        <div class="alert alert-<?= htmlspecialchars($alertType ?: 'info') ?> alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi <?= $alertType === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> me-2"></i>
-            <?= htmlspecialchars($alertMsg) ?>
+        <div class="alert alert-<?= htmlspecialchars($alertType ?: 'info') ?> alert-dismissible fade show mb-3" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi <?= $alertType === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> me-2 fs-5"></i>
+                <div class="fs-xs"><?= htmlspecialchars($alertMsg) ?></div>
+            </div>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
 
-    <!-- Main Special Card -->
-    <div class="card rp-special-card">
-        <div class="rp-special-card-head dnd-head">
-            <div class="d-flex align-items-center gap-3">
-                <div class="rp-head-icon-dnd">
-                    <i class="bi bi-telephone-x-fill"></i>
-                </div>
-                <div>
-                    <h5 class="fw-bold mb-0 text-dark">DND Records Directory</h5>
-                    <div class="small text-muted">Showing page <?= $page ?> of <?= $totalPages ?> (<?= number_format($totalRecords) ?> total records)</div>
-                </div>
+    <!-- Metric KPI Cards -->
+    <div class="row g-2 mb-3">
+        <div class="col-sm-6 col-md-4">
+            <div class="metric-card">
+                <div class="metric-card-title">Active DND Contacts</div>
+                <div class="metric-card-value text-danger"><?= number_format($totalRecords) ?></div>
+                <div class="metric-card-subtitle text-muted">Protected phone numbers</div>
             </div>
-
-            <!-- Filter & Search Bar -->
-            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <div class="btn-group btn-group-sm" role="group">
-                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'ALL', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'ALL' ? 'btn-danger' : 'btn-outline-secondary' ?>">All Databases (<?= number_format($totalMain + $totalTemp) ?>)</a>
-                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'TEMP', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'TEMP' ? 'btn-danger' : 'btn-outline-secondary' ?>">Temporary DB (<?= number_format($totalTemp) ?>)</a>
-                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'MAIN', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'MAIN' ? 'btn-danger' : 'btn-outline-secondary' ?>">Main DB (<?= number_format($totalMain) ?>)</a>
-                </div>
-
-                <div class="input-group input-group-sm shadow-sm" style="min-width: 260px;">
-                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" name="search" class="form-control border-start-0" placeholder="Mobile, Name or Company" value="<?= htmlspecialchars($search) ?>">
-                    <?php if ($dbFilter !== 'ALL'): ?><input type="hidden" name="source" value="<?= htmlspecialchars($dbFilter) ?>"><?php endif; ?>
-                    <button class="btn btn-danger fw-semibold" type="submit">Search</button>
-                    <?php if ($search): ?>
-                        <a class="btn btn-outline-secondary" href="<?= url('modules/database/ViewDND.php') ?><?= $dbFilter !== 'ALL' ? '?source=' . htmlspecialchars($dbFilter) : '' ?>" title="Clear search"><i class="bi bi-x-lg"></i></a>
-                    <?php endif; ?>
-                </div>
-            </form>
         </div>
+        <div class="col-sm-6 col-md-4">
+            <div class="metric-card">
+                <div class="metric-card-title">Main Database DND</div>
+                <div class="metric-card-value text-primary"><?= number_format($totalMain) ?></div>
+                <div class="metric-card-subtitle text-muted">Permanent records</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-4">
+            <div class="metric-card">
+                <div class="metric-card-title">Staging Database DND</div>
+                <div class="metric-card-value text-secondary"><?= number_format($totalTemp) ?></div>
+                <div class="metric-card-subtitle text-muted">Temporary staging records</div>
+            </div>
+        </div>
+    </div>
 
-        <!-- Table View -->
-        <div class="table-responsive">
-            <table class="rp-special-table">
-                <thead>
-                    <tr>
-                        <th style="width: 25%;">Customer Name</th>
-                        <th style="width: 16%;">Mobile Number</th>
-                        <th style="width: 22%;">Company</th>
-                        <th style="width: 14%;">Database Source</th>
-                        <th style="width: 12%;">Marked DND On</th>
-                        <th style="width: 11%;" class="text-end pe-3">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if (empty($dndRecords)): ?>
-                    <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">
-                            <i class="bi bi-shield-check display-6 text-success d-block mb-2"></i>
-                            <div class="h6 fw-bold mb-1">No DND records found</div>
-                            <div class="small text-muted">
-                                <?= $search ? "No records matched your search query. Try clearing the filter." : "There are currently no numbers marked as Do-Not-Disturb in the selected database." ?>
-                            </div>
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($dndRecords as $r): ?>
+    <!-- Action Toolbar & Search -->
+    <div class="crm-card mb-3">
+        <div class="crm-card-body py-2">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <!-- Repository filter tabs -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'ALL', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'ALL' ? 'btn-primary' : 'btn-secondary' ?>">
+                        All Sources (<?= number_format($totalMain + $totalTemp) ?>)
+                    </a>
+                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'MAIN', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'MAIN' ? 'btn-primary' : 'btn-secondary' ?>">
+                        Main DB (<?= number_format($totalMain) ?>)
+                    </a>
+                    <a href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['source' => 'TEMP', 'page' => 1]) ?>" class="btn <?= $dbFilter === 'TEMP' ? 'btn-primary' : 'btn-secondary' ?>">
+                        Temporary DB (<?= number_format($totalTemp) ?>)
+                    </a>
+                </div>
+
+                <!-- Search form -->
+                <form method="GET" class="d-flex align-items-center gap-1">
+                    <div class="input-group input-group-sm" style="min-width: 280px;">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" placeholder="Search mobile, name, or company..." value="<?= htmlspecialchars($search) ?>">
+                        <?php if ($dbFilter !== 'ALL'): ?><input type="hidden" name="source" value="<?= htmlspecialchars($dbFilter) ?>"><?php endif; ?>
+                        <button class="btn btn-secondary" type="submit">Filter</button>
+                        <?php if ($search): ?>
+                            <a class="btn btn-secondary" href="<?= url('modules/database/ViewDND.php') ?><?= $dbFilter !== 'ALL' ? '?source=' . htmlspecialchars($dbFilter) : '' ?>" title="Clear search"><i class="bi bi-x-lg"></i></a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table Card -->
+    <div class="crm-card">
+        <div class="crm-card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td>
-                                <strong class="text-dark"><?= htmlspecialchars($r['name'] ?: '—') ?></strong>
-                            </td>
-                            <td>
-                                <span class="badge-mobile"><?= htmlspecialchars($r['mobile'] ?: '—') ?></span>
-                            </td>
-                            <td>
-                                <span class="text-secondary"><?= htmlspecialchars($r['company'] ?: '—') ?></span>
-                            </td>
-                            <td>
-                                <?php if ($r['source'] === 'TEMP'): ?>
-                                    <span class="source-badge-temp" title="Temporary Leads Database">
-                                        <i class="bi bi-clock-history"></i> Temporary DB
-                                    </span>
-                                <?php else: ?>
-                                    <span class="source-badge-main" title="Main Customer Database">
-                                        <i class="bi bi-database-check"></i> Main DB
-                                    </span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?= fmtDateTime($r['marked_at']) ?>
-                            </td>
-                            <td class="text-end pe-3">
-                                <div class="d-inline-flex align-items-center gap-1">
-                                    <!-- Unmark DND (Restore to calling queue) -->
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Remove <?= htmlspecialchars($r['mobile']) ?> from DND list and restore to active calling queue?');">
-                                        <?= csrfField() ?>
-                                        <input type="hidden" name="action" value="unmark">
-                                        <input type="hidden" name="id" value="<?= intval($r['ID']) ?>">
-                                        <input type="hidden" name="source" value="<?= htmlspecialchars($r['source']) ?>">
-                                        <input type="hidden" name="mobile" value="<?= htmlspecialchars($r['mobile']) ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Unmark DND (Restore to Calling Queue)" style="padding: 0.25rem 0.5rem; font-size: 0.78rem;">
-                                            <i class="bi bi-telephone-check me-1"></i> Restore
-                                        </button>
-                                    </form>
-
-                                    <!-- Delete Record -->
-                                    <?php if (isAdmin()): ?>
-                                        <form method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this customer record from <?= htmlspecialchars($r['source']) ?> database?');">
-                                            <?= csrfField() ?>
-                                            <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="id" value="<?= intval($r['ID']) ?>">
-                                            <input type="hidden" name="source" value="<?= htmlspecialchars($r['source']) ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Permanently Delete Lead" style="padding: 0.25rem 0.5rem; font-size: 0.78rem;">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    <?php endif; ?>
+                            <th>Customer Name</th>
+                            <th>Mobile Number</th>
+                            <th>Company / Remarks</th>
+                            <th>Source</th>
+                            <th>Marked DND Date</th>
+                            <th class="text-end pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php if (empty($dndRecords)): ?>
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-shield-check text-success fs-1 d-block mb-2"></i>
+                                <div class="fw-bold mb-1">No DND records found</div>
+                                <div class="fs-xs text-muted">
+                                    <?= $search ? "No records matched your search query. Try clearing the filter." : "There are currently no numbers marked as Do-Not-Disturb in the selected database." ?>
                                 </div>
                             </td>
                         </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-                </tbody>
-            </table>
+                    <?php else: ?>
+                        <?php foreach ($dndRecords as $r): ?>
+                            <tr>
+                                <td>
+                                    <strong class="text-dark fs-xs"><?= htmlspecialchars($r['name'] ?: '—') ?></strong>
+                                </td>
+                                <td>
+                                    <span class="badge badge-secondary fs-xs font-monospace"><?= htmlspecialchars($r['mobile'] ?: '—') ?></span>
+                                </td>
+                                <td>
+                                    <span class="text-muted fs-xs"><?= htmlspecialchars($r['company'] ?: '—') ?></span>
+                                </td>
+                                <td>
+                                    <?php if ($r['source'] === 'TEMP'): ?>
+                                        <span class="badge badge-warning fs-xs">
+                                            <i class="bi bi-clock-history me-1"></i> Temp DB
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="badge badge-primary fs-xs">
+                                            <i class="bi bi-database me-1"></i> Main DB
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?= fmtDateTime($r['marked_at']) ?>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="d-inline-flex align-items-center gap-1">
+                                        <!-- Restore / Unmark DND -->
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Restore <?= htmlspecialchars($r['mobile']) ?> to active calling queue?');">
+                                            <?= csrfField() ?>
+                                            <input type="hidden" name="action" value="unmark">
+                                            <input type="hidden" name="id" value="<?= intval($r['ID']) ?>">
+                                            <input type="hidden" name="source" value="<?= htmlspecialchars($r['source']) ?>">
+                                            <input type="hidden" name="mobile" value="<?= htmlspecialchars($r['mobile']) ?>">
+                                            <button type="submit" class="btn btn-secondary btn-sm py-1 px-2 fs-xs" title="Restore to Calling Queue">
+                                                <i class="bi bi-telephone-plus me-1 text-success"></i> Restore
+                                            </button>
+                                        </form>
+
+                                        <!-- Delete Record -->
+                                        <?php if (isAdmin()): ?>
+                                            <form method="POST" class="d-inline" onsubmit="return confirm('Permanently delete record #<?= intval($r['ID']) ?> from <?= htmlspecialchars($r['source']) ?> database?');">
+                                                <?= csrfField() ?>
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="id" value="<?= intval($r['ID']) ?>">
+                                                <input type="hidden" name="source" value="<?= htmlspecialchars($r['source']) ?>">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2 fs-xs" title="Permanently Delete">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Pagination Footer -->
         <?php if ($totalRecords > 0): ?>
-            <div class="card-footer bg-surface border-top d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-2">
-                <div class="small text-muted">
-                    Showing <strong><?= number_format($offset + 1) ?></strong>–<strong><?= number_format(min($offset + $limit, $totalRecords)) ?></strong> of <strong><?= number_format($totalRecords) ?></strong> DND records
+            <div class="crm-card-footer d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-2 border-top">
+                <div class="fs-xs text-muted">
+                    Showing <strong><?= number_format($offset + 1) ?></strong>–<strong><?= number_format(min($offset + $limit, $totalRecords)) ?></strong> of <strong><?= number_format($totalRecords) ?></strong> records
                 </div>
 
                 <?php if ($totalPages > 1): ?>
                     <nav aria-label="DND Pagination">
-                        <ul class="pagination pagination-sm justify-content-center flex-wrap mb-0">
+                        <ul class="pagination pagination-sm mb-0">
                             <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
                                 <a class="page-link" href="<?= url('modules/database/ViewDND.php') ?>?<?= buildQuery(['page' => $page - 1]) ?>" aria-label="Previous">&laquo;</a>
                             </li>
@@ -653,48 +516,46 @@ include '../../php_scripts/header.php';
 <!-- Add DND Number Modal -->
 <div class="modal fade" id="addDndModal" tabindex="-1" aria-labelledby="addDndModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow border-0" style="border-radius: var(--radius-xl); overflow: hidden;">
-            <form method="POST">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="add">
-                <div class="modal-header bg-danger text-white px-4 py-3">
-                    <h5 class="modal-title fw-bold" id="addDndModalLabel">
-                        <i class="bi bi-shield-slash-fill me-2"></i> Add Number to DND
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <form method="POST" class="modal-content">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="add">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="addDndModalLabel">
+                    <i class="bi bi-shield-plus text-danger me-2"></i>Add Number to DND
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" for="add_mobile">Mobile Number <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                        <input type="text" name="add_mobile" id="add_mobile" class="form-control" placeholder="10-digit mobile" required pattern="[0-9\s\+\-]{7,15}">
+                    </div>
+                    <div class="form-text fs-xs">Matching records across both Main & Temporary databases will be updated to DND.</div>
                 </div>
-                <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Mobile Number <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-surface-2"><i class="bi bi-telephone-fill text-muted"></i></span>
-                            <input type="text" name="add_mobile" class="form-control" placeholder="e.g. 9876543210" required pattern="[0-9\s\+\-]{7,15}">
-                        </div>
-                        <div class="form-text">All existing records matching this number across Main & Temporary databases will be marked as DND.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Customer Name <small class="text-muted">(Optional)</small></label>
-                        <input type="text" name="add_name" class="form-control" placeholder="Customer or Contact Name">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Company / Remark <small class="text-muted">(Optional)</small></label>
-                        <input type="text" name="add_company" class="form-control" placeholder="Company or Reason for DND">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Default Target Database</label>
-                        <select name="add_source" class="form-select">
-                            <option value="MAIN" selected>Main Customer Database</option>
-                            <option value="TEMP">Temporary Leads Database</option>
-                        </select>
-                        <div class="form-text">Used if this number is new and will be registered as a new record.</div>
-                    </div>
+                <div class="mb-3">
+                    <label class="form-label" for="add_name">Customer Name <small class="text-muted">(Optional)</small></label>
+                    <input type="text" name="add_name" id="add_name" class="form-control" placeholder="Customer name">
                 </div>
-                <div class="modal-footer bg-surface-2 px-4 py-3 border-top">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger fw-bold"><i class="bi bi-shield-x me-1"></i> Block Number (Mark DND)</button>
+                <div class="mb-3">
+                    <label class="form-label" for="add_company">Company / Reason <small class="text-muted">(Optional)</small></label>
+                    <input type="text" name="add_company" id="add_company" class="form-control" placeholder="Organization or notes">
                 </div>
-            </form>
-        </div>
+                <div class="mb-3">
+                    <label class="form-label" for="add_source">Default Repository</label>
+                    <select name="add_source" id="add_source" class="form-select">
+                        <option value="MAIN" selected>Main Database</option>
+                        <option value="TEMP">Temporary Staging Database</option>
+                    </select>
+                    <div class="form-text fs-xs">Target database if this is a newly inserted number.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-shield-x me-1"></i> Block Number</button>
+            </div>
+        </form>
     </div>
 </div>
 
