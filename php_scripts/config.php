@@ -378,6 +378,23 @@
                 }
             }
 
+            // Ensure users table has profile_photo and current_calling_db
+            $userCols = [];
+            $uColRes = mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_USERS'));
+            if ($uColRes) {
+                while ($uRow = mysqli_fetch_assoc($uColRes)) {
+                    $userCols[strtolower($uRow['Field'])] = true;
+                }
+            }
+            if (!empty($userCols)) {
+                if (!isset($userCols['profile_photo'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN profile_photo VARCHAR(255) DEFAULT NULL");
+                }
+                if (!isset($userCols['current_calling_db'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN current_calling_db ENUM('temporary','main','leads') NOT NULL DEFAULT 'temporary'");
+                }
+            }
+
             $done = true;
         }
     }

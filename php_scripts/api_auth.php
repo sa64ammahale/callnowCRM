@@ -404,11 +404,53 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
         LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
         WHERE u.ID = ? LIMIT 1
     ");
-    if (!$stmt) return null;
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    if ($stmt) {
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+
+    if (!$user) {
+        $stmt2 = @$link->prepare("SELECT * FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
+        if ($stmt2) {
+            $stmt2->bind_param('i', $userId);
+            $stmt2->execute();
+            $raw = $stmt2->get_result()->fetch_assoc();
+            $stmt2->close();
+            if ($raw) {
+                $user = [
+                    'id' => (int)($raw['ID'] ?? $raw['id'] ?? $userId),
+                    'name' => $raw['NAME'] ?? $raw['name'] ?? '',
+                    'email' => $raw['EMAIL'] ?? $raw['email'] ?? '',
+                    'login_id' => $raw['LOGIN_ID'] ?? $raw['login_id'] ?? '',
+                    'mobile' => $raw['MOBILE'] ?? $raw['mobile'] ?? '',
+                    'company_name' => $raw['COMPANY_NAME'] ?? $raw['company_name'] ?? ($raw['COMPANY'] ?? $raw['company'] ?? 'CallNow'),
+                    'company' => $raw['COMPANY'] ?? $raw['company'] ?? 'CallNow',
+                    'package' => $raw['PACKAGE'] ?? $raw['package'] ?? 'Standard',
+                    'status' => $raw['STATUS'] ?? $raw['status'] ?? 'Active',
+                    'role' => $raw['ROLE'] ?? $raw['role'] ?? 'Telecaller',
+                    'role_id' => isset($raw['role_id']) ? (int)$raw['role_id'] : null,
+                    'team_id' => isset($raw['TEAM_ID']) ? (int)$raw['TEAM_ID'] : (isset($raw['team_id']) ? (int)$raw['team_id'] : null),
+                    'team_name' => '',
+                    'join_date' => $raw['JOIN_DATE'] ?? $raw['join_date'] ?? ($raw['CREATED_AT'] ?? $raw['created_at'] ?? ''),
+                    'created_at' => $raw['CREATED_AT'] ?? $raw['created_at'] ?? '',
+                    'updated_at' => $raw['UPDATED_AT'] ?? $raw['updated_at'] ?? '',
+                    'last_login' => $raw['LAST_LOGIN'] ?? $raw['last_login'] ?? '',
+                    'profile_photo' => $raw['profile_photo'] ?? '',
+                    'current_calling_db' => $raw['current_calling_db'] ?? 'temporary',
+                ];
+
+                if (!empty($user['team_id'])) {
+                    $teamId = (int)$user['team_id'];
+                    $tRes = @$link->query("SELECT * FROM " . tn('TBL_TEAMS') . " WHERE ID = $teamId LIMIT 1");
+                    if ($tRes && ($tRow = $tRes->fetch_assoc())) {
+                        $user['team_name'] = $tRow['NAME'] ?? $tRow['TEAM_NAME'] ?? $tRow['name'] ?? '';
+                    }
+                }
+            }
+        }
+    }
 
     if (!$user) return null;
 
