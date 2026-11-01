@@ -403,7 +403,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                     </td>
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
-                                            <div style="width:26px; height:26px; font-size:10px; background:#e2e8f0; color:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">
+                                            <div class="avatar-circle" style="width:26px; height:26px; font-size:10px;">
                                                 <?= strtoupper(substr($r['user_name'] ?? '?', 0, 2)) ?>
                                             </div>
                                             <div class="fw-semibold fs-xs text-truncate" style="max-width: 120px;" title="<?= htmlspecialchars($r['user_name'] ?? '—') ?>">

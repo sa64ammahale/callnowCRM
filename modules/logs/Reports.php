@@ -618,7 +618,7 @@ include '../../php_scripts/header.php';
                                         <td class="text-muted fs-xs"><?= htmlspecialchars($sup ?: '—') ?></td>
                                         <td>
                                             <div class="d-flex align-items-center gap-2">
-                                                <div class="avatar-circle" style="width:28px; height:28px; font-size:11px; background:#e2e8f0; color:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">
+                                                <div class="avatar-circle" style="width:28px; height:28px; font-size:11px;">
                                                     <?= strtoupper(substr($u['user_name'] ?? '?', 0, 2)) ?>
                                                 </div>
                                                 <div>
@@ -817,8 +817,8 @@ new Chart(document.getElementById('trendChart'), {
     data: {
         labels: trendLabels,
         datasets: [
-            { label: 'Total Calls', data: trendTotal, borderColor: '#0066cc', backgroundColor: 'rgba(0,102,204,0.08)', fill: true, tension: .2 },
-            { label: 'Connected', data: trendConnected, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: true, tension: .2 }
+            { label: 'Total Calls', data: trendTotal, borderColor: '#6D45F9', backgroundColor: 'rgba(109,69,249,0.12)', fill: true, tension: .2 },
+            { label: 'Connected', data: trendConnected, borderColor: '#0090DF', backgroundColor: 'rgba(0,144,223,0.10)', fill: true, tension: .2 }
         ]
     },
     options: { 
@@ -835,7 +835,7 @@ new Chart(document.getElementById('statusChart'), {
         labels: statusLabels,
         datasets: [{
             data: statusValues,
-            backgroundColor: ['#10b981', '#64748b', '#0066cc', '#f59e0b', '#ef4444', '#8b5cf6']
+            backgroundColor: ['#16A66A', '#6D45F9', '#0090DF', '#D89012', '#E5484D', '#8C72FF']
         }]
     },
     options: { 
@@ -849,7 +849,7 @@ new Chart(document.getElementById('userChart'), {
     type: 'bar',
     data: {
         labels: userLabels,
-        datasets: [{ label: 'Total Calls', data: userTotals, backgroundColor: '#0066cc', borderRadius: 4 }]
+        datasets: [{ label: 'Total Calls', data: userTotals, backgroundColor: '#6D45F9', borderRadius: 8 }]
     },
     options: { 
         responsive: true, 

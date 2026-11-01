@@ -254,17 +254,19 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
 
 <style>
 .crm-lead-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-xs);
-    transition: border-color 0.12s ease;
+    background: #FFFFFF;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
     height: 100%;
     display: flex;
     flex-direction: column;
 }
 .crm-lead-card:hover {
-    border-color: var(--border-strong);
+    border-color: #D6D6DC;
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
 }
 .crm-lead-card-header {
     padding: 0.75rem 0.875rem 0.5rem;

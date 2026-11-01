@@ -8,31 +8,31 @@ $currentScript = basename($_SERVER['SCRIPT_NAME'] ?? '');
 ?>
 <header class="app-topbar">
     <button type="button" class="app-topbar-toggle" id="sidebarToggle" aria-label="Toggle navigation">
-        <i class="bi bi-list fs-6"></i>
+        <i class="bi bi-list fs-5"></i>
     </button>
 
     <div class="app-topbar-breadcrumb d-none d-md-flex">
         <span>CallNow</span>
         <i class="bi bi-chevron-right text-muted" style="font-size:0.65rem"></i>
-        <span class="crumb-active"><?= htmlspecialchars($pageTitle ?? 'CRM', ENT_QUOTES, 'UTF-8') ?></span>
+        <span class="crumb-active"><?= htmlspecialchars($pageTitle ?? 'Dashboard', ENT_QUOTES, 'UTF-8') ?></span>
     </div>
 
-    <!-- Global Omnisearch Bar -->
+    <!-- Flux Command Launcher -->
     <div class="app-topbar-search" id="topbarSearchTrigger" onclick="openOmniSearch()">
         <i class="bi bi-search search-icon"></i>
-        <input type="text" placeholder="Search leads, numbers, users..." aria-label="Search" readonly />
+        <input type="text" placeholder="Quick search or jump to page..." aria-label="Search" readonly />
         <span class="search-kbd">Ctrl+K</span>
     </div>
 
     <div class="app-topbar-actions">
-        <!-- Zoho Quick Create Button -->
+        <!-- Flux Quick Create Button -->
         <div class="dropdown">
             <button class="btn btn-topbar-create dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-plus-lg"></i>
                 <span class="d-none d-sm-inline">Create</span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                <li class="dropdown-header">Quick Create</li>
+                <li class="dropdown-header">Quick Action</li>
                 <?php if (can('manage_leads')): ?>
                 <li><a class="dropdown-item" href="<?= url('modules/leads/lead_insert.php') ?>"><i class="bi bi-person-plus text-primary"></i>New Lead</a></li>
                 <?php endif; ?>

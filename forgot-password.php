@@ -142,16 +142,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Reset Password &bull; CallNow CRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="<?= vnd('css/bootstrap-icons.css') ?>" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
 </head>
 <body class="bg-app">
     <div class="login-shell">
-        <div class="login-card" style="max-width:420px;">
+        <div class="login-card" style="max-width:440px;">
             <div class="login-brand">
                 <span class="brand-mark"><i class="bi bi-key-fill"></i></span>
-                <span class="brand-text">CallNow CRM</span>
+                <span class="brand-text">CallNow <span class="flux-gradient-text">CRM</span></span>
             </div>
 
             <h1 class="login-title">Reset Your Password</h1>
@@ -165,7 +168,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <div class="small mt-1"><?= $ErrorMessage ?></div>
                         <?php if(strpos($ErrorMessage, 'Your new password is:') !== false): ?>
                             <div class="mt-2 p-2 bg-white rounded border">
-                                <code class="fw-bold fs-6 text-dark"><?= htmlspecialchars($NewPassword) ?></code>
+                                <code class="fw-bold fs-6 text-dark font-mono"><?= htmlspecialchars($NewPassword) ?></code>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -176,7 +179,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </a>
                 </div>
             <?php else: ?>
-                <div class="p-3 border rounded bg-subtle mb-3 small">
+                <div class="p-3 border rounded bg-subtle mb-3 small" style="border-radius:var(--radius-md);">
                     <div class="fw-semibold text-dark mb-1"><i class="bi bi-info-circle text-primary me-1"></i>Account Verification</div>
                     <div class="text-secondary">Enter your registered company name and login email. Your credentials will be verified against system records.</div>
                 </div>

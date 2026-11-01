@@ -15,14 +15,14 @@ $statusMeta = leadStatusMeta();
 $pipelineOrder = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
 
 $stageColors = [
-    'LEAD' => ['bg' => '#2563eb', 'soft' => '#eff6ff'],
-    'FOLLOWUP' => ['bg' => '#0284c7', 'soft' => '#f0f9ff'],
-    'INTERNAL_UNDERWRITING' => ['bg' => '#64748b', 'soft' => '#f8fafc'],
-    'LOGIN' => ['bg' => '#d97706', 'soft' => '#fffbeb'],
-    'BANK_UNDERWRITING' => ['bg' => '#7c3aed', 'soft' => '#faf5ff'],
-    'SANCTIONED' => ['bg' => '#16a34a', 'soft' => '#f0fdf4'],
-    'DISBURSED' => ['bg' => '#059669', 'soft' => '#ecfdf5'],
-    'REJECT' => ['bg' => '#dc2626', 'soft' => '#fef2f2'],
+    'LEAD' => ['bg' => '#6D45F9', 'soft' => '#F0ECFF'],
+    'FOLLOWUP' => ['bg' => '#0090DF', 'soft' => '#E8F7FF'],
+    'INTERNAL_UNDERWRITING' => ['bg' => '#4D72E8', 'soft' => '#EEF3FF'],
+    'LOGIN' => ['bg' => '#D89012', 'soft' => '#FFF6DF'],
+    'BANK_UNDERWRITING' => ['bg' => '#8C72FF', 'soft' => '#F0ECFF'],
+    'SANCTIONED' => ['bg' => '#16A66A', 'soft' => '#E9F8F1'],
+    'DISBURSED' => ['bg' => '#087A4B', 'soft' => '#E9F8F1'],
+    'REJECT' => ['bg' => '#E5484D', 'soft' => '#FFF0F0'],
 ];
 
 $where = '';
@@ -270,37 +270,41 @@ $totalAll = count($rows);
     align-items: flex-start;
 }
 .pl-col {
-    width: 270px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    width: 280px;
+    background: #F6F6F8;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-xs);
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - 220px);
 }
 .pl-col-head {
-    padding: 0.625rem 0.75rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-subtle);
+    padding: 0.75rem 0.875rem;
+    border-bottom: 1px solid var(--border-subtle);
+    background: #FFFFFF;
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
 }
 .pl-col-body {
     flex: 1;
     overflow-y: auto;
-    padding: 0.5rem;
+    padding: 0.625rem;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.625rem;
 }
 .pl-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-xs);
-    transition: border-color 0.12s ease;
+    background: #FFFFFF;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
 }
 .pl-card:hover {
-    border-color: var(--border-strong);
+    border-color: #D6D6DC;
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
 }
 .pl-card-main {
     padding: 0.625rem;

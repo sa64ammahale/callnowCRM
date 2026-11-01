@@ -108,6 +108,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Sign In &bull; CallNow CRM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="<?= vnd('css/bootstrap-icons.css') ?>" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
@@ -120,7 +123,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <img src="<?= htmlspecialchars($loginLogo, ENT_QUOTES, 'UTF-8') ?>" alt="CallNow" style="max-height:36px; max-width:180px; object-fit:contain;">
                 <?php else: ?>
                     <span class="brand-mark"><i class="bi bi-telephone-fill"></i></span>
-                    <span class="brand-text">CallNow CRM</span>
+                    <span class="brand-text">CallNow <span class="flux-gradient-text">CRM</span></span>
                 <?php endif; ?>
             </div>
 
@@ -167,7 +170,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
                         <input type="password" id="password" class="form-control" name="password"
                                placeholder="Enter your password" required>
-                        <button type="button" class="btn btn-secondary" id="togglePassword" type="button">
+                        <button type="button" class="btn btn-secondary" id="togglePassword">
                             <i class="bi bi-eye"></i>
                         </button>
                     </div>

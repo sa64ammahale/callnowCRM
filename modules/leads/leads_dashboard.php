@@ -69,13 +69,13 @@ $conversionBase = max(1, $statusCounts['DISBURSED'] + $activePipeline + $statusC
 $conversionRate = round(($statusCounts['DISBURSED'] / $conversionBase) * 100, 1);
 
 $pipelineSteps = [
-    ['key' => 'LEAD',         'icon' => 'bi-person-plus',   'color' => '#2563eb', 'label' => 'New Lead'],
-    ['key' => 'FOLLOWUP',     'icon' => 'bi-arrow-repeat',  'color' => '#0284c7', 'label' => 'Follow-up'],
-    ['key' => 'INTERNAL_UNDERWRITING', 'icon' => 'bi-building-check', 'color' => '#64748b', 'label' => 'Internal UW'],
-    ['key' => 'LOGIN',        'icon' => 'bi-box-arrow-in-right', 'color' => '#d97706', 'label' => 'Bank Login'],
-    ['key' => 'BANK_UNDERWRITING', 'icon' => 'bi-bank',     'color' => '#7c3aed', 'label' => 'Bank UW'],
-    ['key' => 'SANCTIONED',   'icon' => 'bi-check-circle',  'color' => '#16a34a', 'label' => 'Sanctioned'],
-    ['key' => 'DISBURSED',    'icon' => 'bi-cash-coin',     'color' => '#059669', 'label' => 'Disbursed'],
+    ['key' => 'LEAD',         'icon' => 'bi-person-plus',   'color' => '#6D45F9', 'label' => 'New Lead'],
+    ['key' => 'FOLLOWUP',     'icon' => 'bi-arrow-repeat',  'color' => '#0090DF', 'label' => 'Follow-up'],
+    ['key' => 'INTERNAL_UNDERWRITING', 'icon' => 'bi-building-check', 'color' => '#4D72E8', 'label' => 'Internal UW'],
+    ['key' => 'LOGIN',        'icon' => 'bi-box-arrow-in-right', 'color' => '#D89012', 'label' => 'Bank Login'],
+    ['key' => 'BANK_UNDERWRITING', 'icon' => 'bi-bank',     'color' => '#8C72FF', 'label' => 'Bank UW'],
+    ['key' => 'SANCTIONED',   'icon' => 'bi-check-circle',  'color' => '#16A66A', 'label' => 'Sanctioned'],
+    ['key' => 'DISBURSED',    'icon' => 'bi-cash-coin',     'color' => '#087A4B', 'label' => 'Disbursed'],
 ];
 $pipelineMax = max(1, max(array_map(function($s) use ($statusCounts) { return $statusCounts[$s['key']] ?? 0; }, $pipelineSteps)));
 $userName = $_SESSION['name'] ?? 'User';

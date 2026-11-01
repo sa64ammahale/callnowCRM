@@ -59,10 +59,12 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
 <div class="crm-module-header">
     <div>
         <div class="crm-module-header-title">
-            <i class="bi bi-speedometer2 text-primary"></i>
-            <h1>Sales & Telecalling Dashboard</h1>
+            <i class="bi bi-speedometer2 text-primary fs-3"></i>
+            <div>
+                <h1 class="mb-0">Sales & Telecalling Dashboard</h1>
+                <p class="crm-module-header-desc">Real-time telecalling operations, conversion metrics & database tracking</p>
+            </div>
         </div>
-        <p class="crm-module-header-desc">Real-time telecalling operations, conversion metrics & database tracking</p>
     </div>
     <div class="crm-module-header-actions">
         <span class="status-pill success"><i class="bi bi-circle-fill"></i> System Operational</span>
@@ -87,36 +89,38 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
     <?php unset($_SESSION['access_denied_message']); ?>
 <?php endif; ?>
 
-<!-- Welcome Strip -->
-<div class="welcome-strip">
-    <div>
-        <h2 class="welcome-strip-title"><?= htmlspecialchars($greeting, ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars($_SESSION['name'] ?? 'Team', ENT_QUOTES, 'UTF-8') ?></h2>
-        <p class="welcome-strip-desc">Welcome to your operational telecalling hub. Today is <?= date('l, d F Y') ?>.</p>
-    </div>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="btn btn-secondary btn-sm">
-            <i class="bi bi-kanban text-primary"></i> Pipeline Board
-        </a>
-        <a href="<?= url('modules/database/data_management_main.php') ?>" class="btn btn-secondary btn-sm">
-            <i class="bi bi-database text-success"></i> Customer Database
-        </a>
-        <?php if (can('export_data')): ?>
-        <a href="<?= url('modules/database/maindatabase_ajax/download_bach.php') ?>" class="btn btn-secondary btn-sm">
-            <i class="bi bi-cloud-arrow-down text-info"></i> Export Full DB
-        </a>
-        <?php endif; ?>
+<!-- Welcome Strip (Flux Soft Ambient Wash) -->
+<div class="card border-0 flux-brand-wash p-4 mb-4" style="border-radius:var(--radius-lg); box-shadow:var(--shadow-card);">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div>
+            <h2 class="h3 fw-bold text-dark mb-1"><?= htmlspecialchars($greeting, ENT_QUOTES, 'UTF-8') ?>, <span class="flux-gradient-text"><?= htmlspecialchars($_SESSION['name'] ?? 'Team', ENT_QUOTES, 'UTF-8') ?></span></h2>
+            <p class="text-secondary mb-0 small">Welcome to your operational telecalling hub. Today is <?= date('l, d F Y') ?>.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-kanban text-primary"></i> Pipeline Board
+            </a>
+            <a href="<?= url('modules/database/data_management_main.php') ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-database text-success"></i> Customer Database
+            </a>
+            <?php if (can('export_data')): ?>
+            <a href="<?= url('modules/database/maindatabase_ajax/download_bach.php') ?>" class="btn btn-secondary btn-sm">
+                <i class="bi bi-cloud-arrow-down text-info"></i> Export Full DB
+            </a>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
-<!-- Primary KPI Metrics Grid -->
+<!-- Primary KPI Metrics Grid (Flux KPI Cards with Tabular Numerals) -->
 <div class="row g-3 mb-4">
     <div class="col-xl-2 col-md-4 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon"><i class="bi bi-telephone-outbound"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Calls Today</div>
-                <div class="metric-card-value"><?= fmt($today_calls) ?></div>
-                <div class="metric-card-sub">Dialed today</div>
+                <div class="metric-card-value font-mono"><?= fmt($today_calls) ?></div>
+                <div class="metric-card-sub"><span class="badge bg-primary">Dialed today</span></div>
             </div>
         </div>
     </div>
@@ -125,8 +129,8 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             <div class="metric-card-icon success"><i class="bi bi-check2-circle"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Connected</div>
-                <div class="metric-card-value"><?= fmt($today_connected) ?></div>
-                <div class="metric-card-sub"><?= $connect_rate ?>% connect rate</div>
+                <div class="metric-card-value font-mono"><?= fmt($today_connected) ?></div>
+                <div class="metric-card-sub"><span class="badge bg-success"><?= $connect_rate ?>% rate</span></div>
             </div>
         </div>
     </div>
@@ -135,8 +139,8 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             <div class="metric-card-icon info"><i class="bi bi-activity"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Connect Rate</div>
-                <div class="metric-card-value"><?= $connect_rate ?>%</div>
-                <div class="progress mt-2" style="height:4px;">
+                <div class="metric-card-value font-mono"><?= $connect_rate ?>%</div>
+                <div class="progress mt-2" style="height:4px; border-radius:9999px;">
                     <div class="progress-bar bg-info" style="width:<?= min(100, $connect_rate) ?>%"></div>
                 </div>
             </div>
@@ -147,8 +151,8 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             <div class="metric-card-icon warning"><i class="bi bi-star-fill"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Hot Leads</div>
-                <div class="metric-card-value"><?= fmt($total_leads) ?></div>
-                <div class="metric-card-sub">Interested / Sales</div>
+                <div class="metric-card-value font-mono"><?= fmt($total_leads) ?></div>
+                <div class="metric-card-sub"><span class="badge bg-warning">Interested / Sales</span></div>
             </div>
         </div>
     </div>
@@ -157,18 +161,18 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             <div class="metric-card-icon danger"><i class="bi bi-clock-history"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Fresh Pending</div>
-                <div class="metric-card-value"><?= fmt($unused_numbers) ?></div>
-                <div class="metric-card-sub"><?= $pending_pct ?>% remaining</div>
+                <div class="metric-card-value font-mono"><?= fmt($unused_numbers) ?></div>
+                <div class="metric-card-sub"><span class="badge bg-danger"><?= $pending_pct ?>% remain</span></div>
             </div>
         </div>
     </div>
     <div class="col-xl-2 col-md-4 col-sm-6">
         <div class="metric-card">
-            <div class="metric-card-icon"><i class="bi bi-database"></i></div>
+            <div class="metric-card-icon purple"><i class="bi bi-database"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Main Database</div>
-                <div class="metric-card-value"><?= fmt($total_numbers) ?></div>
-                <div class="metric-card-sub">Customer records</div>
+                <div class="metric-card-value font-mono"><?= fmt($total_numbers) ?></div>
+                <div class="metric-card-sub"><span class="badge bg-purple">Customer records</span></div>
             </div>
         </div>
     </div>
@@ -180,38 +184,38 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
     <div class="col-lg-7">
         <div class="card h-100 mb-0">
             <div class="card-header">
-                <span><i class="bi bi-people-fill text-primary me-2"></i>Telecaller Performance Overview</span>
-                <span class="badge bg-primary"><?= fmt($active_callers_today) ?> Active Callers Today</span>
+                <span class="fw-bold"><i class="bi bi-people-fill text-primary me-2"></i>Telecaller Performance Overview</span>
+                <span class="badge bg-primary font-mono"><?= fmt($active_callers_today) ?> Active Callers Today</span>
             </div>
             <div class="card-body">
                 <div class="row g-3 mb-3">
                     <div class="col-sm-6">
-                        <div class="p-3 border rounded bg-subtle">
+                        <div class="p-3 border rounded bg-subtle" style="border-radius:var(--radius-md);">
                             <div class="text-muted small text-uppercase fw-semibold mb-1">Fleet Connect Ratio</div>
                             <div class="d-flex align-items-baseline gap-2">
-                                <span class="fs-4 fw-bold text-dark"><?= $connect_rate ?>%</span>
-                                <span class="badge bg-success"><?= fmt($today_connected) ?> of <?= fmt($today_calls) ?></span>
+                                <span class="fs-4 fw-bold text-dark font-mono"><?= $connect_rate ?>%</span>
+                                <span class="badge bg-success font-mono"><?= fmt($today_connected) ?> / <?= fmt($today_calls) ?></span>
                             </div>
-                            <div class="progress mt-2" style="height:6px;">
+                            <div class="progress mt-2" style="height:6px; border-radius:9999px;">
                                 <div class="progress-bar bg-success" style="width:<?= min(100, $connect_rate) ?>%"></div>
                             </div>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 border rounded bg-subtle">
+                        <div class="p-3 border rounded bg-subtle" style="border-radius:var(--radius-md);">
                             <div class="text-muted small text-uppercase fw-semibold mb-1">Calling Queue Capacity</div>
                             <div class="d-flex align-items-baseline gap-2">
-                                <span class="fs-4 fw-bold text-dark"><?= fmt($unused_numbers) ?></span>
+                                <span class="fs-4 fw-bold text-dark font-mono"><?= fmt($unused_numbers) ?></span>
                                 <span class="badge bg-secondary">Pending Dialing</span>
                             </div>
-                            <div class="progress mt-2" style="height:6px;">
+                            <div class="progress mt-2" style="height:6px; border-radius:9999px;">
                                 <div class="progress-bar bg-primary" style="width:<?= min(100, 100 - $pending_pct) ?>%"></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top flex-wrap gap-2">
                     <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>All telecallers are synchronized via the lease-based auto-expiry queue.</span>
                     <a href="<?= url('modules/logs/Reports.php') ?>" class="btn btn-sm btn-outline-primary">
                         Drill Down Analytics <i class="bi bi-arrow-right ms-1"></i>
@@ -225,13 +229,13 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
     <div class="col-lg-5">
         <div class="card h-100 mb-0">
             <div class="card-header">
-                <span><i class="bi bi-grid-fill text-primary me-2"></i>Workspace Quick Launcher</span>
+                <span class="fw-bold"><i class="bi bi-grid-fill text-primary me-2"></i>Workspace Quick Launcher</span>
                 <span class="text-muted small">Frequent Actions</span>
             </div>
             <div class="card-body p-2">
-                <div class="list-group list-group-flush">
-                    <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded mb-1">
-                        <div class="d-flex align-items-center gap-2">
+                <div class="list-group list-group-flush gap-1">
+                    <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded">
+                        <div class="d-flex align-items-center gap-3">
                             <span class="metric-card-icon sm bg-primary text-white"><i class="bi bi-kanban"></i></span>
                             <div>
                                 <div class="fw-semibold text-dark">Lead Pipeline Board</div>
@@ -241,8 +245,8 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
                         <i class="bi bi-chevron-right text-muted small"></i>
                     </a>
 
-                    <a href="<?= url('modules/leads/lead_list.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded mb-1">
-                        <div class="d-flex align-items-center gap-2">
+                    <a href="<?= url('modules/leads/lead_list.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded">
+                        <div class="d-flex align-items-center gap-3">
                             <span class="metric-card-icon sm bg-info text-white"><i class="bi bi-person-lines-fill"></i></span>
                             <div>
                                 <div class="fw-semibold text-dark">Leads Register</div>
@@ -253,8 +257,8 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
                     </a>
 
                     <?php if (can('manage_database')): ?>
-                    <a href="<?= url('modules/database/upload_data.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded mb-1">
-                        <div class="d-flex align-items-center gap-2">
+                    <a href="<?= url('modules/database/upload_data.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded">
+                        <div class="d-flex align-items-center gap-3">
                             <span class="metric-card-icon sm bg-success text-white"><i class="bi bi-cloud-arrow-up"></i></span>
                             <div>
                                 <div class="fw-semibold text-dark">Upload Calling Data</div>
@@ -266,8 +270,8 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
                     <?php endif; ?>
 
                     <?php if (can('view_reports')): ?>
-                    <a href="<?= url('modules/logs/call_history.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded mb-1">
-                        <div class="d-flex align-items-center gap-2">
+                    <a href="<?= url('modules/logs/call_history.php') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between px-3 py-2 border-0 rounded">
+                        <div class="d-flex align-items-center gap-3">
                             <span class="metric-card-icon sm bg-warning text-dark"><i class="bi bi-telephone-inbound"></i></span>
                             <div>
                                 <div class="fw-semibold text-dark">Call History Logs</div>

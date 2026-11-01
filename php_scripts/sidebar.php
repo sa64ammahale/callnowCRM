@@ -21,8 +21,8 @@ function navActive($patterns) {
             <span class="brand-mark"><i class="bi bi-telephone-fill"></i></span>
         <?php endif; ?>
         <div class="brand-title-wrap">
-            <span class="brand-text">CallNow CRM</span>
-            <span class="brand-workspace-pill">Telecalling Workspace</span>
+            <span class="brand-text">CallNow <span class="flux-gradient-text">CRM</span></span>
+            <span class="brand-workspace-pill">Flux Workspace</span>
         </div>
     </a>
 

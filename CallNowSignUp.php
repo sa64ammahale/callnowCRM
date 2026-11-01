@@ -180,6 +180,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     <title>Create Account &bull; CallNow CRM</title>
     
     <!-- Bootstrap 5 CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
     <link href="assets/css/app-theme.css" rel="stylesheet">
     

@@ -188,6 +188,40 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Major Fix (2026-11-01): Full Flux Dashboard UI Design System Overhaul
+Strictly aligned the entire project with `flux_dashboard_ui_design_system_skill.md` (Next.js 16 Flux Dashboard aesthetic: violet `#6D45F9` & electric blue `#0090DF` brand accents, frosted glass topbar, high-contrast dark `#11111A` sidebar, 14px signature card radius, 10px inputs & buttons, 9999px pill badges, colored layered shadows, dot grid textures, Inter + JetBrains Mono typography, strictly zero backend login/auth changes):
+- **Core Design Tokens & Theme Engine (`assets/css/app-theme.css`)**:
+  - Implemented Flux Design System tokens (`--primary: #6D45F9`, `--primary-hover: #5E37EC`, `--accent: #0090DF`, `--bg-page: #FAFAFB`, `--bg-surface: #FFFFFF`, `--sidebar-bg: #11111A`, `--border-default: #E5E5E8`, `--radius-lg: 14px`, `--radius-md: 10px`, `--radius-pill: 9999px`).
+  - Added signature utilities: `.flux-gradient-text`, `.flux-gradient-brand`, `.flux-card-highlight`, `.flux-glow`, `.flux-frosted`, `.flux-dot-grid`, `.flux-brand-wash`.
+  - Added soft colored layered shadows: `--shadow-card`, `--shadow-card-hover`, `--shadow-dropdown`, `--shadow-modal`, `--shadow-flux`, `--shadow-glow`.
+  - Updated status chips and badges: Success (`#16A66A` / `#E9F8F1`), Warning (`#D89012` / `#FFF6DF`), Danger (`#E5484D` / `#FFF0F0`), Info (`#4D72E8` / `#EEF3FF`), Purple (`#8C72FF` / `#F0ECFF`).
+- **Master Navigation & Chrome**:
+  - `php_scripts/header.php`: Preconnected and loaded Google Fonts (Inter + JetBrains Mono).
+  - `php_scripts/sidebar.php`: Flux high-contrast dark sidebar (`#11111A`), gradient brand mark, active nav item with violet highlight and glow indicator.
+  - `php_scripts/topbar.php`: Frosted glass top header (`rgba(255,255,255,0.80)` + blur 14px), command launcher (`Ctrl+K`), violet quick action `+ Create` button, status pill.
+  - `php_scripts/footer.php`: Global OmniSearch command palette modal (`#omniSearchModal`) with Flux styling and monospace keyboard navigation hints.
+- **Authentication & Root Shells**:
+  - `index.php`, `forgot-password.php`, `CallNowSignUp.php`: Enhanced cards with soft ambient brand wash, 16px radius, violet CTA button, zero logic changes.
+  - `dashboard.php`: Flux KPI stat cards with tabular numerals, soft brand wash welcome card, quick action launcher with rounded cards.
+  - `profile.php`: 14px profile summary card and edit form with 10px inputs and security controls.
+- **Leads & Pipeline Management**:
+  - `modules/leads/leads_dashboard.php`: Flux KPI cards, conversion funnel with Flux palette (`#6D45F9`, `#0090DF`, `#4D72E8`, `#D89012`, `#8C72FF`, `#16A66A`, `#087A4B`).
+  - `modules/leads/lead_pipeline.php`: Flux Kanban board with 14px column containers, 10px lead cards, hover elevation, and stage accent badges.
+  - `modules/leads/lead_list.php`: Filter toolbar with segmented controls and 14px lead cards with hover glow.
+  - `modules/leads/lead_view.php`: Customer details view with workflow pipeline bar, sticky action strip, and 14px section cards.
+  - `modules/leads/lead_insert.php`: 2-column form layout with 10px controls and datalists.
+- **Database & Data Management**:
+  - `modules/database/data_management_main.php`: 14px table card container, bulk action toolbar, and assign/edit modals.
+  - `modules/database/data_management_temporary.php`: Dual-tier toolbar and transfer progress modals.
+  - `modules/database/upload_data.php`: Dropped dashed dropzone with dot-grid pattern and violet hover wash.
+  - `modules/database/ViewDND.php`, `add_single_number.php`, `add_update_status.php`: Flux cards and form controls.
+- **Logs & Audit Trails**:
+  - `modules/logs/Reports.php`: Chart.js updated with Flux palette (`#6D45F9` violet area fill, `#0090DF` blue fill, doughnut and bar colors), KPI cards, and filter bar.
+  - `modules/logs/call_history.php` & `manage_activity.php`: Clean table views with status chips.
+- **Verification & Testing**:
+  - Batch PHP lint across all 74 repository files (`& "C:\xampp\php\php.exe" -l`) passed with 100% zero syntax errors.
+  - Automated test suite `tests/test_api_module.php` passed 33 of 33 test assertions (100% pass rate).
+  - Verified strictly NO login or authentication backend logic was modified.
 ## Completed Major Fix (2026-10-29): Full Zoho CRM NextGen Enterprise UI/UX Overhaul
 Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise high density, slate/neutral theme with navy accent `#0066cc`, 4–8px radius, no bubbly gradients or oversized cards, crisp standard components):
 - **Core Design Tokens & Theme Engine (`assets/css/app-theme.css`)**:

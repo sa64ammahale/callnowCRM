@@ -450,17 +450,19 @@ include '../../php_scripts/header.php';
 
 <style>
 .file-zone {
-    border: 2px dashed var(--crm-border-color);
-    border-radius: var(--crm-radius);
-    padding: 2.25rem 1.5rem;
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 2.5rem 1.5rem;
     text-align: center;
-    background: #fafbfc;
+    background: #FAFAFB;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.16s ease;
+    background-image: radial-gradient(rgba(109, 69, 249, 0.08) 1px, transparent 1px);
+    background-size: 16px 16px;
 }
 .file-zone:hover, .file-zone.dragover {
-    border-color: var(--crm-primary);
-    background: #f0f7ff;
+    border-color: var(--primary);
+    background-color: var(--primary-soft);
 }
 .preview-table th, .preview-table td {
     padding: 0.35rem 0.5rem;
