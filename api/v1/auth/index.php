@@ -14,15 +14,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 ensureApiSchema($GLOBALS['link']);
 
-// Normalize endpoint path to support any base path (e.g. /callnowCRM/api/v1/auth/login or /api/v1/auth/login)
+// Normalize endpoint path to support any base path, subfolder, index.php or double slash
 $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
-$pos = strpos($uriPath, '/api/v1/auth');
-$endpoint = ($pos !== false) ? substr($uriPath, $pos + strlen('/api/v1/auth')) : $uriPath;
+$uriPath = preg_replace('#/+#', '/', $uriPath);
+$uriPath = str_replace('/index.php', '', $uriPath);
+
+// Locate /auth or /api/v1
+if (($pos = strpos($uriPath, '/auth')) !== false) {
+    $endpoint = substr($uriPath, $pos + strlen('/auth'));
+} elseif (($pos = strpos($uriPath, '/api/v1')) !== false) {
+    $endpoint = substr($uriPath, $pos + strlen('/api/v1'));
+} else {
+    $endpoint = $uriPath;
+}
 $endpoint = '/' . trim($endpoint, '/');
 $method   = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-// Allow GET for /me, /profile, and /refresh endpoints
-$isGetEndpoint = in_array($endpoint, ['/me', '/profile', '/refresh']);
+// If empty endpoint, check query param or default to /me for GET
+if ($endpoint === '/' || $endpoint === '') {
+    if (!empty($_GET['endpoint'])) {
+        $endpoint = '/' . trim($_GET['endpoint'], '/');
+    } elseif (!empty($_GET['action'])) {
+        $endpoint = '/' . trim($_GET['action'], '/');
+    } else {
+        $endpoint = ($method === 'GET') ? '/me' : '/';
+    }
+}
+
+// Allow GET for /me, /profile, /user, and /refresh endpoints
+$isGetEndpoint = in_array($endpoint, ['/me', '/profile', '/user', '/refresh']);
 if ($method === 'GET' && !$isGetEndpoint) {
     apiError(405, 'Method not allowed');
 }
@@ -149,9 +169,9 @@ if ($endpoint === '/login') {
     ]);
     
 // -------------------------------------------------------------
-// 4. GET / UPDATE PROFILE (/me and /profile)
+// 4. GET / UPDATE PROFILE (/me, /profile, /user)
 // -------------------------------------------------------------
-} elseif ($endpoint === '/me' || $endpoint === '/profile') {
+} elseif ($endpoint === '/me' || $endpoint === '/profile' || $endpoint === '/user') {
     $tokenData = apiRequireAuth();
     $userId = (int)$tokenData['user_id'];
 

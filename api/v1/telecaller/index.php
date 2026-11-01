@@ -68,6 +68,21 @@ function buildDateCondition(string $period, ?string $dateFrom, ?string $dateTo, 
 }
 
 // -----------------------------------------------------------------------------
+// 0. TELECALLER PROFILE FALLBACK (/profile and /me)
+// -----------------------------------------------------------------------------
+if (in_array($relativePath, ['/profile', '/profile/', '/me', '/me/', '/user', '/user/'])) {
+    $fullProfile = getFullUserProfileData($link, $userId);
+    $dbAccess = getUserDatabaseAccess($userId);
+    $teamIds = getUserAssignedTeamIds($userId);
+    apiSuccess(array_merge($fullProfile ?: [], [
+        'user' => $fullProfile,
+        'profile' => $fullProfile,
+        'database_access' => $dbAccess,
+        'assigned_teams' => $teamIds,
+    ]));
+}
+
+// -----------------------------------------------------------------------------
 // 1. DASHBOARD STATS
 // -----------------------------------------------------------------------------
 if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
