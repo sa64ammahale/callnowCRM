@@ -378,6 +378,79 @@ if (!function_exists('syncCallToLeadsAndPipeline')) {
     }
 }
 
+function getFullUserProfileData(mysqli $link, int $userId): ?array {
+    $stmt = $link->prepare("
+        SELECT 
+            u.ID as id,
+            u.NAME as name,
+            u.EMAIL as email,
+            u.LOGIN_ID as login_id,
+            u.MOBILE as mobile,
+            u.COMPANY_NAME as company_name,
+            u.COMPANY as company,
+            u.PACKAGE as package,
+            u.STATUS as status,
+            u.ROLE as role,
+            u.role_id,
+            u.TEAM_ID as team_id,
+            COALESCE(t.NAME, t.TEAM_NAME, '') as team_name,
+            u.JOIN_DATE as join_date,
+            u.CREATED_AT as created_at,
+            u.UPDATED_AT as updated_at,
+            u.LAST_LOGIN as last_login,
+            u.profile_photo,
+            u.current_calling_db
+        FROM " . tn('TBL_USERS') . " u
+        LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
+        WHERE u.ID = ? LIMIT 1
+    ");
+    if (!$stmt) return null;
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$user) return null;
+
+    $resolvedEmail = $user['email'] ?: ($user['login_id'] ?? '');
+    $resolvedPhone = $user['mobile'] ?? '';
+    $resolvedCompany = $user['company_name'] ?: ($user['company'] ?? '');
+    $resolvedTeam = $user['team_name'] ?: 'General Telecalling';
+    $photoUrl = '';
+    if (!empty($user['profile_photo'])) {
+        $photoUrl = defined('APP_BASE') ? APP_BASE . '/uploads/profile_photos/' . $user['profile_photo'] : 'uploads/profile_photos/' . $user['profile_photo'];
+    }
+
+    return [
+        'id' => (int)$user['id'],
+        'name' => $user['name'] ?? '',
+        'full_name' => $user['name'] ?? '',
+        'email' => $resolvedEmail,
+        'user_email' => $resolvedEmail,
+        'login_id' => $user['login_id'] ?? '',
+        'username' => $user['login_id'] ?: $resolvedEmail,
+        'mobile' => $resolvedPhone,
+        'phone' => $resolvedPhone,
+        'phone_number' => $resolvedPhone,
+        'company_name' => $resolvedCompany,
+        'company' => $resolvedCompany,
+        'package' => $user['package'] ?? 'Standard',
+        'status' => $user['status'] ?? 'Active',
+        'role' => $user['role'] ?? 'Telecaller',
+        'role_id' => $user['role_id'] ? (int)$user['role_id'] : null,
+        'team_id' => $user['team_id'] ? (int)$user['team_id'] : null,
+        'team_name' => $resolvedTeam,
+        'department' => $resolvedTeam,
+        'join_date' => $user['join_date'] ?: ($user['created_at'] ?? ''),
+        'created_at' => $user['created_at'] ?? '',
+        'updated_at' => $user['updated_at'] ?? '',
+        'last_login' => $user['last_login'] ?? '',
+        'profile_photo' => $user['profile_photo'] ?? '',
+        'profile_photo_url' => $photoUrl,
+        'current_calling_db' => $user['current_calling_db'] ?? 'temporary',
+    ];
+}
+
 // Auto-execute middleware for protected API endpoints.
 // Auth routers (login/logout/refresh/me) define API_SKIP_AUTO_AUTH
 // before including this file so public endpoints stay reachable.

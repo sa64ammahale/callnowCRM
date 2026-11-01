@@ -138,6 +138,57 @@ assertTest("/auth/me with valid Bearer token returns 200", $r['code'] === 200 &&
 $r = callApi('POST', "$baseUrl/auth/refresh", [], $authToken);
 assertTest("/auth/refresh extends token expiry returns 200", $r['code'] === 200 && !empty($r['json']['data']['expires_at']));
 
+// Test 1.8: Verify full user profile structure on /auth/me
+$r = callApi('GET', "$baseUrl/auth/me", [], $authToken);
+$uData = $r['json']['data']['user'] ?? [];
+assertTest("/auth/me returns full user details (email, mobile, company, role, team)", 
+    !empty($uData['email']) && isset($uData['mobile']) && !empty($uData['role']) && isset($uData['company']) && isset($uData['team_name']));
+
+// Test 1.9: Update allowed profile fields (name, company) via POST /auth/profile
+$newName = 'System Admin Updated';
+$newCompany = 'InCredit Tech Global';
+$r = callApi('POST', "$baseUrl/auth/profile", [
+    'name' => $newName,
+    'company_name' => $newCompany,
+], $authToken);
+assertTest("POST /auth/profile updates allowed fields (name, company)", 
+    $r['code'] === 200 && ($r['json']['data']['user']['name'] ?? '') === $newName && ($r['json']['data']['user']['company_name'] ?? '') === $newCompany);
+
+// Test 1.10: Attempt to change email from mobile app is strictly blocked
+$r = callApi('POST', "$baseUrl/auth/profile", [
+    'email' => 'hacked_email@attacker.com',
+], $authToken);
+assertTest("POST /auth/profile rejects email alteration with 400", 
+    $r['code'] === 400 && str_contains($r['json']['error']['message'] ?? '', 'restricted'));
+
+// Test 1.11: Attempt to change mobile from mobile app is strictly blocked
+$r = callApi('POST', "$baseUrl/auth/profile", [
+    'mobile' => '1234567890',
+], $authToken);
+assertTest("POST /auth/profile rejects mobile alteration with 400", 
+    $r['code'] === 400 && str_contains($r['json']['error']['message'] ?? '', 'restricted'));
+
+// Test 1.12: Change password with wrong current password returns 400
+$r = callApi('POST', "$baseUrl/auth/change-password", [
+    'current_password' => 'WrongCurrentPassword!',
+    'new_password' => 'BrandNewPassword123!',
+], $authToken);
+assertTest("POST /auth/change-password rejects wrong current password with 400", 
+    $r['code'] === 400);
+
+// Test 1.13: Change password with valid current password succeeds
+$newPass = 'BrandNewPassword123!';
+$r = callApi('POST', "$baseUrl/auth/change-password", [
+    'current_password' => $testPassword,
+    'new_password' => $newPass,
+    'confirm_password' => $newPass,
+], $authToken);
+assertTest("POST /auth/change-password updates password successfully with 200", 
+    $r['code'] === 200);
+
+// Restore original test password for subsequent tests
+$testPassword = $newPass;
+
 // -------------------------------------------------------------
 // GROUP 2: TELECALLER ENDPOINTS
 // -------------------------------------------------------------

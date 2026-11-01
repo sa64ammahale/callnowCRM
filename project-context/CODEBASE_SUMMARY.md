@@ -188,6 +188,18 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Feature (2026-11-01): Mobile App Full User Details & Profile Management API
+- **Endpoint Enhancements**:
+  - `POST /api/v1/auth/login`: Now returns full user profile object in `data.user` (including `email`, `mobile`, `phone`, `role`, `company_name`, `team_name`, `department`, `package`, `status`, `join_date`, `profile_photo_url`).
+  - `GET /api/v1/auth/me` & `GET /api/v1/auth/profile`: Returns full user profile joined with `TBL_TEAMS` and `TBL_ROLES`.
+  - `POST` / `PUT` `/api/v1/auth/profile` (and `/api/v1/auth/me`, `/profile/update`): Allows telecaller to update their personal details (`name`, `company_name`, `profile_photo_base64`, and password).
+  - **Strict Security Guard**: Changing registered email (`EMAIL`/`LOGIN_ID`) or mobile (`MOBILE`) from the mobile app is strictly blocked and rejected with HTTP 400.
+  - `POST /api/v1/auth/change-password` (and `/password`): Authenticated password change with `current_password` verification and min-length validation.
+- **Shared Middleware**:
+  - Added `getFullUserProfileData(mysqli $link, int $userId): ?array` in `php_scripts/api_auth.php`.
+- **Test Suite**:
+  - Expanded `tests/test_api_module.php` with 6 new assertions (39 total assertions passing 100%).
+
 ## Completed Major Fix (2026-11-01): Full Flux Dashboard UI Design System Overhaul
 Strictly aligned the entire project with `flux_dashboard_ui_design_system_skill.md` (Next.js 16 Flux Dashboard aesthetic: violet `#6D45F9` & electric blue `#0090DF` brand accents, frosted glass topbar, high-contrast dark `#11111A` sidebar, 14px signature card radius, 10px inputs & buttons, 9999px pill badges, colored layered shadows, dot grid textures, Inter + JetBrains Mono typography, strictly zero backend login/auth changes):
 - **Core Design Tokens & Theme Engine (`assets/css/app-theme.css`)**:
