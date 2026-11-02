@@ -391,6 +391,9 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
     fclose($handle);
     $meta['processed'] += $rows_processed;
     $meta['stats'] = $stats;
+    if (count($logs) > 100) {
+        $logs = array_slice($logs, -100);
+    }
     $meta['logs'] = $logs;
 
     if ($meta['total'] > 0) {

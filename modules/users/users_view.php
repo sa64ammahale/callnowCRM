@@ -99,8 +99,9 @@ $roleDesc = [];
 $rd = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES'));
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 
-$totalActive = mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active' AND ROLE != 'Super Admin'"))[0];
-$totalInactive = $totalRecords - $totalActive;
+$globalTotal = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ID != 1 AND ROLE != 'Super Admin'"))[0];
+$totalActive = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active' AND ID != 1 AND ROLE != 'Super Admin'"))[0];
+$totalInactive = max(0, $globalTotal - $totalActive);
 ?>
 <?php $pageTitle = 'User Management - CallNow CRM'; include '../../php_scripts/header.php'; ?>
 
@@ -118,7 +119,7 @@ $totalInactive = $totalRecords - $totalActive;
             </nav>
             <div class="d-flex align-items-center gap-2">
                 <h1 class="page-title mb-0">User Directory</h1>
-                <span class="badge bg-secondary-subtle text-secondary border"><?= number_format($totalRecords) ?> Users</span>
+                <span class="badge bg-secondary-subtle text-secondary border"><?= number_format($totalRecords) ?> <?= $totalRecords === 1 ? 'User' : 'Users' ?><?= ($totalRecords !== $globalTotal) ? ' (Filtered)' : '' ?></span>
             </div>
             <p class="text-muted small mb-0">Manage agent logins, operational roles, team assignments, and calling permissions</p>
         </div>
@@ -140,7 +141,7 @@ $totalInactive = $totalRecords - $totalActive;
         <div class="col-6 col-md-3 col-xl">
             <div class="metric-card">
                 <div class="metric-label">Total Users</div>
-                <div class="metric-value text-dark"><?= number_format($totalRecords) ?></div>
+                <div class="metric-value text-dark"><?= number_format($globalTotal) ?></div>
                 <div class="text-muted small">Registered accounts</div>
             </div>
         </div>

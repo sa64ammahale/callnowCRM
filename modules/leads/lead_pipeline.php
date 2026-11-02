@@ -49,7 +49,9 @@ $sql = "
     {$where}
     ORDER BY FIELD(l.lead_status_new, 'LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'),
              l.updated_at DESC, l.lead_id DESC
+    LIMIT 500
 ";
+$dbTotalAll = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_LEADS') . " l {$where}"))[0];
 $result = mysqli_query($link, $sql);
 if (!$result) {
     $rows = [];
@@ -123,7 +125,10 @@ $totalAll = count($rows);
             <span class="input-group-text"><i class="bi bi-search"></i></span>
             <input type="text" id="plSearchInput" class="form-control" placeholder="Search pipeline cards by name, company, mobile...">
         </div>
-        <span class="text-muted small">Showing <span id="plVisibleCount" class="fw-semibold text-dark"><?= number_format($totalAll) ?></span> of <?= number_format($totalAll) ?> leads</span>
+        <span class="text-muted small">Showing <span id="plVisibleCount" class="fw-semibold text-dark"><?= number_format($totalAll) ?></span> of <?= number_format($dbTotalAll) ?> leads</span>
+        <?php if ($dbTotalAll > $totalAll): ?>
+            <span class="badge bg-warning-subtle text-warning border ms-2"><i class="bi bi-info-circle me-1"></i>Top 500 active leads</span>
+        <?php endif; ?>
     </div>
     <div class="crm-toolbar-right">
         <span class="badge bg-secondary"><i class="bi bi-shield-check me-1"></i>Drag or Click to inspect</span>

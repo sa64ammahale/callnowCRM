@@ -16,7 +16,7 @@ $tblMain = tn('TBL_MAIN');
 
 // 1. Today's Calls & Connected
 try {
-    $res = mysqli_query($link, "SELECT COUNT(*) as total_calls, SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected FROM $tblMain WHERE DATE(MAINDATABASE_CALL_DIAL_TIME) = CURDATE()");
+    $res = mysqli_query($link, "SELECT COUNT(*) as total_calls, SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected FROM $tblMain WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY");
     $row = $res ? mysqli_fetch_assoc($res) : ['total_calls' => 0, 'connected' => 0];
 } catch (\Throwable $e) { $row = ['total_calls' => 0, 'connected' => 0]; }
 $today_calls     = (int)($row['total_calls'] ?? 0);
@@ -32,7 +32,7 @@ $total_leads = (int)($row2['leads'] ?? 0);
 
 // 3. Active Callers Today
 try {
-    $res3 = mysqli_query($link, "SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as cnt FROM $tblMain WHERE DATE(MAINDATABASE_CALL_DIAL_TIME) = CURDATE() AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL");
+    $res3 = mysqli_query($link, "SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as cnt FROM $tblMain WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL");
     $row3 = $res3 ? mysqli_fetch_assoc($res3) : ['cnt' => 0];
 } catch (\Throwable $e) { $row3 = ['cnt' => 0]; }
 $active_callers_today = (int)($row3['cnt'] ?? 0);

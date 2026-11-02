@@ -165,7 +165,7 @@ if ($res) {
 }
 
 $totalTempRecords = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . TBL_TEMP))[0];
-$todayInserts = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . TBL_TEMP . " WHERE DATE(TEMP_UPLOAD_DATETIME) = CURDATE()"))[0];
+$todayInserts = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . TBL_TEMP . " WHERE TEMP_UPLOAD_DATETIME >= CURDATE() AND TEMP_UPLOAD_DATETIME < CURDATE() + INTERVAL 1 DAY"))[0];
 
 $pageTitle = 'Update Status • CallNow CRM';
 include '../../php_scripts/header.php';

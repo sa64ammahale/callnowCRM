@@ -4,16 +4,17 @@ require_once __DIR__ . '/../../../config.php';
 
 requirePermission('manage_database');
 
-function dt_fatal($msg) {
-    while (ob_get_level()) ob_end_clean();
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['error' => 'Server Error', 'message' => $msg, 'data' => []]);
-    exit;
+if (!function_exists('dt_fatal')) {
+    function dt_fatal($msg) {
+        while (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Server Error', 'message' => $msg, 'data' => []]);
+        exit;
+    }
 }
 set_exception_handler(function ($e) { dt_fatal($e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()); });
 
 header('Content-Type: application/json; charset=utf-8');
-// Discard any accidental output (warnings, BOM, whitespace) so the JSON stays valid
 while (ob_get_level()) ob_end_clean();
 if (!$link) {
     $error = 'Database connection failed';
@@ -24,10 +25,10 @@ if (!$link) {
 }
 
 $draw   = intval($_GET['draw'] ?? 0);
-$start  = intval($_GET['start'] ?? 0);
+$start  = max(0, intval($_GET['start'] ?? 0));
 $length = intval($_GET['length'] ?? 10);
-$length = min($length, 2000);
-$search = $_GET['search']['value'] ?? '';
+$length = ($length <= 0) ? 250 : min($length, 2000);
+$search = trim($_GET['search']['value'] ?? '');
 $order  = $_GET['order'][0] ?? [];
 $col    = (int)($order['column'] ?? 1);
 $dir    = $order['dir'] ?? 'desc';
@@ -66,12 +67,16 @@ $totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_TEMP'));
 $total = ($totalRes && $row = mysqli_fetch_assoc($totalRes)) ? (int)$row['c'] : 0;
 
 // Filtered records count
-$countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_TEMP') . " $where";
-$stmt = mysqli_prepare($link, $countQuery);
-if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
-mysqli_stmt_execute($stmt);
-$filteredRes = mysqli_stmt_get_result($stmt);
-$filtered = ($filteredRes && $row = mysqli_fetch_assoc($filteredRes)) ? (int)$row['c'] : 0;
+if ($search === '') {
+    $filtered = $total;
+} else {
+    $countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_TEMP') . " $where";
+    $stmt = mysqli_prepare($link, $countQuery);
+    if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
+    mysqli_stmt_execute($stmt);
+    $filteredRes = mysqli_stmt_get_result($stmt);
+    $filtered = ($filteredRes && $row = mysqli_fetch_assoc($filteredRes)) ? (int)$row['c'] : 0;
+}
 
 // Data query
 $sql = "SELECT ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, 
@@ -92,16 +97,24 @@ $result = mysqli_stmt_get_result($stmt);
 
 $data = [];
 while ($row = mysqli_fetch_assoc($result)) {
+    $nameEsc = htmlspecialchars($row['CUST_NAME'] ?? '', ENT_QUOTES, 'UTF-8');
+    $compEsc = htmlspecialchars($row['CUST_COMPANY'] ?? '', ENT_QUOTES, 'UTF-8');
+    $packEsc = htmlspecialchars($row['CUST_PACKAGE'] ?? '', ENT_QUOTES, 'UTF-8');
+    $statEsc = htmlspecialchars($row['CALL_DIALED_STATUS'] ?? 'Not Called', ENT_QUOTES, 'UTF-8');
+
+    $nameHtml = $nameEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$nameEsc.'">'.$nameEsc.'</span>' : '-';
+    $compHtml = $compEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$compEsc.'">'.$compEsc.'</span>' : '-';
+
     $data[] = [
         '<input type="checkbox" class="row-checkbox" value="'.$row['ID'].'">', // 0 – checkbox
         $row['ID'],                                                            // 1 – ID
-        $row['CUST_MOBILE'],                                                   // 2 – Mobile
-        $row['CUST_NAME'] ?: '-',                                              // 3 – Name
-        $row['CUST_COMPANY'] ?: '-',                                           // 4 – Company
-        $row['CUST_PACKAGE'] ?: '-',                                           // 5 – Package
-        $row['CALL_DIALED_STATUS'] ?: 'Not Called',                            // 6 – Status
-        $row['TEMP_UPLOAD_DATETIME'],                                          // 7 – Uploaded
-        ''                                                                     // 8 – Actions (empty, row-click opens modal)
+        htmlspecialchars($row['CUST_MOBILE'] ?? '', ENT_QUOTES, 'UTF-8'),      // 2 – Mobile
+        $nameHtml,                                                             // 3 – Name
+        $compHtml,                                                             // 4 – Company
+        $packEsc ?: '-',                                                       // 5 – Package
+        $statEsc ?: 'Not Called',                                              // 6 – Status
+        $row['TEMP_UPLOAD_DATETIME'] ?? '-',                                   // 7 – Uploaded
+        ''                                                                     // 8 – Actions
     ];
 }
 

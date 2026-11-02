@@ -184,12 +184,12 @@ if ($search !== '') {
     }
 }
 
-$dndVariants = "LOWER(status) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')";
+$dndVariants = "status IN ('do not call', 'Do Not Call', 'dnd', 'DND', 'dnc', 'DNC', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')";
 
-$cntTempRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP') . " WHERE LOWER(CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')");
+$cntTempRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_TEMP') . " WHERE CALL_DIALED_STATUS IN ('do not call', 'Do Not Call', 'dnd', 'DND', 'dnc', 'DNC', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')");
 $totalTemp = ($cntTempRes && $r = mysqli_fetch_row($cntTempRes)) ? intval($r[0]) : 0;
 
-$cntMainRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_MAIN') . " WHERE LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')");
+$cntMainRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_CALL_DIALED_STATUS IN ('do not call', 'Do Not Call', 'dnd', 'DND', 'dnc', 'DNC', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')");
 $totalMain = ($cntMainRes && $r = mysqli_fetch_row($cntMainRes)) ? intval($r[0]) : 0;
 
 $unionQueries = [];
@@ -204,7 +204,7 @@ if ($dbFilter === 'ALL' || $dbFilter === 'TEMP') {
             'TEMP' AS source, 
             COALESCE(LAST_DIALED_DATE_TIME, TEMP_UPLOAD_DATETIME) AS marked_at 
         FROM " . tn('TBL_TEMP') . " 
-        WHERE LOWER(CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        WHERE CALL_DIALED_STATUS IN ('do not call', 'Do Not Call', 'dnd', 'DND', 'dnc', 'DNC', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     ";
 }
 if ($dbFilter === 'ALL' || $dbFilter === 'MAIN') {
@@ -218,7 +218,7 @@ if ($dbFilter === 'ALL' || $dbFilter === 'MAIN') {
             'MAIN' AS source, 
             COALESCE(MAINDATABASE_CALL_DIAL_TIME, LAST_DIALED_DATE_TIME, MAINDATABASE_UPLOAD_DATETIME) AS marked_at 
         FROM " . tn('TBL_MAIN') . " 
-        WHERE LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        WHERE MAINDATABASE_CALL_DIALED_STATUS IN ('do not call', 'Do Not Call', 'dnd', 'DND', 'dnc', 'DNC', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     ";
 }
 

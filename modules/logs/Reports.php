@@ -322,6 +322,7 @@ if ($selected_user_id !== null) {
 LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
         $whereDetailSql
         ORDER BY m.call_time DESC
+        LIMIT 500
     ";
 
     if ($runQueries) {
@@ -715,6 +716,14 @@ include '../../php_scripts/header.php';
                     </a>
                 </div>
             </div>
+            <?php if (count($detail_rows) >= 500): ?>
+                <div class="px-3 pt-3">
+                    <div class="alert alert-info py-2 px-3 fs-xs mb-0 d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-info-circle me-1"></i> Showing latest 500 calls for this period.</span>
+                        <a href="<?= url('modules/logs/call_history.php') ?>" class="btn btn-outline-primary btn-sm py-0 px-2 fs-xs">View Full Paginated History</a>
+                    </div>
+                </div>
+            <?php endif; ?>
             <div class="crm-card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

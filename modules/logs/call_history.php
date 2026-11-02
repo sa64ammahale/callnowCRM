@@ -108,15 +108,24 @@ if (USER_ROLE === 'Supervisor') {
 
 $whereSql = 'WHERE ' . implode(' AND ', $whereParts);
 
-$countSql = "
-    SELECT COUNT(*) AS c
-    FROM " . tn('TBL_CALL_LOGS') . " cl
-    JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID
-    LEFT JOIN " . tn('TBL_TEMP') . " t ON cl.source = 'TEMP' AND cl.record_id = t.ID
-    LEFT JOIN " . tn('TBL_MAIN') . " m ON cl.source = 'MAIN' AND cl.record_id = m.ID
-    LEFT JOIN " . tn('TBL_LEADS') . " l ON cl.source = 'LEADS' AND cl.record_id = l.lead_id
-    $whereSql
-";
+if ($search !== '') {
+    $countSql = "
+        SELECT COUNT(*) AS c
+        FROM " . tn('TBL_CALL_LOGS') . " cl
+        JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID
+        LEFT JOIN " . tn('TBL_TEMP') . " t ON cl.source = 'TEMP' AND cl.record_id = t.ID
+        LEFT JOIN " . tn('TBL_MAIN') . " m ON cl.source = 'MAIN' AND cl.record_id = m.ID
+        LEFT JOIN " . tn('TBL_LEADS') . " l ON cl.source = 'LEADS' AND cl.record_id = l.lead_id
+        $whereSql
+    ";
+} else {
+    $countSql = "
+        SELECT COUNT(*) AS c
+        FROM " . tn('TBL_CALL_LOGS') . " cl
+        JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID
+        $whereSql
+    ";
+}
 
 $countStmt = mysqli_prepare($link, $countSql);
 if ($countStmt === false) {
@@ -442,29 +451,39 @@ include __DIR__ . '/../../php_scripts/header.php';
                         </span>
                         <nav aria-label="Call history pagination">
                             <ul class="pagination pagination-sm mb-0">
-                                <?php if ($page > 1): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">
-                                            &laquo;
-                                        </a>
-                                    </li>
-                                <?php else: ?>
-                                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
-                                <?php endif; ?>
-
-                                <li class="page-item active">
-                                    <span class="page-link"><?= $page ?> / <?= $totalPages ?></span>
+                                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 1])) ?>" title="First Page">&laquo;</a>
+                                </li>
+                                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => max(1, $page - 1)])) ?>" title="Previous Page">&lsaquo;</a>
                                 </li>
 
-                                <?php if ($page < $totalPages): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">
-                                            &raquo;
-                                        </a>
-                                    </li>
-                                <?php else: ?>
-                                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                                <?php
+                                $startP = max(1, $page - 2);
+                                $endP   = min($totalPages, $page + 2);
+
+                                if ($startP > 1): ?>
+                                    <li class="page-item"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 1])) ?>">1</a></li>
+                                    <?php if ($startP > 2): ?><li class="page-item disabled"><span class="page-link">…</span></li><?php endif; ?>
                                 <?php endif; ?>
+
+                                <?php for ($i = $startP; $i <= $endP; $i++): ?>
+                                    <li class="page-item <?= $i == $page ? 'active' : '' ?>">
+                                        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>"><?= $i ?></a>
+                                    </li>
+                                <?php endfor; ?>
+
+                                <?php if ($endP < $totalPages): ?>
+                                    <?php if ($endP < $totalPages - 1): ?><li class="page-item disabled"><span class="page-link">…</span></li><?php endif; ?>
+                                    <li class="page-item"><a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $totalPages])) ?>"><?= $totalPages ?></a></li>
+                                <?php endif; ?>
+
+                                <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => min($totalPages, $page + 1)])) ?>" title="Next Page">&rsaquo;</a>
+                                </li>
+                                <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $totalPages])) ?>" title="Last Page">&raquo;</a>
+                                </li>
                             </ul>
                         </nav>
                     </div>

@@ -44,26 +44,26 @@ $relativePath = '/' . trim($relativePath, '/');
 function buildDateCondition(string $period, ?string $dateFrom, ?string $dateTo, string $col = 'created_at'): string {
     switch (strtolower($period)) {
         case 'yesterday':
-            return "DATE($col) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+            return "($col >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND $col < CURDATE())";
         case 'this_week':
             return "YEARWEEK($col, 1) = YEARWEEK(CURDATE(), 1)";
         case 'this_month':
-            return "YEAR($col) = YEAR(CURDATE()) AND MONTH($col) = MONTH(CURDATE())";
+            return "($col >= DATE_FORMAT(CURDATE(), '%Y-%m-01 00:00:00') AND $col < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01 00:00:00'), INTERVAL 1 MONTH))";
         case 'custom':
             if ($dateFrom && $dateTo) {
                 $f = preg_replace('/[^0-9\-]/', '', $dateFrom);
                 $t = preg_replace('/[^0-9\-]/', '', $dateTo);
-                return "(DATE($col) >= '$f' AND DATE($col) <= '$t')";
+                return "($col >= '$f 00:00:00' AND $col <= '$t 23:59:59')";
             } elseif ($dateFrom) {
                 $f = preg_replace('/[^0-9\-]/', '', $dateFrom);
-                return "DATE($col) >= '$f'";
+                return "($col >= '$f 00:00:00')";
             }
-            return "DATE($col) = CURDATE()";
+            return "($col >= CURDATE() AND $col < CURDATE() + INTERVAL 1 DAY)";
         case 'all':
             return "1=1";
         case 'today':
         default:
-            return "DATE($col) = CURDATE()";
+            return "($col >= CURDATE() AND $col < CURDATE() + INTERVAL 1 DAY)";
     }
 }
 
@@ -94,7 +94,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         SUM(CASE WHEN call_duration > 0 THEN 1 ELSE 0 END) as connected_calls,
         SUM(call_duration) as total_talk_time
     FROM " . tn('TBL_CALL_LOGS') . "
-    WHERE user_id = ? AND DATE(created_at) = CURDATE()";
+    WHERE user_id = ? AND created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY";
     
     $stmt = $link->prepare($sqlLogs);
     $stmt->bind_param('i', $userId);
@@ -136,11 +136,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
         AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
         AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
-            WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-        )
+
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
@@ -232,11 +228,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
         AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
         AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
-            WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-            AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-        )
+
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
@@ -601,10 +593,22 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         }
     }
     
+    if ($search !== '') {
+        $escSearch = $link->real_escape_string($search);
+        $whereParts[] = "(m.MAINDATABASE_NAME LIKE '%$escSearch%' OR m.MAINDATABASE_MOBILE LIKE '%$escSearch%' OR m.MAINDATABASE_COMPANY LIKE '%$escSearch%' OR t.CUST_NAME LIKE '%$escSearch%' OR t.CUST_MOBILE LIKE '%$escSearch%' OR cl.notes LIKE '%$escSearch%')";
+    }
+    
     $whereSql = implode(' AND ', $whereParts);
     
     // Total count query
-    $countSql = "SELECT COUNT(*) as c FROM " . tn('TBL_CALL_LOGS') . " cl WHERE $whereSql";
+    if ($search !== '') {
+        $countSql = "SELECT COUNT(*) as c FROM " . tn('TBL_CALL_LOGS') . " cl 
+                     LEFT JOIN " . tn('TBL_MAIN') . " m ON (cl.source != 'TEMP') AND cl.record_id = m.ID
+                     LEFT JOIN " . tn('TBL_TEMP') . " t ON (cl.source = 'TEMP') AND cl.record_id = t.ID
+                     WHERE $whereSql";
+    } else {
+        $countSql = "SELECT COUNT(*) as c FROM " . tn('TBL_CALL_LOGS') . " cl WHERE $whereSql";
+    }
     $cRes = $link->query($countSql);
     $totalCount = $cRes ? (int)$cRes->fetch_assoc()['c'] : 0;
     
@@ -638,14 +642,6 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $calls = [];
     while ($r = $res->fetch_assoc()) {
-        if ($search !== '') {
-            $sLow = strtolower($search);
-            if (strpos(strtolower($r['customer_name']), $sLow) === false &&
-                strpos($r['customer_mobile'], $search) === false &&
-                strpos(strtolower($r['customer_company']), $sLow) === false) {
-                continue;
-            }
-        }
         $calls[] = [
             'log_id' => (int)$r['log_id'],
             'record_id' => (int)$r['record_id'],

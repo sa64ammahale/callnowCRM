@@ -4,11 +4,13 @@ require_once __DIR__ . '/../../../config.php';
 
 requirePermission('manage_database');
 
-function dt_fatal($msg) {
-    while (ob_get_level()) ob_end_clean();
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['error' => 'Server Error', 'message' => $msg, 'data' => []]);
-    exit;
+if (!function_exists('dt_fatal')) {
+    function dt_fatal($msg) {
+        while (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Server Error', 'message' => $msg, 'data' => []]);
+        exit;
+    }
 }
 set_exception_handler(function ($e) { dt_fatal($e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()); });
 
@@ -23,10 +25,10 @@ if (!$link) {
 }
 
 $draw   = intval($_GET['draw'] ?? 0);
-$start  = intval($_GET['start'] ?? 0);
+$start  = max(0, intval($_GET['start'] ?? 0));
 $length = intval($_GET['length'] ?? 10);
-$length = min($length, 2000);
-$search = $_GET['search']['value'] ?? '';
+$length = ($length <= 0) ? 250 : min($length, 2000);
+$search = trim($_GET['search']['value'] ?? '');
 $order  = $_GET['order'][0] ?? [];
 $col    = $order['column'] ?? 1;
 $dir    = $order['dir'] ?? 'desc';
@@ -64,14 +66,18 @@ $totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN'));
 $total = ($totalRes && $row = mysqli_fetch_assoc($totalRes)) ? (int)$row['c'] : 0;
 
 // Filtered records count
-$countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " 
-               LEFT JOIN " . tn('TBL_USERS') . " u ON " . tn('TBL_MAIN') . ".MAINDATABASE_CALL_DIALED_USER = u.ID 
-               $where";
-$stmt = mysqli_prepare($link, $countQuery);
-if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
-mysqli_stmt_execute($stmt);
-$filteredRes = mysqli_stmt_get_result($stmt);
-$filtered = ($filteredRes && $row = mysqli_fetch_assoc($filteredRes)) ? (int)$row['c'] : 0;
+if ($search === '') {
+    $filtered = $total;
+} else {
+    $countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " 
+                   LEFT JOIN " . tn('TBL_USERS') . " u ON " . tn('TBL_MAIN') . ".MAINDATABASE_CALL_DIALED_USER = u.ID 
+                   $where";
+    $stmt = mysqli_prepare($link, $countQuery);
+    if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
+    mysqli_stmt_execute($stmt);
+    $filteredRes = mysqli_stmt_get_result($stmt);
+    $filtered = ($filteredRes && $row = mysqli_fetch_assoc($filteredRes)) ? (int)$row['c'] : 0;
+}
 
 // Data query
 $sql = "SELECT maindb.ID, 
@@ -101,16 +107,25 @@ if ($result === false) {
 
 $data = [];
 while ($row = mysqli_fetch_assoc($result)) {
+    $nameEsc = htmlspecialchars($row['MAINDATABASE_NAME'] ?? '', ENT_QUOTES, 'UTF-8');
+    $compEsc = htmlspecialchars($row['MAINDATABASE_COMPANY'] ?? '', ENT_QUOTES, 'UTF-8');
+    $packEsc = htmlspecialchars($row['MAINDATABASE_PACKAGE'] ?? '', ENT_QUOTES, 'UTF-8');
+    $statEsc = htmlspecialchars($row['MAINDATABASE_CALL_DIALED_STATUS'] ?? 'Not Called', ENT_QUOTES, 'UTF-8');
+    $userEsc = $row['assigned_name'] ? htmlspecialchars($row['assigned_name'], ENT_QUOTES, 'UTF-8') : '<small class="text-muted">Not Assigned</small>';
+
+    $nameHtml = $nameEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$nameEsc.'">'.$nameEsc.'</span>' : '-';
+    $compHtml = $compEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$compEsc.'">'.$compEsc.'</span>' : '-';
+
     $data[] = [
         '<input type="checkbox" class="row-checkbox" value="'.$row['ID'].'">', // 0 – checkbox
-        $row['MAINDATABASE_MOBILE'],                                             // 1
-        $row['MAINDATABASE_NAME'] ?: '-',                                        // 2
-        $row['MAINDATABASE_COMPANY'] ?: '-',                                     // 3
-        $row['MAINDATABASE_PACKAGE'] ?: '-',                                     // 4
-        $row['MAINDATABASE_CALL_DIALED_STATUS'] ?: 'Not Called',                 // 5
-        $row['assigned_name'] ?: '<small class="text-muted">Not Assigned</small>', // 6
-        $row['upload_dt'],                                                       // 7
-        $row['ID']                                                               // 8 – raw ID for JS
+        htmlspecialchars($row['MAINDATABASE_MOBILE'] ?? '', ENT_QUOTES, 'UTF-8'), // 1
+        $nameHtml,                                                             // 2
+        $compHtml,                                                             // 3
+        $packEsc ?: '-',                                                       // 4
+        $statEsc ?: 'Not Called',                                              // 5
+        $userEsc,                                                              // 6
+        $row['upload_dt'] ?? '-',                                              // 7
+        $row['ID']                                                             // 8 – raw ID for JS
     ];
 }
 
