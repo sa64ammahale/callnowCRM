@@ -14,7 +14,7 @@ $currentScript = basename($_SERVER['SCRIPT_NAME'] ?? '');
     <div class="app-topbar-breadcrumb d-none d-md-flex">
         <span>CallNow</span>
         <i class="bi bi-chevron-right text-muted" style="font-size:0.65rem"></i>
-        <span class="crumb-active"><?= htmlspecialchars($pageTitle ?? 'Dashboard', ENT_QUOTES, 'UTF-8') ?></span>
+        <span class="crumb-active"><?= htmlspecialchars(preg_replace('/\s*[\x{2022}\-\|]\s*CallNow.*$/iu', '', $pageTitle ?? 'Dashboard'), ENT_QUOTES, 'UTF-8') ?></span>
     </div>
 
     <!-- Flux Command Launcher -->

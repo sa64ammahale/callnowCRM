@@ -332,6 +332,12 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - **Call History High-Volume Pagination**: In `modules/logs/call_history.php`, bypassed expensive table joins in count queries when search is empty, and added windowed sliding pagination with ellipsis navigation (`1, 2 ... 14, 15, 16 ... 100`) to prevent UI collapse across large datasets.
   - **DOM & Memory Limits Safeguards**: Added `LIMIT 500` caps with warning notices in `modules/logs/Reports.php` detail drill-downs and `modules/leads/lead_pipeline.php` Kanban board to prevent browser lockup on telecallers with tens of thousands of records.
   - **CSV Batch Import Memory Capping**: Capped the task progress log array in `modules/database/upload_data.php` to the latest 100 entries (`array_slice($logs, -100)`), preventing progress JSON bloat during 100k+ row imports.
+- **Web App UI & Navigation Link Alignment (2026-11-02)**:
+  - **Breadcrumb Navigation**: Styled `.breadcrumb`, `.breadcrumb-item`, and `.breadcrumb-item a` with subtle `--text-secondary` font, chevron separator (`bi-chevron-right`), and hover highlighting, eliminating raw unstyled violet text across all modules.
+  - **Component Collision & Attaching Elements**: Resolved UI collisions where headers sat directly on top of cards (e.g. `leads_dashboard.php` `.welcome-strip` now has proper margins and flex spacing).
+  - **Metric Card Stacking**: Fixed `.metric-card` horizontal squishing by setting `flex-direction: column` by default with `overflow: hidden` and `white-space: normal` on badge pills, while retaining row flex for cards with left icons.
+  - **Responsive KPI Grid**: Refactored `dashboard.php` KPI grid to `col-xxl-2 col-xl-4 col-md-4 col-sm-6` to provide comfortable card widths on standard 1200px-1399px viewports.
+  - **Container-fluid Normalization**: Reset double padding on `.app-content > .container-fluid`.
 
 ## Remaining Known Issues (not yet fixed)
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.

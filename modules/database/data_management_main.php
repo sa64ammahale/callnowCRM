@@ -89,7 +89,7 @@ include '../../php_scripts/header.php';
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1 fs-xs">
                     <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
-                    <li class="breadcrumb-item"><a href="#">Data Management</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/database/data_management_main.php') ?>">Data Management</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Main Database</li>
                 </ol>
             </nav>

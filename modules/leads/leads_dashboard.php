@@ -82,6 +82,14 @@ $userName = $_SESSION['name'] ?? 'User';
 ?>
 <?php $pageTitle = 'Leads Analytics'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-2">
+        <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+        <li class="breadcrumb-item"><a href="<?= url('modules/leads/lead_pipeline.php') ?>">Leads</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Analytics &amp; Operations</li>
+    </ol>
+</nav>
+
 <div class="crm-module-header">
     <div>
         <div class="crm-module-header-title">
@@ -105,11 +113,11 @@ $userName = $_SESSION['name'] ?? 'User';
     </div>
 </div>
 
-<!-- Welcome / Scope Strip -->
-<div class="welcome-strip">
+<!-- Welcome / Scope Strip (Flux Wash Card) -->
+<div class="welcome-strip card border-0 flux-brand-wash p-3 p-md-4 mb-4" style="border-radius:var(--radius-lg); box-shadow:var(--shadow-card);">
     <div>
-        <h2 class="welcome-strip-title">Hello, <?= htmlspecialchars($userName) ?></h2>
-        <p class="welcome-strip-desc">Access Scope: <span class="badge bg-secondary"><?= htmlspecialchars(USER_ROLE) ?></span> &bull; <?= number_format($totalLeads) ?> customer leads in your assigned portfolio.</p>
+        <h2 class="welcome-strip-title mb-1">Hello, <?= htmlspecialchars($userName) ?></h2>
+        <p class="welcome-strip-desc text-secondary mb-0">Access Scope: <span class="badge bg-secondary"><?= htmlspecialchars(USER_ROLE) ?></span> &bull; <?= number_format($totalLeads) ?> customer leads in your assigned portfolio.</p>
     </div>
     <form method="get" action="<?= url('modules/leads/lead_list.php') ?>" class="d-flex align-items-center gap-2">
         <div class="input-group" style="width: 280px;">

@@ -266,7 +266,7 @@ include __DIR__ . '/../../php_scripts/header.php';
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1 fs-xs">
                     <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
-                    <li class="breadcrumb-item"><a href="#">Activities & Reports</a></li>
+                    <li class="breadcrumb-item"><a href="<?= url('modules/logs/call_history.php') ?>">Activities & Reports</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Call History</li>
                 </ol>
             </nav>

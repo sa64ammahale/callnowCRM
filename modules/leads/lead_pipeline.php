@@ -78,6 +78,14 @@ $totalAll = count($rows);
 ?>
 <?php $pageTitle = 'Pipeline Board'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-2">
+        <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+        <li class="breadcrumb-item"><a href="<?= url('modules/leads/leads_dashboard.php') ?>">Leads</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Pipeline Board</li>
+    </ol>
+</nav>
+
 <div class="crm-module-header">
     <div>
         <div class="crm-module-header-title">

@@ -974,11 +974,108 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     margin: 0.15rem 0 0 0;
 }
 
-.crm-module-header-actions {
+.crm-module-header-actions,
+.module-header-actions {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+}
+
+/* Welcome / Hero Banner Strip */
+.welcome-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    margin-bottom: 1.5rem;
+}
+
+.welcome-strip-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.02em;
+}
+
+.welcome-strip-desc {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0;
+}
+
+/* Breadcrumb Navigation (Flux & Modern SaaS Clean Style) */
+nav[aria-label="breadcrumb"],
+.breadcrumb-nav {
+    margin-bottom: 0.35rem;
+}
+
+.breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0;
+    margin-bottom: 0.35rem;
+    list-style: none;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.breadcrumb-item {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-muted);
+}
+
+.breadcrumb-item + .breadcrumb-item {
+    padding-left: 0;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "\F285"; /* bi-chevron-right */
+    font-family: "bootstrap-icons" !important;
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: var(--text-disabled);
+    padding: 0 0.45rem;
+    line-height: 1;
+    display: inline-block;
+    float: none;
+}
+
+.breadcrumb-item a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.14s ease;
+    font-weight: 500;
+}
+
+.breadcrumb-item a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.breadcrumb-item.active {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Container-fluid normalization inside .app-content */
+.app-content > .container-fluid {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    max-width: 100%;
 }
 
 /* Toolbar & Filter Bar */
@@ -1012,19 +1109,31 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg); /* 14px */
-    padding: 1.15rem 1.25rem;
+    padding: 1rem 1.15rem;
     display: flex;
-    align-items: flex-start;
-    gap: 0.875rem;
+    flex-direction: column;
+    justify-content: space-between;
     box-shadow: var(--shadow-card);
     transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease;
     height: 100%;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
 }
 
 .metric-card:hover, .stat-card:hover {
     border-color: #D6D6DC;
     box-shadow: var(--shadow-card-hover);
     transform: translateY(-2px);
+}
+
+/* Metric card with left icon layout */
+.metric-card:has(.metric-card-icon),
+.stat-card:has(.stat-card-icon) {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.875rem;
 }
 
 .metric-card-icon, .stat-card-icon {
@@ -1046,29 +1155,63 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
 .metric-card-icon.info,    .stat-card.info .stat-card-icon    { background: var(--info-soft);    color: var(--info-text); }
 .metric-card-icon.purple,  .stat-card.purple .stat-card-icon  { background: var(--primary-soft); color: var(--primary); }
 
-.metric-card-body { min-width: 0; flex: 1; }
-.metric-card-label, .stat-card-label, .metric-label {
+.metric-card-body {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.metric-card-title,
+.metric-card-label,
+.stat-card-label,
+.metric-label {
     font-size: 0.6875rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 0.25rem;
+    line-height: 1.25;
+    display: block;
+    width: 100%;
 }
 
-.metric-card-value, .stat-card-value, .metric-value {
-    font-size: 1.6rem;
+.metric-card-value,
+.stat-card-value,
+.metric-value {
+    font-size: 1.55rem;
     font-weight: 750;
     color: var(--text-primary);
     line-height: 1.2;
     letter-spacing: -0.025em;
     font-variant-numeric: tabular-nums;
+    display: block;
+    width: 100%;
+    word-break: break-word;
 }
 
-.metric-card-sub {
+.metric-card-subtitle,
+.metric-card-sub,
+.stat-card-sub {
     font-size: 0.725rem;
     color: var(--text-muted);
     margin-top: 0.35rem;
+    line-height: 1.35;
+    display: block;
+    width: 100%;
+}
+
+.metric-card-sub .badge,
+.metric-card-subtitle .badge {
+    white-space: normal;
+    display: inline-block;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    vertical-align: middle;
+    line-height: 1.3;
 }
 
 /* ==========================================================================
@@ -1400,6 +1543,90 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     background: #FFFFFF;
     color: var(--text-primary);
     box-shadow: 0 1px 3px rgba(9, 9, 18, 0.08);
+}
+
+/* Nav Pills */
+.nav-pills {
+    gap: 0.35rem;
+}
+
+.nav-pills .nav-link {
+    border-radius: var(--radius-md);
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.14s ease;
+    border: 1px solid transparent;
+}
+
+.nav-pills .nav-link:hover {
+    color: var(--text-primary);
+    background: var(--bg-muted);
+}
+
+.nav-pills .nav-link.active {
+    background: var(--primary);
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   Pagination — Flux Clean Rounded Style
+   ========================================================================== */
+
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0;
+    list-style: none;
+}
+
+.page-item .page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: #FFFFFF;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm); /* 6px */
+    text-decoration: none;
+    transition: all 0.14s ease;
+}
+
+.page-item:not(.disabled) .page-link:hover {
+    color: var(--primary);
+    background: var(--primary-soft);
+    border-color: var(--primary-soft-strong);
+}
+
+.page-item.active .page-link {
+    color: #FFFFFF !important;
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(109, 69, 249, 0.25);
+}
+
+.page-item.disabled .page-link {
+    color: var(--text-disabled);
+    background: var(--bg-subtle);
+    border-color: var(--border-subtle);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pagination-sm .page-link {
+    min-width: 28px;
+    height: 28px;
+    font-size: 0.725rem;
+    border-radius: var(--radius-sm);
 }
 
 /* ==========================================================================

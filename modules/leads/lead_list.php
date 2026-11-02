@@ -114,6 +114,14 @@ if (trim((string)($_GET['followup'] ?? '')) === 'today') {
 $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
 ?>
 
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-2">
+        <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+        <li class="breadcrumb-item"><a href="<?= url('modules/leads/leads_dashboard.php') ?>">Leads</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Lead Register</li>
+    </ol>
+</nav>
+
 <div class="crm-module-header">
     <div>
         <div class="crm-module-header-title">

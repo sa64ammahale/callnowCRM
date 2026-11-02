@@ -114,7 +114,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
 
 <!-- Primary KPI Metrics Grid (Flux KPI Cards with Tabular Numerals) -->
 <div class="row g-3 mb-4">
-    <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="col-xxl-2 col-xl-4 col-md-4 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon"><i class="bi bi-telephone-outbound"></i></div>
             <div class="metric-card-body">
@@ -124,7 +124,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             </div>
         </div>
     </div>
-    <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="col-xxl-2 col-xl-4 col-md-4 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon success"><i class="bi bi-check2-circle"></i></div>
             <div class="metric-card-body">
@@ -134,7 +134,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             </div>
         </div>
     </div>
-    <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="col-xxl-2 col-xl-4 col-md-4 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon info"><i class="bi bi-activity"></i></div>
             <div class="metric-card-body">
@@ -146,7 +146,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             </div>
         </div>
     </div>
-    <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="col-xxl-2 col-xl-4 col-md-4 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon warning"><i class="bi bi-star-fill"></i></div>
             <div class="metric-card-body">
@@ -156,7 +156,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             </div>
         </div>
     </div>
-    <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="col-xxl-2 col-xl-4 col-md-4 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon danger"><i class="bi bi-clock-history"></i></div>
             <div class="metric-card-body">
@@ -166,7 +166,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
             </div>
         </div>
     </div>
-    <div class="col-xl-2 col-md-4 col-sm-6">
+    <div class="col-xxl-2 col-xl-4 col-md-4 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon purple"><i class="bi bi-database"></i></div>
             <div class="metric-card-body">

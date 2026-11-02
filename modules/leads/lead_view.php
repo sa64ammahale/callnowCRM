@@ -106,6 +106,14 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     <?php endforeach; ?>
 </datalist>
 
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-2">
+        <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
+        <li class="breadcrumb-item"><a href="<?= url('modules/leads/lead_list.php') ?>">Leads</a></li>
+        <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($lead['customer_name'] ?? ('Lead #' . $leadId)) ?></li>
+    </ol>
+</nav>
+
 <div class="crm-module-header">
     <div>
         <div class="crm-module-header-title">
