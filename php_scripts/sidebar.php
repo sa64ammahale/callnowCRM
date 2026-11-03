@@ -40,14 +40,14 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
     <nav class="app-sidebar-nav">
         <!-- 1. Main / Workspace Section -->
         <div class="app-sidebar-section <?= $isWorkspaceActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="workspace">
-            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Workspace" aria-expanded="<?= $isWorkspaceActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this, event)" title="Workspace" aria-expanded="<?= $isWorkspaceActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-speedometer2 section-icon"></i>
                     <span class="app-sidebar-section-label">Workspace</span>
                 </div>
                 <i class="bi bi-chevron-down section-caret"></i>
             </button>
-            <div class="app-sidebar-section-collapse" <?= $isWorkspaceActive ? '' : 'style="display: none;"' ?>>
+            <div class="app-sidebar-section-collapse">
                 <div class="app-sidebar-section-links">
                     <a class="app-sidebar-link <?= navActive(['dashboard.php']) ? 'active' : '' ?>" href="<?= url('dashboard.php') ?>" title="Sales & Calling Dashboard">
                         <i class="bi bi-grid-1x2"></i>
@@ -63,14 +63,14 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
 
         <!-- 2. Leads & Pipeline Section -->
         <div class="app-sidebar-section <?= $isLeadsActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="leads">
-            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Leads &amp; Pipeline" aria-expanded="<?= $isLeadsActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this, event)" title="Leads &amp; Pipeline" aria-expanded="<?= $isLeadsActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-kanban section-icon"></i>
                     <span class="app-sidebar-section-label">Leads &amp; Pipeline</span>
                 </div>
                 <i class="bi bi-chevron-down section-caret"></i>
             </button>
-            <div class="app-sidebar-section-collapse" <?= $isLeadsActive ? '' : 'style="display: none;"' ?>>
+            <div class="app-sidebar-section-collapse">
                 <div class="app-sidebar-section-links">
                     <a class="app-sidebar-link <?= navActive(['lead_pipeline.php']) ? 'active' : '' ?>" href="<?= url('modules/leads/lead_pipeline.php') ?>" title="Pipeline Kanban Board">
                         <i class="bi bi-kanban"></i>
@@ -97,14 +97,14 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         <!-- 3. Database Management Section -->
         <?php if (can('manage_database')): ?>
         <div class="app-sidebar-section <?= $isDataActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="database">
-            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Data Management" aria-expanded="<?= $isDataActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this, event)" title="Data Management" aria-expanded="<?= $isDataActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-database section-icon"></i>
                     <span class="app-sidebar-section-label">Data Management</span>
                 </div>
                 <i class="bi bi-chevron-down section-caret"></i>
             </button>
-            <div class="app-sidebar-section-collapse" <?= $isDataActive ? '' : 'style="display: none;"' ?>>
+            <div class="app-sidebar-section-collapse">
                 <div class="app-sidebar-section-links">
                     <a class="app-sidebar-link <?= navActive(['data_management_main.php']) ? 'active' : '' ?>" href="<?= url('modules/database/data_management_main.php') ?>" title="Main Customer Database">
                         <i class="bi bi-database"></i>
@@ -141,14 +141,14 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
 
         <!-- 4. Activities & Reports Section -->
         <div class="app-sidebar-section <?= $isReportsActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="reports">
-            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Activities &amp; Reports" aria-expanded="<?= $isReportsActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this, event)" title="Activities &amp; Reports" aria-expanded="<?= $isReportsActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-graph-up section-icon"></i>
                     <span class="app-sidebar-section-label">Activities &amp; Reports</span>
                 </div>
                 <i class="bi bi-chevron-down section-caret"></i>
             </button>
-            <div class="app-sidebar-section-collapse" <?= $isReportsActive ? '' : 'style="display: none;"' ?>>
+            <div class="app-sidebar-section-collapse">
                 <div class="app-sidebar-section-links">
                     <?php if (can('view_reports')): ?>
                     <a class="app-sidebar-link <?= navActive(['Reports.php']) ? 'active' : '' ?>" href="<?= url('modules/logs/Reports.php') ?>" title="Performance & Disposition Reports">
@@ -173,14 +173,14 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         <!-- 5. Users & Teams Section -->
         <?php if (can('manage_users') || can('manage_teams')): ?>
         <div class="app-sidebar-section <?= $isUsersActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="users">
-            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Users &amp; Teams" aria-expanded="<?= $isUsersActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this, event)" title="Users &amp; Teams" aria-expanded="<?= $isUsersActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-people section-icon"></i>
                     <span class="app-sidebar-section-label">Users &amp; Teams</span>
                 </div>
                 <i class="bi bi-chevron-down section-caret"></i>
             </button>
-            <div class="app-sidebar-section-collapse" <?= $isUsersActive ? '' : 'style="display: none;"' ?>>
+            <div class="app-sidebar-section-collapse">
                 <div class="app-sidebar-section-links">
                     <?php if (can('manage_users')): ?>
                     <a class="app-sidebar-link <?= navActive(['users_view.php']) ? 'active' : '' ?>" href="<?= url('modules/users/users_view.php') ?>" title="Users Directory">
@@ -210,14 +210,14 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         <!-- 6. Administration & Settings Section -->
         <?php if (can('manage_settings') || isSuperAdmin()): ?>
         <div class="app-sidebar-section <?= $isSettingsActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="settings">
-            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Settings &amp; Admin" aria-expanded="<?= $isSettingsActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this, event)" title="Settings &amp; Admin" aria-expanded="<?= $isSettingsActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-gear section-icon"></i>
                     <span class="app-sidebar-section-label">Settings &amp; Admin</span>
                 </div>
                 <i class="bi bi-chevron-down section-caret"></i>
             </button>
-            <div class="app-sidebar-section-collapse" <?= $isSettingsActive ? '' : 'style="display: none;"' ?>>
+            <div class="app-sidebar-section-collapse">
                 <div class="app-sidebar-section-links">
                     <?php if (isAdmin() || isSuperAdmin()): ?>
                     <a class="app-sidebar-link <?= navActive(['permissions_manager.php']) ? 'active' : '' ?>" href="<?= url('modules/settings/permissions_manager.php') ?>" title="Access Control Matrix">
@@ -260,42 +260,48 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
 </aside>
 
 <script>
-window.toggleSidebarSection = function(btn) {
+window.toggleSidebarSection = function(btn, e) {
+    if (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch(err) {}
+    }
     if (!btn) return;
+
+    // If sidebar rail was collapsed, expand it so all menu titles and sub-links are visible
     if (document.body.getAttribute('data-sidebar') === 'collapsed') {
         document.body.setAttribute('data-sidebar', 'expanded');
-        try { localStorage.setItem('callnow-sidebar', 'expanded'); } catch(e) {}
+        try { localStorage.setItem('callnow-sidebar', 'expanded'); } catch(err) {}
     }
+
     var section = btn.closest('.app-sidebar-section');
     if (!section) return;
 
-    var isOpen = section.classList.contains('is-open');
+    var isCurrentlyOpen = section.classList.contains('is-open');
 
-    // Close all other sections
-    document.querySelectorAll('.app-sidebar-section').forEach(function(s) {
+    // Accordion: close all other sections
+    var allSections = document.querySelectorAll('.app-sidebar-section');
+    allSections.forEach(function(s) {
         if (s !== section) {
             s.classList.remove('is-open');
             s.classList.add('is-collapsed');
-            var b = s.querySelector('.app-sidebar-section-header');
-            if (b) b.setAttribute('aria-expanded', 'false');
+            var h = s.querySelector('.app-sidebar-section-header');
+            if (h) h.setAttribute('aria-expanded', 'false');
             var c = s.querySelector('.app-sidebar-section-collapse');
-            if (c) c.style.display = 'none';
+            if (c) c.style.setProperty('display', 'none', 'important');
         }
     });
 
     // Toggle clicked section
-    if (isOpen) {
+    var collapse = section.querySelector('.app-sidebar-section-collapse');
+    if (isCurrentlyOpen) {
         section.classList.remove('is-open');
         section.classList.add('is-collapsed');
         btn.setAttribute('aria-expanded', 'false');
-        var c = section.querySelector('.app-sidebar-section-collapse');
-        if (c) c.style.display = 'none';
+        if (collapse) collapse.style.setProperty('display', 'none', 'important');
     } else {
         section.classList.remove('is-collapsed');
         section.classList.add('is-open');
         btn.setAttribute('aria-expanded', 'true');
-        var c = section.querySelector('.app-sidebar-section-collapse');
-        if (c) c.style.display = 'block';
+        if (collapse) collapse.style.setProperty('display', 'block', 'important');
     }
 };
 </script>

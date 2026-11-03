@@ -79,6 +79,14 @@
         }
     }
 
+    if (!function_exists('url')) {
+        function url(string $path): string {
+            $path = ltrim($path, '/');
+            $path = preg_replace('/\.php$/', '', $path);
+            return (defined('APP_BASE') ? APP_BASE : '') . '/' . $path;
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Canonical table names (lowercase). Reference these constants in
     // every SQL statement instead of raw strings. MySQL/MariaDB table

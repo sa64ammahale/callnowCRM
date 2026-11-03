@@ -57,16 +57,54 @@
     }
 
     function initAccordion() {
-        var headers = document.querySelectorAll('.app-sidebar-section-header');
-        headers.forEach(function (header) {
-            header.addEventListener('click', function (e) {
-                e.preventDefault();
-                if (typeof window.toggleSidebarSection === 'function') {
-                    window.toggleSidebarSection(header);
-                }
-            });
-        });
+        // Section headers use onclick="toggleSidebarSection(this, event)" in sidebar.php.
+        // We do not bind duplicate click listeners here to prevent double-toggle cancellations.
     }
+
+    window.toggleSidebarSection = function (btn, e) {
+        if (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
+        }
+        if (!btn) return;
+
+        if (document.body.getAttribute('data-sidebar') === STATES.COLLAPSED) {
+            apply(STATES.EXPANDED);
+            setStored(STATES.EXPANDED);
+        }
+
+        var section = btn.closest('.app-sidebar-section');
+        if (!section) return;
+
+        var isCurrentlyOpen = section.classList.contains('is-open');
+
+        // Accordion behavior: close all other sections
+        var allSections = document.querySelectorAll('.app-sidebar-section');
+        for (var i = 0; i < allSections.length; i++) {
+            var s = allSections[i];
+            if (s !== section) {
+                s.classList.remove('is-open');
+                s.classList.add('is-collapsed');
+                var b = s.querySelector('.app-sidebar-section-header');
+                if (b) b.setAttribute('aria-expanded', 'false');
+                var c = s.querySelector('.app-sidebar-section-collapse');
+                if (c) c.style.setProperty('display', 'none', 'important');
+            }
+        }
+
+        // Toggle the clicked section
+        var collapse = section.querySelector('.app-sidebar-section-collapse');
+        if (isCurrentlyOpen) {
+            section.classList.remove('is-open');
+            section.classList.add('is-collapsed');
+            btn.setAttribute('aria-expanded', 'false');
+            if (collapse) collapse.style.setProperty('display', 'none', 'important');
+        } else {
+            section.classList.remove('is-collapsed');
+            section.classList.add('is-open');
+            btn.setAttribute('aria-expanded', 'true');
+            if (collapse) collapse.style.setProperty('display', 'block', 'important');
+        }
+    };
 
     function init() {
         if (isMobile()) {
