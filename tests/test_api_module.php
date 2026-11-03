@@ -233,8 +233,8 @@ $leads = $r['json']['data']['leads'] ?? [];
 assertTest("/telecaller/batch-leads returns current_database and leads array", 
     in_array($currentDb, ['TEMPORARY', 'MAIN', 'MIXED']) && is_array($leads)
 );
-assertTest("/telecaller/batch-leads confirms 20-min lease duration", 
-    ($r['json']['data']['lease_duration_minutes'] ?? 0) === 20
+assertTest("/telecaller/batch-leads confirms 15-min lease duration", 
+    ($r['json']['data']['lease_duration_minutes'] ?? 0) === 15
 );
 
 // Test 2.3: Verify database records leased by user have BATCH_ASSIGNED_AT set

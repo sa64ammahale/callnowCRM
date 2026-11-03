@@ -166,13 +166,20 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $limit = min(50, max(1, (int)($_GET['limit'] ?? 15)));
     $leads = [];
     
-    // 1. Try temporary database first (strictly excluding any DND numbers)
+    $link->begin_transaction();
+    
+    // 1. Try temporary database first (strictly excluding any DND numbers, 15-minute lease lock)
     $sqlTemp = "SELECT 
         ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
         CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, TEMP_UPLOAD_DATETIME
     FROM " . tn('TBL_TEMP') . " 
-    WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
-    AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    WHERE (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    AND (
+        CALL_DIALED_TELECALLER = ? 
+        OR CALL_DIALED_TELECALLER IS NULL 
+        OR BATCH_ASSIGNED_AT IS NULL 
+        OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
+    )
     AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_MAIN') . " m 
@@ -184,8 +191,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
         AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
-    ORDER BY TEMP_UPLOAD_DATETIME ASC, ID ASC
-    LIMIT ?";
+    ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
+    LIMIT ?
+    FOR UPDATE";
     
     $stmt = $link->prepare($sqlTemp);
     $stmt->bind_param('ii', $userId, $limit);
@@ -211,34 +219,64 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $tempIdsToLock[] = (int)$row['ID'];
     }
     
-    // Lock temp records to current user
+    // Lock temp records to current user with 15-minute lease timestamp
     if (!empty($tempIdsToLock)) {
         $inClause = implode(',', $tempIdsToLock);
         $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_TELECALLER = $userId, BATCH_ASSIGNED_AT = NOW() WHERE ID IN ($inClause)");
     }
     
-    // 2. If temporary database yielded fewer than $limit, fill remainder from main_database (strictly excluding any DND numbers)
+    // 2. If temporary database yielded fewer than $limit, fallback to main_database
     $remaining = $limit - count($leads);
     if ($remaining > 0) {
+        // Main DB Query Requirements:
+        // - Filter by oldest dialed number (fresh uncalled first, then oldest dialed ASC)
+        // - 15-minute lease duration
+        // - Strictly NO same number sharing across telecallers within 3 months (90 days)
+        // - After 3 months, only share if NO activity found (no open pipeline lead, no pending follow-up, no call in last 90 days)
         $sqlMain = "SELECT 
-            ID, MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY, 
-            MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS,
-            LAST_DIALED_DATE_TIME, MAINDATABASE_UPLOAD_DATETIME, CALL_COUNT
-        FROM " . tn('TBL_MAIN') . "
-        WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
-        AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
-        AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-
+            m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE, m.MAINDATABASE_COMPANY, 
+            m.MAINDATABASE_PACKAGE, m.MAINDATABASE_OTHER_INFO, m.MAINDATABASE_CALL_DIALED_STATUS,
+            m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_UPLOAD_DATETIME, m.CALL_COUNT
+        FROM " . tn('TBL_MAIN') . " m
+        WHERE (m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '')
+        AND (
+            m.MAINDATABASE_CALL_DIALED_USER = ? 
+            OR m.MAINDATABASE_CALL_DIALED_USER IS NULL 
+            OR m.BATCH_ASSIGNED_AT IS NULL 
+            OR m.BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
+        )
+        AND (
+            m.LAST_DIALED_DATE_TIME IS NULL 
+            OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY) 
+            OR m.MAINDATABASE_CALL_DIALED_USER = ?
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_LEADS') . " l 
+            WHERE l.cust_id = m.ID
+            AND l.assigned_to != ?
+            AND (
+                LOWER(COALESCE(l.lead_status_new, l.lead_status, '')) NOT IN ('lost', 'reject', 'closed', 'archived')
+                OR l.next_followup_at > NOW()
+            )
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_CALL_LOGS') . " cl 
+            WHERE cl.record_id = m.ID AND cl.source = 'MAIN'
+            AND cl.user_id != ?
+            AND (cl.next_followup > NOW() OR cl.created_at >= (NOW() - INTERVAL 90 DAY))
+        )
+        AND LOWER(COALESCE(m.MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
-            WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+            WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
             AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
         )
-        ORDER BY ID ASC
-        LIMIT ?";
+        ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
+        LIMIT ?
+        FOR UPDATE";
         
         $stmt = $link->prepare($sqlMain);
-        $stmt->bind_param('ii', $userId, $remaining);
+        $stmt->bind_param('iiiii', $userId, $userId, $userId, $userId, $remaining);
         $stmt->execute();
         $mainRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -262,35 +300,44 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             $mainIdsToLock[] = (int)$row['ID'];
         }
         
-        // Atomically lock main records to current user
+        // Atomically lock main records to current user with 15-minute lease timestamp
         if (!empty($mainIdsToLock)) {
             $inClause = implode(',', $mainIdsToLock);
             $link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_USER = $userId, BATCH_ASSIGNED_AT = NOW() WHERE ID IN ($inClause)");
         }
     }
     
+    $link->commit();
+    
     $currentDb = empty($tempRows) ? 'MAIN' : (count($leads) > count($tempRows) ? 'MIXED' : 'TEMPORARY');
     apiSuccess([
         'current_database' => $currentDb,
-        'lease_duration_minutes' => 20,
+        'lease_duration_minutes' => 15,
         'leads' => $leads,
         'count' => count($leads),
         'limit' => $limit,
     ]);
 
 // -----------------------------------------------------------------------------
-// 3. NEXT-CALL (Single Lead Fallback)
+// 3. NEXT-CALL (Single Lead Fallback with Atomic Locking)
 // -----------------------------------------------------------------------------
 } elseif ($relativePath === '/next-call' || $relativePath === '/next-call/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
-    // Check temp first (strictly excluding DND)
+    $link->begin_transaction();
+    
+    // Check temp first (strictly excluding DND, 15-minute lease lock)
     $sqlTemp = "SELECT 
         ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
         TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME
     FROM " . tn('TBL_TEMP') . " 
-    WHERE (CALL_DIALED_TELECALLER = ? OR CALL_DIALED_TELECALLER IS NULL)
-    AND (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    WHERE (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    AND (
+        CALL_DIALED_TELECALLER = ? 
+        OR CALL_DIALED_TELECALLER IS NULL 
+        OR BATCH_ASSIGNED_AT IS NULL 
+        OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
+    )
     AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_MAIN') . " m 
@@ -302,8 +349,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
         AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
-    ORDER BY TEMP_UPLOAD_DATETIME ASC, ID ASC
-    LIMIT 1";
+    ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
+    LIMIT 1
+    FOR UPDATE";
     $stmt = $link->prepare($sqlTemp);
     $stmt->bind_param('i', $userId);
     $stmt->execute();
@@ -312,7 +360,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     if ($row) {
         $recId = (int)$row['ID'];
-        $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_TELECALLER = $userId WHERE ID = $recId");
+        $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_TELECALLER = $userId, BATCH_ASSIGNED_AT = NOW() WHERE ID = $recId");
+        $link->commit();
         apiSuccess([
             'source' => 'TEMP',
             'record_id' => $recId,
@@ -329,36 +378,59 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         ]);
     }
     
-    // Try main database next (strictly excluding DND)
+    // Try main database next (oldest dialed order, 90-day cooldown, activity protection)
     $sqlMain = "SELECT 
-        ID, MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_COMPANY,
-        MAINDATABASE_PACKAGE, MAINDATABASE_OTHER_INFO, MAINDATABASE_CALL_DIALED_STATUS,
-        LAST_DIALED_DATE_TIME, MAINDATABASE_UPLOAD_DATETIME
-    FROM " . tn('TBL_MAIN') . " 
-    WHERE (MAINDATABASE_CALL_DIALED_USER = ? OR MAINDATABASE_CALL_DIALED_USER IS NULL)
-    AND (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '')
-    AND LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-    AND NOT EXISTS (
-        SELECT 1 FROM " . tn('TBL_MAIN') . " m2 
-        WHERE m2.MAINDATABASE_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
-        AND LOWER(m2.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE, m.MAINDATABASE_COMPANY,
+        m.MAINDATABASE_PACKAGE, m.MAINDATABASE_OTHER_INFO, m.MAINDATABASE_CALL_DIALED_STATUS,
+        m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_UPLOAD_DATETIME
+    FROM " . tn('TBL_MAIN') . " m
+    WHERE (m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '')
+    AND (
+        m.MAINDATABASE_CALL_DIALED_USER = ? 
+        OR m.MAINDATABASE_CALL_DIALED_USER IS NULL 
+        OR m.BATCH_ASSIGNED_AT IS NULL 
+        OR m.BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
     )
+    AND (
+        m.LAST_DIALED_DATE_TIME IS NULL 
+        OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY) 
+        OR m.MAINDATABASE_CALL_DIALED_USER = ?
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_LEADS') . " l 
+        WHERE l.cust_id = m.ID
+        AND l.assigned_to != ?
+        AND (
+            LOWER(COALESCE(l.lead_status_new, l.lead_status, '')) NOT IN ('lost', 'reject', 'closed', 'archived')
+            OR l.next_followup_at > NOW()
+        )
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_CALL_LOGS') . " cl 
+        WHERE cl.record_id = m.ID AND cl.source = 'MAIN'
+        AND cl.user_id != ?
+        AND (cl.next_followup > NOW() OR cl.created_at >= (NOW() - INTERVAL 90 DAY))
+    )
+    AND LOWER(COALESCE(m.MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_TEMP') . " t 
-        WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
+        WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
         AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
-    ORDER BY ID ASC
-    LIMIT 1";
+    ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
+    LIMIT ?
+    FOR UPDATE";
     $stmt = $link->prepare($sqlMain);
-    $stmt->bind_param('i', $userId);
+    $one = 1;
+    $stmt->bind_param('iiiii', $userId, $userId, $userId, $userId, $one);
     $stmt->execute();
     $mRow = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     
     if ($mRow) {
         $recId = (int)$mRow['ID'];
-        $link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_USER = $userId WHERE ID = $recId");
+        $link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_USER = $userId, BATCH_ASSIGNED_AT = NOW() WHERE ID = $recId");
+        $link->commit();
         apiSuccess([
             'source' => 'MAIN',
             'record_id' => $recId,
@@ -375,6 +447,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         ]);
     }
     
+    $link->commit();
     apiSuccess(['message' => 'No calls available at this time']);
 
 // -----------------------------------------------------------------------------
@@ -406,7 +479,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : (!empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null);
     
-    // Retrieve phone number to guarantee cross-database DND synchronization
+    // Retrieve phone number to guarantee cross-database DND synchronization and lead management
     $targetMobile = '';
     if ($source === 'MAIN') {
         $mStmt = $link->prepare("SELECT MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
@@ -422,7 +495,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $mStmt->close();
     }
 
-    // 1. Update master table based on source
+    // 1. Update master table based on source (clear batch lease, increment call count)
     $isConnected = ($duration > 0 || in_array(strtolower($status), ['connected', 'lead', 'interested'])) ? 1 : 0;
     if ($source === 'MAIN') {
         $sql = "UPDATE " . tn('TBL_MAIN') . " SET 
@@ -463,14 +536,13 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     // 2. Insert record into call_logs using exact remote column names
     $sqlLog = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-        (user_id, record_id, source, call_status, call_duration, timing_classification, notes, next_followup, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+        (user_id, record_id, source, call_status, call_duration, timing_classification, notes, next_followup, call_time, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
     $stmt = $link->prepare($sqlLog);
     if (!$stmt) {
-        // Fallback without timing_classification or next_followup if remote schema restricted
         $sqlLogFallback = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-            (user_id, record_id, source, call_status, call_duration, notes, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())";
+            (user_id, record_id, source, call_status, call_duration, notes, call_time, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())";
         $stmt = $link->prepare($sqlLogFallback);
         $stmt->bind_param('iissis', $userId, $recordId, $source, $status, $duration, $notes);
     } else {
@@ -482,10 +554,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     logActivity($link, $userId, 'API_CALL_COMPLETED', "Logged call for record #$recordId ($source) duration: {$duration}s, status: $status, tier: $timingTier", (string)$recordId, $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN');
     
+    // 3. Auto-generate or update Lead in TBL_LEADS when status is Interested / Hot / Lead
+    $autoLeadId = syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $status, $notes, $nextFollowup);
+    
     apiSuccess([
         'message' => 'Call report submitted successfully',
         'log_id' => $logId,
         'record_id' => $recordId,
+        'lead_id' => $autoLeadId,
+        'is_lead_generated' => ($autoLeadId !== null && $autoLeadId > 0),
         'timing_classification' => $timingTier,
         'duration' => $duration,
     ]);
@@ -625,6 +702,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             ELSE 'CONNECTED_CONVERSATION'
         END as timing_classification,
         cl.notes,
+        cl.next_followup,
         cl.created_at,
         COALESCE(m.MAINDATABASE_NAME, t.CUST_NAME, '') as customer_name,
         COALESCE(m.MAINDATABASE_MOBILE, t.CUST_MOBILE, '') as customer_mobile,
