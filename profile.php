@@ -158,12 +158,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
 
                 if ($Message === '') {
                     $updateFields[] = "UPDATED_AT = NOW()";
-                    $params[] = USER_ID;
+                    $params[] = $currentUserId;
                     $types   .= "i";
 
                     $updateSql = "UPDATE " . tn('TBL_USERS') . " SET " . implode(", ", $updateFields) . " WHERE ID = ?";
                     $updStmt = mysqli_prepare($link, $updateSql);
-                    mysqli_stmt_bind_param($updStmt, $types, ...$params);
+                    $bindRefs = [];
+                    foreach ($params as $k => &$v) {
+                        $bindRefs[$k] = &$v;
+                    }
+                    mysqli_stmt_bind_param($updStmt, $types, ...$bindRefs);
 
                     if (mysqli_stmt_execute($updStmt)) {
                         $_SESSION['name']     = $name;

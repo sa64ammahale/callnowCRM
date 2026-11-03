@@ -350,6 +350,12 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - **Mobile API Photo Delivery**: Updated `getFullUserProfileData()` in `php_scripts/api_auth.php` and `api/v1/auth/index.php` (`/me`, `/profile`, `/user`, `/login`, `/refresh`) to return `profile_photo_url`, `profile_picture` (Base64 data URI), `profile_picture_url`, `avatar_url`, and `profile_photo`.
   - **Direct MySQL Photo Stream Endpoint**: Added `GET /api/v1/auth/photo` and `/avatar` to stream the image binary directly from MySQL with `Content-Type: image/jpeg` and caching headers.
   - **Topbar Avatar Sync**: Updated `php_scripts/topbar.php` to display the user's uploaded profile picture in the topbar navigation avatar ring.
+- **UI / UX Polish for Card Bounds, Dropdown Chevrons, and Natural Styling (2026-11-03)**:
+  - **Card Content Overflow Prevention**: Constrained `.metric-card-body` to `flex: 1 1 0%`, `min-width: 0`, and `overflow: hidden`, preventing stat badges (e.g., `Interested / Sales`) from breaking through card boundaries.
+  - **Metric Card Collision Fix in Reports & Dashboards**: Standardized `.col-xl col-lg-4 col-md-6 col-sm-6` responsive grid columns and vertical flex containment in `Reports.php` and `leads_dashboard.php`, eliminating card overlap and text clipping.
+  - **Resource Quota Wrapping**: Updated `super_admin_panel.php` tenant quota values to align numerators, denominators, and units cleanly with baseline flex, preventing awkward line breaks for large counts.
+  - **Universal Dropdown Chevrons**: Applied high-contrast SVG arrow icons across all native `select` and `.form-select` controls with dedicated padding-right, and added rotating carets to all `.dropdown-toggle` buttons.
+  - **Natural Card Tinting & Soft Badges**: Updated `.card` and `.crm-card` with soft natural off-white gradients and subtle borders, alongside pastel semantic badge themes (`bg-success`, `bg-warning`, `bg-danger`, `bg-purple`, `bg-info`, `bg-secondary`).
 
 ## Remaining Known Issues (not yet fixed)
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.

@@ -173,7 +173,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
 <div class="card mb-3">
     <div class="card-body p-2 bg-subtle">
         <div class="row g-2">
-            <div class="col-md-2 col-sm-4 col-6">
+            <div class="col-xl col-md-3 col-sm-4 col-6">
                 <label class="form-label mb-1" style="font-size:0.6875rem;"><i class="bi bi-funnel me-1"></i>Status</label>
                 <select id="quickStatusFilter" class="form-select form-select-sm">
                     <option value="PIPELINE">Pipeline Cases</option>
@@ -183,7 +183,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2 col-sm-4 col-6">
+            <div class="col-xl col-md-3 col-sm-4 col-6">
                 <label class="form-label mb-1" style="font-size:0.6875rem;"><i class="bi bi-calendar2-check me-1"></i>Login Month</label>
                 <select id="loginMonthFilter" class="form-select form-select-sm">
                     <option value="current_previous">Current + Prev</option>
@@ -195,7 +195,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2 col-sm-4 col-6">
+            <div class="col-xl col-md-3 col-sm-4 col-6">
                 <label class="form-label mb-1" style="font-size:0.6875rem;"><i class="bi bi-clock-history me-1"></i>Follow-up</label>
                 <select id="followupMonthFilter" class="form-select form-select-sm">
                     <option value="">All</option>
@@ -207,7 +207,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2 col-sm-4 col-6">
+            <div class="col-xl col-md-3 col-sm-4 col-6">
                 <label class="form-label mb-1" style="font-size:0.6875rem;"><i class="bi bi-send-check me-1"></i>Login Mode</label>
                 <select id="quickLoginModeFilter" class="form-select form-select-sm">
                     <option value="">All Modes</option>
@@ -216,7 +216,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2 col-sm-4 col-6">
+            <div class="col-xl col-md-3 col-sm-4 col-6">
                 <label class="form-label mb-1" style="font-size:0.6875rem;"><i class="bi bi-person-badge me-1"></i>Assigned</label>
                 <select id="quickAssignedFilter" class="form-select form-select-sm">
                     <option value="">All Assignees</option>
@@ -225,7 +225,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-1 col-sm-4 col-6">
+            <div class="col-xl col-md-3 col-sm-4 col-6">
                 <label class="form-label mb-1" style="font-size:0.6875rem;"><i class="bi bi-briefcase me-1"></i>Loan</label>
                 <select id="quickLoanTypeFilter" class="form-select form-select-sm">
                     <option value="">All</option>
@@ -234,7 +234,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-1 col-sm-4 col-6">
+            <div class="col-xl col-md-3 col-sm-4 col-6">
                 <label class="form-label mb-1" style="font-size:0.6875rem;"><i class="bi bi-exclamation-triangle me-1"></i>Rework</label>
                 <select id="quickReworkFilter" class="form-select form-select-sm">
                     <option value="">All</option>

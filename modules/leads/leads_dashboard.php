@@ -130,7 +130,7 @@ $userName = $_SESSION['name'] ?? 'User';
 
 <!-- KPI Summary Cards -->
 <div class="row g-3 mb-4">
-    <div class="col-xl col-md-4 col-sm-6">
+    <div class="col-xl col-lg-4 col-md-6 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon"><i class="bi bi-person-lines-fill"></i></div>
             <div class="metric-card-body">
@@ -140,7 +140,7 @@ $userName = $_SESSION['name'] ?? 'User';
             </div>
         </div>
     </div>
-    <div class="col-xl col-md-4 col-sm-6">
+    <div class="col-xl col-lg-4 col-md-6 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon info"><i class="bi bi-kanban"></i></div>
             <div class="metric-card-body">
@@ -150,7 +150,7 @@ $userName = $_SESSION['name'] ?? 'User';
             </div>
         </div>
     </div>
-    <div class="col-xl col-md-4 col-sm-6">
+    <div class="col-xl col-lg-4 col-md-6 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon <?= $todayFollowups > 0 ? 'warning' : 'success' ?>"><i class="bi bi-clock-history"></i></div>
             <div class="metric-card-body">
@@ -160,7 +160,7 @@ $userName = $_SESSION['name'] ?? 'User';
             </div>
         </div>
     </div>
-    <div class="col-xl col-md-4 col-sm-6">
+    <div class="col-xl col-lg-4 col-md-6 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon warning"><i class="bi bi-bank"></i></div>
             <div class="metric-card-body">
@@ -170,7 +170,7 @@ $userName = $_SESSION['name'] ?? 'User';
             </div>
         </div>
     </div>
-    <div class="col-xl col-md-4 col-sm-6">
+    <div class="col-xl col-lg-4 col-md-6 col-sm-6">
         <div class="metric-card">
             <div class="metric-card-icon success"><i class="bi bi-check2-circle"></i></div>
             <div class="metric-card-body">

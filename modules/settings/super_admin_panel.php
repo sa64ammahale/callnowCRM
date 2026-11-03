@@ -236,7 +236,7 @@ $featureFlags = [
                 <div class="col-12 col-sm-6 col-xl-3">
                     <div class="metric-card metric-primary p-3">
                         <div class="metric-label">Users Registered</div>
-                        <div class="metric-value text-dark"><?= number_format($summary['users']['current']) ?> <span class="fs-6 text-muted font-monospace">/ <?= number_format($summary['users']['max']) ?></span></div>
+                        <div class="metric-value text-dark d-flex align-items-baseline gap-1 flex-wrap"><span class="fs-4 fw-bold"><?= number_format($summary['users']['current']) ?></span><span class="fs-xs text-muted font-monospace fw-normal">/ <?= number_format($summary['users']['max']) ?></span></div>
                         <div class="progress mt-2" style="height: 6px;">
                             <div class="progress-bar <?= $summary['users']['pct'] >= 90 ? 'bg-danger' : ($summary['users']['pct'] >= 70 ? 'bg-warning' : 'bg-primary') ?>" style="width: <?= min(100, $summary['users']['pct']) ?>%"></div>
                         </div>
@@ -246,7 +246,7 @@ $featureFlags = [
                 <div class="col-12 col-sm-6 col-xl-3">
                     <div class="metric-card metric-success p-3">
                         <div class="metric-label">Mobile API Tokens</div>
-                        <div class="metric-value text-dark"><?= number_format($summary['api_tokens']['current']) ?> <span class="fs-6 text-muted font-monospace">/ <?= number_format($summary['api_tokens']['max']) ?></span></div>
+                        <div class="metric-value text-dark d-flex align-items-baseline gap-1 flex-wrap"><span class="fs-4 fw-bold"><?= number_format($summary['api_tokens']['current']) ?></span><span class="fs-xs text-muted font-monospace fw-normal">/ <?= number_format($summary['api_tokens']['max']) ?></span></div>
                         <div class="progress mt-2" style="height: 6px;">
                             <div class="progress-bar <?= $summary['api_tokens']['pct'] >= 90 ? 'bg-danger' : ($summary['api_tokens']['pct'] >= 70 ? 'bg-warning' : 'bg-success') ?>" style="width: <?= min(100, $summary['api_tokens']['pct']) ?>%"></div>
                         </div>
@@ -256,7 +256,7 @@ $featureFlags = [
                 <div class="col-12 col-sm-6 col-xl-3">
                     <div class="metric-card metric-info p-3">
                         <div class="metric-label">Total DB Records</div>
-                        <div class="metric-value text-dark"><?= number_format($summary['storage_records']['current']) ?> <span class="fs-6 text-muted font-monospace">/ <?= number_format($summary['storage_records']['max']) ?></span></div>
+                        <div class="metric-value text-dark d-flex align-items-baseline gap-1 flex-wrap"><span class="fs-4 fw-bold"><?= number_format($summary['storage_records']['current']) ?></span><span class="fs-xs text-muted font-monospace fw-normal">/ <?= number_format($summary['storage_records']['max']) ?></span></div>
                         <div class="progress mt-2" style="height: 6px;">
                             <div class="progress-bar <?= $summary['storage_records']['pct'] >= 90 ? 'bg-danger' : ($summary['storage_records']['pct'] >= 70 ? 'bg-warning' : 'bg-info') ?>" style="width: <?= min(100, $summary['storage_records']['pct']) ?>%"></div>
                         </div>
@@ -266,7 +266,7 @@ $featureFlags = [
                 <div class="col-12 col-sm-6 col-xl-3">
                     <div class="metric-card metric-neutral p-3">
                         <div class="metric-label">Storage Allocated</div>
-                        <div class="metric-value text-dark"><?= $summary['storage_mb']['current'] ?> MB <span class="fs-6 text-muted font-monospace">/ <?= $summary['storage_mb']['max'] ?> MB</span></div>
+                        <div class="metric-value text-dark d-flex align-items-baseline gap-1 flex-wrap"><span class="fs-4 fw-bold"><?= $summary['storage_mb']['current'] ?> <small class="fs-xs fw-normal text-muted">MB</small></span><span class="fs-xs text-muted font-monospace fw-normal">/ <?= $summary['storage_mb']['max'] ?> MB</span></div>
                         <div class="progress mt-2" style="height: 6px;">
                             <div class="progress-bar <?= $summary['storage_mb']['pct'] >= 90 ? 'bg-danger' : ($summary['storage_mb']['pct'] >= 70 ? 'bg-warning' : 'bg-secondary') ?>" style="width: <?= min(100, $summary['storage_mb']['pct']) ?>%"></div>
                         </div>

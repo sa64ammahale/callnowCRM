@@ -472,6 +472,14 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
     }
 
     $photoName = !empty($user['profile_photo']) ? (string)$user['profile_photo'] : '';
+    if ($photoName === '') {
+        $matches = @glob($uploadDir . 'user_' . $user['id'] . '_*');
+        if (!empty($matches)) {
+            usort($matches, function($a, $b) { return filemtime($b) - filemtime($a); });
+            $photoName = basename($matches[0]);
+            @$link->query("UPDATE " . tn('TBL_USERS') . " SET profile_photo = '$photoName' WHERE ID = " . (int)$user['id']);
+        }
+    }
     if ($photoName !== '') {
         $diskPath = $uploadDir . $photoName;
         // Recreate disk file from MySQL if missing

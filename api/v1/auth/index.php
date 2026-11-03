@@ -117,14 +117,14 @@ if ($endpoint === '/login') {
 
     logActivity($link, $userId, 'LOGIN', 'User logged in via mobile app', (string)$userId, 'TBL_USERS');
     
-    apiSuccess([
+    apiSuccess(array_merge($fullProfile, [
         'token' => $token,
         'expires_at' => $expiresAt,
         'user' => $fullProfile,
         'profile' => $fullProfile,
         'database_access' => $dbAccess,
         'assigned_teams' => $teamIds,
-    ]);
+    ]));
     
 // -------------------------------------------------------------
 // 2. LOGOUT
@@ -160,13 +160,14 @@ if ($endpoint === '/login') {
     $teamIds = getUserAssignedTeamIds($userId);
     $fullProfile = getFullUserProfileData($link, $userId);
     
-    apiSuccess([
+    apiSuccess(array_merge($fullProfile, [
+        'token' => $tokenData['token'] ?? '',
         'expires_at' => $newExpiry,
         'user' => $fullProfile,
         'profile' => $fullProfile,
         'database_access' => $dbAccess,
         'assigned_teams' => $teamIds,
-    ]);
+    ]));
     
 // -------------------------------------------------------------
 // 4. GET / UPDATE PROFILE (/me, /profile, /user)
