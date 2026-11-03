@@ -40,7 +40,7 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
     <nav class="app-sidebar-nav">
         <!-- 1. Main / Workspace Section -->
         <div class="app-sidebar-section <?= $isWorkspaceActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="workspace">
-            <button type="button" class="app-sidebar-section-header" aria-expanded="<?= $isWorkspaceActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Workspace" aria-expanded="<?= $isWorkspaceActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-speedometer2 section-icon"></i>
                     <span class="app-sidebar-section-label">Workspace</span>
@@ -63,7 +63,7 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
 
         <!-- 2. Leads & Pipeline Section -->
         <div class="app-sidebar-section <?= $isLeadsActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="leads">
-            <button type="button" class="app-sidebar-section-header" aria-expanded="<?= $isLeadsActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Leads &amp; Pipeline" aria-expanded="<?= $isLeadsActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-kanban section-icon"></i>
                     <span class="app-sidebar-section-label">Leads &amp; Pipeline</span>
@@ -97,7 +97,7 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         <!-- 3. Database Management Section -->
         <?php if (can('manage_database')): ?>
         <div class="app-sidebar-section <?= $isDataActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="database">
-            <button type="button" class="app-sidebar-section-header" aria-expanded="<?= $isDataActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Data Management" aria-expanded="<?= $isDataActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-database section-icon"></i>
                     <span class="app-sidebar-section-label">Data Management</span>
@@ -141,7 +141,7 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
 
         <!-- 4. Activities & Reports Section -->
         <div class="app-sidebar-section <?= $isReportsActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="reports">
-            <button type="button" class="app-sidebar-section-header" aria-expanded="<?= $isReportsActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Activities &amp; Reports" aria-expanded="<?= $isReportsActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-graph-up section-icon"></i>
                     <span class="app-sidebar-section-label">Activities &amp; Reports</span>
@@ -173,7 +173,7 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         <!-- 5. Users & Teams Section -->
         <?php if (can('manage_users') || can('manage_teams')): ?>
         <div class="app-sidebar-section <?= $isUsersActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="users">
-            <button type="button" class="app-sidebar-section-header" aria-expanded="<?= $isUsersActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Users &amp; Teams" aria-expanded="<?= $isUsersActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-people section-icon"></i>
                     <span class="app-sidebar-section-label">Users &amp; Teams</span>
@@ -210,7 +210,7 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         <!-- 6. Administration & Settings Section -->
         <?php if (can('manage_settings') || isSuperAdmin()): ?>
         <div class="app-sidebar-section <?= $isSettingsActive ? 'is-open is-active' : 'is-collapsed' ?>" data-section="settings">
-            <button type="button" class="app-sidebar-section-header" aria-expanded="<?= $isSettingsActive ? 'true' : 'false' ?>">
+            <button type="button" class="app-sidebar-section-header" onclick="toggleSidebarSection(this)" title="Settings &amp; Admin" aria-expanded="<?= $isSettingsActive ? 'true' : 'false' ?>">
                 <div class="app-sidebar-section-header-left">
                     <i class="bi bi-gear section-icon"></i>
                     <span class="app-sidebar-section-label">Settings &amp; Admin</span>
@@ -258,3 +258,44 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         </a>
     </div>
 </aside>
+
+<script>
+window.toggleSidebarSection = function(btn) {
+    if (!btn) return;
+    if (document.body.getAttribute('data-sidebar') === 'collapsed') {
+        document.body.setAttribute('data-sidebar', 'expanded');
+        try { localStorage.setItem('callnow-sidebar', 'expanded'); } catch(e) {}
+    }
+    var section = btn.closest('.app-sidebar-section');
+    if (!section) return;
+
+    var isOpen = section.classList.contains('is-open');
+
+    // Close all other sections
+    document.querySelectorAll('.app-sidebar-section').forEach(function(s) {
+        if (s !== section) {
+            s.classList.remove('is-open');
+            s.classList.add('is-collapsed');
+            var b = s.querySelector('.app-sidebar-section-header');
+            if (b) b.setAttribute('aria-expanded', 'false');
+            var c = s.querySelector('.app-sidebar-section-collapse');
+            if (c) c.style.display = 'none';
+        }
+    });
+
+    // Toggle clicked section
+    if (isOpen) {
+        section.classList.remove('is-open');
+        section.classList.add('is-collapsed');
+        btn.setAttribute('aria-expanded', 'false');
+        var c = section.querySelector('.app-sidebar-section-collapse');
+        if (c) c.style.display = 'none';
+    } else {
+        section.classList.remove('is-collapsed');
+        section.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+        var c = section.querySelector('.app-sidebar-section-collapse');
+        if (c) c.style.display = 'block';
+    }
+};
+</script>

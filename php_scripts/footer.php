@@ -74,8 +74,8 @@
 <script src="<?= vnd('js/bootstrap.bundle.min.js') ?>"></script>
 <script>window.APP_BASE = <?= json_encode(APP_BASE) ?>;</script>
 <script>window.APP_CSRF = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;</script>
-<script src="<?= url('assets/js/theme.js') ?>"></script>
-<script src="<?= url('assets/js/sidebar.js') ?>"></script>
+<script src="<?= url('assets/js/theme.js') ?>?v=<?= file_exists(__DIR__ . '/../assets/js/theme.js') ? filemtime(__DIR__ . '/../assets/js/theme.js') : '5.1' ?>"></script>
+<script src="<?= url('assets/js/sidebar.js') ?>?v=<?= file_exists(__DIR__ . '/../assets/js/sidebar.js') ? filemtime(__DIR__ . '/../assets/js/sidebar.js') : '5.1' ?>"></script>
 <script>
 function openOmniSearch() {
     var modalEl = document.getElementById('omniSearchModal');

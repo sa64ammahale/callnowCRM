@@ -513,6 +513,14 @@ body[data-sidebar="collapsed"] .app-sidebar {
     color: #FFFFFF;
 }
 
+.app-sidebar-section.is-collapsed .app-sidebar-section-collapse {
+    display: none;
+}
+
+.app-sidebar-section.is-open .app-sidebar-section-collapse {
+    display: block;
+}
+
 .app-sidebar-section-collapse {
     overflow: hidden;
 }
