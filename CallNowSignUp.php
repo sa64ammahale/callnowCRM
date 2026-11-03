@@ -184,7 +184,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="<?= vnd('css/bootstrap.min.css') ?>" rel="stylesheet">
-    <link href="assets/css/app-theme.css" rel="stylesheet">
+    <link href="assets/css/app-theme.css?v=<?= file_exists(__DIR__ . '/assets/css/app-theme.css') ? filemtime(__DIR__ . '/assets/css/app-theme.css') : '5.1' ?>" rel="stylesheet">
     
     <link rel="stylesheet" href="<?= vnd('css/bootstrap-icons.css') ?>">
     

@@ -900,23 +900,24 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
    ========================================================================== */
 
 .card, .crm-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-default);
+    background: linear-gradient(180deg, #FFFFFF 0%, #FAFAFC 100%);
+    border: 1px solid #E2E8F0;
     border-radius: var(--radius-lg); /* 14px Flux Signature */
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.03);
     color: var(--text-primary);
     margin-bottom: 1.25rem;
     transition: box-shadow 0.16s ease, border-color 0.16s ease;
+    min-width: 0;
 }
 
 .card:hover, .crm-card:hover {
-    border-color: #DCDCE2;
-    box-shadow: var(--shadow-card-hover);
+    border-color: #CBD5E1;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.04);
 }
 
 .card-header, .crm-card-header {
-    background: transparent;
-    border-bottom: 1px solid var(--border-subtle);
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+    border-bottom: 1px solid #E2E8F0;
     padding: 1rem 1.25rem;
     font-weight: 600;
     font-size: 0.9375rem;
@@ -928,11 +929,12 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
 
 .card-body, .crm-card-body {
     padding: 1.25rem;
+    min-width: 0;
 }
 
 .card-footer, .crm-card-footer {
-    background: var(--bg-subtle);
-    border-top: 1px solid var(--border-subtle);
+    background: linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%);
+    border-top: 1px solid #E2E8F0;
     padding: 0.75rem 1.25rem;
     font-size: 0.75rem;
     border-bottom-left-radius: var(--radius-lg);
@@ -1106,44 +1108,131 @@ nav[aria-label="breadcrumb"],
    ========================================================================== */
 
 .metric-card, .stat-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-default);
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+    border: 1px solid #E2E8F0;
+    border-top: 3px solid #64748B;
     border-radius: var(--radius-lg); /* 14px */
-    padding: 1rem 1.15rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    box-shadow: var(--shadow-card);
+    padding: 1.1rem 1.25rem;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.03);
     transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease;
     height: 100%;
     min-width: 0;
     position: relative;
     overflow: hidden;
+    gap: 0.35rem;
 }
 
 .metric-card:hover, .stat-card:hover {
-    border-color: #D6D6DC;
-    box-shadow: var(--shadow-card-hover);
+    border-color: #CBD5E1;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.04);
     transform: translateY(-2px);
+}
+
+/* Ensure direct children of metric card occupy full line width and wrap cleanly */
+.metric-card > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+}
+
+/* Natural Card Semantic Color Themes */
+/* Success / Connected / Disbursed (Green) */
+.metric-card.metric-success,
+.metric-card.success,
+.stat-card.success,
+.metric-card:has(.text-success),
+.metric-card:has(.metric-card-icon.success),
+.metric-card:has(.bg-success) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%) !important;
+    border-color: #BBF7D0 !important;
+    border-top: 3px solid #16A34A !important;
+}
+
+/* Primary / Calls / Brand / Pipeline (Purple) */
+.metric-card.metric-primary,
+.metric-card.primary,
+.stat-card.primary,
+.metric-card:has(.text-primary),
+.metric-card:has(.metric-card-icon.purple),
+.metric-card:has(.bg-primary),
+.metric-card:has(.bg-purple) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 100%) !important;
+    border-color: #E9D5FF !important;
+    border-top: 3px solid #7C3AED !important;
+}
+
+/* Warning / Leads / Pending / Attention (Amber) */
+.metric-card.metric-warning,
+.metric-card.warning,
+.stat-card.warning,
+.metric-card:has(.text-warning),
+.metric-card:has(.metric-card-icon.warning),
+.metric-card:has(.bg-warning) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 100%) !important;
+    border-color: #FDE68A !important;
+    border-top: 3px solid #F59E0B !important;
+}
+
+/* Danger / Low Rate / Customer Declined (Red) */
+.metric-card.metric-danger,
+.metric-card.danger,
+.stat-card.danger,
+.metric-card:has(.text-danger),
+.metric-card:has(.metric-card-icon.danger),
+.metric-card:has(.bg-danger) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFF1F2 100%) !important;
+    border-color: #FECDD3 !important;
+    border-top: 3px solid #E11D48 !important;
+}
+
+/* Info / Database / Telephony (Sky) */
+.metric-card.metric-info,
+.metric-card.info,
+.stat-card.info,
+.metric-card:has(.text-info),
+.metric-card:has(.metric-card-icon.info),
+.metric-card:has(.bg-info) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 100%) !important;
+    border-color: #BAE6FD !important;
+    border-top: 3px solid #0284C7 !important;
+}
+
+/* Neutral / Secondary / Standard Slate */
+.metric-card.metric-neutral,
+.metric-card.metric-secondary,
+.metric-card:has(.text-secondary),
+.metric-card:has(.text-dark) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+    border-color: #E2E8F0 !important;
+    border-top: 3px solid #64748B !important;
 }
 
 /* Metric card with left icon layout */
 .metric-card:has(.metric-card-icon),
 .stat-card:has(.stat-card-icon) {
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: flex-start;
-    gap: 0.875rem;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 1rem !important;
+}
+
+.metric-card:has(.metric-card-icon) > *,
+.stat-card:has(.stat-card-icon) > * {
+    width: auto !important;
 }
 
 .metric-card-icon, .stat-card-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: var(--radius-md); /* 10px */
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     background: var(--primary-soft);
     color: var(--primary);
     flex-shrink: 0;
@@ -1161,6 +1250,7 @@ nav[aria-label="breadcrumb"],
     display: flex;
     flex-direction: column;
     justify-content: center;
+    gap: 0.2rem;
 }
 
 .metric-card-title,
@@ -1172,10 +1262,13 @@ nav[aria-label="breadcrumb"],
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.15rem;
     line-height: 1.25;
-    display: block;
-    width: 100%;
+    display: block !important;
+    width: 100% !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
 }
 
 .metric-card-value,
@@ -1187,9 +1280,10 @@ nav[aria-label="breadcrumb"],
     line-height: 1.2;
     letter-spacing: -0.025em;
     font-variant-numeric: tabular-nums;
-    display: block;
-    width: 100%;
-    word-break: break-word;
+    display: block !important;
+    width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
 }
 
 .metric-card-subtitle,
@@ -1197,10 +1291,13 @@ nav[aria-label="breadcrumb"],
 .stat-card-sub {
     font-size: 0.725rem;
     color: var(--text-muted);
-    margin-top: 0.35rem;
+    margin-top: 0.15rem;
     line-height: 1.35;
-    display: block;
-    width: 100%;
+    display: block !important;
+    width: 100% !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
 }
 
 .metric-card-sub .badge,
@@ -1281,12 +1378,12 @@ nav[aria-label="breadcrumb"],
    Forms, Inputs & Form Controls (10px Radius)
    ========================================================================== */
 
-.form-control, .form-select {
+.form-control {
     font-family: inherit;
     font-size: 0.8125rem;
     height: 40px;
     border: 1px solid var(--border-strong);
-    background: #FFFFFF;
+    background-color: #FFFFFF;
     color: var(--text-primary);
     border-radius: var(--radius-md); /* 10px */
     padding: 0.45rem 0.75rem;
@@ -1295,22 +1392,56 @@ nav[aria-label="breadcrumb"],
     transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
+.form-select {
+    font-family: inherit;
+    font-size: 0.8125rem;
+    height: 40px;
+    border: 1px solid var(--border-strong);
+    background-color: #FFFFFF !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.75rem center !important;
+    background-size: 14px 10px !important;
+    color: var(--text-primary);
+    border-radius: var(--radius-md); /* 10px */
+    padding: 0.45rem 2.25rem 0.45rem 0.75rem !important;
+    line-height: 1.35;
+    box-shadow: none !important;
+    transition: border-color 0.14s ease, box-shadow 0.14s ease;
+    cursor: pointer;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+}
+
+.form-select-sm {
+    height: 32px !important;
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+    padding-left: 0.65rem !important;
+    padding-right: 2rem !important;
+    font-size: 0.785rem !important;
+    background-position: right 0.6rem center !important;
+    background-size: 12px 8px !important;
+}
+
 .form-control::placeholder { color: var(--text-disabled); }
 
 .form-control:hover, .form-select:hover {
-    border-color: #CBCBD3;
+    border-color: #94A3B8;
 }
 
 .form-control:focus, .form-select:focus {
     border-color: var(--primary);
-    background: #FFFFFF;
+    background-color: #FFFFFF !important;
     color: var(--text-primary);
     box-shadow: 0 0 0 3px rgba(109, 69, 249, 0.16) !important;
     outline: none;
 }
 
-.form-control:disabled, .form-control[readonly] {
-    background: var(--bg-subtle);
+.form-control:disabled, .form-control[readonly],
+.form-select:disabled {
+    background-color: var(--bg-subtle) !important;
     color: var(--text-disabled);
     cursor: not-allowed;
 }
@@ -1630,8 +1761,30 @@ nav[aria-label="breadcrumb"],
 }
 
 /* ==========================================================================
-   Dropdowns
+   Dropdowns & Dropdown Toggles (Small Down Arrows)
    ========================================================================== */
+
+.dropdown-toggle::after {
+    display: inline-block !important;
+    margin-left: 0.45em !important;
+    vertical-align: 0.18em !important;
+    content: "" !important;
+    border-top: 0.32em solid currentColor !important;
+    border-right: 0.32em solid transparent !important;
+    border-bottom: 0 !important;
+    border-left: 0.32em solid transparent !important;
+    transition: transform 0.16s ease !important;
+}
+
+.dropdown-toggle.show::after,
+.dropdown.show > .dropdown-toggle::after,
+.btn-group.show > .dropdown-toggle::after {
+    transform: rotate(180deg) !important;
+}
+
+.dropdown-toggle-split::after {
+    margin-left: 0 !important;
+}
 
 .dropdown-menu {
     background: rgba(255, 255, 255, 0.98);

@@ -453,37 +453,37 @@ include '../../php_scripts/header.php';
     </div>
 
     <!-- Metric KPI Cards -->
-    <div class="row g-2 mb-3">
-        <div class="col-sm-6 col-md-2">
-            <div class="metric-card">
+    <div class="row g-3 mb-4">
+        <div class="col-xl col-md-4 col-sm-6">
+            <div class="metric-card metric-neutral">
                 <div class="metric-card-title">Total Calls</div>
                 <div class="metric-card-value text-dark"><?= number_format($grand_total) ?></div>
                 <div class="metric-card-subtitle text-muted">Dialed in period</div>
             </div>
         </div>
-        <div class="col-sm-6 col-md-2">
-            <div class="metric-card">
+        <div class="col-xl col-md-4 col-sm-6">
+            <div class="metric-card metric-primary">
                 <div class="metric-card-title">Connected</div>
                 <div class="metric-card-value text-primary"><?= number_format($grand_connected) ?></div>
-                <div class="metric-card-subtitle text-muted">Duration > 0s</div>
+                <div class="metric-card-subtitle text-muted">Duration &gt; 0s</div>
             </div>
         </div>
-        <div class="col-sm-6 col-md-3">
-            <div class="metric-card">
+        <div class="col-xl col-md-4 col-sm-6">
+            <div class="metric-card metric-success">
                 <div class="metric-card-title">Interested / Hot</div>
                 <div class="metric-card-value text-success"><?= number_format($grand_interested) ?></div>
                 <div class="metric-card-subtitle text-muted">Positive conversion</div>
             </div>
         </div>
-        <div class="col-sm-6 col-md-3">
-            <div class="metric-card">
+        <div class="col-xl col-md-4 col-sm-6">
+            <div class="metric-card metric-secondary">
                 <div class="metric-card-title">Not Interested</div>
                 <div class="metric-card-value text-secondary"><?= number_format($grand_not_interested) ?></div>
                 <div class="metric-card-subtitle text-muted">Customer declined</div>
             </div>
         </div>
-        <div class="col-sm-6 col-md-2">
-            <div class="metric-card">
+        <div class="col-xl col-md-4 col-sm-6">
+            <div class="metric-card <?= $grand_rate >= 40 ? 'metric-success' : 'metric-danger' ?>">
                 <div class="metric-card-title">Connect Rate</div>
                 <div class="metric-card-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?>"><?= $grand_rate ?>%</div>
                 <div class="metric-card-subtitle text-muted">Fleet benchmark</div>
