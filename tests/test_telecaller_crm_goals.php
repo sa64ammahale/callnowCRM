@@ -277,14 +277,19 @@ $isLockedFromB = !in_array($firstLeasedMob, $mobilesB);
 assertGoal("Leased numbers remain locked to acquiring telecaller during lease period", $isLockedFromB);
 
 // 4.3 Queue Transition Test (Temporary data ended -> Main database shares)
-// Clear temporary test records so temporary DB is empty
-$link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS='Connected' WHERE CUST_MOBILE LIKE '99990000%'");
+callApiEndpoint('POST', '/telecaller/release-queue', [], $tokenA);
+// Temporarily hold any uncalled temporary records to simulate temporary database exhaustion
+$link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS='Test_Hold' WHERE (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')");
+
 $autoFallbackBatch = callApiEndpoint('GET', '/telecaller/batch-leads?limit=3', [], $tokenA);
 $fallbackDb = $autoFallbackBatch['json']['data']['current_database'] ?? '';
 assertGoal("When temporary data is ended, system seamlessly shares Main Database records", 
     $fallbackDb === 'MAIN',
     "Current DB: $fallbackDb"
 );
+
+// Restore any held temporary staging records back
+$link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS='Not Called' WHERE CALL_DIALED_STATUS='Test_Hold'");
 
 // 4.4 Sorting Test: Filter by oldest dialed number in database
 // Create 2 test records in Main DB: one dialed 120 days ago, one dialed 150 days ago

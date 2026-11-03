@@ -120,9 +120,9 @@ $userName = $_SESSION['name'] ?? 'User';
         <p class="welcome-strip-desc text-secondary mb-0">Access Scope: <span class="badge bg-secondary"><?= htmlspecialchars(USER_ROLE) ?></span> &bull; <?= number_format($totalLeads) ?> customer leads in your assigned portfolio.</p>
     </div>
     <form method="get" action="<?= url('modules/leads/lead_list.php') ?>" class="d-flex align-items-center gap-2">
-        <div class="input-group" style="width: 280px;">
+        <div class="input-group input-group-sm" style="width: 280px;">
             <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" name="q" class="form-control" placeholder="Search lead name, phone...">
+            <input type="text" name="q" class="form-control form-control-sm" placeholder="Search lead name, phone...">
         </div>
         <button type="submit" class="btn btn-secondary btn-sm">Search</button>
     </form>

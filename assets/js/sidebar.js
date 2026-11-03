@@ -56,6 +56,70 @@
         }
     }
 
+    function initAccordion() {
+        var headers = document.querySelectorAll('.app-sidebar-section-header');
+        headers.forEach(function (header) {
+            header.addEventListener('click', function (e) {
+                e.preventDefault();
+                var section = header.closest('.app-sidebar-section');
+                if (!section) return;
+
+                var isAlreadyOpen = section.classList.contains('is-open');
+
+                // If sidebar is currently collapsed, clicking any section expands it
+                if (document.body.getAttribute('data-sidebar') === STATES.COLLAPSED) {
+                    apply(STATES.EXPANDED);
+                    setStored(STATES.EXPANDED);
+                }
+
+                // Accordion behavior: close all other sections (keep only active menu open)
+                document.querySelectorAll('.app-sidebar-section').forEach(function (sec) {
+                    if (sec !== section) {
+                        sec.classList.remove('is-open');
+                        sec.classList.add('is-collapsed');
+                        var btn = sec.querySelector('.app-sidebar-section-header');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                        var collapse = sec.querySelector('.app-sidebar-section-collapse');
+                        if (collapse) {
+                            if (window.jQuery) {
+                                window.jQuery(collapse).slideUp(180);
+                            } else {
+                                collapse.style.display = 'none';
+                            }
+                        }
+                    }
+                });
+
+                // Toggle the clicked section
+                if (isAlreadyOpen) {
+                    section.classList.remove('is-open');
+                    section.classList.add('is-collapsed');
+                    header.setAttribute('aria-expanded', 'false');
+                    var collapse = section.querySelector('.app-sidebar-section-collapse');
+                    if (collapse) {
+                        if (window.jQuery) {
+                            window.jQuery(collapse).slideUp(180);
+                        } else {
+                            collapse.style.display = 'none';
+                        }
+                    }
+                } else {
+                    section.classList.remove('is-collapsed');
+                    section.classList.add('is-open');
+                    header.setAttribute('aria-expanded', 'true');
+                    var collapse = section.querySelector('.app-sidebar-section-collapse');
+                    if (collapse) {
+                        if (window.jQuery) {
+                            window.jQuery(collapse).slideDown(180);
+                        } else {
+                            collapse.style.display = 'block';
+                        }
+                    }
+                }
+            });
+        });
+    }
+
     function init() {
         if (isMobile()) {
             apply(STATES.EXPANDED);
@@ -63,6 +127,8 @@
             var stored = getStored();
             apply(stored === STATES.COLLAPSED ? STATES.COLLAPSED : STATES.EXPANDED);
         }
+
+        initAccordion();
 
         var btn = document.getElementById('sidebarToggle');
         if (btn) {

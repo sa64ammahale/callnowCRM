@@ -178,13 +178,94 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
     </div>
 </div>
 
-<!-- Operational Activity & Quick Launcher -->
-<div class="row g-3">
+<!-- Featured Calling Reports & Analytics Spotlight (User High Priority Focus) -->
+<?php if (can('view_reports')): ?>
+<div class="dashboard-reports-spotlight p-3 p-md-4 mb-4">
+    <div class="row align-items-center g-3">
+        <div class="col-xl-7 col-lg-6">
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="badge bg-primary px-2.5 py-1" style="font-size: 0.72rem; letter-spacing: 0.04em;">
+                    <i class="bi bi-stars me-1"></i> FEATURED REPORTS HUB
+                </span>
+                <span class="badge bg-purple px-2 py-1" style="font-size: 0.72rem;">
+                    Single Date-Range &bull; Preset Analytics
+                </span>
+            </div>
+            <h3 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                <span>Call Performance Reports &amp; Analytics</span>
+            </h3>
+            <p class="text-secondary mb-3 small" style="max-width: 620px;">
+                Analyze telecaller team performance, connected ratios, disposition breakdowns (Connected, Interested, Follow-up, DND, Other), call durations, and Excel exports.
+            </p>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="<?= url('modules/logs/Reports.php') ?>" class="btn btn-primary btn-sm px-3">
+                    <i class="bi bi-graph-up-arrow me-1"></i> Open Performance Reports
+                </a>
+                <a href="<?= url('modules/logs/Reports.php?range=today') ?>" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-calendar-event me-1"></i> Today's Report
+                </a>
+                <a href="<?= url('modules/logs/Reports.php?range=yesterday') ?>" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-calendar-minus me-1"></i> Yesterday
+                </a>
+                <a href="<?= url('modules/logs/Reports.php?range=this_month') ?>" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-calendar-check me-1"></i> This Month
+                </a>
+                <a href="<?= url('modules/logs/Reports.php?range=last30') ?>" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-calendar-range me-1"></i> Last 30 Days
+                </a>
+            </div>
+        </div>
+        <div class="col-xl-5 col-lg-6">
+            <div class="p-3 bg-white border rounded shadow-xs" style="border-radius: var(--radius-md);">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fs-xs fw-bold text-uppercase text-muted">Real-time Calling Snapshot</span>
+                    <a href="<?= url('modules/logs/call_history.php') ?>" class="small text-primary fw-semibold text-decoration-none">
+                        Call Audio &amp; Logs <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="p-2 border rounded text-center bg-light">
+                            <div class="fs-xs text-muted">Dialed</div>
+                            <div class="fs-5 fw-bold text-dark font-mono"><?= fmt($today_calls) ?></div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 border rounded text-center bg-light">
+                            <div class="fs-xs text-muted">Connected</div>
+                            <div class="fs-5 fw-bold text-success font-mono"><?= fmt($today_connected) ?></div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 border rounded text-center bg-light">
+                            <div class="fs-xs text-muted">Connect Rate</div>
+                            <div class="fs-5 fw-bold text-primary font-mono"><?= $connect_rate ?>%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2 border-top">
+                    <a href="<?= url('modules/logs/call_history.php') ?>" class="btn btn-outline-dark btn-sm py-1 px-2 fs-xs">
+                        <i class="bi bi-telephone-inbound me-1 text-primary"></i> Real-time Call Logs
+                    </a>
+                    <?php if (can('view_activity')): ?>
+                    <a href="<?= url('modules/logs/manage_activity.php') ?>" class="btn btn-outline-dark btn-sm py-1 px-2 fs-xs">
+                        <i class="bi bi-clock-history me-1 text-info"></i> System Audit Trail
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Operational Fleet Activity & Capacity Status -->
+<div class="row g-3 mb-4">
     <!-- Left: Telecaller Fleet Status -->
     <div class="col-lg-7">
         <div class="card h-100 mb-0">
             <div class="card-header">
-                <span class="fw-bold"><i class="bi bi-people-fill text-primary me-2"></i>Telecaller Performance Overview</span>
+                <span class="fw-bold"><i class="bi bi-people-fill text-primary me-2"></i>Telecaller Fleet Status &amp; Performance</span>
                 <span class="badge bg-primary font-mono"><?= fmt($active_callers_today) ?> Active Callers Today</span>
             </div>
             <div class="card-body">
@@ -216,21 +297,21 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center pt-2 border-top flex-wrap gap-2">
-                    <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>All telecallers are synchronized via the lease-based auto-expiry queue.</span>
+                    <span class="text-muted small"><i class="bi bi-shield-check text-success me-1"></i>3-Month cool-off &amp; lease-based FIFO queue active across mobile callers.</span>
                     <a href="<?= url('modules/logs/Reports.php') ?>" class="btn btn-sm btn-outline-primary">
-                        Drill Down Analytics <i class="bi bi-arrow-right ms-1"></i>
+                        View Detailed Reports <i class="bi bi-arrow-right ms-1"></i>
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Right: Workspace Navigation Shortcuts -->
+    <!-- Right: Operational Queue & Fast Triggers -->
     <div class="col-lg-5">
         <div class="card h-100 mb-0">
             <div class="card-header">
-                <span class="fw-bold"><i class="bi bi-grid-fill text-primary me-2"></i>Workspace Quick Launcher</span>
-                <span class="text-muted small">Frequent Actions</span>
+                <span class="fw-bold"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Quick Operational Triggers</span>
+                <span class="text-muted small">Fast Access</span>
             </div>
             <div class="card-body p-2">
                 <div class="list-group list-group-flush gap-1">
@@ -239,7 +320,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
                             <span class="metric-card-icon sm bg-primary text-white"><i class="bi bi-kanban"></i></span>
                             <div>
                                 <div class="fw-semibold text-dark">Lead Pipeline Board</div>
-                                <div class="text-muted small">Manage stages: Lead, Follow-up, Underwriting, Sanctioned</div>
+                                <div class="text-muted small">Manage stages: Lead, Follow-up, UW, Sanctioned</div>
                             </div>
                         </div>
                         <i class="bi bi-chevron-right text-muted small"></i>
@@ -262,7 +343,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
                             <span class="metric-card-icon sm bg-success text-white"><i class="bi bi-cloud-arrow-up"></i></span>
                             <div>
                                 <div class="fw-semibold text-dark">Upload Calling Data</div>
-                                <div class="text-muted small">Import customer records via CSV into Temporary or Main DB</div>
+                                <div class="text-muted small">Import records into Temporary or Main DB</div>
                             </div>
                         </div>
                         <i class="bi bi-chevron-right text-muted small"></i>
@@ -275,12 +356,409 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
                             <span class="metric-card-icon sm bg-warning text-dark"><i class="bi bi-telephone-inbound"></i></span>
                             <div>
                                 <div class="fw-semibold text-dark">Call History Logs</div>
-                                <div class="text-muted small">Review telecaller recordings, duration, and disposition logs</div>
+                                <div class="text-muted small">Review telecaller recordings, duration &amp; outcomes</div>
                             </div>
                         </div>
                         <i class="bi bi-chevron-right text-muted small"></i>
                     </a>
                     <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comprehensive All Sections & Operational Modules Directory -->
+<div class="mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3-gap-fill text-primary fs-5"></i>
+            <h4 class="fw-bold mb-0 text-dark">All CRM Sections &amp; Module Shortcuts</h4>
+        </div>
+        <span class="text-muted small">Direct single-click navigation across all departments</span>
+    </div>
+
+    <div class="row g-3">
+        <!-- Section 1: Activities & Reports (Highlighted) -->
+        <?php if (can('view_reports') || can('view_activity')): ?>
+        <div class="col-xxl-4 col-md-6">
+            <div class="dashboard-section-card">
+                <div class="dashboard-section-card-header">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="dashboard-section-icon-wrap" style="background: var(--primary-soft); color: var(--primary);">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">Reports &amp; Analytics</div>
+                            <div class="text-muted fs-xs">Calling metrics, audio &amp; logs</div>
+                        </div>
+                    </div>
+                    <span class="badge bg-primary">Reports Hub</span>
+                </div>
+                <div class="card-body p-2 d-flex flex-column gap-1">
+                    <?php if (can('view_reports')): ?>
+                    <a href="<?= url('modules/logs/Reports.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-graph-up link-icon"></i>
+                            <div>
+                                <div class="link-title">Call Performance Reports</div>
+                                <div class="link-desc">Disposition summary, league table &amp; trends</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/logs/Reports.php?range=today') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-calendar-event link-icon"></i>
+                            <div>
+                                <div class="link-title">Today's Performance Report</div>
+                                <div class="link-desc">Real-time daily dials and conversion rates</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/logs/call_history.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-telephone-inbound link-icon"></i>
+                            <div>
+                                <div class="link-title">Call History &amp; Recordings</div>
+                                <div class="link-desc">Audio playback, duration and timestamps</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php endif; ?>
+                    <?php if (can('view_activity')): ?>
+                    <a href="<?= url('modules/logs/manage_activity.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-clock-history link-icon"></i>
+                            <div>
+                                <div class="link-title">System Audit Trail</div>
+                                <div class="link-desc">Security events and user modification logs</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Section 2: Leads & Sales Pipeline -->
+        <div class="col-xxl-4 col-md-6">
+            <div class="dashboard-section-card">
+                <div class="dashboard-section-card-header">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="dashboard-section-icon-wrap" style="background: var(--info-soft); color: var(--info-text);">
+                            <i class="bi bi-kanban"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">Leads &amp; Sales Pipeline</div>
+                            <div class="text-muted fs-xs">Funnel stages &amp; loan processing</div>
+                        </div>
+                    </div>
+                    <span class="badge bg-info">Pipeline</span>
+                </div>
+                <div class="card-body p-2 d-flex flex-column gap-1">
+                    <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-kanban link-icon"></i>
+                            <div>
+                                <div class="link-title">Pipeline Kanban Board</div>
+                                <div class="link-desc">Drag &amp; drop loan pipeline stages</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/leads/lead_list.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-person-lines-fill link-icon"></i>
+                            <div>
+                                <div class="link-title">View Leads Register</div>
+                                <div class="link-desc">Filter, search, edit and assign customer leads</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/leads/leads_dashboard.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-bar-chart-line link-icon"></i>
+                            <div>
+                                <div class="link-title">Leads Analytics &amp; Operations</div>
+                                <div class="link-desc">Pipeline velocity, funnel &amp; bank status</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php if (can('manage_leads')): ?>
+                    <a href="<?= url('modules/leads/lead_insert.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-plus-circle link-icon"></i>
+                            <div>
+                                <div class="link-title">+ Add New Lead</div>
+                                <div class="link-desc">Intake new loan application &amp; borrower profile</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Data Management & Calling Queue -->
+        <?php if (can('manage_database')): ?>
+        <div class="col-xxl-4 col-md-6">
+            <div class="dashboard-section-card">
+                <div class="dashboard-section-card-header">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="dashboard-section-icon-wrap" style="background: var(--success-soft); color: var(--success-text);">
+                            <i class="bi bi-database"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">Data Management &amp; Queue</div>
+                            <div class="text-muted fs-xs">Records, staging &amp; DND controls</div>
+                        </div>
+                    </div>
+                    <span class="badge bg-success">Data Hub</span>
+                </div>
+                <div class="card-body p-2 d-flex flex-column gap-1">
+                    <a href="<?= url('modules/database/data_management_main.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-database link-icon"></i>
+                            <div>
+                                <div class="link-title">Main Customer Database</div>
+                                <div class="link-desc">Full customer records, assignments &amp; history</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/database/data_management_temporary.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-table link-icon"></i>
+                            <div>
+                                <div class="link-title">Temporary Calling Database</div>
+                                <div class="link-desc">Staging records for testing and mobile dialing</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/database/upload_data.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-cloud-arrow-up link-icon"></i>
+                            <div>
+                                <div class="link-title">Upload Calling CSV Data</div>
+                                <div class="link-desc">Batch import into Temporary or Main DB</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/database/ViewDND.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-slash-circle link-icon"></i>
+                            <div>
+                                <div class="link-title">DND Numbers Registry</div>
+                                <div class="link-desc">Compliance protection for Do Not Call records</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Section 4: Users & Teams Management -->
+        <?php if (can('manage_users') || can('manage_teams')): ?>
+        <div class="col-xxl-4 col-md-6">
+            <div class="dashboard-section-card">
+                <div class="dashboard-section-card-header">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="dashboard-section-icon-wrap" style="background: var(--warning-soft); color: var(--warning-text);">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">Users &amp; Team Management</div>
+                            <div class="text-muted fs-xs">Roster, supervisors &amp; assignments</div>
+                        </div>
+                    </div>
+                    <span class="badge bg-warning text-dark">Fleet Admin</span>
+                </div>
+                <div class="card-body p-2 d-flex flex-column gap-1">
+                    <?php if (can('manage_users')): ?>
+                    <a href="<?= url('modules/users/users_view.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-people link-icon"></i>
+                            <div>
+                                <div class="link-title">User Directory &amp; Accounts</div>
+                                <div class="link-desc">Manage telecallers, officers &amp; roles</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/users/users_add.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-person-plus link-icon"></i>
+                            <div>
+                                <div class="link-title">+ Register New User</div>
+                                <div class="link-desc">Create telecaller account with team assignment</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php endif; ?>
+                    <?php if (can('manage_teams')): ?>
+                    <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-diagram-3 link-icon"></i>
+                            <div>
+                                <div class="link-title">Teams Dashboard</div>
+                                <div class="link-desc">Department teams, targets &amp; performance</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/users/team_members.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-person-check link-icon"></i>
+                            <div>
+                                <div class="link-title">Team Member Assignments</div>
+                                <div class="link-desc">Allocate telecallers to supervisors</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Section 5: Settings & Administration -->
+        <?php if (can('manage_settings') || isSuperAdmin()): ?>
+        <div class="col-xxl-4 col-md-6">
+            <div class="dashboard-section-card">
+                <div class="dashboard-section-card-header">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="dashboard-section-icon-wrap" style="background: #F1F5F9; color: #475569;">
+                            <i class="bi bi-gear-fill"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">Settings &amp; Administration</div>
+                            <div class="text-muted fs-xs">Permissions, limits &amp; system config</div>
+                        </div>
+                    </div>
+                    <span class="badge bg-secondary">System</span>
+                </div>
+                <div class="card-body p-2 d-flex flex-column gap-1">
+                    <?php if (isAdmin() || isSuperAdmin()): ?>
+                    <a href="<?= url('modules/settings/permissions_manager.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-shield-lock link-icon"></i>
+                            <div>
+                                <div class="link-title">Access Control Matrix (RBAC)</div>
+                                <div class="link-desc">Role permissions and user access overrides</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('modules/settings/settings.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-gear link-icon"></i>
+                            <div>
+                                <div class="link-title">System Settings</div>
+                                <div class="link-desc">Company branding, logo, and general options</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php if (can('manage_api')): ?>
+                    <a href="<?= url('modules/settings/api_settings.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-key link-icon"></i>
+                            <div>
+                                <div class="link-title">Mobile API Tokens</div>
+                                <div class="link-desc">Authenticate mobile app and integrate endpoints</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php endif; ?>
+                    <?php endif; ?>
+                    <?php if (isSuperAdmin()): ?>
+                    <a href="<?= url('modules/settings/super_admin_panel.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-shield-shaded link-icon"></i>
+                            <div>
+                                <div class="link-title">Super Admin Panel</div>
+                                <div class="link-desc">Tenant plan limits, user quotas &amp; features</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Section 6: Workspace & Profile -->
+        <div class="col-xxl-4 col-md-6">
+            <div class="dashboard-section-card">
+                <div class="dashboard-section-card-header">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="dashboard-section-icon-wrap" style="background: rgba(109, 69, 249, 0.12); color: var(--primary);">
+                            <i class="bi bi-person-badge-fill"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">My Workspace &amp; Profile</div>
+                            <div class="text-muted fs-xs">Personal profile, avatar &amp; security</div>
+                        </div>
+                    </div>
+                    <span class="badge bg-purple">Account</span>
+                </div>
+                <div class="card-body p-2 d-flex flex-column gap-1">
+                    <a href="<?= url('profile.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-person-circle link-icon"></i>
+                            <div>
+                                <div class="link-title">My Profile &amp; Avatar</div>
+                                <div class="link-desc">Update display name, email and avatar photo</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('profile.php#password') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-shield-check link-icon"></i>
+                            <div>
+                                <div class="link-title">Security &amp; Password</div>
+                                <div class="link-desc">Update account password and session tokens</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('dashboard.php') ?>" class="dashboard-section-link-item">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-speedometer2 link-icon"></i>
+                            <div>
+                                <div class="link-title">Dashboard Home</div>
+                                <div class="link-desc">Refresh real-time telecalling KPI overview</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow"></i>
+                    </a>
+                    <a href="<?= url('logout.php') ?>" class="dashboard-section-link-item text-danger">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <i class="bi bi-box-arrow-right link-icon text-danger"></i>
+                            <div>
+                                <div class="link-title text-danger">Log Out</div>
+                                <div class="link-desc">Securely terminate active CRM session</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right link-arrow text-danger"></i>
+                    </a>
                 </div>
             </div>
         </div>
