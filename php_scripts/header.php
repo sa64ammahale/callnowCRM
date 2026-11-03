@@ -6,10 +6,12 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     exit;
 }
 
-function url(string $path): string {
-    $path = ltrim($path, '/');
-    $path = preg_replace('/\.php$/', '', $path);
-    return (defined('APP_BASE') ? APP_BASE : '') . '/' . $path;
+if (!function_exists('url')) {
+    function url(string $path): string {
+        $path = ltrim($path, '/');
+        $path = preg_replace('/\.php$/', '', $path);
+        return (defined('APP_BASE') ? APP_BASE : '') . '/' . $path;
+    }
 }
 
 // Resolve the uploaded application logo for the favicon / shortcut icon
