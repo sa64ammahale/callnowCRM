@@ -267,15 +267,18 @@ function logApiAccess(array $tokenData, string $endpoint, string $method, int $r
 if (!function_exists('syncCallToLeadsAndPipeline')) {
     function syncCallToLeadsAndPipeline(mysqli $link, string $source, int $recordId, int $userId, string $status, string $notes, ?string $nextFollowup): ?int {
         $statusLower = strtolower(trim($status));
-        $positiveLeadDispositions = [
-            'lead', 'interested', 'interested / hot', 'interested / sales',
-            'hot', 'hot lead', 'deal converted', 'converted', 'sales', 'positive'
-        ];
-        $isLead = in_array($statusLower, $positiveLeadDispositions) 
-            || str_contains($statusLower, 'interested') 
+        $isNegative = str_contains($statusLower, 'not interested') 
+            || str_contains($statusLower, 'not intrested') 
+            || str_contains($statusLower, 'not_interested');
+        $isLead = !$isNegative && (
+            str_contains($statusLower, 'interested') 
+            || str_contains($statusLower, 'intrested')
+            || str_contains($statusLower, 'enquiry')
             || str_contains($statusLower, 'converted')
-            || (str_contains($statusLower, 'lead') && !str_contains($statusLower, 'not a lead'));
-        $isCallback = in_array($statusLower, ['call back', 'callback', 'follow-up', 'follow up', 'followup', 'callback / follow-up', 'follow-up needed']);
+            || (str_contains($statusLower, 'lead') && !str_contains($statusLower, 'not a lead'))
+            || in_array($statusLower, ['hot', 'hot lead', 'sales', 'positive'])
+        );
+        $isCallback = in_array($statusLower, ['call back', 'callback', 'follow-up', 'follow up', 'followup', 'callback / follow-up', 'follow-up needed', 'callback/ busy', 'callback / busy', 'busy']);
 
         if (!$isLead && !$isCallback) {
             return null;

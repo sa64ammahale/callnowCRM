@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 $alertMsg = "Mobile number $addMobile has been successfully added to Do-Not-Disturb (DND).";
                 $alertType = "success";
-                logActivity($link, 'DND_MANUAL_ADDED', "Added $addMobile to DND list ($addSource)");
+                logActivity($link, USER_ID, 'DND_MANUAL_ADDED', "Added $addMobile to DND list ($addSource)", $addMobile, $addSource === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN'));
             }
         } elseif ($delId > 0) {
             if ($action === 'delete') {
@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         if (mysqli_stmt_execute($stmt)) {
                             $alertMsg = "Record #$delId ($source) permanently deleted.";
                             $alertType = "success";
-                            logActivity($link, 'DND_RECORD_DELETED', "Deleted DND record #$delId from $targetTable");
+                            logActivity($link, USER_ID, 'DND_RECORD_DELETED', "Deleted DND record #$delId from $targetTable", (string)$delId, $targetTable);
                         } else {
                             $alertMsg = "Database error while deleting: " . mysqli_error($link);
                             $alertType = "danger";
@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 $alertMsg = "Number successfully removed from DND and restored to calling queue.";
                 $alertType = "success";
-                logActivity($link, 'DND_UNMARKED', "Removed $targetMobile (Record #$delId) from DND");
+                logActivity($link, USER_ID, 'DND_UNMARKED', "Removed $targetMobile (Record #$delId) from DND", (string)$delId, $targetTable);
             }
         } else {
             $alertMsg = "Invalid record ID.";

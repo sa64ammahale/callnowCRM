@@ -163,7 +163,7 @@ function requireAnyPermission(array $keys): void {
 // Team filter for queries
 function getTeamFilter() {
     if (isAdmin() || isManager()) return "";
-    if (isSupervisor()) return " AND TEAM_ID = " . USER_TEAM_ID;
+    if (isSupervisor()) return (USER_TEAM_ID !== null && (int)USER_TEAM_ID > 0) ? " AND TEAM_ID = " . (int)USER_TEAM_ID : "";
     return " AND CALL_BY = " . $_SESSION['id'];
 }
 
@@ -210,7 +210,14 @@ function normalizeActivityType($actionType): string {
     return $aliases[$normalized] ?? 'UPDATE';
 }
 
-function logActivity($link, $userId, $actionType, $actionDetails = null, $affectedIds = null, $targetTable = null) {
+function logActivity($link, $userId, $actionType = null, $actionDetails = null, $affectedIds = null, $targetTable = null) {
+    if (!is_numeric($userId)) {
+        $targetTable = $affectedIds;
+        $affectedIds = $actionDetails;
+        $actionDetails = $actionType;
+        $actionType = $userId;
+        $userId = defined('USER_ID') ? (int)USER_ID : 1;
+    }
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
     $actionType = normalizeActivityType($actionType);
     $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_ACTIVITY_LOG') . "(USER_ID, ACTION_TYPE, ACTION_DETAILS, AFFECTED_IDS, TARGET_TABLE, LOG_TIME, IP_ADDRESS)
@@ -237,16 +244,25 @@ function getAccessibleUserIds($link) : array {
         return $ids;
     }
     if (isSupervisor()) {
-        // supervisor only sees TBL_USERS in their TEAM_ID
-        if (USER_TEAM_ID === null) return [USER_ID];
-        $teamId = USER_TEAM_ID;
-        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?");
-        $stmt->bind_param("i", $teamId);
-        $stmt->execute();
-        $res = $stmt->get_result();
+        $teamIds = [];
+        if (USER_TEAM_ID !== null && (int)USER_TEAM_ID > 0) {
+            $teamIds[] = (int)USER_TEAM_ID;
+        }
+        $supRes = mysqli_query($link, "SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = " . (int)USER_ID);
+        if ($supRes) {
+            while ($st = mysqli_fetch_assoc($supRes)) {
+                $teamIds[] = (int)$st['ID'];
+            }
+        }
+        $teamIds = array_unique(array_filter($teamIds));
+        if (empty($teamIds)) return [USER_ID];
+        $in = implode(',', array_map('intval', $teamIds));
+        $res = mysqli_query($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IN ($in) OR ID = " . (int)USER_ID);
         $ids = [];
-        while ($r = $res->fetch_assoc()) $ids[] = (int)$r['ID'];
-        return $ids;
+        if ($res) {
+            while ($r = mysqli_fetch_assoc($res)) $ids[] = (int)$r['ID'];
+        }
+        return !empty($ids) ? array_values(array_unique($ids)) : [USER_ID];
     }
     // officers -> only themselves
     return [USER_ID];

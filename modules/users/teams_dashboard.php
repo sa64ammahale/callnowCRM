@@ -115,8 +115,6 @@ if (($_POST['action'] ?? '') === 'delete') {
             }
         }
     }
-    header("Location: teams_dashboard.php");
-    exit;
 }
 
 // Fetch all teams with supervisor, manager & member count

@@ -112,6 +112,9 @@
         define('TBL_PERMISSIONS',        'permissions');
         define('TBL_ROLE_PERMISSIONS',   'role_permissions');
         define('TBL_ROLES',              'roles');
+        define('TBL_SUPER_ADMIN_PLANS',      'super_admin_plans');
+        define('TBL_SUPER_ADMIN_ACCOUNT',    'super_admin_account');
+        define('TBL_SUPER_ADMIN_LIMIT_LOGS', 'super_admin_limit_logs');
         define('TBL_TEAMS',              'teams');
         define('TBL_TEMP',               'temporary_database');
         define('TBL_USER_PAGE_FILTERS',  'user_page_filters');
@@ -140,6 +143,9 @@
         'TBL_PERMISSIONS'      => 'permissions',
         'TBL_ROLE_PERMISSIONS'=> 'role_permissions',
         'TBL_ROLES'            => 'roles',
+        'TBL_SUPER_ADMIN_PLANS'      => 'super_admin_plans',
+        'TBL_SUPER_ADMIN_ACCOUNT'    => 'super_admin_account',
+        'TBL_SUPER_ADMIN_LIMIT_LOGS' => 'super_admin_limit_logs',
         'TBL_TEAMS'            => 'teams',
         'TBL_TEMP'             => 'temporary_database',
         'TBL_USER_PAGE_FILTERS'=> 'user_page_filters',
