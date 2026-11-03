@@ -4,6 +4,8 @@ if (!defined('APP_BASE')) { return; }
 $userName = $_SESSION['name'] ?? 'User';
 $userRole = $_SESSION['role'] ?? 'Agent';
 $userInitial = mb_strtoupper(mb_substr($userName, 0, 1));
+$topbarPhoto = $_SESSION['profile_photo'] ?? '';
+$hasTopbarPhoto = !empty($topbarPhoto) && file_exists(__DIR__ . '/../uploads/profile_photos/' . $topbarPhoto);
 $currentScript = basename($_SERVER['SCRIPT_NAME'] ?? '');
 ?>
 <header class="app-topbar">
@@ -71,7 +73,13 @@ $currentScript = basename($_SERVER['SCRIPT_NAME'] ?? '');
         <!-- User Profile Dropdown -->
         <div class="dropdown">
             <a class="app-topbar-user dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <span class="app-topbar-avatar"><?= htmlspecialchars($userInitial, ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="app-topbar-avatar" style="overflow:hidden;">
+                    <?php if ($hasTopbarPhoto): ?>
+                        <img src="<?= url('uploads/profile_photos/' . $topbarPhoto) ?>" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">
+                    <?php else: ?>
+                        <?= htmlspecialchars($userInitial, ENT_QUOTES, 'UTF-8') ?>
+                    <?php endif; ?>
+                </span>
                 <span class="app-topbar-user-name"><?= htmlspecialchars($userName, ENT_QUOTES, 'UTF-8') ?></span>
                 <i class="bi bi-chevron-down text-muted" style="font-size:0.65rem"></i>
             </a>

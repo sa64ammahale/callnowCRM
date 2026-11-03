@@ -390,6 +390,12 @@
                 if (!isset($userCols['profile_photo'])) {
                     @mysqli_query($link, "ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN profile_photo VARCHAR(255) DEFAULT NULL");
                 }
+                if (!isset($userCols['profile_picture_blob'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN profile_picture_blob MEDIUMBLOB DEFAULT NULL");
+                }
+                if (!isset($userCols['profile_picture'])) {
+                    @mysqli_query($link, "ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN profile_picture LONGTEXT DEFAULT NULL");
+                }
                 if (!isset($userCols['current_calling_db'])) {
                     @mysqli_query($link, "ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN current_calling_db ENUM('temporary','main','leads') NOT NULL DEFAULT 'temporary'");
                 }

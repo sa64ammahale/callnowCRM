@@ -189,6 +189,31 @@ assertTest("POST /auth/change-password updates password successfully with 200",
 // Restore original test password for subsequent tests
 $testPassword = $newPass;
 
+// Test 1.14: Upload profile photo via POST /auth/profile and verify storage in MySQL & response
+$test1pxGif = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+$r = callApi('POST', "$baseUrl/auth/profile", [
+    'name' => $newName,
+    'profile_photo_base64' => $test1pxGif,
+], $authToken);
+assertTest("POST /auth/profile accepts profile_photo_base64 with 200", 
+    $r['code'] === 200 && !empty($r['json']['data']['user']['profile_photo_url']));
+
+// Test 1.15: Verify GET /auth/me returns profile_photo_url and profile_picture
+$r = callApi('GET', "$baseUrl/auth/me", [], $authToken);
+$meUser = $r['json']['data']['user'] ?? [];
+assertTest("GET /auth/me returns profile_photo_url and profile_picture to mobile app", 
+    !empty($meUser['profile_photo_url']) && !empty($meUser['profile_picture']));
+
+// Test 1.16: Verify picture saved in MySQL columns (profile_picture_blob and profile_picture)
+$dbCheck = $link->query("SELECT LENGTH(profile_picture_blob) as blen, profile_picture FROM " . tn('TBL_USERS') . " WHERE ID = $userId")->fetch_assoc();
+assertTest("Profile picture is saved directly in MySQL (BLOB & Base64 text)", 
+    ($dbCheck['blen'] ?? 0) > 0 && str_starts_with($dbCheck['profile_picture'] ?? '', 'data:image/'));
+
+// Test 1.17: Stream photo from MySQL via GET /auth/photo
+$r = callApi('GET', "$baseUrl/auth/photo", [], $authToken);
+assertTest("GET /auth/photo streams photo binary from MySQL with 200", 
+    $r['code'] === 200 && strlen($r['response']) > 0);
+
 // -------------------------------------------------------------
 // GROUP 2: TELECALLER ENDPOINTS
 // -------------------------------------------------------------

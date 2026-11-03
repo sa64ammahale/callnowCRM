@@ -399,6 +399,8 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
             u.UPDATED_AT as updated_at,
             u.LAST_LOGIN as last_login,
             u.profile_photo,
+            u.profile_picture,
+            u.profile_picture_blob,
             u.current_calling_db
         FROM " . tn('TBL_USERS') . " u
         LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
@@ -438,6 +440,8 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
                     'updated_at' => $raw['UPDATED_AT'] ?? $raw['updated_at'] ?? '',
                     'last_login' => $raw['LAST_LOGIN'] ?? $raw['last_login'] ?? '',
                     'profile_photo' => $raw['profile_photo'] ?? '',
+                    'profile_picture' => $raw['profile_picture'] ?? '',
+                    'profile_picture_blob' => $raw['profile_picture_blob'] ?? null,
                     'current_calling_db' => $raw['current_calling_db'] ?? 'temporary',
                 ];
 
@@ -458,9 +462,58 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
     $resolvedPhone = $user['mobile'] ?? '';
     $resolvedCompany = $user['company_name'] ?: ($user['company'] ?? '');
     $resolvedTeam = $user['team_name'] ?: 'General Telecalling';
+
+    // Construct photo URL and ensure sync between MySQL and disk storage
     $photoUrl = '';
-    if (!empty($user['profile_photo'])) {
-        $photoUrl = defined('APP_BASE') ? APP_BASE . '/uploads/profile_photos/' . $user['profile_photo'] : 'uploads/profile_photos/' . $user['profile_photo'];
+    $pictureBase64 = !empty($user['profile_picture']) ? (string)$user['profile_picture'] : '';
+    $uploadDir = __DIR__ . '/../uploads/profile_photos/';
+    if (!is_dir($uploadDir)) {
+        @mkdir($uploadDir, 0755, true);
+    }
+
+    $photoName = !empty($user['profile_photo']) ? (string)$user['profile_photo'] : '';
+    if ($photoName !== '') {
+        $diskPath = $uploadDir . $photoName;
+        // Recreate disk file from MySQL if missing
+        if (!file_exists($diskPath)) {
+            if (!empty($user['profile_picture_blob'])) {
+                @file_put_contents($diskPath, $user['profile_picture_blob']);
+            } elseif ($pictureBase64 !== '' && str_starts_with($pictureBase64, 'data:image/')) {
+                $rawParts = explode(',', $pictureBase64, 2);
+                if (count($rawParts) === 2) {
+                    @file_put_contents($diskPath, base64_decode($rawParts[1]));
+                }
+            }
+        }
+    } elseif (!empty($user['profile_picture_blob']) || $pictureBase64 !== '') {
+        // Picture exists in MySQL but no filename set: create file
+        $photoName = 'user_' . $user['id'] . '_mysql.jpg';
+        $diskPath = $uploadDir . $photoName;
+        if (!empty($user['profile_picture_blob'])) {
+            @file_put_contents($diskPath, $user['profile_picture_blob']);
+        } elseif ($pictureBase64 !== '' && str_starts_with($pictureBase64, 'data:image/')) {
+            $rawParts = explode(',', $pictureBase64, 2);
+            if (count($rawParts) === 2) {
+                @file_put_contents($diskPath, base64_decode($rawParts[1]));
+            }
+        }
+    }
+
+    if ($photoName !== '') {
+        $base = defined('APP_BASE') && APP_BASE !== '' ? APP_BASE : '';
+        if (!$base || str_contains($base, 'localhost')) {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $reqHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $appPath = defined('APP_PATH') ? APP_PATH : '/callnowCRM';
+            $base = rtrim($scheme . '://' . $reqHost . $appPath, '/');
+        }
+        $photoUrl = $base . '/uploads/profile_photos/' . $photoName;
+
+        // Populate base64 if not yet generated
+        if ($pictureBase64 === '' && file_exists($uploadDir . $photoName)) {
+            $mime = @mime_content_type($uploadDir . $photoName) ?: 'image/jpeg';
+            $pictureBase64 = 'data:' . $mime . ';base64,' . base64_encode(@file_get_contents($uploadDir . $photoName));
+        }
     }
 
     return [
@@ -487,8 +540,12 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
         'created_at' => $user['created_at'] ?? '',
         'updated_at' => $user['updated_at'] ?? '',
         'last_login' => $user['last_login'] ?? '',
-        'profile_photo' => $user['profile_photo'] ?? '',
+        'profile_photo' => $photoName,
         'profile_photo_url' => $photoUrl,
+        'avatar_url' => $photoUrl,
+        'profile_picture' => $pictureBase64 ?: $photoUrl,
+        'profile_picture_url' => $photoUrl,
+        'photo' => $photoUrl,
         'current_calling_db' => $user['current_calling_db'] ?? 'temporary',
     ];
 }

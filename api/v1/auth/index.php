@@ -42,7 +42,7 @@ if ($endpoint === '/' || $endpoint === '') {
 }
 
 // Allow GET for /me, /profile, /user, and /refresh endpoints
-$isGetEndpoint = in_array($endpoint, ['/me', '/profile', '/user', '/refresh']);
+$isGetEndpoint = in_array($endpoint, ['/me', '/profile', '/user', '/refresh', '/photo', '/avatar']);
 if ($method === 'GET' && !$isGetEndpoint) {
     apiError(405, 'Method not allowed');
 }
@@ -212,6 +212,58 @@ if ($endpoint === '/login') {
     $userId = (int)$tokenData['user_id'];
     handleMobilePasswordChange($link, $userId, $input);
 
+// -------------------------------------------------------------
+// 7. GET PROFILE PHOTO STREAM DIRECTLY FROM MYSQL
+// -------------------------------------------------------------
+} elseif ($endpoint === '/photo' || $endpoint === '/avatar') {
+    $targetId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if ($targetId <= 0) {
+        $tokenData = apiRequireAuth();
+        $targetId = (int)$tokenData['user_id'];
+    }
+
+    $stmt = $link->prepare("SELECT profile_photo, profile_picture, profile_picture_blob FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
+    $stmt->bind_param('i', $targetId);
+    $stmt->execute();
+    $pRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$pRow) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Photo not found']);
+        exit;
+    }
+
+    if (!empty($pRow['profile_picture_blob'])) {
+        header('Content-Type: image/jpeg');
+        header('Cache-Control: public, max-age=86400');
+        echo $pRow['profile_picture_blob'];
+        exit;
+    }
+
+    if (!empty($pRow['profile_photo']) && file_exists(__DIR__ . '/../../../uploads/profile_photos/' . $pRow['profile_photo'])) {
+        $filePath = __DIR__ . '/../../../uploads/profile_photos/' . $pRow['profile_photo'];
+        $mime = @mime_content_type($filePath) ?: 'image/jpeg';
+        header('Content-Type: ' . $mime);
+        header('Cache-Control: public, max-age=86400');
+        readfile($filePath);
+        exit;
+    }
+
+    if (!empty($pRow['profile_picture']) && str_starts_with($pRow['profile_picture'], 'data:image/')) {
+        $parts = explode(',', $pRow['profile_picture'], 2);
+        if (count($parts) === 2) {
+            header('Content-Type: image/jpeg');
+            header('Cache-Control: public, max-age=86400');
+            echo base64_decode($parts[1]);
+            exit;
+        }
+    }
+
+    http_response_code(404);
+    echo json_encode(['success' => false, 'error' => 'No profile photo uploaded']);
+    exit;
+
 } else {
     apiError(404, 'Endpoint not found');
 }
@@ -306,8 +358,10 @@ function handleMobileProfileUpdate(mysqli $link, int $userId, array $input): voi
     // Optional profile photo via base64
     if (!empty($input['profile_photo_base64'])) {
         $photoData = $input['profile_photo_base64'];
+        $mime = 'image/jpeg';
         if (preg_match('/^data:image\/(jpeg|png|webp|gif);base64,/', $photoData, $m)) {
             $ext = $m[1] === 'jpeg' ? 'jpg' : $m[1];
+            $mime = 'image/' . $m[1];
             $photoData = substr($photoData, strpos($photoData, ',') + 1);
         } else {
             $ext = 'jpg';
@@ -319,11 +373,21 @@ function handleMobileProfileUpdate(mysqli $link, int $userId, array $input): voi
                 @mkdir($uploadDir, 0755, true);
             }
             $fileName = 'user_' . $userId . '_' . time() . '.' . $ext;
-            if (@file_put_contents($uploadDir . $fileName, $decoded)) {
-                $updates[] = "profile_photo = ?";
-                $params[] = $fileName;
-                $types .= 's';
-            }
+            @file_put_contents($uploadDir . $fileName, $decoded);
+            $base64Uri = 'data:' . $mime . ';base64,' . base64_encode($decoded);
+
+            // Save in MySQL: filename, base64 data URI, and binary blob
+            $updates[] = "profile_photo = ?";
+            $params[] = $fileName;
+            $types .= 's';
+
+            $updates[] = "profile_picture = ?";
+            $params[] = $base64Uri;
+            $types .= 's';
+
+            $updates[] = "profile_picture_blob = ?";
+            $params[] = $decoded;
+            $types .= 's';
         }
     }
 
