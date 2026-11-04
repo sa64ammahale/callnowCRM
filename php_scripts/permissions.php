@@ -31,18 +31,24 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
     // Default permission matrix for SYSTEM TBL_ROLES. Custom TBL_ROLES default to ALL OFF (secure by default).
     // Admin/Manager/Super Admin are treated as superTBL_USERS in can(); listed here for seed completeness.
     function getSystemRoleDefaults(): array {
+        // Existing defaults
         return [
             'Super Admin' => ['*' => 1],
-            'Admin'       => ['*' => 1],
-            'Manager'     => ['*' => 1],
-            'Supervisor'  => [
+            'Admin' => ['*' => 1],
+            'Manager' => ['*' => 1],
+            'Supervisor' => [
                 'manage_teams' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
                 'export_data' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
-            'Officer'     => [
+            'Officer' => [
                 'manage_leads' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
         ];
+    }
+
+    // Compatibility wrapper for legacy code expecting getPermissionSeed()
+    function getPermissionSeed(): array {
+        return getTBL_PERMISSIONSeed();
     }
 
     function seedApiPermission(mysqli $link): void {
@@ -81,6 +87,16 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
         $res = mysqli_query($link, "SELECT id, permission_key, label, category, description, is_system FROM " . tn('TBL_PERMISSIONS') . " ORDER BY category, label");
         if ($res) while ($r = mysqli_fetch_assoc($res)) $out[] = $r;
         return $out;
+    }
+
+    // Compatibility wrapper used by legacy code
+    function getAllPermissions(mysqli $link): array {
+        return getAllTBL_PERMISSIONS($link);
+    }
+
+    // Compatibility wrapper for legacy code
+    function getPermissionsByCategory(mysqli $link): array {
+        return getTBL_PERMISSIONSByCategory($link);
     }
 
     // Group TBL_PERMISSIONS by category.

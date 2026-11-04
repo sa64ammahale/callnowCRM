@@ -71,7 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $status       = $_POST['status'] ?? 'Active';
         $company      = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
 
-        if (!preg_match("/^[a-zA-Z ]+$/", $name)) $Message = "Invalid name (alphabetic characters only)";
+        if (!preg_match("/^[a-zA-Z ]+$/", $name)) {
+    $Message = "Invalid name (alphabetic characters only)";
+    $fieldErrors['name'] = $Message;
+}
         elseif (!preg_match("/^[6-9][0-9]{9}$/", $mobile)) $Message = "Invalid 10-digit mobile number";
         elseif (!filter_var($login_id, FILTER_VALIDATE_EMAIL)) $Message = "Invalid login email";
         elseif ($email_addr !== null && !filter_var($email_addr, FILTER_VALIDATE_EMAIL)) $Message = "Invalid alternate email";

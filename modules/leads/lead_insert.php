@@ -159,7 +159,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $dsaName = $form['dsa_name'];
                 mysqli_stmt_bind_param(
                     $stmt,
-                    'iiisisssssssssssssssssss',
+                                        'iiisiissssssssssssssssss',
                     $custId,
                     $assignedTo,
                     $assignedBy,

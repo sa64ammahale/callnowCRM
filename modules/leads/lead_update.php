@@ -244,7 +244,7 @@ try {
     $updatedBy = USER_ID;
     mysqli_stmt_bind_param(
         $stmt,
-        'iisssssssssssssssssssisiii',
+        'iissssssssssssssssssssisiii',
         $assignedTo,
         $teamId,
         $loginDate,
