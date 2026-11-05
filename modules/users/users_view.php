@@ -68,7 +68,9 @@ $sql = "
 $stmt = mysqli_prepare($link, $sql);
 $finalParams   = $params;
 
-mysqli_stmt_bind_param($stmt, $types, ...$finalParams);
+if (!empty($params)) {
+    mysqli_stmt_bind_param($stmt, $types, ...$finalParams);
+}
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
