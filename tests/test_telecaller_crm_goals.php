@@ -11,6 +11,7 @@ define('API_SKIP_AUTO_AUTH', true);
  */
 
 require_once __DIR__ . '/../config.php';
+if (!str_starts_with($DB_NAME, 'callnow_audit_')) throw new RuntimeException('Run through tests/run_project_audit.php to protect the working database');
 require_once __DIR__ . '/../php_scripts/api_auth.php';
 
 $totalTests = 0;
@@ -30,7 +31,7 @@ function assertGoal(string $name, bool $condition, string $details = '') {
 }
 
 function callApiEndpoint(string $method, string $path, array $data = [], ?string $token = null): array {
-    $url = "http://localhost/callnowCRM/api/v1" . $path;
+    $url = (getenv('TEST_API_BASE') ?: 'http://localhost/callnowCRM/api/v1') . $path;
     $ch = curl_init();
     $headers = ['Content-Type: application/json', 'Accept: application/json'];
     if ($token) {

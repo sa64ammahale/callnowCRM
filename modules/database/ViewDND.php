@@ -1,7 +1,7 @@
 <?php
 // ViewDND.php - Comprehensive Do-Not-Disturb (DND) numbers management across Main & Temporary Databases
 
-require_once '../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
 requirePermission('manage_database');
 
 $csrf = ensureCsrfToken();
@@ -282,7 +282,7 @@ function buildQuery($overrides = []) {
 }
 
 $pageTitle = 'Do Not Disturb (DND) • CallNow CRM';
-include '../../php_scripts/header.php';
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <div class="container-fluid px-3 py-3">
@@ -559,4 +559,4 @@ include '../../php_scripts/header.php';
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

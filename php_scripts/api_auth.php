@@ -4,6 +4,24 @@
  * Validates Bearer tokens for API requests
  */
 require_once __DIR__ . '/../config.php';
+foreach ($_GET as $queryKey => $queryValue) {
+    if (is_array($queryValue)) apiError(400, 'Invalid query parameter: ' . $queryKey);
+}
+
+function apiReadJson(): array {
+    $raw = file_get_contents('php://input');
+    if (trim($raw) === '') return [];
+    $input = json_decode($raw, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($input) || substr(ltrim($raw), 0, 1) !== '{') {
+        apiError(400, 'Request body must be a valid JSON object');
+    }
+    foreach ($input as $key => $value) {
+        if ($key !== 'metadata' && (is_array($value) || is_object($value))) {
+            apiError(400, 'Invalid value for ' . $key);
+        }
+    }
+    return $input;
+}
 
 function apiRequireAuth(): array {
     $authHeader = $_SERVER['HTTP_AUTHORIZATION'] 
@@ -47,6 +65,9 @@ function apiRequireAuth(): array {
     if ($tokenData['user_status'] !== 'Active') {
         apiError(403, 'User account is inactive');
     }
+    if (str_contains($_SERVER['REQUEST_URI'] ?? '', '/telecaller') && !(getApiSettings()['api_enabled'] ?? true)) {
+        apiError(503, 'Mobile API is temporarily disabled');
+    }
     
     // Update last used
     $link->query("UPDATE " . tn('TBL_API_TOKENS') . " SET last_used_at = NOW() WHERE id = " . (int)$tokenData['id']);
@@ -58,29 +79,26 @@ function apiRequirePermission(string $permission): void {
     $tokenData = $GLOBALS['api_token_data'] ?? null;
     if (!$tokenData) apiError(401, 'Authentication required');
 
-    if ($tokenData['user_role'] === 'Admin' || (int)$tokenData['user_id'] === 1) {
+    if (in_array($tokenData['user_role'], ['Admin', 'Super Admin'], true) || (int)$tokenData['user_id'] === 1) {
         return;
     }
 
     global $link;
-    $stmt = $link->prepare("
-        SELECT 1 FROM " . tn('TBL_ROLE_PERMISSIONS') . " rp
-        JOIN " . tn('TBL_USERS') . " u ON rp.role = u.ROLE
-        WHERE u.ID = ? AND rp.permission_key = ? AND rp.permission_value = 1
-    ");
+    $stmt = $link->prepare("SELECT permission_value FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = ? AND permission_key = ? LIMIT 1");
     $stmt->bind_param('is', $tokenData['user_id'], $permission);
     $stmt->execute();
-    if (!$stmt->get_result()->fetch_assoc()) {
-        // Check user override
-        $stmt2 = $link->prepare("
-            SELECT 1 FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = ? AND permission_key = ? AND permission_value = 1
-        ");
-        $stmt2->bind_param('is', $tokenData['user_id'], $permission);
-        $stmt2->execute();
-        if (!$stmt2->get_result()->fetch_assoc()) {
-            apiError(403, "Permission denied: $permission required");
-        }
+    $override = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($override !== null) {
+        if ((int)$override['permission_value'] === 1) return;
+        apiError(403, "Permission denied: $permission required");
     }
+    $stmt = $link->prepare("SELECT permission_value FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = ? AND permission_key = ? LIMIT 1");
+    $stmt->bind_param('ss', $tokenData['user_role'], $permission);
+    $stmt->execute();
+    $rolePermission = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$rolePermission || (int)$rolePermission['permission_value'] !== 1) apiError(403, "Permission denied: $permission required");
 }
 
 function getApiSettings(): array {
@@ -182,12 +200,16 @@ function getUserAssignedTeamIds(int $userId): array {
 }
 
 function apiSuccess(array $data, int $code = 200): void {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
     http_response_code($code);
     echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 function apiError(int $code, string $message, array $extra = []): void {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
     http_response_code($code);
     echo json_encode(['success' => false, 'error' => ['code' => $code, 'message' => $message] + $extra], JSON_UNESCAPED_UNICODE);
     exit;
@@ -257,7 +279,7 @@ function logApiAccess(array $tokenData, string $endpoint, string $method, int $r
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
         if ($stmt) {
-            $stmt->bind_param('iisssiii', $tokenId, $uId, $endpoint, $method, $ip, $ua, $responseCode, $execTimeMs);
+            $stmt->bind_param('iissssii', $tokenId, $uId, $endpoint, $method, $ip, $ua, $responseCode, $execTimeMs);
             $stmt->execute();
             $stmt->close();
         }
@@ -373,10 +395,11 @@ if (!function_exists('syncCallToLeadsAndPipeline')) {
             } else {
                 $leadId = (int)$existingL['lead_id'];
                 $updLead = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET 
-                    assigned_to = ?,
-                    lead_status_new = 'LEAD',
-                    lead_stage = 'Hot',
-                    priority = 'High',
+                    assigned_to = CASE WHEN assigned_to IS NULL OR assigned_to = 0 THEN ? ELSE assigned_to END,
+                    lead_status_new = CASE WHEN lead_status_new IN ('LEAD', 'FOLLOWUP') OR lead_status_new IS NULL THEN 'LEAD' ELSE lead_status_new END,
+                    lead_stage = CASE WHEN lead_status_new = 'LEAD' THEN 'Hot' ELSE lead_stage END,
+                    priority = CASE WHEN lead_status_new = 'LEAD' THEN 'High' ELSE priority END,
+                    lead_status = CASE WHEN lead_status_new = 'LEAD' THEN 'New' ELSE lead_status END,
                     remarks = CASE WHEN ? != '' THEN CONCAT(COALESCE(remarks, ''), '\n', ?) ELSE remarks END, 
                     next_followup_at = COALESCE(?, next_followup_at), 
                     last_contacted_at = NOW(), 
@@ -389,7 +412,7 @@ if (!function_exists('syncCallToLeadsAndPipeline')) {
             }
         } elseif ($isCallback && $existingL) {
             $leadId = (int)$existingL['lead_id'];
-            $updLead = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET lead_status_new = 'FOLLOWUP', next_followup_at = COALESCE(?, next_followup_at), last_contacted_at = NOW(), updated_by = ?, updated_at = NOW() WHERE lead_id = ?");
+            $updLead = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET lead_status_new = CASE WHEN lead_status_new IN ('LEAD', 'FOLLOWUP') THEN 'FOLLOWUP' ELSE lead_status_new END, lead_status = CASE WHEN lead_status_new = 'FOLLOWUP' THEN 'Follow_Up' ELSE lead_status END, next_followup_at = COALESCE(?, next_followup_at), last_contacted_at = NOW(), updated_by = ?, updated_at = NOW() WHERE lead_id = ?");
             $updLead->bind_param('sii', $nextFollowup, $userId, $leadId);
             $updLead->execute();
             $updLead->close();
@@ -591,6 +614,13 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
 // Auto-execute middleware for protected API endpoints.
 // Auth routers (login/logout/refresh/me) define API_SKIP_AUTO_AUTH
 // before including this file so public endpoints stay reachable.
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Authorization, Content-Type, X-Requested-With');
+    http_response_code(204);
+    exit;
+}
 if (!defined('API_SKIP_AUTO_AUTH')) {
     $GLOBALS['api_token_data'] = apiRequireAuth();
     checkRateLimit($GLOBALS['api_token_data']);

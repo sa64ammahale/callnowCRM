@@ -21,9 +21,30 @@ $tokenData = apiRequireAuth();
 $userId = (int)$tokenData['user_id'];
 $userRole = $tokenData['user_role'] ?? 'Telecaller';
 
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+$input = apiReadJson();
+if (isset($callCompletionRecordId)) {
+    $input['record_id'] = $callCompletionRecordId;
+    $input['source'] = $input['source'] ?? 'MAIN';
+    $input['call_status'] = $input['call_status'] ?? ($input['status'] ?? 'Connected');
+}
 
 global $link;
+foreach (['call_duration', 'duration_seconds', 'total_duration', 'record_id'] as $field) {
+    if (isset($input[$field]) && (filter_var($input[$field], FILTER_VALIDATE_INT) === false || (int)$input[$field] < 0 || (int)$input[$field] > 2147483647)) {
+        apiError(400, 'Invalid nonnegative integer: ' . $field);
+    }
+}
+foreach (['call_time', 'dial_time', 'call_end_time', 'next_followup', 'next_followup_at'] as $field) {
+    if (!empty($input[$field]) && (strtotime((string)$input[$field]) === false || (int)date('Y', strtotime((string)$input[$field])) < 1970)) {
+        apiError(400, 'Invalid date: ' . $field);
+    }
+}
+foreach (['call_status' => 50, 'sim_slot' => 50, 'timing_classification' => 30, 'recording_url' => 500, 'notes' => 16000] as $field => $max) {
+    if (isset($input[$field]) && mb_strlen((string)$input[$field], 'UTF-8') > $max) apiError(400, 'Value too long: ' . $field);
+}
+if (!empty($input['recording_url']) && (!filter_var($input['recording_url'], FILTER_VALIDATE_URL) || !in_array(strtolower(parse_url($input['recording_url'], PHP_URL_SCHEME) ?? ''), ['http', 'https'], true))) {
+    apiError(400, 'Recording URL must use HTTP or HTTPS');
+}
 
 $required = ['record_id', 'source', 'call_status'];
 foreach ($required as $field) {
@@ -39,6 +60,7 @@ if (!in_array($rawSource, ['MAIN', 'TEMP', 'TEMPORARY'], true)) {
 }
 $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
 $rawCallStatus = trim($input['call_status']);
+if ($rawCallStatus === '') apiError(400, 'Call status is required');
 $rawStatusLow = strtolower($rawCallStatus);
 $isDnd = in_array($rawStatusLow, ['dnd', 'do not call', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'])
     || str_contains($rawStatusLow, 'dnd')
@@ -69,14 +91,34 @@ $timingTier = trim($input['timing_classification'] ?? '');
 if (empty($timingTier)) {
     $timingTier = ($callDuration === 0) ? 'NOT_CONNECTED' : (($callDuration <= 20) ? 'CONNECTED_SHORT' : 'CONNECTED_CONVERSATION');
 }
-$isConnected = ($callDuration > 0 || in_array(strtolower($callStatus), ['connected', 'interested'])) ? 1 : 0;
+$isConnected = ($callDuration > 0 || in_array(strtolower($callStatus), ['connected', 'interested', 'lead'])) ? 1 : 0;
+$clientCallId = isset($input['client_call_id']) ? trim((string)$input['client_call_id']) : null;
+if ($clientCallId === '') $clientCallId = null;
+if ($clientCallId !== null && strlen($clientCallId) > 128) apiError(400, 'client_call_id is too long');
+ksort($input);
+$requestHash = hash('sha256', json_encode($input, JSON_UNESCAPED_UNICODE));
+$replay = static function () use ($link, $userId, $clientCallId, $requestHash): ?array {
+    if ($clientCallId === null) return null;
+    $query = $link->prepare('SELECT id, record_id, source, request_hash, call_duration, total_duration, timing_classification FROM ' . tn('TBL_CALL_LOGS') . ' WHERE user_id = ? AND client_call_id = ?');
+    $query->bind_param('is', $userId, $clientCallId);
+    $query->execute();
+    $saved = $query->get_result()->fetch_assoc();
+    $query->close();
+    if (!$saved) return null;
+    if (!hash_equals((string)$saved['request_hash'], $requestHash)) apiError(409, 'client_call_id already used for a different call payload');
+    return ['message' => 'Call result already submitted', 'log_id' => (int)$saved['id'], 'record_id' => (int)$saved['record_id'], 'source' => $saved['source'], 'duration' => (int)$saved['call_duration'], 'total_duration' => (int)$saved['total_duration'], 'timing_classification' => $saved['timing_classification'], 'replayed' => true];
+};
+if ($saved = $replay()) apiSuccess($saved);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$link->begin_transaction();
+try {
 
 // Verify record exists and get customer phone number
 if ($source === 'TEMP') {
-    $stmt = $link->prepare("SELECT ID, CUST_MOBILE, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, CUST_MOBILE, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE ID = ? FOR UPDATE");
     $stmt->bind_param('i', $recordId);
 } else {
-    $stmt = $link->prepare("SELECT ID, MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+    $stmt = $link->prepare("SELECT ID, MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE ID = ? FOR UPDATE");
     $stmt->bind_param('i', $recordId);
 }
 $stmt->execute();
@@ -90,7 +132,7 @@ if (!$record) {
 $targetMobile = (string)($source === 'TEMP' ? ($record['CUST_MOBILE'] ?? '') : ($record['MAINDATABASE_MOBILE'] ?? ''));
 
 $recordUserId = (int)($record['CALL_DIALED_TELECALLER'] ?? $record['MAINDATABASE_CALL_DIALED_USER']);
-if ($recordUserId > 0 && $recordUserId !== $userId && $userRole !== 'Admin' && $userRole !== 'Manager') {
+if ($recordUserId > 0 && $recordUserId !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) {
     apiError(403, 'Not authorized to update this record');
 }
 
@@ -127,19 +169,22 @@ if ($source === 'MAIN') {
 
 // If marked as DND, strictly synchronize across ALL occurrences of this phone number in both tables
 if ($isDnd && $targetMobile !== '') {
-    $targetMobileSafe = $link->real_escape_string($targetMobile);
-    $link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE = '$targetMobileSafe'");
-    $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = '$targetMobileSafe'");
+    foreach (["UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE = ?", "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = ?"] as $dndSql) {
+        $dndStmt = $link->prepare($dndSql);
+        $dndStmt->bind_param('s', $targetMobile);
+        $dndStmt->execute();
+        $dndStmt->close();
+    }
 }
 
 // 2. Insert into call logs
 $logStmt = $link->prepare("
     INSERT INTO " . tn('TBL_CALL_LOGS') . "
-        (record_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        (record_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, client_call_id, request_hash, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 ");
 $logStmt->bind_param(
-    'isisiisssssssss',
+    'isisiisssssssssss',
     $recordId,
     $source,
     $userId,
@@ -154,7 +199,9 @@ $logStmt->bind_param(
     $simSlot,
     $callTime,
     $dialTime,
-    $callEndTime
+    $callEndTime,
+    $clientCallId,
+    $requestHash
 );
 $logStmt->execute();
 $logId = $logStmt->insert_id;
@@ -165,12 +212,21 @@ logActivity($link, $userId, 'CALL_SUBMITTED', "Submitted call result for $source
 
 // Convert to CRM Leads table (TBL_LEADS) if status is Lead or Follow-up
 $syncedLeadId = syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $callStatus, $notes, $nextFollowup);
+$link->commit();
+} catch (Throwable $e) {
+    $link->rollback();
+    if ((int)$e->getCode() === 1062 && ($saved = $replay())) apiSuccess($saved);
+    error_log('Call submission failed: ' . $e->getMessage());
+    apiError(500, 'Unable to save call result');
+}
 
 apiSuccess([
     'message' => 'Call result submitted successfully',
     'log_id' => $logId,
     'record_id' => $recordId,
+    'source' => $source,
     'lead_id' => $syncedLeadId,
+    'is_lead_generated' => $syncedLeadId !== null && $syncedLeadId > 0,
     'timing_classification' => $timingTier,
     'duration' => $callDuration,
     'total_duration' => $totalDuration,

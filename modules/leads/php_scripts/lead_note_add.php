@@ -1,7 +1,10 @@
 <?php
-require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
 api_init();
+requirePermission('manage_leads');
+ensureLeadModuleSchema($link);
+$actorId = USER_ID;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     api_error('Invalid request', 405);
@@ -30,7 +33,7 @@ if (!canEditLead($lead)) {
 }
 
 $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEAD_NOTES') . " (lead_id, user_id, note, created_at) VALUES (?, ?, ?, NOW())");
-mysqli_stmt_bind_param($stmt, 'iis', $leadId, USER_ID, $note);
+mysqli_stmt_bind_param($stmt, 'iis', $leadId, $actorId, $note);
 if (!mysqli_stmt_execute($stmt)) {
     api_error('Failed to save note', 500);
 }

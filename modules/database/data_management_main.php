@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 $pageTitle = 'Main Database • CallNow CRM';
-include '../../php_scripts/header.php';
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <div class="container-fluid px-3 py-3">
@@ -526,4 +526,4 @@ $(document).ready(function() {
 });
 </script>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

@@ -1,6 +1,6 @@
 <?php
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/team_auth.php';
 
 requirePermission('view_reports');
 
@@ -481,7 +481,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
 }
 
 $pageTitle = 'Call Reports • CallNow CRM';
-include '../../php_scripts/header.php';
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <div class="container-fluid px-3 py-3">
@@ -936,7 +936,7 @@ include '../../php_scripts/header.php';
     </div><!-- /tab-content -->
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script src="<?= vnd('js/chart.umd.min.js') ?>"></script>
 <script src="<?= vnd('js/table2excel.min.js') ?>"></script>

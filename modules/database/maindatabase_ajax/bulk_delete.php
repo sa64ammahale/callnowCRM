@@ -1,5 +1,5 @@
 <?php
-require_once "../../../php_scripts/auth.php";
+require_once __DIR__ . '/../../../php_scripts/auth.php';
 
 requireAnyPermission(['manage_database', 'delete_leads']);
 api_init();

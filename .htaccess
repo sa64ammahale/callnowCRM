@@ -30,6 +30,7 @@ DirectoryIndex index.php
     # Block access to hidden/env files
     RewriteRule ^\.env$ - [F,L]
     RewriteRule ^(.*/)?\.git - [F,L]
+    RewriteRule ^(tests|project-context|\.kilo|\.agents)(/|$) - [F,L,NC]
 </IfModule>
 
 # ── Protect internal / sensitive paths ──

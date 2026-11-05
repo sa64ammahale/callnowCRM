@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/lead_common.php';
+requirePermission('manage_leads');
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: lead_list");

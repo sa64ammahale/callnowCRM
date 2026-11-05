@@ -15,6 +15,7 @@ $_SESSION['id'] = 1;
 $_SESSION['csrf_token'] = 'test_csrf_team_123';
 
 require_once $rootDir . '/php_scripts/config.php';
+if (!str_starts_with($DB_NAME, 'callnow_audit_')) throw new RuntimeException('Run through tests/run_project_audit.php to protect the working database');
 require_once $rootDir . '/php_scripts/auth.php';
 require_once $rootDir . '/tests/lib/db_helper.php';
 

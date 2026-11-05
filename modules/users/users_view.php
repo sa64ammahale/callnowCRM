@@ -1,6 +1,6 @@
 <?php
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/team_auth.php';
 
 requirePermission('manage_users');
 
@@ -103,7 +103,7 @@ $globalTotal = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM "
 $totalActive = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active' AND ID != 1 AND ROLE != 'Super Admin'"))[0];
 $totalInactive = max(0, $globalTotal - $totalActive);
 ?>
-<?php $pageTitle = 'User Management - CallNow CRM'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'User Management - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <div class="container-fluid px-3 py-3">
 
@@ -460,7 +460,7 @@ $totalInactive = max(0, $globalTotal - $totalActive);
 
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script src="<?= vnd('js/table2excel.min.js') ?>"></script>
 <script>

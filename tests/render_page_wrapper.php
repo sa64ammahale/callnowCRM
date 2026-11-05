@@ -29,6 +29,11 @@ $_SESSION['id'] = $targetUserId;
 $_SESSION['user_id'] = $targetUserId;
 $_SESSION['role'] = $targetRole;
 $_SESSION['LAST_ACTIVITY'] = time();
+register_shutdown_function(function () {
+    if (!empty($_SESSION['access_denied_message'])) {
+        echo 'EXPECTED ACCESS BLOCK: ' . $_SESSION['access_denied_message'];
+    }
+});
 
 // Change directory to the target file's directory (crucial for relative includes)
 chdir(dirname($targetFile));

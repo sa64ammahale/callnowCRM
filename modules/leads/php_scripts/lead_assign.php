@@ -1,7 +1,10 @@
 <?php
-require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
 api_init();
+requirePermission('manage_leads');
+ensureLeadModuleSchema($link);
+$actorId = USER_ID;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     api_error('Invalid request', 405);
@@ -30,6 +33,15 @@ mysqli_stmt_close($stmt);
 if (!$lead) {
     api_error('Lead not found', 404);
 }
+if (!canViewLead($link, $lead) || !canEditLead($lead)) {
+    api_error('Access denied', 403);
+}
+if ($toUserId > 0 && !canAssignLeadToUserId($link, $toUserId)) {
+    api_error('Invalid or inaccessible target user', 403);
+}
+if ($toUserId <= 0 && !isAdmin() && !isSuperAdmin() && !userBelongsToTeam(USER_ID, $toTeamId)) {
+    api_error('Target team is outside your access', 403);
+}
 
 $fromUserId = (int)$lead['assigned_to'];
 $fromTeamId = (int)$lead['team_id'];
@@ -49,7 +61,7 @@ if ($toUserId > 0) {
 }
 
 $stmt = mysqli_prepare($link, "UPDATE " . tn('TBL_LEADS') . " SET assigned_to = ?, team_id = ?, assigned_by = ?, updated_at = NOW() WHERE lead_id = ?");
-mysqli_stmt_bind_param($stmt, 'iiii', $realToUser, $realToTeam, USER_ID, $leadId);
+mysqli_stmt_bind_param($stmt, 'iiii', $realToUser, $realToTeam, $actorId, $leadId);
 if (!mysqli_stmt_execute($stmt)) {
     api_error('Failed to assign lead', 500);
 }

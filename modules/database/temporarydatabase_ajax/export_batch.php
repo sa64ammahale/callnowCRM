@@ -14,6 +14,8 @@ api_init();
 
 $offset = intval($_POST['offset'] ?? 0);
 $limit  = intval($_POST['limit'] ?? 10000);
+$offset = max(0, $offset);
+$limit = $limit <= 0 ? 10000 : min(100000, $limit);
 
 $sql = "SELECT 
     CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO, TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS,

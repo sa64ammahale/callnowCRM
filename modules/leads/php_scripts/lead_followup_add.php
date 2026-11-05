@@ -1,7 +1,10 @@
 <?php
-require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
 api_init();
+requirePermission('manage_leads');
+ensureLeadModuleSchema($link);
+$actorId = USER_ID;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     api_error('Invalid request', 405);
@@ -36,13 +39,13 @@ if (!canEditLead($lead)) {
 }
 
 $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
-mysqli_stmt_bind_param($stmt, 'iiss', $leadId, USER_ID, $atSql, $note);
+mysqli_stmt_bind_param($stmt, 'iiss', $leadId, $actorId, $atSql, $note);
 if (!mysqli_stmt_execute($stmt)) {
     api_error('Failed to schedule follow-up', 500);
 }
 
-$upd = mysqli_prepare($link, "UPDATE " . tn('TBL_LEADS') . " SET next_followup_at = ?, updated_at = NOW() WHERE lead_id = ?");
-mysqli_stmt_bind_param($upd, 'si', $atSql, $leadId);
+$upd = mysqli_prepare($link, "UPDATE " . tn('TBL_LEADS') . " SET next_followup_at = (SELECT MIN(followup_at) FROM " . tn('TBL_LEAD_FOLLOWUPS') . " WHERE lead_id = ? AND status = 'OPEN'), updated_at = NOW() WHERE lead_id = ?");
+mysqli_stmt_bind_param($upd, 'ii', $leadId, $leadId);
 mysqli_stmt_execute($upd);
 
 logActivity($link, USER_ID, 'UPDATE', "Scheduled follow-up for lead #$leadId", (string)$leadId, tn('TBL_LEADS'));

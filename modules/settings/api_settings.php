@@ -147,7 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $stmt = @$link->prepare("INSERT INTO " . tn('TBL_API_DB_ASSIGNMENTS') . " (user_id, database_type, team_id, assigned_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_active = 1");
         if ($stmt) {
-            $stmt->bind_param('isii', $userId, $databaseType, $teamId, USER_ID);
+            $actorId = USER_ID;
+            $stmt->bind_param('isii', $userId, $databaseType, $teamId, $actorId);
             $stmt->execute();
         }
         

@@ -5,12 +5,7 @@ api_init();
 
 header('Content-Type: application/json; charset=utf-8');
 
-$allowedTBL_ROLES = ['Admin', 'Manager', 'Supervisor', 'Officer', 'Super Admin'];
-if (!in_array(USER_ROLE, $allowedTBL_ROLES, true) && !isSuperAdmin()) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'message' => 'Access denied.']);
-    exit;
-}
+requirePermission('manage_leads');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

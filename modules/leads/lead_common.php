@@ -93,6 +93,9 @@ function ensureLeadModuleSchema(mysqli $link): void
     $addColumn('forwarded_flag', "TINYINT(1) NOT NULL DEFAULT 0 AFTER login_submitted_at");
     $addColumn('sent_backward_flag', "TINYINT(1) NOT NULL DEFAULT 0 AFTER forwarded_flag");
     $addColumn('parent_lead_id', "INT DEFAULT NULL AFTER sent_backward_flag");
+    if (isset($columns['login_status']) && stripos($columns['login_status'], "'REWORK_PENDING'") === false) {
+        mysqli_query($link, "ALTER TABLE " . tn('TBL_LEADS') . " MODIFY COLUMN login_status ENUM('','PENDING','SUCCESS','REWORK_PENDING','REJECTED') DEFAULT NULL");
+    }
 
     $requiredEnum = ["LEAD","FOLLOWUP","INTERNAL_UNDERWRITING","LOGIN","BANK_UNDERWRITING","SANCTIONED","DISBURSED","REJECT"];
     $hasAll = true;
@@ -337,8 +340,10 @@ function normalizeLeadDate(?string $value): ?string
 
 function normalizeFollowupDate(?string $value): ?string
 {
-    $date = normalizeLeadDate($value);
-    return $date ? ($date . ' 00:00:00') : null;
+    $value = trim((string)$value);
+    if ($value === '') return null;
+    $timestamp = strtotime($value);
+    return $timestamp === false ? null : date('Y-m-d H:i:s', $timestamp);
 }
 
 function getLeadAssignableTBL_USERS(mysqli $link): array

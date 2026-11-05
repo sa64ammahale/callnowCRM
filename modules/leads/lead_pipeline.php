@@ -2,11 +2,7 @@
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/lead_common.php';
 
-$allowedTBL_ROLES = ['Admin', 'Manager', 'Supervisor', 'Officer', 'Super Admin'];
-if (!in_array(USER_ROLE, $allowedTBL_ROLES, true) && !isSuperAdmin()) {
-    header('Location: ../../dashboard');
-    exit;
-}
+requirePermission('manage_leads');
 
 ensureLeadModuleSchema($link);
 mysqli_set_charset($link, 'utf8mb4');

@@ -1,7 +1,10 @@
 <?php
-require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
 api_init();
+requirePermission('manage_leads');
+ensureLeadModuleSchema($link);
+$actorId = USER_ID;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     api_error('Invalid request', 405);
@@ -38,8 +41,8 @@ mysqli_stmt_execute($cntStmt);
 $doneCount = (int)mysqli_fetch_row(mysqli_stmt_get_result($cntStmt))[0];
 mysqli_stmt_close($cntStmt);
 
-$leadUpd = mysqli_prepare($link, "UPDATE " . tn('TBL_LEADS') . " SET followup_count = ?, last_contacted_at = NOW(), updated_at = NOW() WHERE lead_id = ?");
-mysqli_stmt_bind_param($leadUpd, 'ii', $doneCount, $leadId);
+$leadUpd = mysqli_prepare($link, "UPDATE " . tn('TBL_LEADS') . " SET followup_count = ?, next_followup_at = (SELECT MIN(followup_at) FROM " . tn('TBL_LEAD_FOLLOWUPS') . " WHERE lead_id = ? AND status = 'OPEN'), last_contacted_at = NOW(), updated_at = NOW() WHERE lead_id = ?");
+mysqli_stmt_bind_param($leadUpd, 'iii', $doneCount, $leadId, $leadId);
 mysqli_stmt_execute($leadUpd);
 
 logActivity($link, USER_ID, 'UPDATE', "Completed follow-up #$id on lead #{$fRow['lead_id']}", (string)$fRow['lead_id'], tn('TBL_LEADS'));

@@ -1,7 +1,7 @@
 <?php
 
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/super_admin.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/super_admin.php';
 
 requirePermission('manage_database');
 
@@ -77,7 +77,7 @@ if (isset($_POST['submit'])) {
                     WHERE ID = ?";
 
                 if ($stmt = mysqli_prepare($link, $sql_update)) {
-                    mysqli_stmt_bind_param($stmt, "ssssiii", $name, $mobile, $company, $package, $other_info, $userId, $id);
+                    mysqli_stmt_bind_param($stmt, "sssssii", $name, $mobile, $company, $package, $other_info, $userId, $id);
                     if (mysqli_stmt_execute($stmt)) {
                         $Message = "Record updated successfully!";
                         $type = "success";
@@ -217,7 +217,7 @@ if (isset($_POST['submit'])) {
 }
 
 $pageTitle = ($isEdit ? 'Edit Customer' : 'Add Single Number') . ' • CallNow CRM';
-include '../../php_scripts/header.php';
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <div class="container-fluid px-3 py-3">
@@ -329,4 +329,4 @@ include '../../php_scripts/header.php';
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

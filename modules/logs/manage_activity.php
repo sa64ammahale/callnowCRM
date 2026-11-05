@@ -1,5 +1,5 @@
 <?php
-require_once '../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
 
 requirePermission('view_activity');
 
@@ -18,7 +18,7 @@ $alertType = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
 
-    if (($action === 'delete_single' || $action === 'delete_bulk') && $userRole !== 'Admin') {
+    if (($action === 'delete_single' || $action === 'delete_bulk') && !isAdmin()) {
         $alertMsg = "You don't have permission to delete activity logs.";
         $alertType = "danger";
     } else if ($action === 'delete_single' && isset($_POST['id'], $_POST['csrf']) && hash_equals($csrf, $_POST['csrf'])) {
@@ -225,7 +225,7 @@ if ($res) {
 $totalPages = max(1, (int)ceil($total / $perPage));
 $baseQuery = $_GET;
 ?>
-<?php $pageTitle = 'Activity Log Management'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Activity Log Management'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <div class="container-fluid px-3 py-3">
 
@@ -563,7 +563,7 @@ $baseQuery = $_GET;
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

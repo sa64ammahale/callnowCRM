@@ -1,6 +1,6 @@
 <?php
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/team_auth.php';
 
 requirePermission('manage_teams');
 
@@ -153,7 +153,7 @@ $roleDesc = [];
 $rd = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES'));
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 ?>
-<?php $pageTitle = 'Team Members - CallNow CRM'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Team Members - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <div class="container-fluid px-3 py-3">
 
@@ -427,4 +427,4 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

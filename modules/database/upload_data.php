@@ -1,7 +1,7 @@
 <?php
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php';
-require_once '../../php_scripts/super_admin.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/super_admin.php';
 
 requirePermission('upload_data');
 
@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file']) && empty($_P
 }
 
 /* ensure uploads dir */
-if (!is_dir('uploads')) mkdir('uploads', 0755, true);
+if (!is_dir(__DIR__ . '/uploads')) mkdir(__DIR__ . '/uploads', 0755, true);
 
 /* default variables for UI */
 $summary = "";
@@ -126,7 +126,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
     }
 
     $safe = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file['name']);
-    $path = 'uploads/' . $safe;
+    $path = __DIR__ . '/uploads/' . $safe;
     if (!move_uploaded_file($file['tmp_name'], $path)) {
         echo json_encode(['success' => false, 'error' => 'Failed to save upload - check permissions.']);
         exit;
@@ -198,6 +198,7 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
     $task_id = uniqid('upl_', true);
     $progress_file = sys_get_temp_dir() . '/callnow_upload_' . md5($task_id) . '.json';
     $task_meta = [
+        'user_id' => USER_ID,
         'task_id' => $task_id,
         'status' => 'uploaded',
         'percent' => 0,
@@ -226,6 +227,9 @@ if (isset($_POST['import']) && isset($_FILES['file']) && isset($_FILES['file']['
 }
 
 if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        api_error('Invalid session token', 403);
+    }
     $task_id = $_POST['task_id'];
     $progress_file = sys_get_temp_dir() . '/callnow_upload_' . md5($task_id) . '.json';
     if (!file_exists($progress_file)) {
@@ -234,6 +238,7 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
     }
 
     $meta = json_decode(file_get_contents($progress_file), true);
+    if ((int)($meta['user_id'] ?? 0) !== USER_ID) api_error('Upload task access denied', 403);
     if (($meta['status'] ?? '') === 'complete' || ($meta['status'] ?? '') === 'error') {
         echo json_encode(['status' => $meta['status'], 'percent' => $meta['percent'], 'result' => $meta]);
         exit;
@@ -242,7 +247,7 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
     $path = $meta['path'];
     $target = $meta['target'];
     $dryrun = (bool)($meta['dryrun'] ?? 0);
-    $has_header = ($meta['has_header'] ?? 1) === '1';
+    $has_header = (int)($meta['has_header'] ?? 1) === 1;
     $header_index_map = $meta['header_index_map'] ?? [];
     $stats = $meta['stats'];
     $logs = $meta['logs'];
@@ -284,8 +289,8 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
     $rows_processed = 0;
 
     while (($row = fgetcsv($handle, 20000, ",")) !== false && $rows_processed < $batch_size) {
-        $meta['stats']['rows_processed']++;
-        $rownum = $meta['stats']['rows_processed'];
+        $stats['rows_processed']++;
+        $rownum = $stats['rows_processed'];
 
         $name_raw   = isset($row[$header_index_map['name']]) ? $row[$header_index_map['name']] : ($row[0] ?? '');
         $mobile_raw = isset($row[$header_index_map['mobile']]) ? $row[$header_index_map['mobile']] : ($row[1] ?? '');
@@ -442,13 +447,15 @@ if (isset($_GET['upload_progress']) && !empty($_GET['task_id'])) {
         exit;
     }
     $meta = json_decode(file_get_contents($progress_file), true);
+    if ((int)($meta['user_id'] ?? 0) !== USER_ID) api_error('Upload task access denied', 403);
+    unset($meta['path']);
     echo json_encode($meta);
     exit;
 }
 ?>
 <?php 
 $pageTitle = 'Upload CSV • CallNow CRM'; 
-include '../../php_scripts/header.php'; 
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <style>
@@ -1140,4 +1147,4 @@ function processUploadBatch(task_id) {
 }
 </script>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

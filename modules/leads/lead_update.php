@@ -29,7 +29,7 @@ if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
 }
 
 $leadSql = "
-    SELECT l.lead_id, l.cust_id, l.assigned_to, l.team_id, m.MAINDATABASE_MOBILE
+    SELECT l.lead_id, l.cust_id, l.assigned_to, l.team_id, l.lead_status_new, m.MAINDATABASE_MOBILE
     FROM " . tn('TBL_LEADS') . " l
     LEFT JOIN " . tn('TBL_MAIN') . " m ON m.ID = l.cust_id
     WHERE l.lead_id = ?{$accessWhere}
@@ -66,7 +66,8 @@ try {
                 $link,
                 "INSERT INTO " . tn('TBL_LEAD_NOTES') . " (lead_id, user_id, note, created_at) VALUES (?, ?, ?, NOW())"
             );
-            mysqli_stmt_bind_param($stmt, 'iis', $leadId, USER_ID, $remarks);
+            $actorId = USER_ID;
+            mysqli_stmt_bind_param($stmt, 'iis', $leadId, $actorId, $remarks);
             mysqli_stmt_execute($stmt);
             mysqli_stmt_close($stmt);
             logActivity($link, USER_ID, 'REMARK', "Added remark on lead {$leadId}", (string)$leadId, tn('TBL_LEADS'));
@@ -146,11 +147,11 @@ try {
     $newRank = $stageOrder[$newStage] ?? 0;
     $prevRank = $stageOrder[$prevStage] ?? 0;
     // Cannot advance past INTERNAL_UNDERWRITING unless already there or beyond
-    if ($newRank > $stageOrder['INTERNAL_UNDERWRITING'] && $prevRank < $stageOrder['INTERNAL_UNDERWRITING']) {
+    if ($newStage !== 'REJECT' && $newRank > $stageOrder['INTERNAL_UNDERWRITING'] && $prevRank < $stageOrder['INTERNAL_UNDERWRITING']) {
         throw new RuntimeException('Complete Internal Underwriting before Bank Login.');
     }
     // BANK_UNDERWRITING requires successful bank login
-    if ($newStage === 'BANK_UNDERWRITING' && $payload['login_status'] !== 'SUCCESS') {
+    if (in_array($newStage, ['BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED'], true) && $payload['login_status'] !== 'SUCCESS') {
         throw new RuntimeException('Set Login Status to Success before Bank Underwriting.');
     }
     // Validate login_status / rework_stage enums
@@ -244,7 +245,7 @@ try {
     $updatedBy = USER_ID;
     mysqli_stmt_bind_param(
         $stmt,
-        'iissssssssssssssssssssisiii',
+        'iissssssssssssssssssssisii',
         $assignedTo,
         $teamId,
         $loginDate,

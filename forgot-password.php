@@ -5,8 +5,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/php_scripts/rate_limiter.php';
 
 // Show errors on POST so failures don't produce a blank 500
-ini_set('display_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
-ini_set('display_startup_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
+ini_set('display_errors', APP_DEBUG ? '1' : '0');
+ini_set('display_startup_errors', APP_DEBUG ? '1' : '0');
 
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 ensureCsrfToken();
@@ -14,125 +14,37 @@ ensureCsrfToken();
 $ErrorMessage = $NewPassword = "";
 $success = false;
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $ErrorMessage = "Error: Invalid session token. Please try again.";
+        $ErrorMessage = 'Invalid session token. Refresh and try again.';
     } else {
-        $CompanyName = trim($_POST["CompanyName"] ?? '');
-        $username = trim($_POST["username"] ?? '');
-        
-        if (!empty($username) && !empty($CompanyName)) {
-            $rateLimitError = checkWebRateLimit($link, 'forgot_password', $username, 3, 900);
-            if ($rateLimitError) {
-                $ErrorMessage = $rateLimitError;
-                $success = false;
-            } else {
-                try {
-                    $tblUsers = tn('TBL_USERS');
-                    $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, PASSWORD, LOGIN_ID, DEVICE_ID, TEAM_ID 
-                            FROM $tblUsers WHERE LOGIN_ID = ?";
-                    
-                    if ($stmt = mysqli_prepare($link, $sql)) {
-                        mysqli_stmt_bind_param($stmt, "s", $param_username);
-                        $param_username = $username;
-                        
-                        if (mysqli_stmt_execute($stmt)) {
-                            mysqli_stmt_store_result($stmt);
-                            
-                            if (mysqli_stmt_num_rows($stmt) == 1) {
-                                mysqli_stmt_bind_result($stmt, $id, $name, $mobile, $company, $package, 
-                                                      $status, $join_date, $role, $hashed_password, 
-                                                      $login_id, $device_id, $team_id);
-                                
-                                if (mysqli_stmt_fetch($stmt)) {
-                                    $inputCompanyName = htmlspecialchars(trim($_POST['CompanyName']), ENT_QUOTES, 'UTF-8');
-                                    
-                                    if ($company === $inputCompanyName && $status === 'Active') {
-                                        clearWebRateLimit($link, 'forgot_password', $username);
-                                        // Generate secure random password
-                                        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
-                                        $NewPassword = '';
-                                        for ($i = 0; $i < 12; $i++) {
-                                            $NewPassword .= $chars[random_int(0, strlen($chars) - 1)];
-                                        }
-                                        
-                                        // Prepare email
-                                        $to = filter_var($login_id, FILTER_VALIDATE_EMAIL);
-                                        $subject = "CallNow Password Reset";
-                                        $message = "Hello " . $name . ",\n\n";
-                                        $message .= "Your password has been reset successfully.\n\n";
-                                        $message .= "Your new password is: " . $NewPassword . "\n\n";
-                                        $message .= "Please login and change your password immediately for security reasons.\n\n";
-                                        $message .= "Best regards,\nCallNow Team";
-                                        
-                                        // Email headers
-                                        $mailDomain = preg_replace('/^www\./', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
-                                        $noReply = 'no-reply@' . $mailDomain;
-                                        $headers = "From: $noReply\r\n";
-                                        $headers .= "Reply-To: $noReply\r\n";
-                                        $headers .= "X-Mailer: PHP/" . phpversion();
-                                        $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-                                        
-                                        // Update password in database
-                                        $newHashedPassword = password_hash($NewPassword, PASSWORD_DEFAULT);
-                                        $update_sql = "UPDATE $tblUsers SET PASSWORD = ? WHERE LOGIN_ID = ?";
-
-                                        if ($update_stmt = mysqli_prepare($link, $update_sql)) {
-                                            mysqli_stmt_bind_param($update_stmt, "ss", $newHashedPassword, $username);
-
-                                            if (mysqli_stmt_execute($update_stmt)) {
-                                                $emailSent = false;
-                                                if ($to) {
-                                                    $emailSent = @mail($to, $subject, $message, $headers);
-                                                }
-                                                if ($emailSent) {
-                                                    $ErrorMessage = "Success! Your new password has been sent to your email.";
-                                                    $success = true;
-                                                } else {
-                                                    $ErrorMessage = "Your new password is: " . $NewPassword . " — (email not sent; configured mail server required for delivery)";
-                                                    $success = true;
-                                                }
-                                            } else {
-                                                $ErrorMessage = "Failed to reset password. Please try again.";
-                                                $success = false;
-                                            }
-                                            mysqli_stmt_close($update_stmt);
-                                        } else {
-                                            $ErrorMessage = "Database error occurred. Please try again.";
-                                            $success = false;
-                                        }
-                                    } else {
-                                        recordFailedAttemptWeb($link, 'forgot_password', $username);
-                                        $ErrorMessage = "Unable to reset the password with the provided details.";
-                                        $success = false;
-                                    }
-                                } else {
-                                    recordFailedAttemptWeb($link, 'forgot_password', $username);
-                                    $ErrorMessage = "Error retrieving user information.";
-                                    $success = false;
-                                }
-                            } else {
-                                recordFailedAttemptWeb($link, 'forgot_password', $username);
-                                $ErrorMessage = "Unable to reset the password with the provided details.";
-                                self: $success = false;
-                            }
-                        } else {
-                            $ErrorMessage = "Oops! Something went wrong. Please try again later.";
-                            $success = false;
-                        }
-                        mysqli_stmt_close($stmt);
-                    } else {
-                        $ErrorMessage = "Database error: " . mysqli_error($link);
-                        $success = false;
-                    }
-                } catch (\Throwable $e) {
-                    $ErrorMessage = "Error: " . $e->getMessage();
-                    $success = false;
+        $username = trim((string)($_POST['username'] ?? ''));
+        $companyName = trim((string)($_POST['CompanyName'] ?? ''));
+        $rateLimitError = checkWebRateLimit($link, 'forgot_password', $username, 3, 900);
+        if ($rateLimitError) {
+            $ErrorMessage = $rateLimitError;
+        } else {
+            recordFailedAttemptWeb($link, 'forgot_password', $username);
+            require_once __DIR__ . '/php_scripts/password_reset.php';
+            ensurePasswordResetSchema($link);
+            $stmt = $link->prepare("SELECT ID, LOGIN_ID FROM " . tn('TBL_USERS') . " WHERE LOGIN_ID = ? AND COMPANY = ? AND STATUS = 'Active' LIMIT 1");
+            $stmt->bind_param('ss', $username, $companyName);
+            $stmt->execute(); $user = $stmt->get_result()->fetch_assoc(); $stmt->close();
+            if ($user && filter_var($user['LOGIN_ID'], FILTER_VALIDATE_EMAIL)) {
+                $token = bin2hex(random_bytes(32));
+                $tokenHash = hash('sha256', $token);
+                $expiresAt = date('Y-m-d H:i:s', time() + 1800);
+                $stmt = $link->prepare('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)');
+                $stmt->bind_param('iss', $user['ID'], $tokenHash, $expiresAt);
+                if ($stmt->execute()) {
+                    $resetUrl = url('reset-password') . '?token=' . rawurlencode($token);
+                    @mail($user['LOGIN_ID'], 'Reset your CallNow password', "Open this link within 30 minutes to choose a new password:\n" . $resetUrl . "\nIf you did not request this, ignore this email.");
                 }
+                $stmt->close();
             }
+            $success = true;
+            $ErrorMessage = 'If an active account matches these details, a password reset link has been sent.';
         }
-        
-        if ($link) @mysqli_close($link);
     }
 }
 ?>
@@ -164,13 +76,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="alert alert-success d-flex align-items-start gap-2 mb-3" role="alert">
                     <i class="bi bi-check-circle-fill text-success fs-5"></i>
                     <div>
-                        <div class="fw-semibold">Password Reset Successful</div>
-                        <div class="small mt-1"><?= $ErrorMessage ?></div>
-                        <?php if(strpos($ErrorMessage, 'Your new password is:') !== false): ?>
-                            <div class="mt-2 p-2 bg-white rounded border">
-                                <code class="fw-bold fs-6 text-dark font-mono"><?= htmlspecialchars($NewPassword) ?></code>
-                            </div>
-                        <?php endif; ?>
+                        <div class="fw-semibold">Check your email</div>
+                        <div class="small mt-1"><?= htmlspecialchars($ErrorMessage, ENT_QUOTES, 'UTF-8') ?></div>
                     </div>
                 </div>
                 <div class="d-grid mt-3">

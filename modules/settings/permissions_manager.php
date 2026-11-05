@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
 require_once __DIR__ . '/../../php_scripts/permissions.php';
-requireRole('Admin');
+requirePermission('manage_settings');
 
 $msg = '';
 $msg_type = '';
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $link->prepare("INSERT INTO " . tn('TBL_USER_PERMISSIONS') . " (user_id, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
                 foreach (array_keys(getPermissionSeed()) as $pk) {
                     $v = isset($_POST["uperm_$pk"]) ? 1 : 0;
-                    $stmt->bind_param('iis', $uid, $pk, $v);
+                    $stmt->bind_param('isi', $uid, $pk, $v);
                     $stmt->execute();
                 }
                 clearRbacCache();

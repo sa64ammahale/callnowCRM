@@ -454,137 +454,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 // 4. SUBMIT CALL RESULT & DETAILED ANALYTICS
 // -----------------------------------------------------------------------------
 } elseif (preg_match('#^/calls/(\d+)/complete$#', $relativePath, $matches)) {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
-    
-    $recordId = (int)$matches[1];
-    $input = json_decode(file_get_contents('php://input'), true) ?? [];
-    
-    $rawSource = strtoupper(trim($input['source'] ?? 'MAIN'));
-    if (!in_array($rawSource, ['MAIN', 'TEMP', 'TEMPORARY'], true)) {
-        apiError(400, 'Invalid source. Use MAIN or TEMP');
-    }
-    $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
-    
-    $rawStatus = trim($input['call_status'] ?? ($input['status'] ?? 'Connected'));
-    $rawStatusLow = strtolower($rawStatus);
-    $isDnd = in_array($rawStatusLow, ['dnd', 'do not call', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'])
-        || str_contains($rawStatusLow, 'dnd')
-        || str_contains($rawStatusLow, 'disturb')
-        || str_contains($rawStatusLow, 'not call');
-    $status = $isDnd ? 'Do Not Call' : $rawStatus;
-    
-    $notes = trim($input['notes'] ?? '');
-    $duration = (int)($input['call_duration'] ?? ($input['duration_seconds'] ?? 0));
-    $timingTier = trim($input['timing_classification'] ?? '');
-    if (empty($timingTier)) {
-        $timingTier = ($duration === 0) ? 'NOT_CONNECTED' : (($duration <= 20) ? 'CONNECTED_SHORT' : 'CONNECTED_CONVERSATION');
-    }
-    
-    $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : (!empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null);
-    $recordingUrl = !empty($input['recording_url']) ? trim((string)$input['recording_url']) : null;
-    $simSlot = !empty($input['sim_slot']) ? trim((string)$input['sim_slot']) : null;
-    $totalDuration = isset($input['total_duration']) ? (int)$input['total_duration'] : $duration;
-    $callTime = !empty($input['call_time']) ? date('Y-m-d H:i:s', strtotime($input['call_time'])) : date('Y-m-d H:i:s');
-    $dialTime = !empty($input['dial_time']) ? date('Y-m-d H:i:s', strtotime($input['dial_time'])) : null;
-    $callEndTime = !empty($input['call_end_time']) ? date('Y-m-d H:i:s', strtotime($input['call_end_time'])) : null;
-    if (isset($input['metadata'])) {
-        $metadata = is_array($input['metadata']) ? json_encode($input['metadata'], JSON_UNESCAPED_UNICODE) : (string)$input['metadata'];
-    } else {
-        $knownKeys = ['source', 'call_status', 'status', 'notes', 'call_duration', 'duration_seconds', 'timing_classification', 'next_followup', 'next_followup_at', 'recording_url', 'call_time', 'dial_time', 'call_end_time', 'total_duration', 'sim_slot'];
-        $extra = array_diff_key($input, array_flip($knownKeys));
-        $metadata = !empty($extra) ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null;
-    }
-    
-    // Retrieve phone number to guarantee cross-database DND synchronization and lead management
-    $targetMobile = '';
-    if ($source === 'MAIN') {
-        $mStmt = $link->prepare("SELECT MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER AS assigned_user FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
-        $mStmt->bind_param('i', $recordId);
-        $mStmt->execute();
-        $record = $mStmt->get_result()->fetch_assoc();
-        $mStmt->close();
-    } else {
-        $mStmt = $link->prepare("SELECT CUST_MOBILE, CALL_DIALED_TELECALLER AS assigned_user FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
-        $mStmt->bind_param('i', $recordId);
-        $mStmt->execute();
-        $record = $mStmt->get_result()->fetch_assoc();
-        $mStmt->close();
-    }
-    if (!$record) {
-        apiError(404, 'Record not found');
-    }
-    $targetMobile = (string)($source === 'MAIN' ? ($record['MAINDATABASE_MOBILE'] ?? '') : ($record['CUST_MOBILE'] ?? ''));
-    $assignedUserId = (int)($record['assigned_user'] ?? 0);
-    if ($assignedUserId > 0 && $assignedUserId !== $userId && !in_array($userRole, ['Admin', 'Manager'], true)) {
-        apiError(403, 'Not authorized to update this record');
-    }
-
-    // 1. Update master table based on source (clear batch lease, increment call count)
-    $isConnected = ($duration > 0 || in_array(strtolower($status), ['connected', 'lead', 'interested'])) ? 1 : 0;
-    if ($source === 'MAIN') {
-        $sql = "UPDATE " . tn('TBL_MAIN') . " SET 
-            MAINDATABASE_CALL_DIALED_STATUS = ?,
-            MAINDATABASE_CALL_DIALED_USER = ?,
-            MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
-            LAST_DIALED_DATE_TIME = NOW(),
-            LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
-            CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1,
-            BATCH_ASSIGNED_AT = NULL
-            WHERE ID = ?";
-        $stmt = $link->prepare($sql);
-        $stmt->bind_param('sissii', $status, $userId, $notes, $notes, $isConnected, $recordId);
-        $stmt->execute();
-        $stmt->close();
-        
-    } elseif ($source === 'TEMP') {
-        $sql = "UPDATE " . tn('TBL_TEMP') . " SET 
-            CALL_DIALED_STATUS = ?,
-            CALL_DIALED_TELECALLER = ?,
-            CUST_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE CUST_OTHER_INFO END,
-            LAST_DIALED_DATE_TIME = NOW(),
-            LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
-            BATCH_ASSIGNED_AT = NULL
-            WHERE ID = ?";
-        $stmt = $link->prepare($sql);
-        $stmt->bind_param('sissii', $status, $userId, $notes, $notes, $isConnected, $recordId);
-        $stmt->execute();
-        $stmt->close();
-    }
-    
-    // If marked as DND, strictly synchronize across ALL occurrences of this phone number in both tables
-    if ($isDnd && $targetMobile !== '') {
-        $targetMobileSafe = $link->real_escape_string($targetMobile);
-        $link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE = '$targetMobileSafe'");
-        $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = '$targetMobileSafe'");
-    }
-    
-    // 2. Insert full call detail into call_logs
-    $sqlLog = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-        (user_id, record_id, source, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-    $stmt = $link->prepare($sqlLog);
-    if (!$stmt) throw new Exception('Unable to prepare call log insert');
-    $stmt->bind_param('iissiisssssssss', $userId, $recordId, $source, $status, $duration, $totalDuration, $timingTier, $notes, $metadata, $nextFollowup, $recordingUrl, $simSlot, $callTime, $dialTime, $callEndTime);
-    $stmt->execute();
-    $logId = $stmt->insert_id;
-    $stmt->close();
-    
-    logActivity($link, $userId, 'API_CALL_COMPLETED', "Logged call for record #$recordId ($source) duration: {$duration}s, status: $status, tier: $timingTier", (string)$recordId, $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN');
-    
-    // 3. Auto-generate or update Lead in TBL_LEADS when status is Interested / Hot / Lead
-    $autoLeadId = syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $status, $notes, $nextFollowup);
-    
-    apiSuccess([
-        'message' => 'Call report submitted successfully',
-        'log_id' => $logId,
-        'record_id' => $recordId,
-        'lead_id' => $autoLeadId,
-        'is_lead_generated' => ($autoLeadId !== null && $autoLeadId > 0),
-        'timing_classification' => $timingTier,
-        'duration' => $duration,
-        'total_duration' => $totalDuration,
-    ]);
-
+    $callCompletionRecordId = (int)$matches[1];
+    require __DIR__ . '/submit_call.php';
+    exit;
 // -----------------------------------------------------------------------------
 // 5. SHARP CALL REPORTING SUMMARY ANALYTICS
 // -----------------------------------------------------------------------------
@@ -715,11 +587,11 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         cl.call_status as call_status,
         cl.call_duration as call_duration,
         cl.total_duration,
-        CASE 
+        COALESCE(NULLIF(cl.timing_classification, ''), CASE
             WHEN cl.call_duration = 0 THEN 'NOT_CONNECTED'
             WHEN cl.call_duration <= 20 THEN 'CONNECTED_SHORT'
             ELSE 'CONNECTED_CONVERSATION'
-        END as timing_classification,
+        END) as timing_classification,
         cl.notes,
         cl.metadata,
         cl.next_followup,
@@ -969,7 +841,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         ]);
 
     } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $input = apiReadJson();
 
         $name = trim($input['name'] ?? ($input['customer_name'] ?? ''));
         $rawMobile = trim($input['mobile'] ?? ($input['customer_mobile'] ?? ''));
@@ -1024,6 +896,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 
             if ($exist) {
                 $createdId = (int)$exist['ID'];
+                if ((int)($exist['MAINDATABASE_CALL_DIALED_USER'] ?? 0) > 0 && (int)$exist['MAINDATABASE_CALL_DIALED_USER'] !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) apiError(403, 'Record belongs to another user');
                 $isNew = false;
                 $uStmt = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET 
                     MAINDATABASE_NAME = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_NAME END,
@@ -1033,7 +906,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                     MAINDATABASE_CALL_DIALED_USER = COALESCE(MAINDATABASE_CALL_DIALED_USER, ?),
                     MAINDATABASE_CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_CALL_DIALED_STATUS END
                     WHERE ID = ?");
-                $uStmt->bind_param('ssssssssssii', 
+                $uStmt->bind_param('ssssssssissi',
                     $name, $name, 
                     $company, $company, 
                     $package, $package, 
@@ -1057,7 +930,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 $iStmt->close();
             }
         } else {
-            $chkStmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE CUST_MOBILE = ? LIMIT 1");
+            $chkStmt = $link->prepare("SELECT ID, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE CUST_MOBILE = ? LIMIT 1");
             $chkStmt->bind_param('s', $mobile);
             $chkStmt->execute();
             $exist = $chkStmt->get_result()->fetch_assoc();
@@ -1066,6 +939,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             if ($exist) {
                 $createdId = (int)$exist['ID'];
                 $isNew = false;
+                if ((int)($exist['CALL_DIALED_TELECALLER'] ?? 0) > 0 && (int)$exist['CALL_DIALED_TELECALLER'] !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) apiError(403, 'Record belongs to another user');
                 $uStmt = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET 
                     CUST_NAME = CASE WHEN ? != '' THEN ? ELSE CUST_NAME END,
                     CUST_COMPANY = CASE WHEN ? != '' THEN ? ELSE CUST_COMPANY END,
@@ -1074,7 +948,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                     CALL_DIALED_TELECALLER = COALESCE(CALL_DIALED_TELECALLER, ?),
                     CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE CALL_DIALED_STATUS END
                     WHERE ID = ?");
-                $uStmt->bind_param('ssssssssssii', 
+                $uStmt->bind_param('ssssssssissi',
                     $name, $name, 
                     $company, $company, 
                     $package, $package, 
@@ -1156,7 +1030,28 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 } elseif (preg_match('#^/leads/(\d+)$#', $relativePath, $matches)) {
     $leadId = (int)$matches[1];
     $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
+    if (in_array($rawSource, ['LEAD', 'LEADS'], true)) {
+        $resolve = $link->prepare('SELECT cust_id, assigned_to, created_by FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?');
+        $resolve->bind_param('i', $leadId);
+        $resolve->execute();
+        $crmLead = $resolve->get_result()->fetch_assoc();
+        $resolve->close();
+        if (!$crmLead) apiError(404, 'Lead not found');
+        if ((int)$crmLead['assigned_to'] !== $userId && (int)$crmLead['created_by'] !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) apiError(403, 'Not authorized to access this lead');
+        $leadId = (int)$crmLead['cust_id'];
+    }
     $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
+    $ownerColumn = $source === 'TEMP' ? 'CALL_DIALED_TELECALLER' : 'MAINDATABASE_CALL_DIALED_USER';
+    $recordTable = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
+    $guard = $link->prepare('SELECT ' . $ownerColumn . ' AS owner_id FROM ' . tn($recordTable) . ' WHERE ID = ?');
+    $guard->bind_param('i', $leadId);
+    $guard->execute();
+    $owner = $guard->get_result()->fetch_assoc();
+    $guard->close();
+    if (!$owner) apiError(404, 'Lead not found');
+    if ((int)($owner['owner_id'] ?? 0) !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) {
+        apiError(403, 'Not authorized to access this record');
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if ($source === 'TEMP') {
@@ -1187,7 +1082,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             ]
         ]);
     } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'POST') {
-        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $input = apiReadJson();
         $name = trim($input['name'] ?? ($input['customer_name'] ?? ''));
         $company = trim($input['company'] ?? ($input['customer_company'] ?? ''));
         $package = trim($input['package'] ?? ($input['customer_package'] ?? ''));
@@ -1225,5 +1120,6 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     apiError(404, 'Telecaller endpoint not found');
 }
 } catch (Throwable $e) {
-    apiError(500, 'Server Exception: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+    error_log('Telecaller API error: ' . $e->getMessage());
+    apiError(500, 'Unable to process request');
 }

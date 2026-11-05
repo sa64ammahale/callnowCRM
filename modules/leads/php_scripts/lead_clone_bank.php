@@ -1,7 +1,10 @@
 <?php
-require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
 api_init();
+requirePermission('manage_leads');
+ensureLeadModuleSchema($link);
+$actorId = USER_ID;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     api_error('Invalid request', 405);
@@ -21,8 +24,8 @@ if (!canEditLead($lead)) {
 
 // Resolve Back Office team for assignment
 $boTeam = mysqli_fetch_assoc(mysqli_query($link, "SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE NAME = 'back_office' LIMIT 1"));
-$boTeamId = $boTeam ? (int)$boTeam['ID'] : 0;
-$boUser = 0;
+$boTeamId = $boTeam ? (int)$boTeam['ID'] : (int)($lead['team_id'] ?? 0);
+$boUser = (int)$lead['assigned_to'];
 if ($boTeamId > 0) {
     $bu = mysqli_fetch_assoc(mysqli_query($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = $boTeamId AND STATUS = 'Active' LIMIT 1"));
     if ($bu) $boUser = (int)$bu['ID'];
@@ -47,12 +50,12 @@ $colList = '`' . implode('`,`', $cols) . '`';
 $placeholders = rtrim(str_repeat('?,', count($cols)), ',');
 $vals = [];
 foreach ($cols as $c) {
-    $vals[] = $lead[$c] ?? null;
+    $vals[] = $c === 'lead_status' ? 'New' : ($c === 'converted_at' || $c === 'lost_reason' ? null : ($lead[$c] ?? null));
 }
 
 $stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEADS') . " ($colList, lead_status_new, login_status, parent_lead_id, assigned_to, team_id, assigned_by, created_at, updated_at) VALUES ($placeholders, 'LOGIN', 'PENDING', ?, ?, ?, ?, NOW(), NOW())");
 // Build types: all copied cols are strings except cust_id/created_by which may be int/null — treat as string-safe via 's' with nullable
-$types = str_repeat('s', count($cols)) . 'iiiii';
+$types = str_repeat('s', count($cols)) . 'iiii';
 $params = array_merge($vals, [$leadId, $boUser, $boTeamId, USER_ID]);
 mysqli_stmt_bind_param($stmt, $types, ...$params);
 if (!mysqli_stmt_execute($stmt)) {

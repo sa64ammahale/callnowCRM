@@ -5,8 +5,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/php_scripts/rate_limiter.php';
 
 // Show errors on POST so login failures don't produce a blank 500
-ini_set('display_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
-ini_set('display_startup_errors', (APP_DEBUG || $_SERVER['REQUEST_METHOD'] === 'POST') ? '1' : '0');
+ini_set('display_errors', APP_DEBUG ? '1' : '0');
+ini_set('display_startup_errors', APP_DEBUG ? '1' : '0');
 
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 ensureCsrfToken();

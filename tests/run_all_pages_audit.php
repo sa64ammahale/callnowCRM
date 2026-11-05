@@ -44,8 +44,8 @@ foreach ($pages as $rel) {
     $ret = 0;
     exec($cmd, $output, $ret);
     $outStr = implode("\n", $output);
-    if ($ret === 0 && strpos($outStr, 'OK') !== false) {
-        echo "[PASS] $rel - OK\n";
+    if ($ret === 0 && (strpos($outStr, 'OK') !== false || strpos($outStr, 'EXPECTED ACCESS BLOCK:') !== false)) {
+        echo "[PASS] $rel - $outStr\n";
         $pass++;
     } else {
         echo "[FAIL] $rel - $outStr\n";
@@ -54,4 +54,5 @@ foreach ($pages as $rel) {
 }
 
 echo "\nSUMMARY: Passed $pass, Failed $fail, Total ".count($pages)."\n";
+exit($fail ? 1 : 0);
 ?>

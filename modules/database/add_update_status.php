@@ -1,5 +1,5 @@
 <?php
-require_once '../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
 requirePermission('manage_database');
 
 if (session_status() === PHP_SESSION_NONE) session_start();
@@ -168,7 +168,7 @@ $totalTempRecords = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) F
 $todayInserts = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . TBL_TEMP . " WHERE TEMP_UPLOAD_DATETIME >= CURDATE() AND TEMP_UPLOAD_DATETIME < CURDATE() + INTERVAL 1 DAY"))[0];
 
 $pageTitle = 'Update Status • CallNow CRM';
-include '../../php_scripts/header.php';
+include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <div class="container-fluid px-3 py-3">
@@ -390,4 +390,4 @@ include '../../php_scripts/header.php';
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

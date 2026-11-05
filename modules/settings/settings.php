@@ -64,7 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($saved) {
                         $rel = 'uploads/logo/app_logo.' . $ext;
                         $stmt = $link->prepare("INSERT INTO " . tn('TBL_APP_SETTINGS') . " (setting_key, setting_value) VALUES ('logo_path', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = ?, updated_at = NOW()");
-                        $stmt->bind_param('si', $rel, USER_ID);
+                        $actorId = USER_ID;
+                        $stmt->bind_param('si', $rel, $actorId);
                         $stmt->execute();
                         $msg = 'Logo uploaded successfully!';
                         $msg_type = 'success';

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../../php_scripts/config.php';
+require_once __DIR__ . '/../php_scripts/config.php';
 require_once __DIR__ . '/lib/db_helper.php';
 require_once __DIR__ . '/lib/http_helper.php';
 require_once __DIR__ . '/lib/page_helper.php';

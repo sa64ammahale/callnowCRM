@@ -381,12 +381,26 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - **Universal Dropdown Chevrons**: Replaced fragile URL-encoded SVGs with crisp, browser-universal Base64-encoded SVG downward chevrons on all `<select>`, `.form-select`, and `.form-select-sm` inputs with dedicated 2rem right padding, and ensured rotating carets on all `.dropdown-toggle` and `[data-bs-toggle="dropdown"]` buttons.
   - **Natural Card Coloring**: Refined card backgrounds across the entire project (`.card`, `.crm-card`, `.metric-card`, `.stat-card`, `.card-header`) with subtle natural gradients (`linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 50%, #F3F4F6 100%)`), soft slate borders (`#E2E8F0`), and pastel semantic color tints (Green, Purple, Amber, Red, Sky Blue).
 
+## Leads and Pipeline Verification (2026-11-05)
+
+- Added `tests/test_leads_pipeline.php`, which runs the real PHP request handlers in isolated sessions using disposable customer, lead, and user fixtures. Covers creation, duplicate prevention, rejection before underwriting, workflow progression and login gates, notes, precise follow-up times and completion, bank cloning, reassignment, access denial, permission revocation, filters, pagination, page rendering, output escaping, CSRF, and deletion cleanup.
+- Fixed broken auth include paths on seven lead actions, missing permission gates, constant-by-reference insert failures, the lead update bind signature, missing previous-stage selection, premature rejection blocking, missing successful-login gates for sanction/disbursal, truncated follow-up times, stale next appointments after completion, clone parameter mismatch and inherited terminal status, and the create form duplicate-check URL.
+- Lead deletion now removes dependent notes/follow-ups/assignment history in a transaction and detaches surviving bank applications. The login-status schema accepts REWORK_PENDING, matching the edit form.
+
 ## Remaining Known Issues (not yet fixed)
 - **Call-detail API parity and retrieval (2026-11-05)**: Both `POST /api/v1/telecaller/submit_call` and `POST /api/v1/telecaller/calls/{id}/complete` now persist the full call-detail payload (`total_duration`, `metadata`, `recording_url`, `sim_slot`, and call/dial/end timestamps). Both call retrieval endpoints return those details; per-record history is scoped to the caller, Supervisor team, or Admin/Manager. The web Call History page displays the extra details and expandable metadata. `tests/test_api_module.php` includes full-detail submission/retrieval regression assertions (46 passing assertions as of 2026-11-05).
 - `lead_common.php` `ensureLeadModuleSchema()` self-heals ALL lead-module columns on page load (incl. Phase 0 columns: team_id, rework_flag, rework_stage, login_status, login_submitted_by/at, forwarded_flag, sent_backward_flag, parent_lead_id). The standalone `database/migrate_lead_management.sql` is still the canonical migration but no longer required to be run manually.
 - Default admin `Admin@123` hardcoded in SQL seed (with warning in comments)
 - Mixed procedural/OO `mysqli` style
-- `forgot-password.php` hardcoded From/Reply-To addresses; password emailed in plaintext (recommend moving to secure reset token links in future)
+- Password recovery now uses hashed, expiring, single-use tokens in `password_reset_tokens` and `reset-password.php`; password reset revokes API tokens. SMTP delivery must be configured and verified on the deployment host.
+
+## Full project and Android audit (2026-11-05)
+
+- `tests/run_project_audit.php` clones the configured database to a uniquely named `callnow_audit_*` database, starts two loopback PHP servers, runs every `test_*.php` entry point plus the page audit, records pass/fail output, and retains the audit database and JSON report in the system temp directory for investigation. It does not run destructive suites on the working database. Legacy user test entry points now use the real isolated-request workflow suite instead of reusing global sessions/constants incorrectly.
+- Added Android HTTP contract, simultaneous-worker, web form authentication, password reset, and web data/CSV workflow suites. Integration details and remaining device checks are in `project-context/ANDROID_INTEGRATION.md`.
+- Call endpoints share one transactional handler, validate JSON/durations/timestamps/recording URLs, scope customer detail/update access, support optional per-user `client_call_id` retry deduplication, preserve timestamps consistently, and return generic server errors. API preflight works before authentication; explicit user permission denials override role grants.
+- Fixed permission-editor parameter types, unsafe user role/team/status submission, working-directory-dependent includes, corrupted text notes in customer edits, upload header/count bugs, missing CSV task CSRF/ownership checks, API request user-agent logging, and disabled-API enforcement. Internal tests and project context are blocked through Apache.
+- Fresh-install call-log SQL now matches the runtime schema, including retry keys. The runtime adds missing retry columns/indexes through `ensureApiSchema()`.
 
 ## Conventions for Future Changes
 - **Auth bootstrap**: `php_scripts/auth.php` (canonical) — include at top of every protected page

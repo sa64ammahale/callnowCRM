@@ -1,6 +1,6 @@
 <?php
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/team_auth.php';
 requirePermission('manage_teams');
 
 $msg = $msg_type = "";
@@ -158,7 +158,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
     $total_assigned_members++;
 }
 ?>
-<?php $pageTitle = 'Teams & Squad Management - CallNow CRM'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = 'Teams & Squad Management - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <div class="container-fluid px-3 py-3">
 
@@ -486,7 +486,7 @@ while ($m = mysqli_fetch_assoc($members_res)) {
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

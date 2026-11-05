@@ -6,6 +6,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
 require_once __DIR__ . '/../php_scripts/config.php';
+if (!str_starts_with($DB_NAME, 'callnow_audit_')) throw new RuntimeException('Run through tests/run_project_audit.php to protect the working database');
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

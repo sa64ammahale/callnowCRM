@@ -55,8 +55,12 @@ if (!$rawBody && php_sapi_name() === 'cli') {
     $rawBody = file_get_contents('php://stdin');
 }
 $input = json_decode($rawBody, true);
+if (trim($rawBody) !== '' && (json_last_error() !== JSON_ERROR_NONE || !is_array($input) || substr(ltrim($rawBody), 0, 1) !== '{')) apiError(400, 'Request body must be a valid JSON object');
 if (!is_array($input)) {
     $input = !empty($_POST) ? $_POST : [];
+}
+foreach ($input as $field => $value) {
+    if (is_array($value) || is_object($value)) apiError(400, 'Invalid value for ' . $field);
 }
 
 global $link;
@@ -65,6 +69,7 @@ global $link;
 // 1. LOGIN
 // -------------------------------------------------------------
 if ($endpoint === '/login') {
+    if (!(getApiSettings()['api_enabled'] ?? true)) apiError(503, 'Mobile API is temporarily disabled');
     if ($method !== 'POST') {
         apiError(405, 'Method not allowed');
     }

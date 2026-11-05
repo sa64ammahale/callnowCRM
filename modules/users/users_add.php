@@ -1,7 +1,7 @@
 <?php
-require_once '../../php_scripts/auth.php';
-require_once '../../php_scripts/team_auth.php';
-require_once '../../php_scripts/super_admin.php';
+require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/super_admin.php';
 
 $isEdit = isset($_GET['ID']);
 $userID = $isEdit ? intval($_GET['ID']) : 0;
@@ -41,6 +41,10 @@ if ($isEdit) {
     $result = mysqli_stmt_get_result($stmt);
     $editUser = mysqli_fetch_assoc($result);
     if (!$editUser) { header("Location: users_view.php"); exit; }
+    if (!isAdmin() && !isSuperAdmin() && !in_array($userID, getAccessibleUserIds($link), true)) {
+        http_response_code(403);
+        exit('Access denied');
+    }
     // Protect system accounts from editing (allow self-edit)
     if ((int)$editUser['ID'] === 1 || $editUser['ROLE'] === 'Super Admin') {
         $_SESSION['error'] = 'System Administrator cannot be edited.';
@@ -70,6 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $package      = trim($_POST['package'] ?? '');
         $status       = $_POST['status'] ?? 'Active';
         $company      = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
+        $allowedRoles = array_column($allRoles, 'role_name');
+        $allowedTeams = array_map('intval', array_column($allTeams, 'ID'));
+        if (!isAdmin() && !isSuperAdmin()) {
+            $allowedRoles = ['Officer'];
+            $team_id = (int)USER_TEAM_ID;
+        }
 
         if (!preg_match("/^[a-zA-Z ]+$/", $name)) {
     $Message = "Invalid name (alphabetic characters only)";
@@ -80,6 +90,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         elseif ($email_addr !== null && !filter_var($email_addr, FILTER_VALIDATE_EMAIL)) $Message = "Invalid alternate email";
         elseif (!$isEdit && strlen($password) < 6) $Message = "Password must be at least 6 characters";
         elseif (empty($role) || empty($team_id) || empty($package)) $Message = "All required fields must be filled";
+        elseif (!in_array($role, $allowedRoles, true)) $Message = 'Invalid or unauthorized role';
+        elseif (!in_array((int)$team_id, $allowedTeams, true)) $Message = 'Invalid or unauthorized team';
+        elseif (!in_array($status, ['Active', 'Inactive', 'Suspended'], true)) $Message = 'Invalid account status';
+        elseif ($isEdit && $password !== '' && strlen($password) < 6) $Message = 'Password must be at least 6 characters';
         else {
             // Check 1: Mobile uniqueness
             $checkMob = mysqli_prepare($link, "SELECT ID FROM " . tn('TBL_USERS') . " WHERE MOBILE = ? AND ID != ? LIMIT 1");
@@ -166,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     }
 }
 ?>
-<?php $pageTitle = ($isEdit ? 'Edit' : 'Add New') . ' User - CallNow CRM'; include '../../php_scripts/header.php'; ?>
+<?php $pageTitle = ($isEdit ? 'Edit' : 'Add New') . ' User - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
 <div class="container-fluid px-3 py-3" style="max-width: 1000px;">
 
@@ -359,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     </div>
 </div>
 
-<?php include '../../php_scripts/footer.php'; ?>
+<?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script>
 function togglePass() {

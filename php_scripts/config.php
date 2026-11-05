@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Kolkata');
 
 
     // Load a local .env file if present (shared hosting without env support)
@@ -389,6 +390,9 @@
                 }
                 if (!isset($existingCols['metadata'])) {
                     @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN metadata LONGTEXT NULL AFTER notes");
+                }
+                if (!isset($existingCols['client_call_id'])) {
+                    mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD COLUMN client_call_id VARCHAR(128) NULL, ADD COLUMN request_hash CHAR(64) NULL, ADD UNIQUE KEY uniq_user_client_call (user_id, client_call_id)");
                 }
             }
 
