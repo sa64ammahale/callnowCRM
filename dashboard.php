@@ -89,7 +89,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
     <?php unset($_SESSION['access_denied_message']); ?>
 <?php endif; ?>
 
-<!-- Welcome Strip (Flux Soft Ambient Wash) -->
+<!-- Welcome Strip (Soft Ambient Wash) -->
 <div class="card border-0 flux-brand-wash p-4 mb-4" style="border-radius:var(--radius-lg); box-shadow:var(--shadow-card);">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
         <div>
@@ -112,7 +112,7 @@ $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 1
     </div>
 </div>
 
-<!-- Primary KPI Metrics Grid (Flux KPI Cards with Tabular Numerals) -->
+<!-- Primary KPI Metrics Grid (KPI Cards with Tabular Numerals) -->
 <div class="row g-3 mb-4">
     <div class="col-xxl-2 col-xl-4 col-md-4 col-sm-6">
         <div class="metric-card">

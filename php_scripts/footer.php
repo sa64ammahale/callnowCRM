@@ -5,7 +5,7 @@
         <div class="d-flex align-items-center gap-2">
             <span>&copy; <?= date('Y') ?> CallNow CRM &middot; Sangam Mahale</span>
             <span class="text-muted">&bull;</span>
-            <span class="badge bg-purple">Flux Dashboard UI</span>
+            <span class="badge bg-purple">Dashboard UI</span>
         </div>
         <div class="d-flex align-items-center gap-3">
             <span class="text-muted small">System Operational</span>
@@ -16,7 +16,7 @@
 </div>
 </div>
 
-<!-- Global Omni-Search / Command Palette Modal (Flux Cmd+K) -->
+<!-- Global Omni-Search / Command Palette Modal (Cmd+K) -->
 <div class="modal fade" id="omniSearchModal" tabindex="-1" aria-labelledby="omniSearchModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">

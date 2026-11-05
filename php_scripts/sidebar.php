@@ -33,7 +33,7 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
         <?php endif; ?>
         <div class="brand-title-wrap">
             <span class="brand-text">CallNow <span class="flux-gradient-text">CRM</span></span>
-            <span class="brand-workspace-pill">Flux Workspace</span>
+            <span class="brand-workspace-pill">Workspace</span>
         </div>
     </a>
 

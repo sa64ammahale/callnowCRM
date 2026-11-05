@@ -19,7 +19,7 @@ $currentScript = basename($_SERVER['SCRIPT_NAME'] ?? '');
         <span class="crumb-active"><?= htmlspecialchars(preg_replace('/\s*[\x{2022}\-\|]\s*CallNow.*$/iu', '', $pageTitle ?? 'Dashboard'), ENT_QUOTES, 'UTF-8') ?></span>
     </div>
 
-    <!-- Flux Command Launcher -->
+    <!-- Command Launcher -->
     <div class="app-topbar-search" id="topbarSearchTrigger" onclick="openOmniSearch()">
         <i class="bi bi-search search-icon"></i>
         <input type="text" placeholder="Quick search or jump to page..." aria-label="Search" readonly />
@@ -27,7 +27,7 @@ $currentScript = basename($_SERVER['SCRIPT_NAME'] ?? '');
     </div>
 
     <div class="app-topbar-actions">
-        <!-- Flux Quick Create Button -->
+        <!-- Quick Create Button -->
         <div class="dropdown">
             <button class="btn btn-topbar-create dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-plus-lg"></i>

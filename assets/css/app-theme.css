@@ -1,8 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ==========================================================================
-   Flux Dashboard UI Design System Tokens
-   Source: Flux Dashboard Design System (DashboardPack Next.js 16)
+   Dashboard UI Design System Tokens
+   Source: Dashboard Design System (DashboardPack Next.js 16)
    Violet (#6D45F9) & Electric Blue (#0090DF) | Frosted Glass | 14px Radius
    ========================================================================== */
 
@@ -83,11 +83,11 @@
     --sidebar-text-active: #FFFFFF;
     --sidebar-active-indicator: #8C72FF;
 
-    /* 7. Radii (Flux Signature: 14px) */
+    /* 7. Radii (Signature: 14px) */
     --radius-xs: 6px;
     --radius-sm: 8px;
     --radius-md: 10px;       /* Inputs & Buttons */
-    --radius-lg: 14px;       /* Cards & Tables - Flux Signature */
+    --radius-lg: 14px;       /* Cards & Tables - Signature */
     --radius-xl: 18px;       /* Sheets & Large Panels */
     --radius-2xl: 22px;
     --radius-pill: 9999px;   /* Badges & Status Chips */
@@ -201,7 +201,7 @@ code, pre, kbd, samp, .font-mono {
 ::-webkit-scrollbar-thumb:hover { background: #B4B4C2; }
 
 /* ==========================================================================
-   Flux Signature Effects & Utilities
+   Signature Effects & Utilities
    ========================================================================== */
 
 /* Gradient Text */
@@ -212,7 +212,7 @@ code, pre, kbd, samp, .font-mono {
     color: transparent !important;
 }
 
-/* Flux Brand Gradient Fill */
+/* Brand Gradient Fill */
 .flux-gradient-brand {
     background: var(--brand-gradient);
     color: #FFFFFF !important;
@@ -580,7 +580,7 @@ body[data-sidebar="collapsed"] .app-sidebar {
     color: #FFFFFF;
 }
 
-/* Flux Active Navigation Link Treatment */
+/* Active Navigation Link Treatment */
 .app-sidebar-link.active {
     background: var(--sidebar-bg-active);
     color: #FFFFFF;
@@ -699,7 +699,7 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     font-weight: 600;
 }
 
-/* Flux Command Search Launcher */
+/* Command Search Launcher */
 .app-topbar-search {
     flex: 1;
     max-width: 440px;
@@ -760,7 +760,7 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     gap: 0.5rem;
 }
 
-/* Flux Quick Create Button (Violet Accent) */
+/* Quick Create Button (Violet Accent) */
 .btn-topbar-create {
     height: 36px;
     padding: 0 0.875rem;
@@ -998,7 +998,7 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     color: var(--text-primary);
 }
 
-/* Flux Flagship CTA */
+/* Flagship CTA */
 .btn-flux-gradient {
     background: var(--brand-gradient);
     color: #FFFFFF !important;
@@ -1018,7 +1018,7 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
 .card, .crm-card {
     background: linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 50%, #F3F4F6 100%);
     border: 1px solid #E2E8F0;
-    border-radius: var(--radius-lg); /* 14px Flux Signature */
+    border-radius: var(--radius-lg); /* 14px Signature */
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.03);
     color: var(--text-primary);
     margin-bottom: 1.25rem;
@@ -1255,7 +1255,7 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     color: var(--primary);
 }
 
-/* Breadcrumb Navigation (Flux & Modern SaaS Clean Style) */
+/* Breadcrumb Navigation (Modern SaaS Clean Style) */
 nav[aria-label="breadcrumb"],
 .breadcrumb-nav {
     margin-bottom: 0.35rem;
@@ -1623,6 +1623,10 @@ nav[aria-label="breadcrumb"],
 .table tbody tr {
     background-color: #FFFFFF;
     transition: background-color 0.12s ease;
+}
+
+.table tbody tr:nth-child(even) {
+    background-color: #F5F5F8;
 }
 
 .table tbody tr:hover > * {
@@ -2401,3 +2405,5 @@ a.dropdown-toggle::after,
     transform: translateY(-2px);
     color: inherit;
 }
+
+

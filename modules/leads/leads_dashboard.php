@@ -113,7 +113,7 @@ $userName = $_SESSION['name'] ?? 'User';
     </div>
 </div>
 
-<!-- Welcome / Scope Strip (Flux Wash Card) -->
+<!-- Welcome / Scope Strip (Wash Card) -->
 <div class="welcome-strip card border-0 flux-brand-wash p-3 p-md-4 mb-4" style="border-radius:var(--radius-lg); box-shadow:var(--shadow-card);">
     <div>
         <h2 class="welcome-strip-title mb-1">Hello, <?= htmlspecialchars($userName) ?></h2>
