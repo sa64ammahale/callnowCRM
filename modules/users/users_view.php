@@ -139,37 +139,37 @@ $totalInactive = max(0, $globalTotal - $totalActive);
     </div>
 
     <!-- Metric KPI Strip -->
-    <div class="row g-2 mb-3">
-        <div class="col-6 col-md-3 col-xl">
-            <div class="metric-card">
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3 mb-3">
+        <div class="col">
+            <div class="metric-card h-100">
                 <div class="metric-label">Total Users</div>
                 <div class="metric-value text-dark"><?= number_format($globalTotal) ?></div>
                 <div class="text-muted small">Registered accounts</div>
             </div>
         </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="metric-card">
+        <div class="col">
+            <div class="metric-card h-100">
                 <div class="metric-label">Active Agents</div>
                 <div class="metric-value text-success"><?= number_format($totalActive) ?></div>
                 <div class="text-muted small">Ready to call</div>
             </div>
         </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="metric-card">
+        <div class="col">
+            <div class="metric-card h-100">
                 <div class="metric-label">Inactive / Suspended</div>
                 <div class="metric-value text-danger"><?= number_format($totalInactive) ?></div>
                 <div class="text-muted small">Access disabled</div>
             </div>
         </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="metric-card">
+        <div class="col">
+            <div class="metric-card h-100">
                 <div class="metric-label">System Roles</div>
                 <div class="metric-value text-primary"><?= count($allRoles) ?></div>
                 <div class="text-muted small">Defined privileges</div>
             </div>
         </div>
-        <div class="col-6 col-md-3 col-xl">
-            <div class="metric-card">
+        <div class="col">
+            <div class="metric-card h-100">
                 <div class="metric-label">Operational Teams</div>
                 <div class="metric-value text-secondary"><?= count($allTeams) ?></div>
                 <div class="text-muted small">Organized units</div>
@@ -180,14 +180,14 @@ $totalInactive = max(0, $globalTotal - $totalActive);
     <!-- Filter Toolbar -->
     <div class="crm-card mb-3 p-3">
         <form method="GET" class="row g-2 align-items-end">
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-4 col-xl-3">
                 <label class="form-label small text-muted mb-1">Search User</label>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
                     <input type="text" name="search" class="form-control" placeholder="Name, Mobile or Login ID" value="<?= htmlspecialchars($search) ?>">
                 </div>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-sm-3 col-md-2 col-xl-2">
                 <label class="form-label small text-muted mb-1">Status</label>
                 <select name="status" class="form-select form-select-sm">
                     <option value="">All Statuses</option>
@@ -196,7 +196,7 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                     <option value="Suspended" <?= $status==='Suspended'?'selected':'' ?>>Suspended</option>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-sm-3 col-md-2 col-xl-2">
                 <label class="form-label small text-muted mb-1">Role</label>
                 <select name="role" class="form-select form-select-sm">
                     <option value="">All Roles</option>
@@ -207,7 +207,7 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-sm-3 col-md-2 col-xl-2">
                 <label class="form-label small text-muted mb-1">Team</label>
                 <select name="team" class="form-select form-select-sm">
                     <option value="">All Teams</option>
@@ -218,7 +218,7 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-sm-3 col-md-2 col-xl-2">
                 <label class="form-label small text-muted mb-1">Package</label>
                 <select name="package" class="form-select form-select-sm">
                     <option value="">All Packages</option>
@@ -229,14 +229,14 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-12 col-md-1">
-                <div class="d-flex gap-1">
-                    <button type="submit" class="btn btn-primary btn-sm w-100" title="Apply Filter">
-                        <i class="bi bi-funnel"></i>
+            <div class="col-12 col-md-auto ms-md-auto">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm px-3" title="Apply Filter">
+                        <i class="bi bi-funnel me-1"></i> Filter
                     </button>
                     <?php if ($search !== '' || $status !== '' || $role !== '' || $team_id !== '' || $package !== ''): ?>
-                        <a href="users_view.php" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
-                            <i class="bi bi-x-lg"></i>
+                        <a href="users_view.php" class="btn btn-outline-secondary btn-sm px-3" title="Clear Filters">
+                            <i class="bi bi-x-lg me-1"></i> Reset
                         </a>
                     <?php endif; ?>
                 </div>
@@ -265,17 +265,17 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                     <table class="table crm-table align-middle mb-0" id="usersTable">
                         <thead>
                             <tr>
-                                <th style="width: 70px;">ID</th>
-                                <th style="min-width: 200px;">User & Database</th>
-                                <th style="width: 130px;">Mobile</th>
-                                <th style="width: 140px;">Login ID</th>
-                                <th style="width: 100px;">Status</th>
-                                <th style="width: 110px;">Joined</th>
-                                <th style="width: 120px;">Role</th>
-                                <th style="min-width: 130px;">Team</th>
-                                <th style="width: 100px;">Limits &amp; Targets</th>
-                                <th style="width: 100px;">Package</th>
-                                <th style="width: 90px;" class="text-end">Actions</th>
+                                <th>ID</th>
+                                <th>User &amp; Database</th>
+                                <th>Mobile</th>
+                                <th>Login ID</th>
+                                <th>Status</th>
+                                <th>Joined</th>
+                                <th>Role</th>
+                                <th>Team</th>
+                                <th>Limits &amp; Targets</th>
+                                <th>Package</th>
+                                <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -372,16 +372,17 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                         <table class="table crm-table align-middle mb-0" id="usersTable-inactive">
                             <thead>
                                 <tr>
-                                    <th style="width: 70px;">ID</th>
-                                    <th style="min-width: 200px;">User</th>
-                                    <th style="width: 130px;">Mobile</th>
-                                    <th style="width: 140px;">Login ID</th>
-                                    <th style="width: 100px;">Status</th>
-                                    <th style="width: 110px;">Joined</th>
-                                    <th style="width: 120px;">Role</th>
-                                    <th style="min-width: 130px;">Team</th>
-                                    <th style="width: 100px;">Package</th>
-                                    <th style="width: 90px;" class="text-end">Actions</th>
+                                    <th>ID</th>
+                                    <th>User</th>
+                                    <th>Mobile</th>
+                                    <th>Login ID</th>
+                                    <th>Status</th>
+                                    <th>Joined</th>
+                                    <th>Role</th>
+                                    <th>Team</th>
+                                    <th>Limits &amp; Targets</th>
+                                    <th>Package</th>
+                                    <th class="text-end">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -416,6 +417,18 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                             <?php endif; ?>
                                         </td>
                                         <td>
+                                            <div class="small text-nowrap">
+                                                <span class="badge bg-secondary-subtle text-secondary border" style="font-size:0.68rem;" title="Daily Calling Limit">
+                                                    <i class="bi bi-telephone me-1"></i><?= (int)($u['daily_calling_limit'] ?? 250) ?> calls
+                                                </span>
+                                            </div>
+                                            <div class="small text-nowrap mt-1">
+                                                <span class="badge bg-secondary-subtle text-secondary border" style="font-size:0.68rem;" title="Monthly Disbursement Limit">
+                                                    <i class="bi bi-cash me-1"></i>₹<?= number_format(((float)($u['monthly_disbursement_limit'] ?? 1500000))/100000, 1) ?>L
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>
                                             <?php if ($u['PACKAGE']): ?>
                                                 <span class="badge bg-light text-dark border"><?= htmlspecialchars($u['PACKAGE']) ?></span>
                                             <?php else: ?>
@@ -442,10 +455,6 @@ $totalInactive = max(0, $globalTotal - $totalActive);
             </div>
         </div>
     </div>
-
-
-</div>
-
 </div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

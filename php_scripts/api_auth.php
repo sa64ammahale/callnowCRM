@@ -9,7 +9,7 @@ foreach ($_GET as $queryKey => $queryValue) {
 }
 
 function apiReadJson(): array {
-    $raw = file_get_contents('php://input');
+    $raw = $GLOBALS['mock_api_input'] ?? file_get_contents('php://input');
     if (trim($raw) === '') return [];
     $input = json_decode($raw, true);
     if (json_last_error() !== JSON_ERROR_NONE || !is_array($input) || substr(ltrim($raw), 0, 1) !== '{') {
@@ -649,6 +649,8 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
         'monthly_disbursement_limit' => (float)($user['monthly_disbursement_limit'] ?? 1500000.00),
         'daily_call_target' => (int)($user['daily_calling_limit'] ?? 250),
         'monthly_disbursement_target' => (float)($user['monthly_disbursement_limit'] ?? 1500000.00),
+        'can_move_lead_stage' => in_array(strtolower(trim((string)($user['role'] ?? ''))), ['super admin', 'admin', 'manager', 'supervisor'], true) || (int)$user['id'] === 1,
+        'can_change_lead_status' => in_array(strtolower(trim((string)($user['role'] ?? ''))), ['super admin', 'admin', 'manager', 'supervisor'], true) || (int)$user['id'] === 1,
     ];
 }
 

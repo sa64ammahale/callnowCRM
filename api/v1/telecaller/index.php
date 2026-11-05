@@ -1049,6 +1049,92 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         apiError(405, 'Method not allowed');
     }
 
+} elseif (preg_match('#^/leads/(\d+)/stage$#', $relativePath, $stageMatches)) {
+    $leadParamId = (int)$stageMatches[1];
+    $input = apiReadJson();
+
+    // Permissions check: Super Admin, Admin, Manager, Supervisor can move any lead to next stage
+    // Sales Officer / Telecaller cannot change the lead status
+    $canMoveLeadStage = in_array(strtolower(trim($userRole)), ['super admin', 'admin', 'manager', 'supervisor'], true) || $userId === 1;
+    if (!$canMoveLeadStage) {
+        apiError(403, 'Permission denied: Sales Officers and Telecallers cannot change lead status. Only Super Admin, Admin, and Supervisor can move stages.');
+    }
+
+    $newStage = strtoupper(trim((string)($input['lead_status_new'] ?? ($input['status'] ?? ''))));
+    $validStages = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
+    if (!in_array($newStage, $validStages, true)) {
+        apiError(422, 'Invalid pipeline stage: ' . $newStage);
+    }
+
+    // Resolve lead in TBL_LEADS (can be lead_id or cust_id)
+    $stmt = $link->prepare("SELECT lead_id, cust_id, assigned_to, team_id, lead_status_new FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? OR cust_id = ? ORDER BY lead_id DESC LIMIT 1");
+    $stmt->bind_param('ii', $leadParamId, $leadParamId);
+    $stmt->execute();
+    $leadRecord = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$leadRecord) {
+        apiError(404, 'Lead record not found in CRM');
+    }
+
+    $realLeadId = (int)$leadRecord['lead_id'];
+    $prevStage = (string)($leadRecord['lead_status_new'] ?? 'LEAD');
+    $remarks = trim((string)($input['other_info'] ?? ($input['remarks'] ?? ($input['notes'] ?? ''))));
+
+    $legacyStatus = match ($newStage) {
+        'DISBURSED' => 'Converted',
+        'FOLLOWUP' => 'Follow_Up',
+        'REJECT' => 'Lost',
+        default => 'New',
+    };
+
+    $uStmt = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET lead_status_new = ?, lead_status = ?, updated_by = ?, updated_at = NOW() WHERE lead_id = ?");
+    $uStmt->bind_param('ssii', $newStage, $legacyStatus, $userId, $realLeadId);
+    $uStmt->execute();
+    $uStmt->close();
+
+    $custId = (int)($leadRecord['cust_id'] ?? 0);
+    if ($custId > 0) {
+        $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
+        if ($rawSource === 'TEMP') {
+            @$link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = '$newStage', LAST_DIALED_DATE_TIME = NOW() WHERE ID = $custId");
+        } else {
+            @$link->query("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = '$newStage', LAST_DIALED_DATE_TIME = NOW() WHERE ID = $custId");
+        }
+    }
+
+    if ($remarks !== '') {
+        $nStmt = $link->prepare("INSERT INTO " . tn('TBL_LEAD_NOTES') . " (lead_id, user_id, note, created_at) VALUES (?, ?, ?, NOW())");
+        if ($nStmt) {
+            $fullNote = "Stage advanced from {$prevStage} to {$newStage}. Note: {$remarks}";
+            $nStmt->bind_param('iis', $realLeadId, $userId, $fullNote);
+            $nStmt->execute();
+            $nStmt->close();
+        }
+    }
+
+    $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : null;
+    if ($nextFollowup) {
+        $fStmt = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, client_contact_id, contact_source, user_id, followup_at, note, status, created_at) VALUES (?, ?, 'MAIN', ?, ?, ?, 'OPEN', NOW())");
+        if ($fStmt) {
+            $fNote = $remarks ?: "Follow-up for {$newStage} stage";
+            $fStmt->bind_param('iiiss', $realLeadId, $custId, $userId, $nextFollowup, $fNote);
+            $fStmt->execute();
+            $fStmt->close();
+        }
+    }
+
+    logActivity($link, $userId, 'STAGE_CHANGE', "Lead #{$realLeadId} moved from {$prevStage} to {$newStage} by {$userRole} #{$userId}", (string)$realLeadId, tn('TBL_LEADS'));
+
+    apiSuccess([
+        'message' => "Lead stage moved to {$newStage}",
+        'lead_id' => $realLeadId,
+        'previous_stage' => $prevStage,
+        'new_stage' => $newStage,
+        'updated_by' => $userId,
+        'updated_at' => date('Y-m-d H:i:s')
+    ]);
+
 } elseif (preg_match('#^/leads/(\d+)$#', $relativePath, $matches)) {
     $leadId = (int)$matches[1];
     $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
@@ -1110,6 +1196,11 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $package = trim($input['package'] ?? ($input['customer_package'] ?? ''));
         $otherInfo = trim($input['other_info'] ?? ($input['notes'] ?? ''));
         $status = trim($input['status'] ?? ($input['call_status'] ?? ''));
+        $canMoveLeadStage = in_array(strtolower(trim($userRole)), ['super admin', 'admin', 'manager', 'supervisor'], true) || $userId === 1;
+        $pipelineStages = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
+        if (!$canMoveLeadStage && in_array(strtoupper($status), $pipelineStages, true)) {
+            $status = '';
+        }
 
         if ($source === 'TEMP') {
             $stmt = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET 

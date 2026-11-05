@@ -8,14 +8,14 @@ requirePermission('manage_leads');
 ensureLeadModuleSchema($link);
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || !isset($_POST['lead_id'])) {
-    header("Location: lead_list");
+    header("Location: " . url('modules/leads/lead_list.php'));
     exit;
 }
 
 if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
     $_SESSION['success_message'] = 'Invalid session token';
     $_SESSION['flash_class'] = 'danger';
-    header("Location: lead_list");
+    header("Location: " . url('modules/leads/lead_list.php'));
     exit;
 }
 
@@ -43,7 +43,7 @@ mysqli_stmt_close($stmt);
 
 if (!$leadRow) {
     $_SESSION['success_message'] = 'Lead not found.';
-    header("Location: lead_list");
+    header("Location: " . url('modules/leads/lead_list.php'));
     exit;
 }
 
@@ -52,7 +52,7 @@ $leadForCheck = ['assigned_to' => (int)$leadRow['assigned_to'], 'team_id' => (in
 if (!canEditLead($leadForCheck)) {
     $_SESSION['success_message'] = 'This lead is not in your tray. Pull it into your tray first.';
     $_SESSION['flash_class'] = 'danger';
-    header("Location: lead_view?id={$leadId}");
+    header("Location: " . url('modules/leads/lead_view.php?id=' . $leadId));
     exit;
 }
 
@@ -74,7 +74,7 @@ try {
         }
         $_SESSION['success_message'] = 'Remark added successfully.';
         $_SESSION['flash_class'] = 'success';
-        header("Location: lead_view?id={$leadId}");
+        header("Location: " . url('modules/leads/lead_view.php?id=' . $leadId));
         exit;
     }
 
@@ -142,6 +142,11 @@ try {
 
     // Stage gating for the loan workflow
     $stageOrder = array_flip(['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT']);
+    $canMoveStage = canMoveLeadStage();
+    $prevStage = $leadRow['lead_status_new'] ?? 'LEAD';
+    if (!$canMoveStage) {
+        $payload['lead_status_new'] = $prevStage;
+    }
     $newStage = $payload['lead_status_new'];
     $prevStage = $leadRow['lead_status_new'] ?? 'LEAD';
     $newRank = $stageOrder[$newStage] ?? 0;
@@ -297,5 +302,5 @@ try {
     $_SESSION['flash_class'] = 'danger';
 }
 
-header("Location: lead_view?id={$leadId}");
+header("Location: " . url('modules/leads/lead_view.php?id=' . $leadId));
 exit;

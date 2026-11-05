@@ -2406,4 +2406,48 @@ a.dropdown-toggle::after,
     color: inherit;
 }
 
+/* Surface & Background Utility Classes */
+.bg-surface {
+    background-color: var(--bg-surface) !important;
+}
+
+.bg-subtle {
+    background-color: var(--bg-subtle) !important;
+}
+
+.bg-card {
+    background-color: var(--bg-surface) !important;
+}
+
+/* Lead Stepper & Details View Enhancements */
+.lv-stepper-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: thin;
+}
+
+.lv-step-item {
+    flex: 1 0 135px;
+    min-width: 135px;
+    transition: all 0.15s ease;
+}
+
+.lv-step-item:hover {
+    box-shadow: var(--shadow-sm);
+}
+
+.lv-sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border-top: 1px solid var(--border-default);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+}
+
+
 

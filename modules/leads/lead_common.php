@@ -383,6 +383,14 @@ function canEditLeadAssignment(): bool
     return isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
 }
 
+function canMoveLeadStage(?string $role = null): bool
+{
+    if ($role !== null) {
+        return in_array(strtolower(trim($role)), ['super admin', 'admin', 'manager', 'supervisor'], true);
+    }
+    return isSuperAdmin() || isAdmin() || isManager() || isSupervisor();
+}
+
 function getLeadAccessCondition(mysqli $link, string $alias = 'l'): ?string
 {
     if (isAdmin() || isSuperAdmin()) {

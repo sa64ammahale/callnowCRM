@@ -4,7 +4,7 @@ require_once __DIR__ . '/lead_common.php';
 requirePermission('manage_leads');
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    header("Location: lead_list");
+    header("Location: " . url('modules/leads/lead_list.php'));
     exit;
 }
 
@@ -48,7 +48,7 @@ mysqli_stmt_close($stmt);
 if (!$lead || !canViewLead($link, $lead)) {
     $_SESSION['success_message'] = 'Lead not found or access denied.';
     $_SESSION['flash_class'] = 'danger';
-    header('Location: lead_list');
+    header('Location: ' . url('modules/leads/lead_list.php'));
     exit;
 }
 
@@ -57,6 +57,7 @@ $canPull = canPullToTray($lead);
 
 $TBL_USERS = getLeadAssignableTBL_USERS($link);
 $canEditAssignment = canEditLeadAssignment();
+$canMoveStage = canMoveLeadStage();
 
 // Threaded notes
 $notes = [];
@@ -98,7 +99,6 @@ if ($cls) {
     $clr = mysqli_stmt_get_result($cls);
     while ($clr && $row = mysqli_fetch_assoc($clr)) $callLogs[] = $row;
     mysqli_stmt_close($cls);
-    mysqli_stmt_close($fs);
 }
 
 $flashMessage = $_SESSION['success_message'] ?? '';
@@ -188,13 +188,13 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
 <!-- Zoho Workflow Progression Bar -->
 <div class="card mb-3">
     <div class="card-body p-2 bg-subtle">
-        <div class="d-flex align-items-center justify-content-between overflow-x-auto gap-2">
+        <div class="lv-stepper-wrap gap-2">
             <?php foreach ($workflowSteps as $stepIndex => $step): ?>
                 <?php
                 $isDone = $stepIndex < $currentStepIndex;
                 $isActive = $stepIndex === $currentStepIndex;
                 ?>
-                <div class="d-flex align-items-center gap-2 p-2 border rounded bg-surface flex-grow-1" style="<?= $isActive ? 'border-color:var(--primary)!important; background-color:var(--primary-soft)!important;' : '' ?>">
+                <div class="d-flex align-items-center gap-2 p-2 border rounded bg-surface lv-step-item" style="<?= $isActive ? 'border-color:var(--primary)!important; background-color:var(--primary-soft)!important;' : '' ?>">
                     <span class="metric-card-icon sm <?= $isDone ? 'success' : ($isActive ? '' : 'text-muted') ?>" style="width:24px; height:24px; font-size:0.75rem;">
                         <i class="bi <?= $isDone ? 'bi-check-lg' : htmlspecialchars($step['icon']) ?>"></i>
                     </span>
@@ -210,37 +210,37 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
 
 <!-- Business Card Key Information Bar -->
 <div class="row g-2 mb-3">
-    <div class="col-md col-sm-4 col-6">
+    <div class="col-xl-2 col-md-4 col-sm-6 col-12">
         <div class="p-2 border rounded bg-surface">
             <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;">Customer Mobile</div>
             <div class="fw-bold text-dark small"><a href="tel:<?= htmlspecialchars($lead['mobile'] ?? '') ?>" class="text-decoration-none text-dark"><i class="bi bi-telephone text-primary me-1"></i><?= htmlspecialchars($lead['mobile'] ?? '-') ?></a></div>
         </div>
     </div>
-    <div class="col-md col-sm-4 col-6">
+    <div class="col-xl-2 col-md-4 col-sm-6 col-12">
         <div class="p-2 border rounded bg-surface">
             <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;">Employer / Company</div>
             <div class="fw-bold text-dark small text-truncate"><?= htmlspecialchars($lead['company_name'] ?: '-') ?></div>
         </div>
     </div>
-    <div class="col-md col-sm-4 col-6">
+    <div class="col-xl-2 col-md-4 col-sm-6 col-12">
         <div class="p-2 border rounded bg-surface">
             <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;">Loan Type</div>
             <div class="fw-bold text-dark small"><?= htmlspecialchars($lead['loan_type'] ?: '-') ?></div>
         </div>
     </div>
-    <div class="col-md col-sm-4 col-6">
+    <div class="col-xl-2 col-md-4 col-sm-6 col-12">
         <div class="p-2 border rounded bg-surface">
             <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;">Requested Amount</div>
             <div class="fw-bold text-dark small"><?= htmlspecialchars($lead['loan_amount'] ?: '-') ?></div>
         </div>
     </div>
-    <div class="col-md col-sm-4 col-6">
+    <div class="col-xl-2 col-md-4 col-sm-6 col-12">
         <div class="p-2 border rounded bg-surface">
             <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;">Next Follow-up</div>
             <div class="fw-bold text-dark small"><?= $lead['next_followup_at'] ? htmlspecialchars(date('d M Y', strtotime($lead['next_followup_at']))) : 'Not scheduled' ?></div>
         </div>
     </div>
-    <div class="col-md col-sm-4 col-6">
+    <div class="col-xl-2 col-md-4 col-sm-6 col-12">
         <div class="p-2 border rounded bg-surface">
             <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;">App Number</div>
             <div class="fw-bold text-dark small"><?= htmlspecialchars($lead['loan_app_no'] ?: '-') ?></div>
@@ -249,7 +249,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
 </div>
 
 <!-- Main Edit Form -->
-<form method="POST" action="lead_update.php" class="lv-form">
+<form method="POST" action="<?= url('modules/leads/lead_update.php') ?>" class="lv-form">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
     <input type="hidden" name="lead_id" value="<?= $leadId ?>">
     <input type="hidden" name="action" value="save_lead">
@@ -267,11 +267,22 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                     <div class="row g-2">
                         <div class="col-sm-6">
                             <label class="form-label">Current Pipeline Status <span class="req">*</span></label>
-                            <select name="lead_status_new" class="form-select">
-                                <?php foreach ($statusOptions as $status): ?>
-                                    <option value="<?= htmlspecialchars($status) ?>" <?= $currentStatus === $status ? 'selected' : '' ?>><?= htmlspecialchars($status) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <?php if ($canMoveStage): ?>
+                                <select name="lead_status_new" class="form-select">
+                                    <?php foreach ($statusOptions as $status): ?>
+                                        <option value="<?= htmlspecialchars($status) ?>" <?= $currentStatus === $status ? 'selected' : '' ?>><?= htmlspecialchars($status) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php else: ?>
+                                <div class="input-group">
+                                    <input type="text" class="form-control bg-light" value="<?= htmlspecialchars($currentStatus) ?>" readonly>
+                                    <span class="input-group-text bg-white text-muted" title="Sales Officers / Telecallers cannot change lead status. Contact your Supervisor or Admin.">
+                                        <i class="bi bi-lock-fill text-secondary"></i>
+                                    </span>
+                                </div>
+                                <input type="hidden" name="lead_status_new" value="<?= htmlspecialchars($currentStatus) ?>">
+                                <small class="text-muted d-block mt-1" style="font-size:0.75rem;"><i class="bi bi-info-circle me-1"></i>Stage movement is restricted to Supervisor &amp; Admin.</small>
+                            <?php endif; ?>
                         </div>
                         <div class="col-sm-6">
                             <label class="form-label">Assigned Agent</label>
@@ -475,7 +486,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                                         <?php endif; ?>
                                         <?php if (!empty($cl['recording_url'])): ?>
                                             <div class="mt-1">
-                                                <audio controls preload="none" style="height: 22px; width: 100%;">
+                                                <audio controls preload="none" style="height: 36px; width: 100%;">
                                                     <source src="<?= htmlspecialchars($cl['recording_url']) ?>">
                                                 </audio>
                                             </div>
@@ -517,7 +528,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     </div>
 
     <!-- Sticky Bottom Actions -->
-    <div class="p-3 border rounded bg-surface d-flex justify-content-between align-items-center mt-3 position-sticky bottom-0 shadow-sm" style="z-index: 100;">
+    <div class="p-3 border rounded bg-surface d-flex flex-wrap justify-content-between align-items-center mt-3 position-sticky bottom-0 shadow-sm lv-sticky-actions">
         <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Changes will be saved and recorded in the audit history.</span>
         <div class="d-flex align-items-center gap-2">
             <a href="<?= url('modules/leads/lead_list.php') ?>" class="btn btn-secondary">Cancel</a>
@@ -561,7 +572,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
             e.preventDefault();
             var input = document.getElementById('quickNoteText');
             if (!input || !input.value.trim()) return;
-            lvPost('php_scripts/lead_note_add.php', {
+            lvPost('modules/leads/php_scripts/lead_note_add.php', {
                 csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>',
                 lead_id: <?= $leadId ?>,
                 note: input.value.trim()
@@ -572,7 +583,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     // Mark follow-up done
     document.querySelectorAll('.lv-mini-done').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            lvPost('php_scripts/lead_followup_done.php', {
+            lvPost('modules/leads/php_scripts/lead_followup_done.php', {
                 csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>',
                 id: btn.getAttribute('data-id')
             }, function () { location.reload(); });
@@ -583,7 +594,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     var pullBtn = document.getElementById('pullBtn');
     if (pullBtn) {
         pullBtn.addEventListener('click', function () {
-            lvPost('php_scripts/lead_assign.php', {
+            lvPost('modules/leads/php_scripts/lead_assign.php', {
                 csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>',
                 lead_id: <?= $leadId ?>, to_user_id: <?= (int)USER_ID ?>, reason: 'Pulled into my tray'
             }, function () { location.reload(); });
@@ -594,7 +605,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     var forwardBtn = document.getElementById('forwardBtn');
     if (forwardBtn) {
         forwardBtn.addEventListener('click', function () {
-            lvPost('php_scripts/lead_forward_toggle.php', {
+            lvPost('modules/leads/php_scripts/lead_forward_toggle.php', {
                 csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>', lead_id: <?= $leadId ?>
             }, function (j) { location.reload(); });
         });
@@ -604,7 +615,7 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     var backwardBtn = document.getElementById('backwardBtn');
     if (backwardBtn) {
         backwardBtn.addEventListener('click', function () {
-            lvPost('php_scripts/lead_send_backward_toggle.php', {
+            lvPost('modules/leads/php_scripts/lead_send_backward_toggle.php', {
                 csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>', lead_id: <?= $leadId ?>
             }, function () { location.reload(); });
         });
@@ -615,10 +626,10 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     if (cloneBtn) {
         cloneBtn.addEventListener('click', function () {
             if (!confirm('Create a new lead record for logging into another bank? The customer will be linked.')) return;
-            lvPost('php_scripts/lead_clone_bank.php', {
+            lvPost('modules/leads/php_scripts/lead_clone_bank.php', {
                 csrf_token: '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>', lead_id: <?= $leadId ?>
             }, function (j) {
-                if (j.new_lead_id) location.href = 'lead_view?id=' + j.new_lead_id;
+                if (j.new_lead_id) location.href = '<?= url("modules/leads/lead_view.php") ?>?id=' + j.new_lead_id;
                 else location.reload();
             });
         });
