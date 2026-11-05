@@ -459,28 +459,29 @@ include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <style>
-/* ============ Upload Data — Modern Styling ============ */
+/* ============ Upload Data — Natural Styling ============ */
 :root {
-  --upload-gradient: linear-gradient(135deg, #6D45F9 0%, #4A3CB8 100%);
+  --upload-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAFAFC 50%, #F3F4F6 100%);
   --upload-card-bg: #ffffff;
   --upload-muted: #6c757d;
-  --upload-border: #e9ecef;
+  --upload-border: #E2E8F0;
   --upload-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
   --upload-shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.06), 0 4px 6px -2px rgba(0,0,0,0.05);
 }
 
-/* Module Header Gradient */
+/* Module Header — Natural */
 .module-header {
   background: var(--upload-gradient) !important;
   border-radius: var(--radius-lg);
-  color: #fff !important;
-  box-shadow: var(--upload-shadow-lg);
+  color: #1f2937 !important;
+  border: 1px solid var(--upload-border);
+  box-shadow: var(--upload-shadow);
 }
-.module-header a { color: rgba(255,255,255,0.9) !important; }
-.module-header .text-muted { color: rgba(255,255,255,0.75) !important; }
+.module-header a { color: #4A3CB8 !important; }
+.module-header .text-muted { color: #6c757d !important; }
 .module-header .breadcrumb-item a,
-.module-header .breadcrumb-item.active { color: #fff !important; }
-.module-header h1 { color: #fff !important; }
+.module-header .breadcrumb-item.active { color: #4A3CB8 !important; }
+.module-header h1 { color: #1f2937 !important; }
 
 /* Cards */
 .crm-card { background: var(--upload-card-bg); border: 1px solid var(--upload-border); border-radius: var(--radius-lg); box-shadow: var(--upload-shadow); overflow: hidden; }
@@ -489,13 +490,13 @@ include __DIR__ . '/../../php_scripts/header.php';
 .crm-card-body { padding: 1.2rem; }
 .crm-card-footer { background: #f8f9fc; border-top: 1px solid var(--upload-border); }
 
-/* Drop Zone */
+/* Drop Zone — Natural */
 .file-zone {
-  border: 2px dashed #c7c3ff;
+  border: 2px dashed var(--upload-border);
   border-radius: var(--radius-lg);
   padding: 2.5rem 1.5rem;
   text-align: center;
-  background: linear-gradient(180deg, #f3f0ff 0%, #ffffff 100%);
+  background: var(--upload-card-bg);
   cursor: pointer;
   transition: all 0.18s ease;
   position: relative;
@@ -504,39 +505,39 @@ include __DIR__ . '/../../php_scripts/header.php';
 .file-zone::before {
   content: "";
   position: absolute; inset: 0;
-  background: radial-gradient(circle at 50% 0%, rgba(109,69,249,0.06), transparent 40%);
+  background: radial-gradient(circle at 50% 0%, rgba(74,60,184,0.04), transparent 40%);
   opacity: 0; transition: opacity 0.2s;
 }
 .file-zone:hover, .file-zone.dragover {
-  border-color: var(--primary);
-  background-color: #f0e9ff;
+  border-color: #4A3CB8;
+  background-color: #f8f9fc;
   transform: translateY(-2px);
   box-shadow: var(--upload-shadow);
 }
 .file-zone:hover::before { opacity: 1; }
 
-/* Metric Cards */
+/* Metric Cards — Natural */
 .metric-card { background: #fff; border: 1px solid var(--upload-border); border-radius: var(--radius); padding: 0.9rem; box-shadow: var(--upload-shadow); }
 .metric-card-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6c757d; margin-bottom: 0.25rem; }
 .metric-card-value { font-size: 1.5rem; font-weight: 700; color: #1f2937; line-height: 1.2; }
 
-/* Buttons */
-.btn-primary { background: var(--upload-gradient); border: none; box-shadow: 0 2px 4px rgba(109,69,249,0.3); }
-.btn-primary:hover { background: linear-gradient(135deg, #5a38e8 0%, #3e2fa0 100%); transform: translateY(-1px); }
-.btn-outline-secondary:hover { border-color: var(--primary); color: var(--primary); }
+/* Buttons — Natural */
+.btn-primary { background: linear-gradient(180deg, #FFFFFF 0%, #FAFAFC 50%, #F3F4F6 100%); border: 1px solid var(--upload-border); color: #4A3CB8; box-shadow: none; }
+.btn-primary:hover { background: #F3F4F6; border-color: #4A3CB8; color: #3E2FA0; transform: translateY(-1px); }
+.btn-outline-secondary:hover { border-color: #4A3CB8; color: #4A3CB8; }
 
-/* Progress Modal */
-#uploadProgressModal .modal-content { border: none; border-radius: var(--radius-lg); box-shadow: var(--upload-shadow-lg); }
-#uploadProgressModal .modal-header { background: var(--upload-gradient); color: #fff; border-bottom: none; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
-#uploadProgressModal .modal-header .btn-close { filter: invert(1); }
-.progress { background: #eef0f7; border-radius: 8px; height: 14px; overflow: hidden; }
-.progress-bar { background: var(--upload-gradient); box-shadow: none; }
+/* Progress Modal — Natural */
+#uploadProgressModal .modal-content { border: 1px solid var(--upload-border); border-radius: var(--radius-lg); box-shadow: var(--upload-shadow-lg); }
+#uploadProgressModal .modal-header { background: #f8f9fc; color: #1f2937; border-bottom: 1px solid var(--upload-border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+#uploadProgressModal .modal-header .btn-close { filter: none; opacity: 0.5; }
+.progress { background: #eef0f7; border-radius: 8px; height: 14px; overflow: hidden; border: 1px solid var(--upload-border); }
+.progress-bar { background: #4A3CB8; box-shadow: none; }
 
 /* Badges */
 .badge { font-weight: 500; }
 
 /* Table */
-.table-hover tbody tr:hover { background: #f3f0ff; }
+.table-hover tbody tr:hover { background: #f8f9fc; }
 .preview-table { font-size: 0.78rem; }
 
 /* Alerts */
@@ -549,11 +550,11 @@ include __DIR__ . '/../../php_scripts/header.php';
 /* Tags */
 .status-tag { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; padding: 0.25rem 0.6rem; border-radius: 999px; font-weight: 600; }
 
-/* Scrollbar */
+/* Scrollbar — Natural */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #f8f9fa; border-radius: 4px; }
 ::-webkit-scrollbar-thumb { background: #c7c3ff; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #b8aaff; }
+::-webkit-scrollbar-thumb:hover { background: #a8a8f0; }
 
 /* Responsive */
 @media (max-width: 991.98px) {
