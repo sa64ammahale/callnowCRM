@@ -292,11 +292,11 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
         $stats['rows_processed']++;
         $rownum = $stats['rows_processed'];
 
-        $name_raw   = isset($row[$header_index_map['name']]) ? $row[$header_index_map['name']] : ($row[0] ?? '');
-        $mobile_raw = isset($row[$header_index_map['mobile']]) ? $row[$header_index_map['mobile']] : ($row[1] ?? '');
-        $company_raw = isset($row[$header_index_map['company']]) ? $row[$header_index_map['company']] : ($row[2] ?? '');
-        $package_raw = isset($row[$header_index_map['package']]) ? $row[$header_index_map['package']] : ($row[3] ?? '');
-        $other_raw   = isset($row[$header_index_map['other info']]) ? $row[$header_index_map['other info']] : ($row[4] ?? '');
+        $name_raw   = (isset($header_index_map['name']) && $header_index_map['name'] !== null && isset($row[$header_index_map['name']])) ? $row[$header_index_map['name']] : '';
+        $mobile_raw = (isset($header_index_map['mobile']) && $header_index_map['mobile'] !== null && isset($row[$header_index_map['mobile']])) ? $row[$header_index_map['mobile']] : ($row[1] ?? '');
+        $company_raw = (isset($header_index_map['company']) && $header_index_map['company'] !== null && isset($row[$header_index_map['company']])) ? $row[$header_index_map['company']] : '';
+        $package_raw = (isset($header_index_map['package']) && $header_index_map['package'] !== null && isset($row[$header_index_map['package']])) ? $row[$header_index_map['package']] : '';
+        $other_raw   = (isset($header_index_map['other info']) && $header_index_map['other info'] !== null && isset($row[$header_index_map['other info']])) ? $row[$header_index_map['other info']] : '';
 
         $name_raw = trim($name_raw);
         $mobile_raw = trim($mobile_raw);
@@ -459,24 +459,105 @@ include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
 <style>
+/* ============ Upload Data — Modern Styling ============ */
+:root {
+  --upload-gradient: linear-gradient(135deg, #6D45F9 0%, #4A3CB8 100%);
+  --upload-card-bg: #ffffff;
+  --upload-muted: #6c757d;
+  --upload-border: #e9ecef;
+  --upload-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  --upload-shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.06), 0 4px 6px -2px rgba(0,0,0,0.05);
+}
+
+/* Module Header Gradient */
+.module-header {
+  background: var(--upload-gradient) !important;
+  border-radius: var(--radius-lg);
+  color: #fff !important;
+  box-shadow: var(--upload-shadow-lg);
+}
+.module-header a { color: rgba(255,255,255,0.9) !important; }
+.module-header .text-muted { color: rgba(255,255,255,0.75) !important; }
+.module-header .breadcrumb-item a,
+.module-header .breadcrumb-item.active { color: #fff !important; }
+.module-header h1 { color: #fff !important; }
+
+/* Cards */
+.crm-card { background: var(--upload-card-bg); border: 1px solid var(--upload-border); border-radius: var(--radius-lg); box-shadow: var(--upload-shadow); overflow: hidden; }
+.crm-card-header { background: #f8f9fc; border-bottom: 1px solid var(--upload-border); padding: 0.9rem 1.2rem; }
+.crm-card-title { color: #1f2937; font-weight: 600; }
+.crm-card-body { padding: 1.2rem; }
+.crm-card-footer { background: #f8f9fc; border-top: 1px solid var(--upload-border); }
+
+/* Drop Zone */
 .file-zone {
-    border: 2px dashed var(--border-strong);
-    border-radius: var(--radius-lg);
-    padding: 2.5rem 1.5rem;
-    text-align: center;
-    background: #FAFAFB;
-    cursor: pointer;
-    transition: all 0.16s ease;
-    background-image: radial-gradient(rgba(109, 69, 249, 0.08) 1px, transparent 1px);
-    background-size: 16px 16px;
+  border: 2px dashed #c7c3ff;
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: linear-gradient(180deg, #f3f0ff 0%, #ffffff 100%);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+.file-zone::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(109,69,249,0.06), transparent 40%);
+  opacity: 0; transition: opacity 0.2s;
 }
 .file-zone:hover, .file-zone.dragover {
-    border-color: var(--primary);
-    background-color: var(--primary-soft);
+  border-color: var(--primary);
+  background-color: #f0e9ff;
+  transform: translateY(-2px);
+  box-shadow: var(--upload-shadow);
 }
-.preview-table th, .preview-table td {
-    padding: 0.35rem 0.5rem;
-    font-size: 0.75rem;
+.file-zone:hover::before { opacity: 1; }
+
+/* Metric Cards */
+.metric-card { background: #fff; border: 1px solid var(--upload-border); border-radius: var(--radius); padding: 0.9rem; box-shadow: var(--upload-shadow); }
+.metric-card-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6c757d; margin-bottom: 0.25rem; }
+.metric-card-value { font-size: 1.5rem; font-weight: 700; color: #1f2937; line-height: 1.2; }
+
+/* Buttons */
+.btn-primary { background: var(--upload-gradient); border: none; box-shadow: 0 2px 4px rgba(109,69,249,0.3); }
+.btn-primary:hover { background: linear-gradient(135deg, #5a38e8 0%, #3e2fa0 100%); transform: translateY(-1px); }
+.btn-outline-secondary:hover { border-color: var(--primary); color: var(--primary); }
+
+/* Progress Modal */
+#uploadProgressModal .modal-content { border: none; border-radius: var(--radius-lg); box-shadow: var(--upload-shadow-lg); }
+#uploadProgressModal .modal-header { background: var(--upload-gradient); color: #fff; border-bottom: none; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+#uploadProgressModal .modal-header .btn-close { filter: invert(1); }
+.progress { background: #eef0f7; border-radius: 8px; height: 14px; overflow: hidden; }
+.progress-bar { background: var(--upload-gradient); box-shadow: none; }
+
+/* Badges */
+.badge { font-weight: 500; }
+
+/* Table */
+.table-hover tbody tr:hover { background: #f3f0ff; }
+.preview-table { font-size: 0.78rem; }
+
+/* Alerts */
+.alert { border: none; border-radius: var(--radius); box-shadow: var(--upload-shadow); }
+
+/* Empty states */
+.empty-state { text-align: center; padding: 3rem 1rem; color: #6c757d; }
+.empty-state i { font-size: 3rem; color: #dee2e6; margin-bottom: 1rem; display: block; }
+
+/* Tags */
+.status-tag { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; padding: 0.25rem 0.6rem; border-radius: 999px; font-weight: 600; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f8f9fa; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #c7c3ff; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #b8aaff; }
+
+/* Responsive */
+@media (max-width: 991.98px) {
+  .module-header { padding: 1.2rem !important; }
 }
 </style>
 
@@ -495,10 +576,13 @@ include __DIR__ . '/../../php_scripts/header.php';
             <div class="text-muted fs-xs">Batch import records into Temporary Staging, Main Database, or Parallel Repositories</div>
         </div>
         <div class="module-header-actions">
-            <a class="btn btn-secondary btn-sm" href="#" id="downloadExampleBtn">
+            <button type="button" class="btn btn-outline-light btn-sm" id="resetUploadBtn">
+                <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+            </button>
+            <a class="btn btn-light btn-sm" href="#" id="downloadExampleBtn">
                 <i class="bi bi-download me-1"></i> Example CSV
             </a>
-            <button class="btn btn-secondary btn-sm" id="showHelpBtn" type="button" data-bs-toggle="collapse" data-bs-target="#helpCollapse" aria-expanded="false" aria-controls="helpCollapse">
+            <button class="btn btn-light btn-sm" id="showHelpBtn" type="button" data-bs-toggle="collapse" data-bs-target="#helpCollapse" aria-expanded="false" aria-controls="helpCollapse">
                 <i class="bi bi-question-circle me-1"></i> Instructions
             </button>
         </div>
@@ -845,6 +929,7 @@ include __DIR__ . '/../../php_scripts/header.php';
 
 <script>
 /* Core elements */
+const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 const dropZone = document.getElementById('dropZone');
 const dropInfoContent = document.getElementById('dropInfoContent');
 const fileInput = document.getElementById('fileInput');
@@ -854,6 +939,7 @@ const previewBody = document.getElementById('previewBody');
 const previewMeta = document.getElementById('previewMeta');
 const importHidden = document.getElementById('importHidden');
 const hasHeaderCheckbox = document.getElementById('hasHeader');
+const dryRun = document.getElementById('dryRun');
 const downloadExampleBtn = document.getElementById('downloadExampleBtn');
 
 const terms = document.getElementById('exampleCheck1');
@@ -869,6 +955,25 @@ document.querySelectorAll('input[name="target_database"]').forEach(function(r) {
   r.addEventListener('change', updateTempIsolationBanner);
 });
 updateTempIsolationBanner();
+
+document.getElementById('resetUploadBtn').addEventListener('click', function(){
+  fileInput.value = '';
+  dropInfoContent.innerHTML = `
+    <div class="text-center">
+      <i class="bi bi-cloud-arrow-up text-primary" style="font-size:2.5rem;"></i>
+      <div class="mt-2 fw-semibold text-dark fs-sm">Choose CSV file or drag and drop here</div>
+      <div class="text-muted fs-xs">Standard comma-delimited (.csv) • Maximum file size 10MB</div>
+    </div>`;
+  uploadBtn.disabled = true;
+  previewArea.style.display = 'none';
+  previewBody.innerHTML = '';
+  previewMeta.textContent = '';
+  hasHeaderCheckbox.checked = true;
+  dryRun.checked = false;
+  document.querySelector('input[name="target_database"][value="temporary"]').checked = true;
+  updateTempIsolationBanner();
+  showNotification('Reset', 'Upload form cleared', 'info');
+});
 
 dropZone.addEventListener('click', ()=> fileInput.click());
 
@@ -907,9 +1012,7 @@ function handlePreview(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
     const text = e.target.result;
-    const rows = text.split(/\r\n|\n/).filter((r,i,a)=> {
-      return r.trim() !== '';
-    });
+    const rows = parseCSV(text);
     if (rows.length === 0) {
       previewBody.innerHTML = '<tr><td colspan="8" class="text-center fs-xs text-muted">No data rows found</td></tr>';
       previewArea.style.display='block';
@@ -921,11 +1024,11 @@ function handlePreview(file) {
     let dataRows = [];
 
     if (hasHeaderCheckbox.checked) {
-      headerRow = rows[0].split(',');
-      dataRows = rows.slice(1, Math.min(rows.length, 11)).map(r => r.split(',').map(c=>c.trim()));
+      headerRow = rows[0];
+      dataRows = rows.slice(1, Math.min(rows.length, 11));
     } else {
       headerRow = ['Name','Mobile','Company','Package','Other Info'];
-      dataRows = rows.slice(0, Math.min(rows.length, 10)).map(r => r.split(',').map(c=>c.trim()));
+      dataRows = rows.slice(0, Math.min(rows.length, 10));
     }
 
     previewBody.innerHTML = '';
@@ -948,6 +1051,35 @@ function handlePreview(file) {
     previewMeta.textContent = `${dataRows.length} preview rows (showing up to 10). Invalid mobiles: ${invalidCount}. Header detected: ${headerRow.join(', ')}`;
   };
   reader.readAsText(file);
+}
+
+/* Simple CSV parser that respects quoted fields */
+function parseCSV(text) {
+  const rows = [];
+  let current = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < text.length && text[i+1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false;
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { current.push(field); field = ''; }
+      else if (ch === '\r') { /* skip */ }
+      else if (ch === '\n') { current.push(field); rows.push(current); current = []; field = ''; }
+      else { field += ch; }
+    }
+    i++;
+  }
+  if (field !== '' || current.length > 0) { current.push(field); rows.push(current); }
+  return rows;
 }
 
 function escapeHtml(s){ if(!s) return ''; return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
@@ -1107,6 +1239,7 @@ function processUploadBatch(task_id) {
     const formData = new FormData();
     formData.set('process_upload_batch', '1');
     formData.set('task_id', task_id);
+    formData.set('csrf_token', CSRF_TOKEN || '');
 
     $.ajax({
         type: 'POST',

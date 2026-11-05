@@ -87,7 +87,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/database/
 | File | Purpose | Notes |
 |---|---|---|
-| `upload_data.php` | CSV upload + archive | Was debug-logging sensitive data; now removed |
+| `upload_data.php` | CSV upload + archive | Was debug-logging sensitive data; now removed. Modernized with gradient header, colored metric cards, styled drop zone, progress modal, CSRF-fixed batch processing, robust CSV preview parser (quoted fields), reset button, and empty states. |
 | `ViewDND.php` | DND numbers list (gated `manage_database`) | Dual-database listing (queries both `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC'), origin badges (Main DB vs Temp DB), search, pagination, restore to queue, permanent delete, CSRF-protected. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `ViewDND_data.php`. |
 | `ViewDND_data.php` | DataTables server-side JSON for ViewDND.php | GET-only, read-only; DND union (TEMP+MAIN) SELECT/COUNT + search; returns action HTML for restore/delete; supports `length=-1` full export. |
 | `data_management_temporary.php` | AJAX CRUD on TEMPORARY_DATABASE | Was missing role guard; now Admin/Manager |
@@ -419,3 +419,17 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - **CSS architecture**: `header.php` includes Bootstrap CSS, Bootstrap Icons, and `app-theme.css` centrally. Module pages should NOT include their own `<link>` tags for these. Only add minimal page-specific `<style>` blocks when needed. Standalone pages (index.php, forgot-password.php, CallNowSignUp.php) keep their own `<head>` but should use theme classes.
 - **Page pattern**: Protected pages set `$pageTitle` then `include header.php` at top, `include footer.php` at bottom. No `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags in module pages.
 - **Sidebar**: Fixed left column with collapsible `data-sidebar` states (`expanded`, `collapsed`, `mobile-open`). Mobile uses overlay + backdrop via `sidebar.js`. Body scroll locked when mobile sidebar open.
+
+## Upload Data Page Modernization & Bug Fixes (2026-11-05)
+
+- **Modern Coloring**: Replaced plain white UI with violet gradient module header (`#6D45F9 → #4A3CB8`), tinted card backgrounds (`#f3f0ff → #ffffff`), soft borders (`#e9ecef`), drop shadow elevation, and semantic status badges (success/warning/danger/info).
+- **Drop Zone**: Enhanced dashed file drop zone with hover lift, violet hover wash, radial gradient overlay, and file info display (name + size).
+- **Metric Cards**: Color-coded KPI cards — Processed (dark), Inserted (green), Duplicates (amber), Invalid (red) — with subtle shadows and hover lift.
+- **Progress Modal**: Gradient modal header, animated striped progress bar, result alert with close button, and close-btn disabled during active processing.
+- **Reset Button**: New "Reset" action clears file input, drop zone, preview, and form options with notification feedback.
+- **Critical Bug Fix**: `processUploadBatch()` JavaScript was omitting `csrf_token` in the batch-processing AJAX POST, causing all chunked uploads to fail with 403. Now sends `csrf_token` via `FormData`, matching server-side `verifyCsrfToken()` check.
+- **CSV Preview Parser**: Replaced naive `split(',')` with a proper RFC-4180-style parser that respects double-quoted fields containing commas, newlines, and escaped quotes (`""`).
+- **Optional Header Fallback Fix**: When optional columns (name, company, package, other info) are missing from the header, they now default to empty string instead of incorrectly falling back to positional column 0.
+- **Empty States**: Added centered empty-state styling for preview area and log accordion when no data is present.
+- **Tests Verified**: Mobile normalization (`+91`, `0`, leading zeros), canonical header mapping, quoted-field CSV parsing, header alias resolution, and duplicate-key detection logic all validated.
+
