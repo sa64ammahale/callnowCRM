@@ -80,6 +80,27 @@ if ($fs) {
     mysqli_stmt_close($fs);
 }
 
+// Complete Calling History (from Client Contact & Lead)
+$callLogs = [];
+$leadCustId = (int)($lead['cust_id'] ?? 0);
+$cls = mysqli_prepare($link, "
+    SELECT cl.*, u.NAME as officer_name 
+    FROM " . tn('TBL_CALL_LOGS') . " cl
+    LEFT JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID
+    WHERE cl.lead_id = ? 
+       OR (cl.client_contact_id = ? AND cl.source IN ('MAIN', 'TEMP'))
+       OR (cl.record_id = ? AND cl.source IN ('MAIN', 'TEMP'))
+    ORDER BY COALESCE(cl.call_time, cl.created_at) DESC
+");
+if ($cls) {
+    mysqli_stmt_bind_param($cls, 'iii', $leadId, $leadCustId, $leadCustId);
+    mysqli_stmt_execute($cls);
+    $clr = mysqli_stmt_get_result($cls);
+    while ($clr && $row = mysqli_fetch_assoc($clr)) $callLogs[] = $row;
+    mysqli_stmt_close($cls);
+    mysqli_stmt_close($fs);
+}
+
 $flashMessage = $_SESSION['success_message'] ?? '';
 $flashClass = $_SESSION['flash_class'] ?? 'success';
 unset($_SESSION['success_message'], $_SESSION['flash_class']);
@@ -421,6 +442,48 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
                             <button type="button" id="quickNoteBtn" class="btn btn-secondary btn-sm"><i class="bi bi-send"></i> Add</button>
                         </div>
                         <?php endif; ?>
+                    </div>
+
+                    <!-- Complete Calling History & Recordings (From Contact & Lead Journey) -->
+                    <div class="mb-3">
+                        <div class="form-section-title d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-telephone-inbound text-primary me-1"></i> Customer Calling Journey</span>
+                            <span class="badge bg-secondary" style="font-size:0.65rem;"><?= count($callLogs) ?> Call Attempts</span>
+                        </div>
+                        <div class="p-2 border rounded bg-subtle mb-2" style="max-height: 220px; overflow-y: auto;">
+                            <?php if (empty($callLogs)): ?>
+                                <div class="text-muted small text-center py-2">No historical call records found for this contact.</div>
+                            <?php else: ?>
+                                <?php foreach ($callLogs as $cl): 
+                                    $clStatus = $cl['call_status'];
+                                    $clBadge = 'bg-secondary';
+                                    if (in_array(strtolower($clStatus), ['interested', 'lead', 'connected', 'deal converted'])) $clBadge = 'bg-success';
+                                    elseif (in_array(strtolower($clStatus), ['callback', 'busy', 'follow-up'])) $clBadge = 'bg-warning text-dark';
+                                    elseif (in_array(strtolower($clStatus), ['do not call', 'dnd'])) $clBadge = 'bg-danger';
+                                ?>
+                                    <div class="p-2 bg-surface border rounded mb-1">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="badge <?= $clBadge ?>" style="font-size:0.65rem;"><?= htmlspecialchars($clStatus) ?></span>
+                                            <span class="text-muted" style="font-size:0.65rem;"><i class="bi bi-clock me-1"></i><?= date('d M Y, h:i A', strtotime($cl['call_time'] ?: $cl['created_at'])) ?></span>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center mt-1">
+                                            <span class="text-dark fw-semibold" style="font-size:0.75rem;"><i class="bi bi-person me-1 text-muted"></i><?= htmlspecialchars($cl['officer_name'] ?: 'Officer') ?></span>
+                                            <span class="badge bg-light text-dark border" style="font-size:0.65rem;"><i class="bi bi-stopwatch me-1"></i><?= (int)$cl['call_duration'] ?>s</span>
+                                        </div>
+                                        <?php if (!empty($cl['notes'])): ?>
+                                            <div class="text-muted mt-1" style="font-size:0.6875rem;"><?= htmlspecialchars($cl['notes']) ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($cl['recording_url'])): ?>
+                                            <div class="mt-1">
+                                                <audio controls preload="none" style="height: 22px; width: 100%;">
+                                                    <source src="<?= htmlspecialchars($cl['recording_url']) ?>">
+                                                </audio>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
                     </div>
 
                     <!-- Scheduled Follow-ups -->

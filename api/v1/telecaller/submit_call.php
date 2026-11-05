@@ -180,11 +180,12 @@ if ($isDnd && $targetMobile !== '') {
 // 2. Insert into call logs
 $logStmt = $link->prepare("
     INSERT INTO " . tn('TBL_CALL_LOGS') . "
-        (record_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, client_call_id, request_hash, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        (record_id, client_contact_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, client_call_id, request_hash, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
 ");
 $logStmt->bind_param(
-    'isisiisssssssssss',
+    'iisisiisssssssssss',
+    $recordId,
     $recordId,
     $source,
     $userId,
@@ -211,7 +212,15 @@ $table = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
 logActivity($link, $userId, 'CALL_SUBMITTED', "Submitted call result for $source record #$recordId", (string)$recordId, $table);
 
 // Convert to CRM Leads table (TBL_LEADS) if status is Lead or Follow-up
-$syncedLeadId = syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $callStatus, $notes, $nextFollowup);
+$syncedLeadId = syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $callStatus, $notes, $nextFollowup, $input['loan_qualification'] ?? ($input['loan_details'] ?? null), $logId);
+if ($syncedLeadId && $syncedLeadId > 0) {
+    $updLog = $link->prepare("UPDATE " . tn('TBL_CALL_LOGS') . " SET lead_id = ? WHERE id = ?");
+    if ($updLog) {
+        $updLog->bind_param('ii', $syncedLeadId, $logId);
+        $updLog->execute();
+        $updLog->close();
+    }
+}
 $link->commit();
 } catch (Throwable $e) {
     $link->rollback();

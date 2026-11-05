@@ -287,7 +287,7 @@ function logApiAccess(array $tokenData, string $endpoint, string $method, int $r
 }
 
 if (!function_exists('syncCallToLeadsAndPipeline')) {
-    function syncCallToLeadsAndPipeline(mysqli $link, string $source, int $recordId, int $userId, string $status, string $notes, ?string $nextFollowup): ?int {
+    function syncCallToLeadsAndPipeline(mysqli $link, string $source, int $recordId, int $userId, string $status, string $notes, ?string $nextFollowup, ?array $loanQualification = null, ?int $callLogId = null): ?int {
         $statusLower = strtolower(trim($status));
         $isNegative = str_contains($statusLower, 'not interested') 
             || str_contains($statusLower, 'not intrested') 
@@ -362,6 +362,14 @@ if (!function_exists('syncCallToLeadsAndPipeline')) {
         $cPackage = $leadContact['MAINDATABASE_PACKAGE'] ?? '';
         $cOther = $notes ?: ($leadContact['MAINDATABASE_OTHER_INFO'] ?? '');
 
+        // Extract loan qualification details if provided
+        $loanType = !empty($loanQualification['loan_type']) ? trim((string)$loanQualification['loan_type']) : 'Personal Loan';
+        $loanAmount = !empty($loanQualification['loan_amount']) ? trim((string)$loanQualification['loan_amount']) : $cPackage;
+        $netSalary = !empty($loanQualification['net_salary']) ? trim((string)$loanQualification['net_salary']) : null;
+        $salaryAccount = !empty($loanQualification['salary_account']) ? trim((string)$loanQualification['salary_account']) : null;
+        $bankName = !empty($loanQualification['bank_name']) ? trim((string)$loanQualification['bank_name']) : null;
+        $loanTenure = !empty($loanQualification['loan_tenure']) ? trim((string)$loanQualification['loan_tenure']) : null;
+
         $chkL = $link->prepare("SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = ? OR (MOBILE IS NOT NULL AND MOBILE != '' AND MOBILE = ?) LIMIT 1");
         $chkL->bind_param('is', $mainCustId, $cMobile);
         $chkL->execute();
@@ -373,21 +381,33 @@ if (!function_exists('syncCallToLeadsAndPipeline')) {
         if ($isLead) {
             if (!$existingL) {
                 $insLead = $link->prepare("INSERT INTO " . tn('TBL_LEADS') . " 
-                    (cust_id, NAME, MOBILE, COMPANY_NAME, loan_amount, OTHER_INFO, assigned_to, assigned_by, created_by, updated_by, lead_status, lead_status_new, lead_stage, priority, remarks, next_followup_at, last_contacted_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', 'LEAD', 'Hot', 'High', ?, ?, NOW(), NOW(), NOW())");
+                    (cust_id, NAME, MOBILE, COMPANY_NAME, loan_amount, loan_type, net_salary, salary_account, bank_name, loan_tenure, OTHER_INFO, assigned_to, assigned_by, created_by, updated_by, lead_status, lead_status_new, lead_stage, priority, remarks, next_followup_at, last_contacted_at, converted_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', 'LEAD', 'Hot', 'High', ?, ?, NOW(), NOW(), NOW(), NOW())");
                 if ($insLead) {
-                    $insLead->bind_param('isssssiiiiss', $mainCustId, $cName, $cMobile, $cCompany, $cPackage, $cOther, $userId, $userId, $userId, $userId, $notes, $nextFollowup);
+                    $insLead->bind_param('issssssssssiiiiss', $mainCustId, $cName, $cMobile, $cCompany, $loanAmount, $loanType, $netSalary, $salaryAccount, $bankName, $loanTenure, $cOther, $userId, $userId, $userId, $userId, $notes, $nextFollowup);
                     $insLead->execute();
                     $leadId = (int)$insLead->insert_id;
                     $insLead->close();
+
+                    // Log audit trail in contact_lead_conversions
+                    $convStmt = $link->prepare("
+                        INSERT INTO " . tn('TBL_CONTACT_LEAD_CONVERSIONS') . "
+                            (client_contact_id, contact_source, lead_id, converted_by, source_call_id, conversion_date, loan_type, loan_amount, notes, created_at)
+                        VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, NOW())
+                    ");
+                    if ($convStmt) {
+                        $convStmt->bind_param('isiissss', $mainCustId, $source, $leadId, $userId, $callLogId, $loanType, $loanAmount, $notes);
+                        $convStmt->execute();
+                        $convStmt->close();
+                    }
                 } else {
                     error_log("Failed to prepare INSERT INTO TBL_LEADS: " . $link->error);
                 }
 
                 if ($nextFollowup && $leadId > 0) {
-                    $insFollow = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
+                    $insFollow = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, client_contact_id, contact_source, source_call_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', NOW())");
                     if ($insFollow) {
-                        $insFollow->bind_param('iiss', $leadId, $userId, $nextFollowup, $notes);
+                        $insFollow->bind_param('iisiiss', $leadId, $mainCustId, $source, $callLogId, $userId, $nextFollowup, $notes);
                         $insFollow->execute();
                         $insFollow->close();
                     }
@@ -400,31 +420,46 @@ if (!function_exists('syncCallToLeadsAndPipeline')) {
                     lead_stage = CASE WHEN lead_status_new = 'LEAD' THEN 'Hot' ELSE lead_stage END,
                     priority = CASE WHEN lead_status_new = 'LEAD' THEN 'High' ELSE priority END,
                     lead_status = CASE WHEN lead_status_new = 'LEAD' THEN 'New' ELSE lead_status END,
+                    loan_amount = CASE WHEN ? != '' AND ? IS NOT NULL THEN ? ELSE loan_amount END,
+                    loan_type = CASE WHEN ? != '' AND ? IS NOT NULL THEN ? ELSE loan_type END,
                     remarks = CASE WHEN ? != '' THEN CONCAT(COALESCE(remarks, ''), '\n', ?) ELSE remarks END, 
                     next_followup_at = COALESCE(?, next_followup_at), 
                     last_contacted_at = NOW(), 
                     updated_by = ?,
                     updated_at = NOW() 
                     WHERE lead_id = ?");
-                $updLead->bind_param('isssii', $userId, $notes, $notes, $nextFollowup, $userId, $leadId);
+                $updLead->bind_param('isssssssssii', $userId, $loanAmount, $loanAmount, $loanAmount, $loanType, $loanType, $loanType, $notes, $notes, $nextFollowup, $userId, $leadId);
+                $updLead->execute();
+                $updLead->close();
+
+                if ($nextFollowup && $leadId > 0) {
+                    $insFollow = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, client_contact_id, contact_source, source_call_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', NOW())");
+                    if ($insFollow) {
+                        $insFollow->bind_param('iisiiss', $leadId, $mainCustId, $source, $callLogId, $userId, $nextFollowup, $notes);
+                        $insFollow->execute();
+                        $insFollow->close();
+                    }
+                }
+            }
+        } elseif ($isCallback) {
+            // Callback: preserve Client Contact, do NOT create Lead, but record scheduled follow-up
+            $existingLeadId = $existingL ? (int)$existingL['lead_id'] : null;
+            if ($existingLeadId) {
+                $updLead = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET lead_status_new = CASE WHEN lead_status_new IN ('LEAD', 'FOLLOWUP') THEN 'FOLLOWUP' ELSE lead_status_new END, lead_status = CASE WHEN lead_status_new = 'FOLLOWUP' THEN 'Follow_Up' ELSE lead_status END, next_followup_at = COALESCE(?, next_followup_at), last_contacted_at = NOW(), updated_by = ?, updated_at = NOW() WHERE lead_id = ?");
+                $updLead->bind_param('sii', $nextFollowup, $userId, $existingLeadId);
                 $updLead->execute();
                 $updLead->close();
             }
-        } elseif ($isCallback && $existingL) {
-            $leadId = (int)$existingL['lead_id'];
-            $updLead = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET lead_status_new = CASE WHEN lead_status_new IN ('LEAD', 'FOLLOWUP') THEN 'FOLLOWUP' ELSE lead_status_new END, lead_status = CASE WHEN lead_status_new = 'FOLLOWUP' THEN 'Follow_Up' ELSE lead_status END, next_followup_at = COALESCE(?, next_followup_at), last_contacted_at = NOW(), updated_by = ?, updated_at = NOW() WHERE lead_id = ?");
-            $updLead->bind_param('sii', $nextFollowup, $userId, $leadId);
-            $updLead->execute();
-            $updLead->close();
 
             if ($nextFollowup) {
-                $insFollow = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
+                $insFollow = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, client_contact_id, contact_source, source_call_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', NOW())");
                 if ($insFollow) {
-                    $insFollow->bind_param('iiss', $leadId, $userId, $nextFollowup, $notes);
+                    $insFollow->bind_param('iisiiss', $existingLeadId, $recordId, $source, $callLogId, $userId, $nextFollowup, $notes);
                     $insFollow->execute();
                     $insFollow->close();
                 }
             }
+            $leadId = $existingLeadId;
         }
 
         return $leadId;

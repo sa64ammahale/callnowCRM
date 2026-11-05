@@ -35,6 +35,8 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `super_admin.php` | Super admin limit helpers: `ensureSuperAdminSchema()`, `getCurrentPlan()`, `getEffectivePlan()`, `checkUserLimit()`, `checkApiTokenLimit()`, `checkStorageLimit()`, `getLimitUsageSummary()`, `logLimitViolation()` |
 | `footer.php` | Closes layout, loads Bootstrap JS bundle, theme.js, sidebar.js, APP_BASE, APP_CSRF |
 | `team_auth.php` | Team-scoped helpers: `canViewAllTeams()`, `getTeamFilterSQL()`, `requireTeamAccess()` |
+| `reporting_schema.php` | Self-healing schema migrations for Call Reporting: `call_logs.lead_id`, `call_logs.client_contact_id`, `lead_followups.client_contact_id`, `contact_lead_conversions`, `reporting_targets` |
+| `reporting_engine.php` | Performance engine: Client Contact metrics, Calling analytics, Lead metrics, Hourly breakdown (9:30-18:30), Employee targets & achievements, Supervisor rollups, Follow-up hub, Alerts, Rankings |
 | `lead_ajax_check.php` | Stale duplicate (superseded by modules/leads/php_scripts/) |
 
 ### modules/settings/
@@ -190,6 +192,44 @@ Column mapping applied:
 - `app_settings` holds `rbac_cache_version` (bumped by `clearRbacCache()` on any change) and `rbac_initialized` flag.
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
+
+## Completed Feature (2026-11-05): Client Contacts, Call Reporting & Loan Telecalling Performance Management System
+- **Core Business Distinction**:
+  - Maintained strict separation between **Client Contacts** (`main_database` / `temporary_database`) and **Leads** (`leads_table`).
+  - Contacts remain contacts through all standard dispositions (*Not Interested*, *Callback / Busy*, *DND*, *Switch Off*, *Not Reachable*, *Invalid*, *Ringing*).
+  - Only positive interest (*Enquiry / Interested*, *Lead*, *Hot*) converts a contact into a Lead with loan qualification details (`loan_type`, `loan_amount`, `net_salary`, `salary_account`, `bank_name`).
+  - Permanent relationship preserved via `leads_table.cust_id = main_database.ID` and audit logging in `contact_lead_conversions`.
+  - Idempotent conversion prevents duplicate rows on repeated mobile retries.
+- **Database Schema Enhancements (Additive & Self-Healing)**:
+  - Added `lead_id` and `client_contact_id` to `TBL_CALL_LOGS` with indices.
+  - Added `client_contact_id`, `contact_source`, and `source_call_id` to `TBL_LEAD_FOLLOWUPS` enabling pre-conversion contact callbacks as first-class entities.
+  - Created `contact_lead_conversions` table for complete conversion audit history.
+  - Created `reporting_targets` table storing Super Admin configurable quotas and alert thresholds.
+  - Initialized automatically via `php_scripts/reporting_schema.php` on config boot.
+- **Reporting Engine & Analytics (`php_scripts/reporting_engine.php`)**:
+  - Implemented modular functions for Client Contact metrics, Calling analytics, Lead & loan pipeline metrics, Hourly calling distribution (09:00 AM - 06:00 PM), Employee targets & achievement %, Supervisor rollups, Follow-up hub, Performance alerts, and Rankings.
+- **Call Reports Page Overhaul (`modules/logs/Reports.php`)**:
+  - Rebuilt with Flux Dashboard design system and 10 integrated tabs:
+    1. *Executive Overview & Trends* (3-Tier Hero cards, Hourly Velocity Bar chart, Dispositions Doughnut chart)
+    2. *Client Contacts Calling Registry* (100 recent contacts, dispositions, lead status links, search)
+    3. *Converted Loan Leads* (Lead ID, Orig. Contact ID, Loan Product, Requested Amount, Pipeline Stage, Disbursed Amount)
+    4. *Sales Officers Performance* (Calling targets, achievements, connect rate, talk time)
+    5. *Supervisor Rollup* (Squad aggregations, staff count, target achievement, connect rate)
+    6. *Hourly Calling Analytics* (Hour-by-hour breakdown 09:00-18:00)
+    7. *Follow-ups Hub* (Scheduled callbacks for both Contacts and Leads)
+    8. *Performance Alerts Center* (Critical, Warning, Info, Success with configurable triggers)
+    9. *Rankings Leaderboard* (6-Factor Calling Productivity Score & Loan Sales Score with Medals)
+    10. *Detailed Call History* (Full audit trail with audio recordings)
+  - Added Super Admin Target Configuration modal for live threshold tuning.
+  - Added Comprehensive Multi-Section CSV Export (`?export=csv`).
+- **Lead Detail Calling Journey View (`modules/leads/lead_view.php`)**:
+  - Added *Customer Calling Journey* panel displaying all calls made before and after conversion.
+- **Mobile Telecaller API (`api/v1/telecaller/`)**:
+  - Updated `submit_call.php` to extract loan qualifications, set `client_contact_id` and `lead_id` on call logs, record conversion audit, and schedule pre-conversion follow-ups.
+  - Added `/follow-ups` (GET / POST), `/follow-ups/{id}/complete` (PUT / POST), and `/follow-ups/{id}/reschedule` (PUT / POST) routes with role-scoping.
+- **Automated Verification**:
+  - Created `tests/test_loan_telecalling_performance.php` covering all 10 business lifecycle scenarios (17/17 assertions passing 100%).
+  - Batch PHP lint across entire repository passed with 0 syntax errors.
 
 ## Completed Feature (2026-11-01): Mobile App Full User Details & Profile Management API
 - **Endpoint Enhancements**:

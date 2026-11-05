@@ -1,16 +1,30 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/reporting_engine.php';
 
 requirePermission('view_reports');
 
 // Determine roles and scope
 $userRole     = USER_ROLE;
-$isSuperAdmin = isSuperAdmin() || ($userRole === 'Super Admin');
+$isSuperAdmin = isSuperAdmin() || ($userRole === 'Super Admin') || (USER_ID === 1);
 $isAdmin      = isAdmin() || ($userRole === 'Admin');
 $isManager    = isManager() || ($userRole === 'Manager');
 $isSupervisor = isSupervisor() || ($userRole === 'Supervisor');
 $isOfficer    = ($userRole === 'Officer') && !$isAdmin && !$isSuperAdmin && !$isSupervisor && !$isManager;
+
+// Super Admin Target Configuration Save Handler
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_targets'])) {
+    if (!$isSuperAdmin) {
+        $_SESSION['error_message'] = "Unauthorized: Only Super Admin can configure targets.";
+    } else {
+        verifyCsrfToken($_POST['csrf_token'] ?? '');
+        saveReportingTargets($link, $_POST, 'Officer');
+        $_SESSION['success_message'] = "Reporting targets and performance thresholds updated successfully.";
+    }
+    header("Location: " . $_SERVER['PHP_SELF'] . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : ''));
+    exit;
+}
 
 // Date range (default: Today) + presets
 $range            = $_GET['range'] ?? 'today';
@@ -18,6 +32,7 @@ $from             = $_GET['from'] ?? '';
 $to               = $_GET['to']   ?? '';
 $team_filter      = $_GET['team'] ?? '';
 $supervisor_filter= $_GET['supervisor'] ?? '';
+$loan_type_filter = $_GET['loan_type'] ?? '';
 $selected_user_id = isset($_GET['user']) && is_numeric($_GET['user'])
     ? (int)$_GET['user']
     : ($isOfficer ? (int)USER_ID : null);
@@ -85,8 +100,8 @@ function computeRange(string $preset, string &$from, string &$to): void {
 
 if ($range === 'custom') {
     if (!$from || !$to) {
-        $from = '';
-        $to   = '';
+        $from = date('Y-m-d');
+        $to   = date('Y-m-d');
     }
 } else {
     computeRange($range, $from, $to);
@@ -95,317 +110,193 @@ if ($range === 'custom') {
 $rangeLabel    = $rangeLabels[$range] ?? 'Today';
 $spanDays      = (new DateTime($to ?: 'today'))->diff(new DateTime($from ?: 'today'))->days + 1;
 $bucket        = $spanDays > 31 ? 'month' : 'day';
-$missingCustom = ($range === 'custom' && (!$from || !$to));
-$runQueries    = !$missingCustom;
 
-// Supervisor team resolution
-$supervisorTeamIds = [];
-$supervisorTeamOptions = [];
-if ($isSupervisor) {
-    if (USER_TEAM_ID !== null && (int)USER_TEAM_ID > 0) {
-        $supervisorTeamIds[] = (int)USER_TEAM_ID;
-    }
-    $stQ = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = " . (int)USER_ID);
-    if ($stQ) {
-        while ($stR = mysqli_fetch_assoc($stQ)) {
-            $supervisorTeamIds[] = (int)$stR['ID'];
-            $supervisorTeamOptions[] = $stR;
-        }
-    }
-    $supervisorTeamIds = array_values(array_unique(array_filter($supervisorTeamIds)));
+// Teams & Supervisors dropdown list based on role
+$TBL_TEAMS = [];
+$allSupervisors = [];
+if ($isSuperAdmin || $isAdmin || $isManager) {
+    $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
+    if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
+
+    $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor', 'Manager', 'Admin') AND STATUS = 'Active' ORDER BY NAME");
+    if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
+} elseif ($isSupervisor) {
+    $supId = (int)USER_ID;
+    $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = $supId ORDER BY NAME");
+    if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
 }
 
-// Query parameters + WHERE
-$paramsBase = [$from, $to];
-$typesBase  = "ss";
+// Fetch configured targets & performance thresholds
+$targets = getReportingTargets($link, 'Officer');
 
-$whereParts   = [];
-$whereParts[] = "m.user_id IS NOT NULL";
-$whereParts[] = "m.call_time IS NOT NULL";
-$whereParts[] = "DATE(m.call_time) BETWEEN ? AND ?";
+// Fetch Metrics via Reporting Engine
+$teamIdParam = $team_filter !== '' ? (int)$team_filter : null;
+$supIdParam  = $supervisor_filter !== '' ? (int)$supervisor_filter : null;
 
-if ($isSupervisor) {
-    if (!empty($supervisorTeamIds)) {
-        if ($team_filter !== '' && is_numeric($team_filter) && in_array((int)$team_filter, $supervisorTeamIds, true)) {
-            $whereParts[] = "u.TEAM_ID = ?";
-            $paramsBase[] = (int)$team_filter;
-            $typesBase   .= "i";
-        } else {
-            $inList = implode(',', $supervisorTeamIds);
-            $whereParts[] = "(u.TEAM_ID IN ($inList) OR u.ID = ?)";
-            $paramsBase[] = (int)USER_ID;
-            $typesBase   .= "i";
-        }
-    } else {
-        $whereParts[] = "u.ID = ?";
-        $paramsBase[] = (int)USER_ID;
-        $typesBase   .= "i";
-    }
-} elseif ($isOfficer) {
-    $whereParts[] = "u.ID = ?";
-    $paramsBase[] = (int)USER_ID;
-    $typesBase   .= "i";
-} else {
-    // Super Admin / Admin / Manager
-    if ($team_filter !== '' && is_numeric($team_filter)) {
-        $whereParts[] = "u.TEAM_ID = ?";
-        $paramsBase[] = (int)$team_filter;
-        $typesBase   .= "i";
-    }
-    if ($supervisor_filter !== '' && is_numeric($supervisor_filter)) {
-        $whereParts[] = "t.SUPERVISOR_ID = ?";
-        $paramsBase[] = (int)$supervisor_filter;
-        $typesBase   .= "i";
-    }
+$contactMetrics   = getClientContactMetrics($link, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
+$callMetrics      = getCallingMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
+$leadMetrics      = getLeadConversionMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
+$hourlyAnalytics  = getHourlyCallingAnalytics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
+$empRows          = getEmployeePerformanceRows($link, $from, $to, $teamIdParam, $supIdParam, $selected_user_id, $userRole, $targets);
+$supRows          = ($isSuperAdmin || $isAdmin || $isManager) ? getSupervisorPerformanceRows($link, $from, $to, $teamIdParam, $targets) : [];
+$followupList     = getFollowupList($link, $selected_user_id, $teamIdParam, $userRole, 'all', 100);
+$alerts           = getPerformanceAlerts($link, $empRows, $targets, $selected_user_id, $userRole);
+$rankings         = calculateProductivityRankings($empRows, $targets);
+
+// Client Contacts Table Data (Filtered)
+$contactTableRows = [];
+$cWhere = [];
+$cParams = [];
+$cTypes = '';
+
+if ($userRole === 'Officer') {
+    $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
+    $cParams[] = (int)USER_ID;
+    $cTypes .= 'i';
+} elseif ($selected_user_id) {
+    $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
+    $cParams[] = $selected_user_id;
+    $cTypes .= 'i';
+} elseif ($teamIdParam) {
+    $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+    $cParams[] = $teamIdParam;
+    $cTypes .= 'i';
 }
 
-$whereSql = $whereParts
-    ? "WHERE " . implode(" AND ", $whereParts)
-    : "";
+$cWhereSql = !empty($cWhere) ? "WHERE " . implode(' AND ', $cWhere) : "";
+$cSql = "
+    SELECT 
+        m.ID, m.MAINDATABASE_NAME as name, m.MAINDATABASE_MOBILE as mobile, m.MAINDATABASE_COMPANY as company,
+        m.MAINDATABASE_CALL_DIALED_STATUS as status, m.CALL_COUNT as call_count, m.LAST_DIALED_DATE_TIME as last_called_at,
+        m.MAINDATABASE_UPLOAD_DATETIME as uploaded_at,
+        u.NAME as officer_name,
+        l.lead_id, l.lead_status_new as pipeline_stage, l.converted_at
+    FROM " . tn('TBL_MAIN') . " m
+    LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID
+    LEFT JOIN " . tn('TBL_LEADS') . " l ON m.ID = l.cust_id
+    $cWhereSql
+    ORDER BY m.LAST_DIALED_DATE_TIME DESC, m.ID DESC
+    LIMIT 100
+";
+$cStmt = $link->prepare($cSql);
+if (!empty($cParams)) $cStmt->bind_param($cTypes, ...$cParams);
+$cStmt->execute();
+$contactTableRows = $cStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$cStmt->close();
 
-$unionSubquery = "
-    SELECT
-        cl.id                  AS ID,
-        cl.user_id             AS user_id,
-        COALESCE(cl.call_time, cl.created_at) AS call_time,
-        cl.call_status         AS call_status,
-        cl.call_duration       AS call_duration,
-        COALESCE(t.CUST_NAME, m.MAINDATABASE_NAME, l.NAME, '') AS cust_name,
-        COALESCE(t.CUST_MOBILE, m.MAINDATABASE_MOBILE, l.MOBILE, '') AS cust_mobile,
-        COALESCE(t.CUST_COMPANY, m.MAINDATABASE_COMPANY, l.COMPANY_NAME, '') AS cust_company,
-        cl.source              AS source
+// Converted Leads Table Data (Filtered)
+$leadTableRows = [];
+$lWhere = ["l.created_at >= ? AND l.created_at < ? + INTERVAL 1 DAY"];
+$lParams = [$from, $to];
+$lTypes = 'ss';
+
+if ($userRole === 'Officer') {
+    $lWhere[] = "l.assigned_to = ?";
+    $lParams[] = (int)USER_ID;
+    $lTypes .= 'i';
+} elseif ($selected_user_id) {
+    $lWhere[] = "l.assigned_to = ?";
+    $lParams[] = $selected_user_id;
+    $lTypes .= 'i';
+} elseif ($teamIdParam) {
+    $lWhere[] = "l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+    $lParams[] = $teamIdParam;
+    $lTypes .= 'i';
+}
+
+if ($loan_type_filter !== '') {
+    $lWhere[] = "l.loan_type = ?";
+    $lParams[] = $loan_type_filter;
+    $lTypes .= 's';
+}
+
+$lWhereSql = "WHERE " . implode(' AND ', $lWhere);
+$lSql = "
+    SELECT 
+        l.lead_id, l.cust_id, l.NAME as name, l.MOBILE as mobile, l.COMPANY_NAME as company,
+        l.loan_type, l.loan_amount, l.lead_status_new as pipeline_stage, l.bank_name, l.login_bank_name,
+        l.created_at, l.converted_at,
+        u.NAME as officer_name,
+        t.NAME as team_name,
+        s.NAME as supervisor_name
+    FROM " . tn('TBL_LEADS') . " l
+    LEFT JOIN " . tn('TBL_USERS') . " u ON l.assigned_to = u.ID
+    LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
+    LEFT JOIN " . tn('TBL_USERS') . " s ON t.SUPERVISOR_ID = s.ID
+    $lWhereSql
+    ORDER BY l.created_at DESC
+    LIMIT 100
+";
+$lStmt = $link->prepare($lSql);
+$lStmt->bind_param($lTypes, ...$lParams);
+$lStmt->execute();
+$leadTableRows = $lStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$lStmt->close();
+
+// Call logs drilldown
+$detailRows = [];
+$dWhere = ["COALESCE(cl.call_time, cl.created_at) >= ? AND COALESCE(cl.call_time, cl.created_at) < ? + INTERVAL 1 DAY"];
+$dParams = [$from, $to];
+$dTypes = 'ss';
+
+if ($userRole === 'Officer') {
+    $dWhere[] = "cl.user_id = ?";
+    $dParams[] = (int)USER_ID;
+    $dTypes .= 'i';
+} elseif ($selected_user_id) {
+    $dWhere[] = "cl.user_id = ?";
+    $dParams[] = $selected_user_id;
+    $dTypes .= 'i';
+} elseif ($teamIdParam) {
+    $dWhere[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+    $dParams[] = $teamIdParam;
+    $dTypes .= 'i';
+}
+
+$dWhereSql = "WHERE " . implode(' AND ', $dWhere);
+$dSql = "
+    SELECT 
+        cl.id, cl.call_time, cl.created_at, cl.call_status, cl.call_duration, cl.source, cl.recording_url, cl.notes,
+        COALESCE(m.MAINDATABASE_NAME, t.CUST_NAME, l.NAME, '') as cust_name,
+        COALESCE(m.MAINDATABASE_MOBILE, t.CUST_MOBILE, l.MOBILE, '') as cust_mobile,
+        COALESCE(m.MAINDATABASE_COMPANY, t.CUST_COMPANY, l.COMPANY_NAME, '') as cust_company,
+        cl.client_contact_id, cl.lead_id,
+        u.NAME as officer_name
     FROM " . tn('TBL_CALL_LOGS') . " cl
-    LEFT JOIN " . tn('TBL_TEMP') . " t ON cl.source = 'TEMP' AND cl.record_id = t.ID
-    LEFT JOIN " . tn('TBL_MAIN') . " m ON cl.source = 'MAIN' AND cl.record_id = m.ID
-    LEFT JOIN " . tn('TBL_LEADS') . " l ON cl.source = 'LEADS' AND cl.record_id = l.lead_id
+    LEFT JOIN " . tn('TBL_MAIN') . " m ON (cl.client_contact_id = m.ID AND cl.source = 'MAIN')
+    LEFT JOIN " . tn('TBL_TEMP') . " t ON (cl.client_contact_id = t.ID AND cl.source = 'TEMP')
+    LEFT JOIN " . tn('TBL_LEADS') . " l ON cl.lead_id = l.lead_id
+    LEFT JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID
+    $dWhereSql
+    ORDER BY COALESCE(cl.call_time, cl.created_at) DESC
+    LIMIT 300
 ";
+$dStmt = $link->prepare($dSql);
+$dStmt->bind_param($dTypes, ...$dParams);
+$dStmt->execute();
+$detailRows = $dStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$dStmt->close();
 
-$sqlSummary = "
-    SELECT
-        u.ID   AS user_id,
-        u.NAME AS user_name,
-        t.ID   AS team_id,
-        t.NAME AS team_name,
-        t.SUPERVISOR_ID,
-        s.NAME AS supervisor_name,
-        COUNT(*) AS total,
-        SUM(CASE WHEN (m.call_duration > 0 OR LOWER(m.call_status) IN ('connected', 'lead', 'interested', 'intrested', 'interested / hot', 'intrested / hot', 'deal converted', 'follow-up needed', 'callback / follow-up', 'follow-up', 'follow up', 'not interested', 'not intrested', 'other discussion', 'enquiry/ interested', 'enquiry/ intrested', 'callback/ busy', 'callback / busy')) THEN 1 ELSE 0 END) AS connected,
-        SUM(CASE WHEN (LOWER(m.call_status) NOT LIKE '%not%' AND (LOWER(m.call_status) LIKE '%interest%' OR LOWER(m.call_status) LIKE '%intrest%' OR LOWER(m.call_status) LIKE '%enquiry%' OR LOWER(m.call_status) LIKE '%converted%' OR LOWER(m.call_status) LIKE '%lead%')) THEN 1 ELSE 0 END) AS interested,
-        SUM(CASE WHEN (LOWER(m.call_status) LIKE '%not interest%' OR LOWER(m.call_status) LIKE '%not intrest%' OR LOWER(m.call_status) IN ('not interested', 'not_interested', 'not intrested')) THEN 1 ELSE 0 END) AS not_interested,
-        SUM(CASE WHEN (LOWER(m.call_status) LIKE '%callback%' OR LOWER(m.call_status) LIKE '%call back%' OR LOWER(m.call_status) LIKE '%follow%' OR LOWER(m.call_status) IN ('follow-up needed', 'callback / follow-up', 'follow up', 'follow-up', 'call back', 'callback', 'pending', 'callback/ busy', 'callback / busy')) THEN 1 ELSE 0 END) AS followup,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('busy / no answer', 'busy', 'no answer', 'no_answer', 'ringing', 'switch off', 'switch_off', 'not rechable', 'not reachable') THEN 1 ELSE 0 END) AS busy_no_ans,
-        SUM(CASE WHEN LOWER(m.call_status) IN ('do not call', 'dnc', 'dnd', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd') THEN 1 ELSE 0 END) AS dnc,
-        SUM(CASE WHEN (
-            (LOWER(m.call_status) NOT LIKE '%not%' AND (LOWER(m.call_status) LIKE '%interest%' OR LOWER(m.call_status) LIKE '%intrest%' OR LOWER(m.call_status) LIKE '%enquiry%' OR LOWER(m.call_status) LIKE '%converted%' OR LOWER(m.call_status) LIKE '%lead%')) = 0
-            AND (LOWER(m.call_status) LIKE '%not interest%' OR LOWER(m.call_status) LIKE '%not intrest%' OR LOWER(m.call_status) IN ('not interested', 'not_interested', 'not intrested')) = 0
-            AND (LOWER(m.call_status) LIKE '%callback%' OR LOWER(m.call_status) LIKE '%call back%' OR LOWER(m.call_status) LIKE '%follow%' OR LOWER(m.call_status) IN ('follow-up needed', 'callback / follow-up', 'follow up', 'follow-up', 'call back', 'callback', 'pending', 'callback/ busy', 'callback / busy')) = 0
-            AND LOWER(m.call_status) NOT IN ('busy / no answer', 'busy', 'no answer', 'no_answer', 'ringing', 'switch off', 'switch_off', 'not rechable', 'not reachable')
-            AND LOWER(m.call_status) NOT IN ('do not call', 'dnc', 'dnd', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd')
-        ) THEN 1 ELSE 0 END) AS other
-    FROM (
-        $unionSubquery
-    ) AS m
-    JOIN " . tn('TBL_USERS') . " u ON m.user_id = u.ID
-LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
-LEFT JOIN " . tn('TBL_USERS') . " s ON t.SUPERVISOR_ID = s.ID
-    $whereSql
-    GROUP BY u.ID, t.ID
-    ORDER BY t.NAME, u.NAME
-";
-
-$data                 = [];
-$grand_total          = 0;
-$grand_connected      = 0;
-$grand_interested     = 0;
-$grand_not_interested = 0;
-$grand_followup       = 0;
-$grand_busy_no_ans    = 0;
-$grand_dnc            = 0;
-$grand_other          = 0;
-$TBL_USERS_index      = [];
-
-if ($runQueries) {
-    $stmt = mysqli_prepare($link, $sqlSummary);
-    if ($stmt === false) {
-        die("Prepare failed: " . mysqli_error($link));
-    }
-    if ($typesBase !== "") {
-        mysqli_stmt_bind_param($stmt, $typesBase, ...$paramsBase);
-    }
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-
-    while ($row = mysqli_fetch_assoc($result)) {
-        $row['rate'] = $row['total'] ? round($row['connected'] / $row['total'] * 100, 1) : 0;
-
-        $team_name = $row['team_name'] ?: 'General Calling Fleet';
-        if (!isset($data[$team_name])) {
-            $data[$team_name] = [
-                'team_id'         => $row['team_id'],
-                'supervisor_id'   => $row['SUPERVISOR_ID'],
-                'supervisor_name' => $row['supervisor_name'],
-                'TBL_USERS'       => []
-            ];
-        }
-        $data[$team_name]['TBL_USERS'][] = $row;
-
-        $grand_total          += (int)$row['total'];
-        $grand_connected      += (int)$row['connected'];
-        $grand_interested     += (int)$row['interested'];
-        $grand_not_interested += (int)$row['not_interested'];
-        $grand_followup       += (int)$row['followup'];
-        $grand_busy_no_ans    += (int)$row['busy_no_ans'];
-        $grand_dnc            += (int)$row['dnc'];
-        $grand_other          += (int)$row['other'];
-
-        $TBL_USERS_index[$row['user_id']] = $row['user_name'];
-    }
-    mysqli_stmt_close($stmt);
-}
-
-$grand_rate = $grand_total ? round($grand_connected / $grand_total * 100, 1) : 0;
-
-// Filter dropdown lists
-$TBL_TEAMS = ($isSuperAdmin || $isAdmin || $isManager)
-    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC)
-    : ($isSupervisor ? $supervisorTeamOptions : []);
-
-$allSupervisors = ($isSuperAdmin || $isAdmin || $isManager)
-    ? mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor', 'Manager', 'Admin') AND STATUS = 'Active' ORDER BY NAME"), MYSQLI_ASSOC)
-    : [];
-
-$trend = [];
-$bucketExpr = $bucket === 'month'
-    ? "DATE_FORMAT(m.call_time, '%Y-%m-01')"
-    : "DATE(m.call_time)";
-
-$sqlTrend = "
-    SELECT $bucketExpr AS bucket,
-           COUNT(*) AS total,
-           SUM(CASE WHEN (m.call_duration > 0 OR LOWER(m.call_status) IN ('connected', 'lead', 'interested', 'intrested', 'interested / hot', 'intrested / hot', 'deal converted', 'follow-up needed', 'callback / follow-up', 'follow-up', 'follow up', 'not interested', 'not intrested', 'other discussion', 'enquiry/ interested', 'enquiry/ intrested', 'callback/ busy', 'callback / busy')) THEN 1 ELSE 0 END) AS connected
-    FROM (
-        $unionSubquery
-    ) AS m
-    JOIN " . tn('TBL_USERS') . " u ON m.user_id = u.ID
-LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
-    $whereSql
-    GROUP BY bucket
-    ORDER BY bucket
-";
-
-if ($runQueries) {
-    $stmtT = mysqli_prepare($link, $sqlTrend);
-    if ($stmtT === false) {
-        die("Prepare failed (trend): " . mysqli_error($link));
-    }
-    if ($typesBase !== "") {
-        mysqli_stmt_bind_param($stmtT, $typesBase, ...$paramsBase);
-    }
-    mysqli_stmt_execute($stmtT);
-    $resT = mysqli_stmt_get_result($stmtT);
-    while ($r = mysqli_fetch_assoc($resT)) {
-        if ($bucket === 'month') {
-            $label = (new DateTime($r['bucket']))->format('M Y');
-        } else {
-            $label = (new DateTime($r['bucket']))->format('d M');
-        }
-        $trend[] = [
-            'label'     => $label,
-            'total'     => (int)$r['total'],
-            'connected' => (int)$r['connected'],
-        ];
-    }
-    mysqli_stmt_close($stmtT);
-}
-
-$userLabels = [];
-$userTotals = [];
-foreach ($data as $block) {
-    foreach ($block['TBL_USERS'] as $u) {
-        $userLabels[] = $u['user_name'];
-        $userTotals[] = (int)$u['total'];
+// Selected user name for header/badge
+$selected_user_name = '';
+if ($selected_user_id) {
+    $uRes = mysqli_query($link, "SELECT NAME FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)$selected_user_id);
+    if ($uRes && ($uRow = mysqli_fetch_assoc($uRes))) {
+        $selected_user_name = $uRow['NAME'];
     }
 }
 
-$statusLabels = ['Interested / Connected', 'Not Interested', 'Follow-up', 'Busy / No Answer', 'DND', 'Other'];
-$statusValues = [
-    (int)$grand_interested,
-    (int)$grand_not_interested,
-    (int)$grand_followup,
-    (int)$grand_busy_no_ans,
-    (int)$grand_dnc,
-    (int)$grand_other
-];
-
-$detail_rows = [];
-$selected_user_name = null;
-
-if ($selected_user_id !== null) {
-    $selected_user_name = $TBL_USERS_index[$selected_user_id] ?? null;
-
-    if ($selected_user_name === null) {
-        $resUser = mysqli_query($link, "SELECT NAME FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)$selected_user_id);
-        if ($resUser && mysqli_num_rows($resUser) === 1) {
-            $selected_user_name = mysqli_fetch_assoc($resUser)['NAME'];
-        }
-    }
-
-    $paramsDetail = $paramsBase;
-    $typesDetail  = $typesBase;
-    $whereDetail  = $whereParts;
-
-    $whereDetail[] = "m.user_id = ?";
-    $paramsDetail[] = $selected_user_id;
-    $typesDetail   .= "i";
-
-    $whereDetailSql = "WHERE " . implode(" AND ", $whereDetail);
-
-    $sqlDetail = "
-        SELECT
-            m.call_time,
-            m.call_status,
-            m.call_duration,
-            m.cust_name,
-            m.cust_mobile,
-            m.cust_company,
-            m.source
-        FROM (
-            $unionSubquery
-        ) AS m
-        JOIN " . tn('TBL_USERS') . " u ON m.user_id = u.ID
-LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
-        $whereDetailSql
-        ORDER BY m.call_time DESC
-        LIMIT 500
-    ";
-
-    if ($runQueries) {
-        $stmt2 = mysqli_prepare($link, $sqlDetail);
-        if ($stmt2 === false) {
-            die("Prepare failed (detail): " . mysqli_error($link));
-        }
-        if ($typesDetail !== "") {
-            mysqli_stmt_bind_param($stmt2, $typesDetail, ...$paramsDetail);
-        }
-        mysqli_stmt_execute($stmt2);
-        $resDetail = mysqli_stmt_get_result($stmt2);
-
-        while ($r = mysqli_fetch_assoc($resDetail)) {
-            $detail_rows[] = $r;
-        }
-        mysqli_stmt_close($stmt2);
-    }
-}
-
+// Helper for querystrings
 if (!function_exists('reportQs')) {
 function reportQs(array $extra = []): string {
-    global $range, $from, $to, $team_filter, $supervisor_filter, $selected_user_id, $active_tab;
+    global $range, $from, $to, $team_filter, $supervisor_filter, $loan_type_filter, $selected_user_id, $active_tab;
     $qs = [
         'range'      => $range,
         'from'       => $from,
         'to'         => $to,
         'team'       => $team_filter,
         'supervisor' => $supervisor_filter,
+        'loan_type'  => $loan_type_filter,
         'tab'        => $active_tab,
     ];
     if ($selected_user_id) {
@@ -417,61 +308,144 @@ function reportQs(array $extra = []): string {
 }
 $self = htmlspecialchars($_SERVER['PHP_SELF']);
 
+// Comprehensive Multi-Section CSV Export Handler
 if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="CallNow_Report_' . date('Y-m-d_His') . '.csv"');
+    header('Content-Disposition: attachment; filename="CallNow_Performance_Report_' . date('Y-m-d_His') . '.csv"');
     header('Pragma: no-cache');
     header('Expires: 0');
 
     $out = fopen('php://output', 'w');
     fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
-    fputcsv($out, ['CALLNOW CRM - CALL PERFORMANCE REPORT']);
-    fputcsv($out, ['Report Preset', $rangeLabel, 'Date Range', $from . ' to ' . $to]);
-    fputcsv($out, ['Scope', $isSuperAdmin ? 'Super Admin (All Organization)' : ($isAdmin ? 'Admin (Company-wide)' : ($isSupervisor ? 'Team Leader' : 'Officer'))]);
-    fputcsv($out, ['Total Calls', $grand_total, 'Connected', $grand_connected, 'Connect Rate', $grand_rate . '%']);
+    fputcsv($out, ['CALLNOW CRM — CALL REPORTING & LOAN TELECALLING PERFORMANCE MANAGEMENT SYSTEM']);
+    fputcsv($out, ['Report Preset', $rangeLabel, 'Date Range', "$from to $to"]);
+    fputcsv($out, ['Generated At', date('Y-m-d H:i:s'), 'Generated By', USER_NAME . ' (' . USER_ROLE . ')']);
     fputcsv($out, []);
 
-    fputcsv($out, ['--- TEAM & TELECALLER PERFORMANCE SUMMARY ---']);
-    fputcsv($out, ['Team', 'Supervisor / Team Leader', 'Telecaller', 'Total Calls', 'Connected', 'Interested', 'Not Interested', 'Follow-up', 'Busy / No Answer', 'DNC', 'Other', 'Connect Rate (%)']);
+    // 1. Executive Summary KPI Block
+    fputcsv($out, ['=== 1. DAILY OVERVIEW & KPI EXECUTIVE SUMMARY ===']);
+    fputcsv($out, ['CLIENT CONTACT METRICS', 'COUNT', 'CALLING PERFORMANCE METRICS', 'COUNT', 'LEAD & LOAN PIPELINE METRICS', 'COUNT']);
+    fputcsv($out, [
+        'Total Assigned Contacts', $contactMetrics['total_assigned'],
+        'Total Call Attempts', $callMetrics['total_attempts'],
+        'New Converted Leads', $leadMetrics['new_leads_created']
+    ]);
+    fputcsv($out, [
+        'Contacts Attempted', $contactMetrics['attempted'],
+        'Connected Calls', $callMetrics['connected_calls'],
+        'Qualified Leads', $leadMetrics['qualified_leads']
+    ]);
+    fputcsv($out, [
+        'Unique Contacts Called', $callMetrics['unique_contacts_called'],
+        'Not Connected Calls', $callMetrics['not_connected_calls'],
+        'Documents Collected', $leadMetrics['documents_collected']
+    ]);
+    fputcsv($out, [
+        'Contacts Not Yet Called', $contactMetrics['not_yet_called'],
+        'Call Connection Rate', $callMetrics['connect_rate'] . '%',
+        'Applications Logged In', $leadMetrics['applications_logged_in']
+    ]);
+    fputcsv($out, [
+        'Interested Contacts', $contactMetrics['interested'],
+        'Total Talk Time', $callMetrics['total_talk_time_formatted'],
+        'Sanctioned Loans', $leadMetrics['sanctioned_loans']
+    ]);
+    fputcsv($out, [
+        'Not Interested Contacts', $contactMetrics['not_interested'],
+        'Average Call Duration', $callMetrics['avg_duration_formatted'],
+        'Disbursed Loans', $leadMetrics['disbursed_loans']
+    ]);
+    fputcsv($out, [
+        'Callback / Busy Contacts', $contactMetrics['callback_busy'],
+        'Follow-ups Created', $callMetrics['followups_created'],
+        'Total Disbursed Amount', 'INR ' . number_format($leadMetrics['disbursed_amount'], 2)
+    ]);
+    fputcsv($out, [
+        'DND Contacts', $contactMetrics['dnd'],
+        'Follow-ups Completed', $callMetrics['followups_completed'],
+        '', ''
+    ]);
+    fputcsv($out, []);
 
-    foreach ($data as $team_name => $block) {
-        $sup = $block['supervisor_name'] ?: 'None';
-        foreach ($block['TBL_USERS'] as $u) {
+    // 2. Employee-wise Performance Matrix
+    fputcsv($out, ['=== 2. EMPLOYEE-WISE TELECALLING & TARGET PERFORMANCE MATRIX ===']);
+    fputcsv($out, ['Employee Name', 'Role', 'Team', 'Supervisor', 'Assigned Contacts', 'Total Dials', 'Unique Called', 'Connected', 'Connect Rate', 'Interested', 'Converted Leads', 'Talk Time', 'Daily Target', 'Target Achieved %']);
+    foreach ($empRows as $emp) {
+        fputcsv($out, [
+            $emp['employee_name'],
+            $emp['user_role'],
+            $emp['team_name'] ?: 'No Team',
+            $emp['supervisor_name'] ?: 'None',
+            $emp['assigned_contacts'],
+            $emp['total_dials'],
+            $emp['unique_called'],
+            $emp['connected'],
+            $emp['connect_rate'] . '%',
+            $emp['interested'],
+            $emp['converted_leads'],
+            $emp['talk_time_formatted'],
+            $emp['target'],
+            $emp['achievement_pct'] . '%'
+        ]);
+    }
+    fputcsv($out, []);
+
+    // 3. Hourly Performance Analytics
+    fputcsv($out, ['=== 3. HOURLY CALLING ANALYTICS (09:30 AM TO 06:30 PM) ===']);
+    fputcsv($out, ['Hour Window', 'Total Calls', 'Connected Calls', 'Interested Contacts', 'Unique Contacts Called', 'Talk Time', 'Connect Rate %']);
+    foreach ($hourlyAnalytics as $ha) {
+        fputcsv($out, [
+            $ha['window'],
+            $ha['total_calls'],
+            $ha['connected_calls'],
+            $ha['interested_calls'],
+            $ha['unique_contacts'],
+            $ha['talk_time_formatted'],
+            $ha['connect_rate'] . '%'
+        ]);
+    }
+    fputcsv($out, []);
+
+    // 4. Converted Leads List
+    if (!empty($leadTableRows)) {
+        fputcsv($out, ['=== 4. CONVERTED LEADS & LOAN SALES OPPORTUNITIES ===']);
+        fputcsv($out, ['Lead ID', 'Original Contact ID', 'Customer Name', 'Mobile Number', 'Company', 'Assigned Employee', 'Team', 'Loan Type', 'Loan Amount', 'Pipeline Stage', 'Lender Bank', 'Conversion Date']);
+        foreach ($leadTableRows as $lr) {
             fputcsv($out, [
-                $team_name,
-                $sup,
-                $u['user_name'],
-                (int)$u['total'],
-                (int)$u['connected'],
-                (int)$u['interested'],
-                (int)$u['not_interested'],
-                (int)$u['followup'],
-                (int)$u['busy_no_ans'],
-                (int)$u['dnc'],
-                (int)$u['other'],
-                $u['rate'] . '%'
+                $lr['lead_id'],
+                $lr['cust_id'] ?: 'None',
+                $lr['name'],
+                $lr['mobile'],
+                $lr['company'] ?: '',
+                $lr['officer_name'] ?: 'Unassigned',
+                $lr['team_name'] ?: 'No Team',
+                $lr['loan_type'] ?: 'Personal Loan',
+                $lr['loan_amount'] ?: '',
+                $lr['pipeline_stage'],
+                $lr['login_bank_name'] ?: ($lr['bank_name'] ?: ''),
+                $lr['converted_at'] ?: $lr['created_at']
             ]);
         }
+        fputcsv($out, []);
     }
 
-    if (!empty($detail_rows)) {
-        fputcsv($out, []);
-        fputcsv($out, []);
-        fputcsv($out, ['--- DETAILED CALL LOGS (' . ($selected_user_name ?: ('User #' . $selected_user_id)) . ') ---']);
-        fputcsv($out, ['Date & Time', 'Telecaller', 'Customer Name', 'Mobile Number', 'Company', 'Duration', 'Call Status', 'Source Database']);
-        foreach ($detail_rows as $dr) {
-            $durStr = (int)($dr['call_duration'] ?? 0) > 0 ? (int)$dr['call_duration'] . 's' : '0s';
+    // 5. Detailed Call Logs
+    if (!empty($detailRows)) {
+        fputcsv($out, ['=== 5. CALL LOGS AUDIT TRAIL ===']);
+        fputcsv($out, ['Call ID', 'Date & Time', 'Officer', 'Customer Name', 'Mobile Number', 'Duration', 'Disposition', 'Source', 'Notes']);
+        foreach ($detailRows as $dr) {
             fputcsv($out, [
+                $dr['id'],
                 $dr['call_time'] ? date('d-m-Y H:i:s', strtotime($dr['call_time'])) : '',
-                $selected_user_name,
-                $dr['cust_name'] ?: 'None',
+                $dr['officer_name'] ?: 'Unknown',
+                $dr['cust_name'] ?: '—',
                 $dr['cust_mobile'] ?: '',
-                $dr['cust_company'] ?: '',
-                $durStr,
+                (int)$dr['call_duration'] . 's',
                 $dr['call_status'],
-                $dr['source']
+                $dr['source'],
+                $dr['notes'] ?: ''
             ]);
         }
     }
@@ -480,7 +454,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
     exit;
 }
 
-$pageTitle = 'Call Reports • CallNow CRM';
+$pageTitle = 'Call Reports & Telecalling Performance • CallNow CRM';
 include __DIR__ . '/../../php_scripts/header.php';
 ?>
 
@@ -492,26 +466,31 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <ol class="breadcrumb mb-1 fs-xs">
                     <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
                     <li class="breadcrumb-item"><a href="<?= url('modules/logs/Reports.php') ?>">Activities & Reports</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Call Reports</li>
+                    <li class="breadcrumb-item active" aria-current="page">Call Reporting & Performance</li>
                 </ol>
             </nav>
             <div class="d-flex align-items-center flex-wrap gap-2">
-                <h1 class="h4 fw-bold text-dark mb-0">Call Performance Reports</h1>
+                <h1 class="h4 fw-bold text-dark mb-0">Call Reporting & Loan Performance System</h1>
                 <?php if ($isSuperAdmin): ?>
                     <span class="badge badge-purple px-2 py-1"><i class="bi bi-shield-check me-1"></i> Super Admin Scope (All Organization)</span>
                 <?php elseif ($isAdmin): ?>
                     <span class="badge badge-primary px-2 py-1"><i class="bi bi-building me-1"></i> Admin Scope (All Teams)</span>
                 <?php elseif ($isSupervisor): ?>
-                    <span class="badge badge-info px-2 py-1"><i class="bi bi-people-fill me-1"></i> Team Leader Scope (My Teams)</span>
+                    <span class="badge badge-info px-2 py-1"><i class="bi bi-people-fill me-1"></i> Supervisor Scope (My Teams)</span>
                 <?php else: ?>
-                    <span class="badge badge-secondary px-2 py-1"><i class="bi bi-person-circle me-1"></i> Personal Scope (My Calls)</span>
+                    <span class="badge badge-secondary px-2 py-1"><i class="bi bi-person-circle me-1"></i> Sales Officer Scope (Personal Performance)</span>
                 <?php endif; ?>
             </div>
             <div class="text-muted fs-xs mt-1">Period: <strong><?= htmlspecialchars($rangeLabel) ?></strong> &bull; <?= htmlspecialchars($from) ?> to <?= htmlspecialchars($to) ?></div>
         </div>
         <div class="module-header-actions d-flex align-items-center gap-2">
+            <?php if ($isSuperAdmin): ?>
+                <button type="button" class="btn btn-outline-purple btn-sm" data-bs-toggle="modal" data-bs-target="#targetsConfigModal">
+                    <i class="bi bi-sliders me-1"></i> Configure Targets
+                </button>
+            <?php endif; ?>
             <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['export' => 'csv'])) ?>" class="btn btn-primary btn-sm">
-                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Excel
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Comprehensive Report
             </a>
             <a href="<?= htmlspecialchars(url('modules/logs/call_history.php')) ?>" class="btn btn-secondary btn-sm">
                 <i class="bi bi-clock-history me-1"></i> Live Call Logs
@@ -519,41 +498,161 @@ include __DIR__ . '/../../php_scripts/header.php';
         </div>
     </div>
 
-    <!-- Metric KPI Hero Cards -->
-    <div class="row g-3 mb-3">
-        <div class="col-xl col-lg-4 col-md-6 col-sm-6">
+    <?php if (!empty($_SESSION['success_message'])): ?>
+        <div class="alert alert-success alert-dismissible fade show fs-xs py-2 mb-3" role="alert">
+            <i class="bi bi-check-circle-fill me-1"></i> <?= htmlspecialchars($_SESSION['success_message']) ?>
+            <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+        </div>
+        <?php unset($_SESSION['success_message']); ?>
+    <?php endif; ?>
+
+    <!-- 3-Tier Multi-Dimensional Hero KPI Cards -->
+    <!-- TIER 1: CLIENT CONTACT COVERAGE -->
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-person-vcard text-primary me-1"></i> Client Contact Coverage</span>
+        <span class="text-muted fs-xs">Base: Assigned Customer Records</span>
+    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="metric-card metric-neutral p-3">
-                <div class="metric-card-title">Total Calls Dialed</div>
-                <div class="metric-card-value text-dark text-nowrap"><?= number_format($grand_total) ?></div>
-                <div class="metric-card-subtitle text-muted">Calls in selected window</div>
+                <div class="metric-card-title">Total Assigned Contacts</div>
+                <div class="metric-card-value text-dark text-nowrap"><?= number_format($contactMetrics['total_assigned']) ?></div>
+                <div class="metric-card-subtitle text-muted">In CRM repository</div>
             </div>
         </div>
-        <div class="col-xl col-lg-4 col-md-6 col-sm-6">
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-primary p-3">
+                <div class="metric-card-title">Contacts Attempted</div>
+                <div class="metric-card-value text-primary text-nowrap"><?= number_format($contactMetrics['attempted']) ?></div>
+                <div class="metric-card-subtitle text-muted"><?= $contactMetrics['total_assigned'] > 0 ? round(($contactMetrics['attempted']/$contactMetrics['total_assigned'])*100, 1) : 0 ?>% coverage</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-secondary p-3">
+                <div class="metric-card-title">Not Yet Called</div>
+                <div class="metric-card-value text-secondary text-nowrap"><?= number_format($contactMetrics['not_yet_called']) ?></div>
+                <div class="metric-card-subtitle text-muted">Fresh contact queue</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-success p-3">
+                <div class="metric-card-title">Interested Contacts</div>
+                <div class="metric-card-value text-success text-nowrap"><?= number_format($contactMetrics['interested']) ?></div>
+                <div class="metric-card-subtitle text-muted">Expressed loan interest</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-warning p-3">
+                <div class="metric-card-title">Callback / Busy</div>
+                <div class="metric-card-value text-warning text-nowrap"><?= number_format($contactMetrics['callback_busy']) ?></div>
+                <div class="metric-card-subtitle text-muted">Follow-up needed</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-danger p-3">
+                <div class="metric-card-title">DND Contacts</div>
+                <div class="metric-card-value text-danger text-nowrap"><?= number_format($contactMetrics['dnd']) ?></div>
+                <div class="metric-card-subtitle text-muted">Blocked from calling</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIER 2: CALLING ACTIVITY & CONVERSATIONS -->
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-telephone-outbound text-info me-1"></i> Calling Productivity & Conversations</span>
+        <span class="text-muted fs-xs">Window: <?= htmlspecialchars($rangeLabel) ?></span>
+    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-neutral p-3">
+                <div class="metric-card-title">Total Call Attempts</div>
+                <div class="metric-card-value text-dark text-nowrap"><?= number_format($callMetrics['total_attempts']) ?></div>
+                <div class="metric-card-subtitle text-muted">Calls dialed by officers</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="metric-card metric-primary p-3">
                 <div class="metric-card-title">Connected Calls</div>
-                <div class="metric-card-value text-primary text-nowrap"><?= number_format($grand_connected) ?></div>
-                <div class="metric-card-subtitle text-muted">Verified duration &gt; 0s</div>
+                <div class="metric-card-value text-primary text-nowrap"><?= number_format($callMetrics['connected_calls']) ?></div>
+                <div class="metric-card-subtitle text-muted">Dur &gt; 0s / Conversation</div>
             </div>
         </div>
-        <div class="col-xl col-lg-4 col-md-6 col-sm-6">
-            <div class="metric-card metric-success p-3">
-                <div class="metric-card-title">Interested / Hot Leads</div>
-                <div class="metric-card-value text-success text-nowrap"><?= number_format($grand_interested) ?></div>
-                <div class="metric-card-subtitle text-muted">Productive conversion</div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card <?= $callMetrics['connect_rate'] >= $targets['min_connect_rate_pct'] ? 'metric-success' : 'metric-danger' ?> p-3">
+                <div class="metric-card-title">Connection Rate</div>
+                <div class="metric-card-value <?= $callMetrics['connect_rate'] >= $targets['min_connect_rate_pct'] ? 'text-success' : 'text-danger' ?> text-nowrap"><?= $callMetrics['connect_rate'] ?>%</div>
+                <div class="metric-card-subtitle text-muted">Target: <?= $targets['min_connect_rate_pct'] ?>%+</div>
             </div>
         </div>
-        <div class="col-xl col-lg-4 col-md-6 col-sm-6">
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-info p-3">
+                <div class="metric-card-title">Total Talk Time</div>
+                <div class="metric-card-value text-info text-nowrap"><?= $callMetrics['total_talk_time_formatted'] ?></div>
+                <div class="metric-card-subtitle text-muted">Connected conversation</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
             <div class="metric-card metric-secondary p-3">
-                <div class="metric-card-title">Not Interested</div>
-                <div class="metric-card-value text-secondary text-nowrap"><?= number_format($grand_not_interested) ?></div>
-                <div class="metric-card-subtitle text-muted">Customer declined offer</div>
+                <div class="metric-card-title">Avg Call Duration</div>
+                <div class="metric-card-value text-dark text-nowrap"><?= $callMetrics['avg_duration_formatted'] ?></div>
+                <div class="metric-card-subtitle text-muted">Per connected call</div>
             </div>
         </div>
-        <div class="col-xl col-lg-4 col-md-6 col-sm-6">
-            <div class="metric-card <?= $grand_rate >= 40 ? 'metric-success' : 'metric-danger' ?> p-3">
-                <div class="metric-card-title">Connect Rate</div>
-                <div class="metric-card-value <?= $grand_rate >= 40 ? 'text-success' : 'text-danger' ?> text-nowrap"><?= $grand_rate ?>%</div>
-                <div class="metric-card-subtitle text-muted">Benchmark: 40%+ target</div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-purple p-3">
+                <div class="metric-card-title">Follow-ups Handled</div>
+                <div class="metric-card-value text-purple text-nowrap"><?= number_format($callMetrics['followups_completed']) ?> <small class="fs-xs text-muted">/ <?= number_format($callMetrics['followups_created']) ?></small></div>
+                <div class="metric-card-subtitle text-muted"><?= $callMetrics['followups_created'] > 0 ? round(($callMetrics['followups_completed'] / $callMetrics['followups_created']) * 100) : 100 ?>% completion</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIER 3: LOAN PIPELINE & CONVERSIONS -->
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-cash-stack text-success me-1"></i> Loan Sales Conversions & Pipeline</span>
+        <span class="text-muted fs-xs">Disbursements & Sanctions</span>
+    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-success p-3">
+                <div class="metric-card-title">New Converted Leads</div>
+                <div class="metric-card-value text-success text-nowrap"><?= number_format($leadMetrics['new_leads_created']) ?></div>
+                <div class="metric-card-subtitle text-muted">From interested contacts</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-primary p-3">
+                <div class="metric-card-title">Qualified Leads</div>
+                <div class="metric-card-value text-primary text-nowrap"><?= number_format($leadMetrics['qualified_leads']) ?></div>
+                <div class="metric-card-subtitle text-muted">Salary & details verified</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-info p-3">
+                <div class="metric-card-title">Documents Collected</div>
+                <div class="metric-card-value text-info text-nowrap"><?= number_format($leadMetrics['documents_collected']) ?></div>
+                <div class="metric-card-subtitle text-muted">Underwriting review</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-secondary p-3">
+                <div class="metric-card-title">Applications Logged In</div>
+                <div class="metric-card-value text-dark text-nowrap"><?= number_format($leadMetrics['applications_logged_in']) ?></div>
+                <div class="metric-card-subtitle text-muted">Bank portal submissions</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-purple p-3">
+                <div class="metric-card-title">Sanctioned Loans</div>
+                <div class="metric-card-value text-purple text-nowrap"><?= number_format($leadMetrics['sanctioned_loans']) ?></div>
+                <div class="metric-card-subtitle text-muted">Approved by lenders</div>
+            </div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6">
+            <div class="metric-card metric-success p-3">
+                <div class="metric-card-title">Disbursed Volume</div>
+                <div class="metric-card-value text-success text-nowrap"><?= $leadMetrics['disbursed_loans'] ?> <small class="fs-xs fw-normal text-muted">(₹<?= number_format($leadMetrics['disbursed_amount']) ?>)</small></div>
+                <div class="metric-card-subtitle text-muted">Final payouts realized</div>
             </div>
         </div>
     </div>
@@ -564,7 +663,7 @@ include __DIR__ . '/../../php_scripts/header.php';
             <form method="GET" class="row g-2 align-items-end" id="reportFilterForm">
                 <input type="hidden" name="tab" id="activeTabInput" value="<?= htmlspecialchars($active_tab) ?>">
 
-                <div class="col-md-3 col-sm-6">
+                <div class="col-md-2 col-sm-6">
                     <label class="form-label fs-xs mb-1" for="rangeSelect">Time Window</label>
                     <select name="range" class="form-select form-select-sm" id="rangeSelect">
                         <option value="today"        <?= $range==='today'?'selected':'' ?>>Today</option>
@@ -596,7 +695,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                     <div class="col-md-2 col-sm-6">
                         <label class="form-label fs-xs mb-1">Team Filter</label>
                         <select name="team" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">All Assigned Teams</option>
+                            <option value="">All Teams</option>
                             <?php foreach($TBL_TEAMS as $t): ?>
                                 <option value="<?= $t['ID'] ?>" <?= $team_filter == $t['ID'] ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($t['NAME']) ?>
@@ -608,12 +707,12 @@ include __DIR__ . '/../../php_scripts/header.php';
 
                 <?php if (($isSuperAdmin || $isAdmin || $isManager) && !empty($allSupervisors)): ?>
                     <div class="col-md-2 col-sm-6">
-                        <label class="form-label fs-xs mb-1">Team Leader</label>
+                        <label class="form-label fs-xs mb-1">Supervisor</label>
                         <select name="supervisor" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">All Team Leaders</option>
+                            <option value="">All Supervisors</option>
                             <?php foreach($allSupervisors as $s): ?>
                                 <option value="<?= $s['ID'] ?>" <?= $supervisor_filter == $s['ID'] ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($s['NAME']) ?> (<?= htmlspecialchars($s['ROLE']) ?>)
+                                    <?= htmlspecialchars($s['NAME']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -626,11 +725,11 @@ include __DIR__ . '/../../php_scripts/header.php';
 
                 <div class="col-auto ms-auto d-flex gap-2">
                     <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi bi-funnel me-1"></i> Apply
+                        <i class="bi bi-funnel me-1"></i> Apply Filter
                     </button>
                     <?php if ($team_filter !== '' || $supervisor_filter !== '' || ($selected_user_id && !$isOfficer) || $range !== 'today'): ?>
                         <a href="<?= $self ?>" class="btn btn-secondary btn-sm" title="Reset Filters">
-                            <i class="bi bi-arrow-counterclockwise"></i>
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
                         </a>
                     <?php endif; ?>
                 </div>
@@ -638,24 +737,68 @@ include __DIR__ . '/../../php_scripts/header.php';
         </div>
     </div>
 
-    <!-- Advanced Normalized Navigation Tabs -->
+    <!-- Navigation Tabs -->
     <ul class="nav nav-tabs nav-fill mb-3" id="reportTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'overview' ? 'active' : '' ?>" id="overview-tab" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button" role="tab" aria-controls="tab-overview" aria-selected="<?= $active_tab === 'overview' ? 'true' : 'false' ?>">
-                <i class="bi bi-graph-up me-1 text-primary"></i> Executive Overview & Trends
+            <button class="nav-link <?= $active_tab === 'overview' ? 'active' : '' ?>" id="overview-tab" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button" role="tab">
+                <i class="bi bi-graph-up me-1 text-primary"></i> Overview & Trends
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'teams' ? 'active' : '' ?>" id="teams-tab" data-bs-toggle="tab" data-bs-target="#tab-teams" type="button" role="tab" aria-controls="tab-teams" aria-selected="<?= $active_tab === 'teams' ? 'true' : 'false' ?>">
-                <i class="bi bi-people me-1 text-success"></i> Team & Telecaller Performance
-                <span class="badge bg-secondary ms-1 fs-xs"><?= count($TBL_USERS_index) ?></span>
+            <button class="nav-link <?= $active_tab === 'contacts' ? 'active' : '' ?>" id="contacts-tab" data-bs-toggle="tab" data-bs-target="#tab-contacts" type="button" role="tab">
+                <i class="bi bi-person-vcard me-1 text-info"></i> Client Contacts
+                <span class="badge bg-secondary ms-1 fs-xs"><?= count($contactTableRows) ?></span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'drilldown' ? 'active' : '' ?>" id="drilldown-tab" data-bs-toggle="tab" data-bs-target="#tab-drilldown" type="button" role="tab" aria-controls="tab-drilldown" aria-selected="<?= $active_tab === 'drilldown' ? 'true' : 'false' ?>">
-                <i class="bi bi-list-check me-1 text-info"></i> Detailed Call Logs Drilldown
-                <?php if (!empty($detail_rows)): ?>
-                    <span class="badge bg-primary ms-1 fs-xs"><?= count($detail_rows) ?></span>
+            <button class="nav-link <?= $active_tab === 'leads' ? 'active' : '' ?>" id="leads-tab" data-bs-toggle="tab" data-bs-target="#tab-leads" type="button" role="tab">
+                <i class="bi bi-cash-stack me-1 text-success"></i> Converted Leads
+                <span class="badge bg-success ms-1 fs-xs"><?= count($leadTableRows) ?></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'employees' ? 'active' : '' ?>" id="employees-tab" data-bs-toggle="tab" data-bs-target="#tab-employees" type="button" role="tab">
+                <i class="bi bi-person-badge me-1 text-primary"></i> Officers Performance
+                <span class="badge bg-primary ms-1 fs-xs"><?= count($empRows) ?></span>
+            </button>
+        </li>
+        <?php if ($isSuperAdmin || $isAdmin || $isManager): ?>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'supervisors' ? 'active' : '' ?>" id="supervisors-tab" data-bs-toggle="tab" data-bs-target="#tab-supervisors" type="button" role="tab">
+                <i class="bi bi-people me-1 text-warning"></i> Supervisor Rollup
+                <span class="badge bg-warning ms-1 fs-xs"><?= count($supRows) ?></span>
+            </button>
+        </li>
+        <?php endif; ?>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'hourly' ? 'active' : '' ?>" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#tab-hourly" type="button" role="tab">
+                <i class="bi bi-hourglass-split me-1 text-info"></i> Hourly Calling
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'followups' ? 'active' : '' ?>" id="followups-tab" data-bs-toggle="tab" data-bs-target="#tab-followups" type="button" role="tab">
+                <i class="bi bi-calendar-check me-1 text-purple"></i> Follow-ups Hub
+                <span class="badge bg-purple ms-1 fs-xs"><?= count($followupList) ?></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'alerts' ? 'active' : '' ?>" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#tab-alerts" type="button" role="tab">
+                <i class="bi bi-bell me-1 text-danger"></i> Performance Alerts
+                <?php if (!empty($alerts)): ?>
+                    <span class="badge bg-danger ms-1 fs-xs"><?= count($alerts) ?></span>
+                <?php endif; ?>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'rankings' ? 'active' : '' ?>" id="rankings-tab" data-bs-toggle="tab" data-bs-target="#tab-rankings" type="button" role="tab">
+                <i class="bi bi-trophy me-1 text-warning"></i> Rankings & Scores
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'drilldown' ? 'active' : '' ?>" id="drilldown-tab" data-bs-toggle="tab" data-bs-target="#tab-drilldown" type="button" role="tab">
+                <i class="bi bi-clock-history me-1 text-secondary"></i> Call History
+                <?php if (!empty($detailRows)): ?>
+                    <span class="badge bg-secondary ms-1 fs-xs"><?= count($detailRows) ?></span>
                 <?php endif; ?>
             </button>
         </li>
@@ -665,283 +808,703 @@ include __DIR__ . '/../../php_scripts/header.php';
     <div class="tab-content" id="reportTabsContent">
 
         <!-- TAB 1: EXECUTIVE OVERVIEW & TRENDS -->
-        <div class="tab-pane fade <?= $active_tab === 'overview' ? 'show active' : '' ?>" id="tab-overview" role="tabpanel" aria-labelledby="overview-tab">
-            <?php if ($grand_total > 0): ?>
-                <div class="row g-3 mb-3">
-                    <div class="col-lg-8">
-                        <div class="crm-card h-100">
-                            <div class="crm-card-header d-flex align-items-center justify-content-between">
-                                <div class="crm-card-title"><i class="bi bi-graph-up text-primary me-2"></i>Call Volume & Connection Trend (<?= $bucket==='month'?'Monthly':'Daily' ?>)</div>
-                                <span class="badge badge-secondary fs-xs">Total: <?= number_format($grand_total) ?></span>
-                            </div>
-                            <div class="crm-card-body">
-                                <div style="position:relative; height:260px;"><canvas id="trendChart"></canvas></div>
-                            </div>
+        <div class="tab-pane fade <?= $active_tab === 'overview' ? 'show active' : '' ?>" id="tab-overview" role="tabpanel">
+            <div class="row g-3 mb-3">
+                <div class="col-lg-8">
+                    <div class="crm-card h-100">
+                        <div class="crm-card-header d-flex align-items-center justify-content-between">
+                            <div class="crm-card-title"><i class="bi bi-graph-up text-primary me-2"></i>Hourly Telecalling Velocity (Calls Dialed vs Connected)</div>
+                            <span class="badge badge-secondary fs-xs">Window: <?= htmlspecialchars($rangeLabel) ?></span>
                         </div>
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="crm-card h-100">
-                            <div class="crm-card-header">
-                                <div class="crm-card-title"><i class="bi bi-pie-chart text-primary me-2"></i>Disposition Breakdown</div>
-                            </div>
-                            <div class="crm-card-body">
-                                <div style="position:relative; height:260px;"><canvas id="statusChart"></canvas></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="crm-card">
-                            <div class="crm-card-header d-flex align-items-center justify-content-between">
-                                <div class="crm-card-title"><i class="bi bi-bar-chart text-primary me-2"></i>Telecaller Volume Comparison</div>
-                                <span class="text-muted fs-xs">Ranked by calls dialed</span>
-                            </div>
-                            <div class="crm-card-body">
-                                <div style="position:relative; height:260px;"><canvas id="userChart"></canvas></div>
-                            </div>
+                        <div class="crm-card-body">
+                            <div style="position:relative; height:280px;"><canvas id="hourlyTrendChart"></canvas></div>
                         </div>
                     </div>
                 </div>
-            <?php else: ?>
-                <div class="crm-card text-center py-5">
-                    <i class="bi bi-telephone-x text-muted fs-1 mb-2"></i>
-                    <h6 class="fw-bold text-dark">No call records found for this period</h6>
-                    <p class="fs-xs text-muted mb-0">Try adjusting your time window or clearing active filters above.</p>
+                <div class="col-lg-4">
+                    <div class="crm-card h-100">
+                        <div class="crm-card-header">
+                            <div class="crm-card-title"><i class="bi bi-pie-chart text-primary me-2"></i>Call Disposition Distribution</div>
+                        </div>
+                        <div class="crm-card-body">
+                            <div style="position:relative; height:280px;"><canvas id="dispositionDoughnutChart"></canvas></div>
+                        </div>
+                    </div>
                 </div>
-            <?php endif; ?>
+            </div>
         </div>
 
-        <!-- TAB 2: TEAM & TELECALLER PERFORMANCE -->
-        <div class="tab-pane fade <?= $active_tab === 'teams' ? 'show active' : '' ?>" id="tab-teams" role="tabpanel" aria-labelledby="teams-tab">
-            <div id="exportArea">
-                <?php if (!empty($data)): ?>
-                    <div class="crm-card mb-3">
-                        <div class="crm-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="crm-card-title mb-0"><i class="bi bi-people text-primary me-2"></i>Team & Telecaller Performance Summary</div>
-                                <span class="badge badge-secondary fs-xs">
-                                    <?= number_format(count($TBL_USERS_index)) ?> Active Telecallers
-                                </span>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="input-group input-group-sm" style="max-width: 240px;">
-                                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                                    <input type="text" id="telecallerFilterInput" class="form-control" placeholder="Search telecaller / team...">
-                                </div>
-                                <button id="btnExport" class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
-                                    <i class="bi bi-file-earmark-excel me-1 text-success"></i> Export Grid
-                                </button>
-                            </div>
-                        </div>
-                        <div class="crm-card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0" id="telecallerSummaryTable">
-                                    <thead>
+        <!-- TAB 2: CLIENT CONTACT PERFORMANCE -->
+        <div class="tab-pane fade <?= $active_tab === 'contacts' ? 'show active' : '' ?>" id="tab-contacts" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="crm-card-title mb-0"><i class="bi bi-person-vcard text-primary me-2"></i>Client Contacts Calling Registry</div>
+                        <span class="badge badge-secondary fs-xs"><?= number_format($contactMetrics['total_assigned']) ?> Total Assigned</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="text" id="contactFilterInput" class="form-control form-control-sm" placeholder="Search contacts..." style="max-width: 220px;">
+                    </div>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="contactsReportTable">
+                            <thead>
+                                <tr>
+                                    <th>Contact ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Mobile Number</th>
+                                    <th>Company</th>
+                                    <th>Assigned Officer</th>
+                                    <th class="text-center">Attempts</th>
+                                    <th>Latest Outcome</th>
+                                    <th>Lead Status</th>
+                                    <th>Last Dialed</th>
+                                    <th class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($contactTableRows)): ?>
+                                    <?php foreach ($contactTableRows as $c): ?>
                                         <tr>
-                                            <th>Team</th>
-                                            <th>Team Leader / Supervisor</th>
-                                            <th>Telecaller</th>
-                                            <th class="text-center">Total Dials</th>
-                                            <th class="text-center">Connected</th>
-                                            <th class="text-center">Interested</th>
-                                            <th class="text-center">Not Interested</th>
-                                            <th class="text-center">Follow-up</th>
-                                            <th class="text-center">Busy / No Ans</th>
-                                            <th class="text-center">DNC</th>
-                                            <th class="text-center">Other</th>
-                                            <th class="text-center">Connect %</th>
-                                            <th class="text-center" data-exclude="true">Action</th>
+                                            <td class="font-monospace fs-xs text-muted">#<?= $c['ID'] ?></td>
+                                            <td><strong class="text-dark fs-xs"><?= htmlspecialchars($c['name'] ?: 'Unnamed') ?></strong></td>
+                                            <td>
+                                                <a href="tel:<?= urlencode($c['mobile']) ?>" class="text-decoration-none font-monospace fs-xs">
+                                                    <?= htmlspecialchars($c['mobile']) ?>
+                                                </a>
+                                            </td>
+                                            <td class="fs-xs text-muted"><?= htmlspecialchars($c['company'] ?: '—') ?></td>
+                                            <td class="fs-xs text-dark"><?= htmlspecialchars($c['officer_name'] ?: 'Unassigned') ?></td>
+                                            <td class="text-center fs-xs fw-bold"><?= (int)$c['call_count'] ?></td>
+                                            <td>
+                                                <?php 
+                                                    $st = $c['status'] ?: 'Not Yet Called';
+                                                    $stBadge = 'badge-secondary';
+                                                    if (in_array(strtolower($st), ['interested', 'enquiry', 'lead'])) $stBadge = 'badge-success';
+                                                    elseif (in_array(strtolower($st), ['callback', 'busy', 'follow-up'])) $stBadge = 'badge-info';
+                                                    elseif (in_array(strtolower($st), ['not interested'])) $stBadge = 'badge-secondary';
+                                                    elseif (in_array(strtolower($st), ['do not call', 'dnd'])) $stBadge = 'badge-danger';
+                                                ?>
+                                                <span class="badge <?= $stBadge ?> fs-xs"><?= htmlspecialchars($st) ?></span>
+                                            </td>
+                                            <td>
+                                                <?php if ($c['lead_id']): ?>
+                                                    <a href="<?= url('modules/leads/lead_view.php?id=' . $c['lead_id']) ?>" class="badge badge-success text-decoration-none fs-xs">
+                                                        <i class="bi bi-link me-1"></i> Lead #<?= $c['lead_id'] ?> (<?= htmlspecialchars($c['pipeline_stage']) ?>)
+                                                    </a>
+                                                <?php else: ?>
+                                                    <span class="badge badge-secondary fs-xs">Client Contact</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="fs-xs text-muted"><?= $c['last_called_at'] ? date('d M, h:i A', strtotime($c['last_called_at'])) : 'Never' ?></td>
+                                            <td class="text-center">
+                                                <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['tab' => 'drilldown'])) ?>" class="btn btn-secondary btn-sm py-1 px-2 fs-xs" title="View Call History">
+                                                    <i class="bi bi-clock-history"></i>
+                                                </a>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($data as $team_name => $block):
-                                            $team_total = 0;
-                                            $team_connected = 0;
-                                            foreach ($block['TBL_USERS'] as $u) {
-                                                $team_total     += (int)$u['total'];
-                                                $team_connected += (int)$u['connected'];
-                                            }
-                                            $sup = $block['supervisor_name'] ?? '—';
-                                        ?>
-                                            <?php foreach ($block['TBL_USERS'] as $u):
-                                                $rate = $u['rate'];
-                                                $rateGood = $rate >= 40;
-                                                $isSelected = $selected_user_id && $selected_user_id == $u['user_id'];
-                                            ?>
-                                                <tr class="telecaller-row <?= $isSelected ? 'table-active' : '' ?>">
-                                                    <td class="fw-semibold text-secondary fs-xs"><?= htmlspecialchars($team_name) ?></td>
-                                                    <td class="text-muted fs-xs"><?= htmlspecialchars($sup ?: '—') ?></td>
-                                                    <td>
-                                                        <div class="d-flex align-items-center gap-2">
-                                                            <div class="avatar-circle" style="width:28px; height:28px; font-size:11px;">
-                                                                <?= strtoupper(substr($u['user_name'] ?? '?', 0, 2)) ?>
-                                                            </div>
-                                                            <div>
-                                                                <strong class="text-dark fs-xs rp-emp-name"><?= htmlspecialchars($u['user_name'] ?? 'Unknown') ?></strong>
-                                                                <?php if ($isSelected): ?>
-                                                                    <span class="badge badge-primary fs-xs ms-1" data-exclude="true">Filtered</span>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td class="text-center fs-xs fw-bold"><?= number_format($u['total']) ?></td>
-                                                    <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($u['connected']) ?></span></td>
-                                                    <td class="text-center fs-xs"><span class="badge badge-success"><?= number_format($u['interested']) ?></span></td>
-                                                    <td class="text-center fs-xs text-muted"><?= number_format($u['not_interested']) ?></td>
-                                                    <td class="text-center fs-xs"><span class="badge badge-info"><?= number_format($u['followup']) ?></span></td>
-                                                    <td class="text-center fs-xs text-muted"><?= number_format($u['busy_no_ans']) ?></td>
-                                                    <td class="text-center fs-xs"><span class="badge badge-danger"><?= number_format($u['dnc']) ?></span></td>
-                                                    <td class="text-center fs-xs text-muted"><?= number_format($u['other']) ?></td>
-                                                    <td class="text-center fs-xs">
-                                                        <span class="badge <?= $rateGood ? 'badge-success' : 'badge-danger' ?>">
-                                                            <?= $rate ?>%
-                                                        </span>
-                                                    </td>
-                                                    <td class="text-center" data-exclude="true">
-                                                        <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => $u['user_id'], 'tab' => 'drilldown'])) ?>"
-                                                           class="btn btn-secondary btn-sm py-1 px-2 fs-xs" title="View Call Records Drilldown">
-                                                            <i class="bi bi-clock-history me-1 text-primary"></i> Logs
-                                                        </a>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="10" class="text-center py-4 text-muted fs-xs">No client contacts found in this scope.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
-                <?php else: ?>
-                    <div class="crm-card text-center py-5">
-                        <i class="bi bi-people text-muted fs-1 mb-2"></i>
-                        <h6 class="fw-bold text-dark">No telecaller calling activity recorded for this period</h6>
-                        <p class="fs-xs text-muted mb-0">Select a wider date range or clear team filters.</p>
-                    </div>
-                <?php endif; ?>
-            </div><!-- /exportArea -->
+                </div>
+            </div>
         </div>
 
-        <!-- TAB 3: DETAILED CALL LOGS DRILLDOWN -->
-        <div class="tab-pane fade <?= $active_tab === 'drilldown' ? 'show active' : '' ?>" id="tab-drilldown" role="tabpanel" aria-labelledby="drilldown-tab">
-            <?php if ($selected_user_id && !empty($detail_rows)): ?>
-                <div class="crm-card">
-                    <div class="crm-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-                        <div class="crm-card-title mb-0">
-                            <i class="bi bi-person-lines-fill text-primary me-2"></i>
-                            Call Records Drilldown &bull; <strong><?= htmlspecialchars($selected_user_name ?? ('User #' . $selected_user_id)) ?></strong>
-                        </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="badge badge-primary fs-xs"><?= count($detail_rows) ?> calls logged</span>
-                            <?php if (!$isOfficer): ?>
-                                <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => '', 'tab' => 'drilldown'])) ?>" class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
-                                    <i class="bi bi-x-lg me-1"></i> Clear Selection
-                                </a>
-                            <?php endif; ?>
-                        </div>
+        <!-- TAB 3: CONVERTED LEADS PERFORMANCE -->
+        <div class="tab-pane fade <?= $active_tab === 'leads' ? 'show active' : '' ?>" id="tab-leads" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="crm-card-title mb-0"><i class="bi bi-cash-stack text-success me-2"></i>Converted Loan Sales Leads</div>
+                        <span class="badge badge-success fs-xs"><?= count($leadTableRows) ?> Opportunities</span>
                     </div>
-                    <?php if (count($detail_rows) >= 500): ?>
-                        <div class="px-3 pt-3">
-                            <div class="alert alert-info py-2 px-3 fs-xs mb-0 d-flex align-items-center justify-content-between">
-                                <span><i class="bi bi-info-circle me-1"></i> Showing latest 500 calls for this period.</span>
-                                <a href="<?= url('modules/logs/call_history.php') ?>" class="btn btn-outline-primary btn-sm py-0 px-2 fs-xs">Open Full Audit Trail</a>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-                    <div class="crm-card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Date & Time</th>
-                                        <th>Customer Name</th>
-                                        <th>Mobile Number</th>
-                                        <th>Company</th>
-                                        <th>Duration</th>
-                                        <th>Call Outcome</th>
-                                        <th>Database Source</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($detail_rows as $r):
-                                        $stLow = strtolower(trim($r['call_status']));
-                                        $badgeCls = 'badge-secondary';
-                                        if (in_array($stLow, ['connected', 'lead', 'interested', 'interested / hot', 'deal converted'])) {
-                                            $badgeCls = 'badge-success';
-                                        } elseif (in_array($stLow, ['not interested', 'not_interested'])) {
-                                            $badgeCls = 'badge-secondary';
-                                        } elseif (in_array($stLow, ['busy', 'busy / no answer', 'no answer', 'no_answer'])) {
-                                            $badgeCls = 'badge-warning';
-                                        } elseif (in_array($stLow, ['do not call', 'dnc', 'dnd', 'dnd number', 'dnd requested', 'do not disturb', 'not_connected_dnd'])) {
-                                            $badgeCls = 'badge-danger';
-                                        } elseif (in_array($stLow, ['pending', 'call back', 'callback', 'follow up', 'follow-up', 'follow-up needed', 'callback / follow-up'])) {
-                                            $badgeCls = 'badge-info';
-                                        }
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="text" id="leadFilterInput" class="form-control form-control-sm" placeholder="Search leads..." style="max-width: 220px;">
+                    </div>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="leadsReportTable">
+                            <thead>
+                                <tr>
+                                    <th>Lead ID</th>
+                                    <th>Orig. Contact ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Mobile</th>
+                                    <th>Assigned Officer</th>
+                                    <th>Team / Leader</th>
+                                    <th>Loan Product</th>
+                                    <th>Requested Amount</th>
+                                    <th>Pipeline Stage</th>
+                                    <th>Conversion Date</th>
+                                    <th class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($leadTableRows)): ?>
+                                    <?php foreach ($leadTableRows as $l): ?>
+                                        <tr>
+                                            <td class="font-monospace fs-xs fw-bold text-primary">#<?= $l['lead_id'] ?></td>
+                                            <td class="font-monospace fs-xs text-muted">
+                                                <?= $l['cust_id'] ? '#' . $l['cust_id'] : '—' ?>
+                                            </td>
+                                            <td><strong class="text-dark fs-xs"><?= htmlspecialchars($l['name']) ?></strong></td>
+                                            <td class="font-monospace fs-xs"><?= htmlspecialchars($l['mobile']) ?></td>
+                                            <td class="fs-xs text-dark"><?= htmlspecialchars($l['officer_name'] ?: 'Unassigned') ?></td>
+                                            <td class="fs-xs text-muted"><?= htmlspecialchars($l['team_name'] ?: 'No Team') ?></td>
+                                            <td><span class="badge badge-secondary fs-xs"><?= htmlspecialchars($l['loan_type'] ?: 'Personal Loan') ?></span></td>
+                                            <td class="fs-xs fw-bold text-dark"><?= htmlspecialchars($l['loan_amount'] ?: '—') ?></td>
+                                            <td>
+                                                <span class="badge badge-purple fs-xs"><?= htmlspecialchars($l['pipeline_stage']) ?></span>
+                                            </td>
+                                            <td class="fs-xs text-muted"><?= date('d M Y, h:i A', strtotime($l['converted_at'] ?: $l['created_at'])) ?></td>
+                                            <td class="text-center">
+                                                <a href="<?= url('modules/leads/lead_view.php?id=' . $l['lead_id']) ?>" class="btn btn-primary btn-sm py-1 px-2 fs-xs">
+                                                    <i class="bi bi-arrow-up-right-square me-1"></i> View Lead
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="11" class="text-center py-4 text-muted fs-xs">No converted leads recorded for this date window.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: OFFICERS PERFORMANCE MATRIX -->
+        <div class="tab-pane fade <?= $active_tab === 'employees' ? 'show active' : '' ?>" id="tab-employees" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="crm-card-title mb-0"><i class="bi bi-person-badge text-primary me-2"></i>Sales Officers Performance & Target Achievement</div>
+                        <span class="badge badge-secondary fs-xs"><?= count($empRows) ?> Officers</span>
+                    </div>
+                    <input type="text" id="employeeFilterInput" class="form-control form-control-sm" placeholder="Search officer..." style="max-width: 220px;">
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="employeeReportTable">
+                            <thead>
+                                <tr>
+                                    <th>Sales Officer</th>
+                                    <th>Team / Leader</th>
+                                    <th class="text-center">Contacts</th>
+                                    <th class="text-center">Total Dials</th>
+                                    <th class="text-center">Connected</th>
+                                    <th class="text-center">Connect %</th>
+                                    <th class="text-center">Interested</th>
+                                    <th class="text-center">Leads</th>
+                                    <th>Talk Time</th>
+                                    <th>Target Quota</th>
+                                    <th>Achievement %</th>
+                                    <th class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($empRows)): ?>
+                                    <?php foreach ($empRows as $emp): 
+                                        $achGood = $emp['achievement_pct'] >= 100;
+                                        $achWarn = $emp['achievement_pct'] < 50;
                                     ?>
                                         <tr>
                                             <td>
-                                                <div class="fw-semibold fs-xs text-dark"><?= htmlspecialchars(date('d M Y', strtotime($r['call_time']))) ?></div>
-                                                <small class="text-muted fs-xs"><?= htmlspecialchars(date('h:i A', strtotime($r['call_time']))) ?></small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="avatar-circle" style="width:28px; height:28px; font-size:11px;">
+                                                        <?= strtoupper(substr($emp['employee_name'], 0, 2)) ?>
+                                                    </div>
+                                                    <div>
+                                                        <strong class="text-dark fs-xs"><?= htmlspecialchars($emp['employee_name']) ?></strong>
+                                                        <div class="text-muted fs-xs"><?= htmlspecialchars($emp['user_role']) ?></div>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td><strong class="text-dark fs-xs"><?= htmlspecialchars($r['cust_name'] ?: '—') ?></strong></td>
-                                            <td>
-                                                <?php if ($r['cust_mobile']): ?>
-                                                    <a href="tel:<?= urlencode($r['cust_mobile']) ?>" class="text-decoration-none font-monospace fs-xs">
-                                                        <i class="bi bi-telephone me-1 text-primary"></i><?= htmlspecialchars($r['cust_mobile']) ?>
-                                                    </a>
-                                                <?php else: ?>
-                                                    <span class="text-muted fs-xs">—</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><span class="text-muted fs-xs"><?= htmlspecialchars($r['cust_company'] ?: '—') ?></span></td>
-                                            <td>
-                                                <?php if ((int)($r['call_duration'] ?? 0) > 0): ?>
-                                                    <span class="badge badge-secondary fs-xs">
-                                                        <i class="bi bi-stopwatch me-1"></i>
-                                                        <?= (int)$r['call_duration'] >= 60 ? floor($r['call_duration']/60) . 'm ' . ($r['call_duration']%60) . 's' : $r['call_duration'] . 's' ?>
-                                                    </span>
-                                                <?php else: ?>
-                                                    <span class="text-muted fs-xs">0s</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
-                                                <span class="badge <?= $badgeCls ?> fs-xs">
-                                                    <?= htmlspecialchars($r['call_status']) ?>
+                                            <td class="fs-xs text-muted"><?= htmlspecialchars($emp['team_name'] ?: 'No Team') ?></td>
+                                            <td class="text-center fs-xs fw-semibold"><?= number_format($emp['assigned_contacts']) ?></td>
+                                            <td class="text-center fs-xs fw-bold text-dark"><?= number_format($emp['total_dials']) ?></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($emp['connected']) ?></span></td>
+                                            <td class="text-center fs-xs">
+                                                <span class="badge <?= $emp['connect_rate'] >= $targets['min_connect_rate_pct'] ? 'badge-success' : 'badge-danger' ?>">
+                                                    <?= $emp['connect_rate'] ?>%
                                                 </span>
                                             </td>
+                                            <td class="text-center fs-xs"><span class="badge badge-success"><?= number_format($emp['interested']) ?></span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($emp['converted_leads']) ?></span></td>
+                                            <td class="fs-xs text-muted"><?= $emp['talk_time_formatted'] ?></td>
+                                            <td class="fs-xs text-muted"><?= $emp['target'] ?> dials</td>
                                             <td>
-                                                <span class="badge badge-secondary fs-xs">
-                                                    <?= htmlspecialchars($r['source']) ?>
+                                                <div class="d-flex align-items-center gap-2" style="min-width: 110px;">
+                                                    <div class="progress flex-grow-1" style="height: 6px;">
+                                                        <div class="progress-bar <?= $achGood ? 'bg-success' : ($achWarn ? 'bg-danger' : 'bg-primary') ?>" style="width: <?= min(100, $emp['achievement_pct']) ?>%"></div>
+                                                    </div>
+                                                    <span class="fs-xs fw-bold <?= $achGood ? 'text-success' : ($achWarn ? 'text-danger' : 'text-primary') ?>"><?= $emp['achievement_pct'] ?>%</span>
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => $emp['user_id'], 'tab' => 'drilldown'])) ?>" class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
+                                                    <i class="bi bi-clock-history me-1 text-primary"></i> Logs
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="12" class="text-center py-4 text-muted fs-xs">No officer activity recorded in this scope.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <?php if ($isSuperAdmin || $isAdmin || $isManager): ?>
+        <!-- TAB 5: SUPERVISOR & TEAM PERFORMANCE ROLLUP -->
+        <div class="tab-pane fade <?= $active_tab === 'supervisors' ? 'show active' : '' ?>" id="tab-supervisors" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex align-items-center justify-content-between">
+                    <div class="crm-card-title mb-0"><i class="bi bi-people text-warning me-2"></i>Supervisor & Squad Aggregates</div>
+                    <span class="badge badge-warning fs-xs"><?= count($supRows) ?> Squads</span>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Supervisor / Team Leader</th>
+                                    <th>Assigned Squad</th>
+                                    <th class="text-center">Officers</th>
+                                    <th class="text-center">Total Dials</th>
+                                    <th class="text-center">Connected</th>
+                                    <th class="text-center">Connect %</th>
+                                    <th class="text-center">Interested</th>
+                                    <th class="text-center">Converted Leads</th>
+                                    <th>Squad Target</th>
+                                    <th>Squad Achievement</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($supRows)): ?>
+                                    <?php foreach ($supRows as $sup): ?>
+                                        <tr>
+                                            <td><strong class="text-dark fs-xs"><?= htmlspecialchars($sup['supervisor_name']) ?></strong></td>
+                                            <td class="fs-xs text-muted"><?= htmlspecialchars($sup['team_name']) ?></td>
+                                            <td class="text-center fs-xs fw-semibold"><?= (int)$sup['total_officers'] ?></td>
+                                            <td class="text-center fs-xs fw-bold text-dark"><?= number_format($sup['total_dials']) ?></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($sup['connected']) ?></span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-success"><?= $sup['connect_rate'] ?>%</span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-info"><?= number_format($sup['interested']) ?></span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($sup['converted_leads']) ?></span></td>
+                                            <td class="fs-xs text-muted"><?= number_format($sup['team_target']) ?> dials</td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2" style="min-width: 100px;">
+                                                    <div class="progress flex-grow-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-success" style="width: <?= min(100, $sup['achievement_pct']) ?>%"></div>
+                                                    </div>
+                                                    <span class="fs-xs fw-bold text-success"><?= $sup['achievement_pct'] ?>%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="10" class="text-center py-4 text-muted fs-xs">No supervisor squads found.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- TAB 6: HOURLY CALLING ANALYTICS -->
+        <div class="tab-pane fade <?= $active_tab === 'hourly' ? 'show active' : '' ?>" id="tab-hourly" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex align-items-center justify-content-between">
+                    <div class="crm-card-title mb-0"><i class="bi bi-hourglass-split text-info me-2"></i>Hourly Telecalling Distribution (09:00 AM to 06:00 PM)</div>
+                    <span class="text-muted fs-xs">Timezone: Asia/Kolkata</span>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Hour Window</th>
+                                    <th class="text-center">Total Calls Dialed</th>
+                                    <th class="text-center">Connected Calls</th>
+                                    <th class="text-center">Unique Contacts</th>
+                                    <th class="text-center">Interested Leads</th>
+                                    <th>Total Talk Time</th>
+                                    <th class="text-center">Connect %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($hourlyAnalytics as $ha): ?>
+                                    <tr>
+                                        <td class="fw-semibold text-dark fs-xs"><i class="bi bi-clock me-1 text-muted"></i> <?= $ha['window'] ?></td>
+                                        <td class="text-center fs-xs fw-bold"><?= number_format($ha['total_calls']) ?></td>
+                                        <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($ha['connected_calls']) ?></span></td>
+                                        <td class="text-center fs-xs text-muted"><?= number_format($ha['unique_contacts']) ?></td>
+                                        <td class="text-center fs-xs"><span class="badge badge-success"><?= number_format($ha['interested_calls']) ?></span></td>
+                                        <td class="fs-xs text-muted"><?= $ha['talk_time_formatted'] ?></td>
+                                        <td class="text-center fs-xs">
+                                            <span class="badge <?= $ha['connect_rate'] >= 30 ? 'badge-success' : 'badge-secondary' ?>">
+                                                <?= $ha['connect_rate'] ?>%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 7: FOLLOW-UP MANAGEMENT HUB -->
+        <div class="tab-pane fade <?= $active_tab === 'followups' ? 'show active' : '' ?>" id="tab-followups" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="crm-card-title mb-0"><i class="bi bi-calendar-check text-purple me-2"></i>Follow-ups & Scheduled Callbacks Hub</div>
+                        <span class="badge badge-purple fs-xs"><?= count($followupList) ?> Scheduled</span>
+                    </div>
+                    <input type="text" id="followupFilterInput" class="form-control form-control-sm" placeholder="Search follow-ups..." style="max-width: 220px;">
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="followupsReportTable">
+                            <thead>
+                                <tr>
+                                    <th>Customer Name</th>
+                                    <th>Mobile Number</th>
+                                    <th>Entity Classification</th>
+                                    <th>Assigned Officer</th>
+                                    <th>Scheduled Follow-up</th>
+                                    <th>Due Status</th>
+                                    <th>Notes / Remarks</th>
+                                    <th class="text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($followupList)): ?>
+                                    <?php foreach ($followupList as $fo): 
+                                        $isOverdue = (strtotime($fo['followup_at']) < time()) && ($fo['status'] === 'OPEN');
+                                        $isToday = (date('Y-m-d', strtotime($fo['followup_at'])) === date('Y-m-d'));
+                                    ?>
+                                        <tr>
+                                            <td><strong class="text-dark fs-xs"><?= htmlspecialchars($fo['customer_name'] ?: 'Customer') ?></strong></td>
+                                            <td class="font-monospace fs-xs"><?= htmlspecialchars($fo['customer_mobile'] ?: '—') ?></td>
+                                            <td>
+                                                <?php if ($fo['lead_id']): ?>
+                                                    <span class="badge badge-success fs-xs"><i class="bi bi-link me-1"></i> Converted Lead #<?= $fo['lead_id'] ?></span>
+                                                <?php else: ?>
+                                                    <span class="badge badge-secondary fs-xs">Client Contact #<?= $fo['client_contact_id'] ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="fs-xs text-dark"><?= htmlspecialchars($fo['officer_name'] ?: 'Unknown') ?></td>
+                                            <td class="fs-xs text-dark fw-semibold"><?= date('d M Y, h:i A', strtotime($fo['followup_at'])) ?></td>
+                                            <td>
+                                                <?php if ($fo['status'] === 'DONE'): ?>
+                                                    <span class="badge badge-success fs-xs">Completed</span>
+                                                <?php elseif ($isOverdue): ?>
+                                                    <span class="badge badge-danger fs-xs">Overdue</span>
+                                                <?php elseif ($isToday): ?>
+                                                    <span class="badge badge-warning fs-xs">Due Today</span>
+                                                <?php else: ?>
+                                                    <span class="badge badge-info fs-xs">Upcoming</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="fs-xs text-muted" style="max-width: 250px;">
+                                                <span class="d-inline-block text-truncate" style="max-width: 240px;"><?= htmlspecialchars($fo['note'] ?: '—') ?></span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge <?= $fo['status'] === 'DONE' ? 'badge-success' : 'badge-primary' ?> fs-xs">
+                                                    <?= htmlspecialchars($fo['status']) ?>
                                                 </span>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                                <?php else: ?>
+                                    <tr><td colspan="8" class="text-center py-4 text-muted fs-xs">No scheduled follow-ups found in this scope.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            <?php else: ?>
-                <div class="crm-card text-center py-5">
-                    <i class="bi bi-person-lines-fill text-muted fs-1 mb-2"></i>
-                    <?php if ($selected_user_id): ?>
-                        <h6 class="fw-bold text-dark">No call logs found for <?= htmlspecialchars($selected_user_name ?? 'this user') ?> in this period</h6>
-                        <p class="fs-xs text-muted mb-0">Try adjusting your date range filter above.</p>
+            </div>
+        </div>
+
+        <!-- TAB 8: PERFORMANCE ALERTS CENTER -->
+        <div class="tab-pane fade <?= $active_tab === 'alerts' ? 'show active' : '' ?>" id="tab-alerts" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex align-items-center justify-content-between">
+                    <div class="crm-card-title mb-0"><i class="bi bi-bell text-danger me-2"></i>Performance Alerts Center</div>
+                    <span class="badge badge-danger fs-xs"><?= count($alerts) ?> Active Alerts</span>
+                </div>
+                <div class="crm-card-body">
+                    <?php if (!empty($alerts)): ?>
+                        <div class="row g-2">
+                            <?php foreach ($alerts as $alt): ?>
+                                <div class="col-md-6">
+                                    <div class="alert alert-<?= $alt['severity'] ?> py-2 px-3 mb-2 d-flex align-items-start gap-2">
+                                        <i class="bi <?= $alt['severity'] === 'danger' ? 'bi-exclamation-octagon-fill' : ($alt['severity'] === 'warning' ? 'bi-exclamation-triangle-fill' : ($alt['severity'] === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')) ?> fs-5 mt-1"></i>
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <strong class="fs-xs"><?= htmlspecialchars($alt['title']) ?></strong>
+                                                <span class="badge bg-<?= $alt['severity'] ?> fs-xxs"><?= $alt['badge'] ?></span>
+                                            </div>
+                                            <div class="fs-xs mt-1"><?= htmlspecialchars($alt['message']) ?></div>
+                                            <div class="text-muted fs-xxs mt-1">Responsible Officer: <strong><?= htmlspecialchars($alt['officer']) ?></strong></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
                     <?php else: ?>
-                        <h6 class="fw-bold text-dark">No telecaller selected for drilldown</h6>
-                        <p class="fs-xs text-muted mb-0">Switch to the "Team & Telecaller Performance" tab and click "Logs" next to any telecaller to inspect their individual call activity.</p>
+                        <div class="text-center py-5">
+                            <i class="bi bi-shield-check text-success fs-1 mb-2"></i>
+                            <h6 class="fw-bold text-dark">Zero Performance Violations</h6>
+                            <p class="fs-xs text-muted mb-0">All telecallers are meeting connection rate targets and timely callbacks.</p>
+                        </div>
                     <?php endif; ?>
                 </div>
-            <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- TAB 9: RANKINGS & PRODUCTIVITY LEADERBOARD -->
+        <div class="tab-pane fade <?= $active_tab === 'rankings' ? 'show active' : '' ?>" id="tab-rankings" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex align-items-center justify-content-between">
+                    <div class="crm-card-title mb-0"><i class="bi bi-trophy text-warning me-2"></i>Telecalling Productivity & Sales Score Leaderboard</div>
+                    <span class="text-muted fs-xs">Ranked by 6-Factor Weighted Scoring Model</span>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">Rank</th>
+                                    <th>Sales Officer</th>
+                                    <th>Team</th>
+                                    <th class="text-center">Total Dials</th>
+                                    <th class="text-center">Connected</th>
+                                    <th class="text-center">Connect %</th>
+                                    <th class="text-center">Converted Leads</th>
+                                    <th>Productivity Score</th>
+                                    <th>Sales Score</th>
+                                    <th class="text-center">Status Badge</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($rankings)): ?>
+                                    <?php $rankIdx = 1; foreach ($rankings as $rk): 
+                                        $medal = '';
+                                        if ($rankIdx === 1) $medal = '🥇';
+                                        elseif ($rankIdx === 2) $medal = '🥈';
+                                        elseif ($rankIdx === 3) $medal = '🥉';
+                                    ?>
+                                        <tr>
+                                            <td class="text-center fs-sm fw-bold">
+                                                <?= $medal ?: ('#' . $rankIdx) ?>
+                                            </td>
+                                            <td>
+                                                <strong class="text-dark fs-xs"><?= htmlspecialchars($rk['employee_name']) ?></strong>
+                                            </td>
+                                            <td class="fs-xs text-muted"><?= htmlspecialchars($rk['team_name'] ?: 'No Team') ?></td>
+                                            <td class="text-center fs-xs fw-bold"><?= number_format($rk['total_dials']) ?></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($rk['connected']) ?></span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-success"><?= $rk['connect_rate'] ?>%</span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($rk['converted_leads']) ?></span></td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2" style="min-width: 110px;">
+                                                    <div class="progress flex-grow-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-warning" style="width: <?= min(100, $rk['calling_score']) ?>%"></div>
+                                                    </div>
+                                                    <span class="fs-xs fw-bold text-dark"><?= $rk['calling_score'] ?> / 100</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2" style="min-width: 110px;">
+                                                    <div class="progress flex-grow-1" style="height: 6px;">
+                                                        <div class="progress-bar bg-success" style="width: <?= min(100, $rk['sales_score']) ?>%"></div>
+                                                    </div>
+                                                    <span class="fs-xs fw-bold text-success"><?= $rk['sales_score'] ?> / 100</span>
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <?php if ($rankIdx <= 3 && $rk['calling_score'] >= 50): ?>
+                                                    <span class="badge badge-warning fs-xs"><i class="bi bi-star-fill me-1"></i> TOP PERFORMER</span>
+                                                <?php elseif ($rk['calling_score'] >= 70): ?>
+                                                    <span class="badge badge-success fs-xs">EXCELLENT</span>
+                                                <?php elseif ($rk['calling_score'] >= 40): ?>
+                                                    <span class="badge badge-primary fs-xs">ON TRACK</span>
+                                                <?php else: ?>
+                                                    <span class="badge badge-secondary fs-xs">NEEDS ATTENTION</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php $rankIdx++; endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="10" class="text-center py-4 text-muted fs-xs">No ranking data available for this window.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 10: DETAILED CALL LOGS DRILLDOWN -->
+        <div class="tab-pane fade <?= $active_tab === 'drilldown' ? 'show active' : '' ?>" id="tab-drilldown" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="crm-card-title mb-0"><i class="bi bi-clock-history text-primary me-2"></i>Call Logs Audit Trail</div>
+                        <span class="badge badge-primary fs-xs"><?= count($detailRows) ?> Records</span>
+                    </div>
+                    <?php if ($selected_user_id && !$isOfficer): ?>
+                        <a href="<?= $self ?>?<?= htmlspecialchars(reportQs(['user' => '', 'tab' => 'drilldown'])) ?>" class="btn btn-secondary btn-sm py-1 px-2 fs-xs">
+                            <i class="bi bi-x-lg me-1"></i> Clear Officer Filter (<?= htmlspecialchars($selected_user_name) ?>)
+                        </a>
+                    <?php endif; ?>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Telecaller</th>
+                                    <th>Customer Name</th>
+                                    <th>Mobile Number</th>
+                                    <th>Duration</th>
+                                    <th>Outcome</th>
+                                    <th>Entity Relationship</th>
+                                    <th>Audio Recording</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($detailRows)): ?>
+                                    <?php foreach ($detailRows as $dr): 
+                                        $st = $dr['call_status'];
+                                        $bCls = 'badge-secondary';
+                                        if (in_array(strtolower($st), ['interested', 'lead', 'connected', 'deal converted'])) $bCls = 'badge-success';
+                                        elseif (in_array(strtolower($st), ['callback', 'busy', 'follow-up'])) $bCls = 'badge-info';
+                                        elseif (in_array(strtolower($st), ['do not call', 'dnd'])) $bCls = 'badge-danger';
+                                    ?>
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold fs-xs text-dark"><?= date('d M Y', strtotime($dr['call_time'] ?: $dr['created_at'])) ?></div>
+                                                <small class="text-muted fs-xs"><?= date('h:i A', strtotime($dr['call_time'] ?: $dr['created_at'])) ?></small>
+                                            </td>
+                                            <td class="fs-xs fw-semibold text-dark"><?= htmlspecialchars($dr['officer_name'] ?: 'Unknown') ?></td>
+                                            <td><strong class="text-dark fs-xs"><?= htmlspecialchars($dr['cust_name'] ?: '—') ?></strong></td>
+                                            <td class="font-monospace fs-xs"><?= htmlspecialchars($dr['cust_mobile'] ?: '—') ?></td>
+                                            <td>
+                                                <span class="badge badge-secondary fs-xs">
+                                                    <i class="bi bi-stopwatch me-1"></i> <?= (int)$dr['call_duration'] ?>s
+                                                </span>
+                                            </td>
+                                            <td><span class="badge <?= $bCls ?> fs-xs"><?= htmlspecialchars($st) ?></span></td>
+                                            <td>
+                                                <?php if ($dr['lead_id']): ?>
+                                                    <span class="badge badge-success fs-xs"><i class="bi bi-link me-1"></i> Converted Lead #<?= $dr['lead_id'] ?></span>
+                                                <?php else: ?>
+                                                    <span class="badge badge-secondary fs-xs">Contact #<?= $dr['client_contact_id'] ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if (!empty($dr['recording_url'])): ?>
+                                                    <audio controls preload="none" style="height: 28px; max-width: 160px;">
+                                                        <source src="<?= htmlspecialchars($dr['recording_url']) ?>">
+                                                    </audio>
+                                                <?php else: ?>
+                                                    <span class="text-muted fs-xs">No Audio</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="8" class="text-center py-4 text-muted fs-xs">No call logs found for this window.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
     </div><!-- /tab-content -->
 </div>
 
+<?php if ($isSuperAdmin): ?>
+<!-- SUPER ADMIN TARGETS CONFIGURATION MODAL -->
+<div class="modal fade" id="targetsConfigModal" tabindex="-1" aria-labelledby="targetsConfigModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="">
+                <?= csrfField() ?>
+                <input type="hidden" name="save_targets" value="1">
+                <div class="modal-header">
+                    <h5 class="modal-title fs-sm fw-bold" id="targetsConfigModalLabel">
+                        <i class="bi bi-sliders text-purple me-2"></i>Configure Reporting Targets & Thresholds
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body fs-xs">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Daily Call Dials Target (per Officer)</label>
+                        <input type="number" name="daily_call_target" class="form-control form-control-sm" value="<?= (int)$targets['daily_call_target'] ?>" required min="10" max="1000">
+                        <div class="form-text fs-xxs">Used to compute achievement % and calling productivity rankings.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Daily Connected Calls Target</label>
+                        <input type="number" name="daily_connected_target" class="form-control form-control-sm" value="<?= (int)$targets['daily_connected_target'] ?>" required min="5" max="500">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Daily Talk Time Target (Minutes)</label>
+                        <input type="number" name="daily_talk_time_minutes" class="form-control form-control-sm" value="<?= (int)$targets['daily_talk_time_minutes'] ?>" required min="30" max="600">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Daily Lead Conversions Target</label>
+                        <input type="number" name="daily_lead_target" class="form-control form-control-sm" value="<?= (int)$targets['daily_lead_target'] ?>" required min="1" max="50">
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Min Connect Rate %</label>
+                            <input type="number" step="0.1" name="min_connect_rate_pct" class="form-control form-control-sm" value="<?= (float)$targets['min_connect_rate_pct'] ?>" required min="5" max="100">
+                            <div class="form-text fs-xxs">Alert triggers if below this.</div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Max Overdue Follow-ups</label>
+                            <input type="number" name="max_overdue_followups" class="form-control form-control-sm" value="<?= (int)$targets['max_overdue_followups'] ?>" required min="1" max="50">
+                            <div class="form-text fs-xxs">Critical alert threshold.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
 <script src="<?= vnd('js/chart.umd.min.js') ?>"></script>
-<script src="<?= vnd('js/table2excel.min.js') ?>"></script>
 <script>
-// Filter preset toggle
+// Time window change handler
 document.getElementById('rangeSelect').addEventListener('change', function() {
     var el = document.getElementById('customDateRange');
     if (this.value === 'custom') {
@@ -954,7 +1517,7 @@ document.getElementById('rangeSelect').addEventListener('change', function() {
     }
 });
 
-// Tab state sync with form
+// Tab state sync with query params
 document.querySelectorAll('#reportTabs button[data-bs-toggle="tab"]').forEach(function(tabBtn) {
     tabBtn.addEventListener('shown.bs.tab', function(e) {
         var target = e.target.getAttribute('data-bs-target').replace('#tab-', '');
@@ -963,103 +1526,65 @@ document.querySelectorAll('#reportTabs button[data-bs-toggle="tab"]').forEach(fu
     });
 });
 
-// Live filter in telecaller summary table
-document.getElementById('telecallerFilterInput')?.addEventListener('input', function() {
-    var term = this.value.toLowerCase().trim();
-    document.querySelectorAll('#telecallerSummaryTable tbody tr.telecaller-row').forEach(function(row) {
-        var text = row.textContent.toLowerCase();
-        row.style.display = (term === '' || text.indexOf(term) !== -1) ? '' : 'none';
-    });
-});
-
-<?php if ($grand_total > 0): ?>
-const css = getComputedStyle(document.documentElement);
-Chart.defaults.color = css.getPropertyValue('--crm-text-secondary').trim() || '#64748b';
-Chart.defaults.borderColor = css.getPropertyValue('--crm-border-color').trim() || '#e2e8f0';
-Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
-
-const trendLabels   = <?= json_encode(array_column($trend, 'label')) ?>;
-const trendTotal    = <?= json_encode(array_column($trend, 'total')) ?>;
-const trendConnected= <?= json_encode(array_column($trend, 'connected')) ?>;
-const statusLabels  = <?= json_encode($statusLabels) ?>;
-const statusValues  = <?= json_encode($statusValues) ?>;
-const userLabels    = <?= json_encode($userLabels) ?>;
-const userTotals    = <?= json_encode($userTotals) ?>;
-
-if (document.getElementById('trendChart')) {
-    new Chart(document.getElementById('trendChart'), {
-        type: 'line',
-        data: {
-            labels: trendLabels,
-            datasets: [
-                { label: 'Total Calls Dialed', data: trendTotal, borderColor: '#6D45F9', backgroundColor: 'rgba(109,69,249,0.12)', fill: true, tension: .2 },
-                { label: 'Connected Calls', data: trendConnected, borderColor: '#0090DF', backgroundColor: 'rgba(0,144,223,0.10)', fill: true, tension: .2 }
-            ]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { position: 'bottom' } } 
-        }
+// Client-side quick filter helpers
+function setupTableSearch(inputId, tableId) {
+    document.getElementById(inputId)?.addEventListener('input', function() {
+        var term = this.value.toLowerCase().trim();
+        document.querySelectorAll('#' + tableId + ' tbody tr').forEach(function(row) {
+            row.style.display = (term === '' || row.textContent.toLowerCase().indexOf(term) !== -1) ? '' : 'none';
+        });
     });
 }
+setupTableSearch('contactFilterInput', 'contactsReportTable');
+setupTableSearch('leadFilterInput', 'leadsReportTable');
+setupTableSearch('employeeFilterInput', 'employeeReportTable');
+setupTableSearch('followupFilterInput', 'followupsReportTable');
 
-if (document.getElementById('statusChart')) {
-    new Chart(document.getElementById('statusChart'), {
-        type: 'doughnut',
-        data: {
-            labels: statusLabels,
-            datasets: [{
-                data: statusValues,
-                backgroundColor: ['#16A66A', '#6D45F9', '#0090DF', '#D89012', '#E5484D', '#8C72FF']
-            }]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } } 
-        }
-    });
-}
+// Charts Initialization
+const hourlyLabels = <?= json_encode(array_column($hourlyAnalytics, 'window')) ?>;
+const hourlyCalls = <?= json_encode(array_column($hourlyAnalytics, 'total_calls')) ?>;
+const hourlyConnected = <?= json_encode(array_column($hourlyAnalytics, 'connected_calls')) ?>;
 
-if (document.getElementById('userChart')) {
-    new Chart(document.getElementById('userChart'), {
+if (document.getElementById('hourlyTrendChart')) {
+    new Chart(document.getElementById('hourlyTrendChart'), {
         type: 'bar',
         data: {
-            labels: userLabels,
-            datasets: [{ label: 'Calls Dialed', data: userTotals, backgroundColor: '#6D45F9', borderRadius: 8 }]
+            labels: hourlyLabels,
+            datasets: [
+                { label: 'Total Calls Dialed', data: hourlyCalls, backgroundColor: '#6D45F9', borderRadius: 4 },
+                { label: 'Connected Calls', data: hourlyConnected, backgroundColor: '#0090DF', borderRadius: 4 }
+            ]
         },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } 
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
         }
     });
 }
-<?php endif; ?>
 
-// Excel grid export
-document.getElementById('btnExport')?.addEventListener('click', () => {
-    const container = document.getElementById('exportArea');
-    if (!container) return;
-
-    const clone = container.cloneNode(true);
-    clone.querySelectorAll('.avatar-circle, [data-exclude="true"]').forEach(el => el.remove());
-
-    clone.querySelectorAll('.rp-emp-name').forEach(el => {
-        const text = el.textContent.trim();
-        const parentTd = el.closest('td');
-        if (parentTd) parentTd.textContent = text;
+if (document.getElementById('dispositionDoughnutChart')) {
+    new Chart(document.getElementById('dispositionDoughnutChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Interested / Lead', 'Callback / Busy', 'Not Interested', 'DND', 'Switch Off / Unreachable'],
+            datasets: [{
+                data: [
+                    <?= (int)$contactMetrics['interested'] ?>,
+                    <?= (int)$contactMetrics['callback_busy'] ?>,
+                    <?= (int)$contactMetrics['not_interested'] ?>,
+                    <?= (int)$contactMetrics['dnd'] ?>,
+                    <?= (int)($contactMetrics['switch_off'] + $contactMetrics['not_reachable']) ?>
+                ],
+                backgroundColor: ['#16A66A', '#D89012', '#64748b', '#E5484D', '#8C72FF']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+        }
     });
-
-    const tables = clone.querySelectorAll('table');
-    if (!tables.length) return;
-
-    const exporter = new Table2Excel();
-    exporter.export(tables, {
-        filename: "CallNow_CallReport_<?= date('d-m-Y_H-i') ?>"
-    });
-});
+}
 </script>

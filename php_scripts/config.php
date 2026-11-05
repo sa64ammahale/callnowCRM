@@ -121,6 +121,8 @@ date_default_timezone_set('Asia/Kolkata');
         define('TBL_USER_PAGE_FILTERS',  'user_page_filters');
         define('TBL_USER_PERMISSIONS',   'user_permissions');
         define('TBL_USERS',              'users');
+        define('TBL_CONTACT_LEAD_CONVERSIONS', 'contact_lead_conversions');
+        define('TBL_REPORTING_TARGETS',  'reporting_targets');
     }
 
     // ── Self-heal guard (defense against a stale/deployed config or
@@ -152,6 +154,8 @@ date_default_timezone_set('Asia/Kolkata');
         'TBL_USER_PAGE_FILTERS'=> 'user_page_filters',
         'TBL_USER_PERMISSIONS' => 'user_permissions',
         'TBL_USERS'            => 'users',
+        'TBL_CONTACT_LEAD_CONVERSIONS' => 'contact_lead_conversions',
+        'TBL_REPORTING_TARGETS' => 'reporting_targets',
     ];
     foreach ($__cn_tbl as $__cn_k => $__cn_v) {
         $__cn_cur = defined($__cn_k) ? constant($__cn_k) : null;
@@ -418,6 +422,9 @@ date_default_timezone_set('Asia/Kolkata');
                     @mysqli_query($link, "ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN current_calling_db ENUM('temporary','main','leads') NOT NULL DEFAULT 'temporary'");
                 }
             }
+
+            require_once __DIR__ . '/reporting_schema.php';
+            ensureReportingAndConversionSchema($link);
 
             $done = true;
         }

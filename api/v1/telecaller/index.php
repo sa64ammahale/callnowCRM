@@ -1116,6 +1116,130 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         apiError(405, 'Method not allowed');
     }
 
+} elseif ($relativePath === '/follow-ups' || $relativePath === '/follow-ups/' || $relativePath === '/followups' || $relativePath === '/followups/') {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $status = $_GET['status'] ?? 'OPEN';
+        $due = $_GET['due'] ?? 'all';
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 25)));
+        $offset = ($page - 1) * $limit;
+
+        $where = [];
+        $params = [];
+        $types = '';
+
+        if (!in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) {
+            if ($userRole === 'Supervisor' && $teamId) {
+                $where[] = "f.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+                $params[] = $teamId;
+                $types .= 'i';
+            } else {
+                $where[] = "f.user_id = ?";
+                $params[] = $userId;
+                $types .= 'i';
+            }
+        } elseif (!empty($_GET['user_id'])) {
+            $where[] = "f.user_id = ?";
+            $params[] = (int)$_GET['user_id'];
+            $types .= 'i';
+        }
+
+        if ($status !== 'all' && $status !== '') {
+            $where[] = "f.status = ?";
+            $params[] = strtoupper($status);
+            $types .= 's';
+        }
+
+        if ($due === 'today') {
+            $where[] = "f.followup_at >= CURDATE() AND f.followup_at < CURDATE() + INTERVAL 1 DAY";
+        } elseif ($due === 'overdue') {
+            $where[] = "f.followup_at < NOW() AND f.status = 'OPEN'";
+        } elseif ($due === 'upcoming') {
+            $where[] = "f.followup_at >= NOW()";
+        }
+
+        $whereSql = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $cntStmt = $link->prepare("SELECT COUNT(*) as c FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f $whereSql");
+        if (!empty($params)) $cntStmt->bind_param($types, ...$params);
+        $cntStmt->execute();
+        $total = (int)$cntStmt->get_result()->fetch_assoc()['c'];
+        $cntStmt->close();
+
+        $sql = "SELECT 
+                    f.id, f.lead_id, f.client_contact_id, f.contact_source, f.source_call_id, f.user_id, f.followup_at, f.note, f.status, f.completed_at, f.created_at,
+                    u.NAME as officer_name,
+                    COALESCE(l.NAME, m.MAINDATABASE_NAME, t.CUST_NAME, '') as customer_name,
+                    COALESCE(l.MOBILE, m.MAINDATABASE_MOBILE, t.CUST_MOBILE, '') as customer_mobile,
+                    COALESCE(l.COMPANY_NAME, m.MAINDATABASE_COMPANY, t.CUST_COMPANY, '') as company_name,
+                    l.loan_type, l.loan_amount, l.lead_status_new as pipeline_stage
+                FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f
+                LEFT JOIN " . tn('TBL_USERS') . " u ON f.user_id = u.ID
+                LEFT JOIN " . tn('TBL_LEADS') . " l ON f.lead_id = l.lead_id
+                LEFT JOIN " . tn('TBL_MAIN') . " m ON (f.client_contact_id = m.ID AND f.contact_source = 'MAIN')
+                LEFT JOIN " . tn('TBL_TEMP') . " t ON (f.client_contact_id = t.ID AND f.contact_source = 'TEMP')
+                $whereSql
+                ORDER BY f.followup_at ASC
+                LIMIT ? OFFSET ?";
+        
+        $params[] = $limit;
+        $params[] = $offset;
+        $types .= 'ii';
+
+        $stmt = $link->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        apiSuccess(['data' => $items, 'total' => $total, 'page' => $page, 'limit' => $limit]);
+
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = apiReadJson();
+        $leadId = !empty($input['lead_id']) ? (int)$input['lead_id'] : null;
+        $contactId = !empty($input['client_contact_id']) ? (int)$input['client_contact_id'] : (!empty($input['record_id']) ? (int)$input['record_id'] : null);
+        $contactSource = !empty($input['contact_source']) ? strtoupper(trim($input['contact_source'])) : 'MAIN';
+        if (!in_array($contactSource, ['MAIN', 'TEMP'], true)) $contactSource = 'MAIN';
+        $followupAt = !empty($input['followup_at']) ? date('Y-m-d H:i:s', strtotime($input['followup_at'])) : null;
+        $note = trim($input['note'] ?? ($input['remarks'] ?? ''));
+
+        if (!$followupAt) apiError(400, 'followup_at date/time is required');
+        if (!$leadId && !$contactId) apiError(400, 'Either lead_id or client_contact_id is required');
+
+        $stmt = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, client_contact_id, contact_source, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'OPEN', NOW())");
+        $stmt->bind_param('iissis', $leadId, $contactId, $contactSource, $userId, $followupAt, $note);
+        $stmt->execute();
+        $newId = (int)$stmt->insert_id;
+        $stmt->close();
+
+        apiSuccess(['message' => 'Follow-up created successfully', 'followup_id' => $newId]);
+    } else {
+        apiError(405, 'Method not allowed');
+    }
+
+} elseif (preg_match('#^/follow-ups/(\d+)/(complete|reschedule)$#', $relativePath, $fMatches)) {
+    $fId = (int)$fMatches[1];
+    $action = $fMatches[2];
+    $input = apiReadJson();
+
+    if ($action === 'complete') {
+        $stmt = $link->prepare("UPDATE " . tn('TBL_LEAD_FOLLOWUPS') . " SET status = 'DONE', completed_at = NOW(), completed_by = ? WHERE id = ?");
+        $stmt->bind_param('ii', $userId, $fId);
+        $stmt->execute();
+        $stmt->close();
+        apiSuccess(['message' => 'Follow-up marked as completed', 'followup_id' => $fId]);
+    } elseif ($action === 'reschedule') {
+        $newTime = !empty($input['followup_at']) ? date('Y-m-d H:i:s', strtotime($input['followup_at'])) : null;
+        if (!$newTime) apiError(400, 'New followup_at date/time is required');
+        $appendNote = trim($input['note'] ?? '');
+
+        $stmt = $link->prepare("UPDATE " . tn('TBL_LEAD_FOLLOWUPS') . " SET followup_at = ?, status = 'OPEN', note = CASE WHEN ? != '' THEN CONCAT(COALESCE(note,''), '\nRescheduled: ', ?) ELSE note END WHERE id = ?");
+        $stmt->bind_param('sssi', $newTime, $appendNote, $appendNote, $fId);
+        $stmt->execute();
+        $stmt->close();
+        apiSuccess(['message' => 'Follow-up rescheduled successfully', 'followup_id' => $fId, 'new_time' => $newTime]);
+    }
+
 } else {
     apiError(404, 'Telecaller endpoint not found');
 }
