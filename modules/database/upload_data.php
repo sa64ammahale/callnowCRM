@@ -476,6 +476,7 @@ include __DIR__ . '/../../php_scripts/header.php';
   color: #1f2937 !important;
   border: 1px solid var(--upload-border);
   box-shadow: var(--upload-shadow);
+  margin-bottom: 1.5rem !important;
 }
 .module-header a { color: #4A3CB8 !important; }
 .module-header .text-muted { color: #6c757d !important; }
