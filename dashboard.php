@@ -13,10 +13,23 @@ function fmt($num) {
 }
 
 $tblMain = tn('TBL_MAIN');
+$userRole = USER_ROLE;
+$userId = (int)USER_ID;
+$userTeamId = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
+
+$dashContactScope = getHierarchyContactFilterSQL($link, $userId, $userRole, 'm', $userTeamId);
+$dashUserScope = getHierarchyUserFilterSQL($link, $userId, $userRole, 'm', 'MAINDATABASE_CALL_DIALED_USER', $userTeamId);
 
 // 1. Today's Calls & Connected
 try {
-    $res = mysqli_query($link, "SELECT COUNT(*) as total_calls, SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected FROM $tblMain WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY");
+    $res = mysqli_query($link, "
+        SELECT COUNT(*) as total_calls, 
+               SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected 
+        FROM $tblMain m
+        WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() 
+          AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY
+          AND $dashContactScope
+    ");
     $row = $res ? mysqli_fetch_assoc($res) : ['total_calls' => 0, 'connected' => 0];
 } catch (\Throwable $e) { $row = ['total_calls' => 0, 'connected' => 0]; }
 $today_calls     = (int)($row['total_calls'] ?? 0);
@@ -25,28 +38,48 @@ $connect_rate    = $today_calls > 0 ? round(($today_connected / $today_calls) * 
 
 // 2. Total Hot Leads / Sales
 try {
-    $res2 = mysqli_query($link, "SELECT COUNT(*) as leads FROM $tblMain WHERE MAINDATABASE_CALL_DIALED_STATUS IN ('Connected','Interested','Follow Up','Sale','Callback')");
+    $res2 = mysqli_query($link, "
+        SELECT COUNT(*) as leads 
+        FROM $tblMain m
+        WHERE MAINDATABASE_CALL_DIALED_STATUS IN ('Connected','Interested','Follow Up','Sale','Callback')
+          AND $dashContactScope
+    ");
     $row2 = $res2 ? mysqli_fetch_assoc($res2) : ['leads' => 0];
 } catch (\Throwable $e) { $row2 = ['leads' => 0]; }
 $total_leads = (int)($row2['leads'] ?? 0);
 
 // 3. Active Callers Today
 try {
-    $res3 = mysqli_query($link, "SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as cnt FROM $tblMain WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL");
+    $res3 = mysqli_query($link, "
+        SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as cnt 
+        FROM $tblMain m
+        WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() 
+          AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY 
+          AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL
+          AND $dashUserScope
+    ");
     $row3 = $res3 ? mysqli_fetch_assoc($res3) : ['cnt' => 0];
 } catch (\Throwable $e) { $row3 = ['cnt' => 0]; }
 $active_callers_today = (int)($row3['cnt'] ?? 0);
 
 // 4. Total Records
 try {
-    $res4 = mysqli_query($link, "SELECT COUNT(*) as total FROM $tblMain");
+    $res4 = mysqli_query($link, "SELECT COUNT(*) as total FROM $tblMain m WHERE $dashContactScope");
     $row4 = $res4 ? mysqli_fetch_assoc($res4) : ['total' => 0];
 } catch (\Throwable $e) { $row4 = ['total' => 0]; }
 $total_numbers = (int)($row4['total'] ?? 0);
 
 // 5. Fresh / Not Called Numbers
 try {
-    $res5 = mysqli_query($link, "SELECT COUNT(*) as unused FROM $tblMain WHERE MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '' OR MAINDATABASE_CALL_DIAL_TIME IS NULL");
+    $res5 = mysqli_query($link, "
+        SELECT COUNT(*) as unused 
+        FROM $tblMain m
+        WHERE (MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' 
+           OR MAINDATABASE_CALL_DIALED_STATUS IS NULL 
+           OR MAINDATABASE_CALL_DIALED_STATUS = '' 
+           OR MAINDATABASE_CALL_DIAL_TIME IS NULL)
+          AND $dashContactScope
+    ");
     $row5 = $res5 ? mysqli_fetch_assoc($res5) : ['unused' => 0];
 } catch (\Throwable $e) { $row5 = ['unused' => 0]; }
 $unused_numbers = (int)($row5['unused'] ?? 0);

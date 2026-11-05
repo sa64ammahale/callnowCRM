@@ -19,12 +19,20 @@ if (!$isEdit) {
 $Message = ""; 
 $type = "";
 
-if (isAdmin() || isSuperAdmin()) {
+if (isSuperAdmin()) {
     $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
+} elseif (isAdmin()) {
+    $adminTeamIds = getAuthorizedTeamIds($link, (int)USER_ID, 'Admin');
+    if (!empty($adminTeamIds)) {
+        $tList = implode(',', array_map('intval', $adminTeamIds));
+        $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList) ORDER BY NAME");
+    } else {
+        $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE 1=0");
+    }
 } elseif (USER_TEAM_ID) {
     $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID = " . (int)USER_TEAM_ID);
 } else {
-    $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
+    $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE 1=0");
 }
 $allTeams = mysqli_fetch_all($teamsResult, MYSQLI_ASSOC);
 
@@ -76,7 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $company      = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
         $allowedRoles = array_column($allRoles, 'role_name');
         $allowedTeams = array_map('intval', array_column($allTeams, 'ID'));
-        if (!isAdmin() && !isSuperAdmin()) {
+        if (!canActorAssignRole(USER_ROLE, $role)) {
+            $Message = 'You do not have permission to create or assign the role: ' . htmlspecialchars($role);
+        } elseif (!isAdmin() && !isSuperAdmin()) {
             $allowedRoles = ['Officer'];
             $team_id = (int)USER_TEAM_ID;
         }

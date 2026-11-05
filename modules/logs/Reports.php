@@ -7,11 +7,20 @@ requirePermission('view_reports');
 
 // Determine roles and scope
 $userRole     = USER_ROLE;
-$isSuperAdmin = isSuperAdmin() || ($userRole === 'Super Admin') || (USER_ID === 1);
-$isAdmin      = isAdmin() || ($userRole === 'Admin');
-$isManager    = isManager() || ($userRole === 'Manager');
-$isSupervisor = isSupervisor() || ($userRole === 'Supervisor');
-$isOfficer    = ($userRole === 'Officer') && !$isAdmin && !$isSuperAdmin && !$isSupervisor && !$isManager;
+$isSuperAdmin = isUserSuperAdmin((int)USER_ID, $userRole);
+$isAdmin      = ($userRole === 'Admin' || $userRole === 'Manager') && !$isSuperAdmin;
+$isSupervisor = ($userRole === 'Supervisor') && !$isSuperAdmin && !$isAdmin;
+$isOfficer    = ($userRole === 'Officer') && !$isAdmin && !$isSuperAdmin && !$isSupervisor;
+
+// Prevent parameter tampering: check if requested user is authorized
+$requested_user = isset($_GET['user']) && is_numeric($_GET['user']) ? (int)$_GET['user'] : null;
+if ($isOfficer) {
+    $selected_user_id = (int)USER_ID;
+} elseif ($requested_user) {
+    $selected_user_id = canUserAccessTargetUser($link, (int)USER_ID, $userRole, $requested_user) ? $requested_user : null;
+} else {
+    $selected_user_id = null;
+}
 
 // Super Admin Target Configuration Save Handler
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_targets'])) {
@@ -33,9 +42,6 @@ $to               = $_GET['to']   ?? '';
 $team_filter      = $_GET['team'] ?? '';
 $supervisor_filter= $_GET['supervisor'] ?? '';
 $loan_type_filter = $_GET['loan_type'] ?? '';
-$selected_user_id = isset($_GET['user']) && is_numeric($_GET['user'])
-    ? (int)$_GET['user']
-    : ($isOfficer ? (int)USER_ID : null);
 $active_tab       = $_GET['tab'] ?? ($selected_user_id ? 'drilldown' : 'overview');
 
 $rangeLabels = [
@@ -114,31 +120,63 @@ $bucket        = $spanDays > 31 ? 'month' : 'day';
 // Teams & Supervisors dropdown list based on role
 $TBL_TEAMS = [];
 $allSupervisors = [];
-if ($isSuperAdmin || $isAdmin || $isManager) {
+if ($isSuperAdmin) {
     $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
     if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
 
-    $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor', 'Manager', 'Admin') AND STATUS = 'Active' ORDER BY NAME");
+    $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor', 'Manager', 'Admin') AND STATUS = 'Active' AND ROLE != 'Super Admin' AND ID != 1 ORDER BY NAME");
     if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
+} elseif ($isAdmin) {
+    $adminTeamIds = getAdminManagedTeamIds($link, (int)USER_ID);
+    if (!empty($adminTeamIds)) {
+        $tIn = implode(',', array_map('intval', $adminTeamIds));
+        $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tIn) ORDER BY NAME");
+        if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
+    }
+    $adminSupIds = getAdminAssignedSupervisorIds($link, (int)USER_ID);
+    if (!empty($adminSupIds)) {
+        $sIn = implode(',', array_map('intval', $adminSupIds));
+        $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ID IN ($sIn) AND STATUS = 'Active' ORDER BY NAME");
+        if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
+    }
 } elseif ($isSupervisor) {
     $supId = (int)USER_ID;
     $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = $supId ORDER BY NAME");
     if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
 }
 
+// Validate requested team & supervisor filters against user authorization
+$teamIdParam = null;
+if ($team_filter !== '' && is_numeric($team_filter)) {
+    $candT = (int)$team_filter;
+    $authTeams = getAuthorizedTeamIds($link, (int)USER_ID, $userRole, defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
+    if ($isSuperAdmin || in_array($candT, $authTeams, true)) {
+        $teamIdParam = $candT;
+    }
+}
+
+$supIdParam = null;
+if ($supervisor_filter !== '' && is_numeric($supervisor_filter)) {
+    $candS = (int)$supervisor_filter;
+    if ($isSuperAdmin) {
+        $supIdParam = $candS;
+    } elseif ($isAdmin) {
+        $adminSups = getAdminAssignedSupervisorIds($link, (int)USER_ID);
+        if (in_array($candS, $adminSups, true)) $supIdParam = $candS;
+    }
+}
+
 // Fetch configured targets & performance thresholds
 $targets = getReportingTargets($link, 'Officer');
 
 // Fetch Metrics via Reporting Engine
-$teamIdParam = $team_filter !== '' ? (int)$team_filter : null;
-$supIdParam  = $supervisor_filter !== '' ? (int)$supervisor_filter : null;
-
 $contactMetrics   = getClientContactMetrics($link, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
 $callMetrics      = getCallingMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
 $leadMetrics      = getLeadConversionMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
 $hourlyAnalytics  = getHourlyCallingAnalytics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
 $empRows          = getEmployeePerformanceRows($link, $from, $to, $teamIdParam, $supIdParam, $selected_user_id, $userRole, $targets);
-$supRows          = ($isSuperAdmin || $isAdmin || $isManager) ? getSupervisorPerformanceRows($link, $from, $to, $teamIdParam, $targets) : [];
+$supRows          = ($isSuperAdmin || $isAdmin) ? getSupervisorPerformanceRows($link, $from, $to, $teamIdParam, $targets, (int)USER_ID, $userRole) : [];
+$adminRows        = ($isSuperAdmin || $isAdmin) ? getAdminPerformanceRows($link, $from, $to, $isAdmin ? (int)USER_ID : null, $targets, $userRole) : [];
 $followupList     = getFollowupList($link, $selected_user_id, $teamIdParam, $userRole, 'all', 100);
 $alerts           = getPerformanceAlerts($link, $empRows, $targets, $selected_user_id, $userRole);
 $rankings         = calculateProductivityRankings($empRows, $targets);
@@ -161,6 +199,10 @@ if ($userRole === 'Officer') {
     $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
     $cParams[] = $teamIdParam;
     $cTypes .= 'i';
+} elseif ($isAdmin) {
+    $cWhere[] = getHierarchyContactFilterSQL($link, (int)USER_ID, 'Admin', 'm');
+} elseif ($isSupervisor) {
+    $cWhere[] = getHierarchyContactFilterSQL($link, (int)USER_ID, 'Supervisor', 'm', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
 }
 
 $cWhereSql = !empty($cWhere) ? "WHERE " . implode(' AND ', $cWhere) : "";
@@ -202,6 +244,10 @@ if ($userRole === 'Officer') {
     $lWhere[] = "l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
     $lParams[] = $teamIdParam;
     $lTypes .= 'i';
+} elseif ($isAdmin) {
+    $lWhere[] = getHierarchyLeadFilterSQL($link, (int)USER_ID, 'Admin', 'l');
+} elseif ($isSupervisor) {
+    $lWhere[] = getHierarchyLeadFilterSQL($link, (int)USER_ID, 'Supervisor', 'l', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
 }
 
 if ($loan_type_filter !== '') {
@@ -251,6 +297,10 @@ if ($userRole === 'Officer') {
     $dWhere[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
     $dParams[] = $teamIdParam;
     $dTypes .= 'i';
+} elseif ($isAdmin) {
+    $dWhere[] = getHierarchyUserFilterSQL($link, (int)USER_ID, 'Admin', 'cl', 'user_id');
+} elseif ($isSupervisor) {
+    $dWhere[] = getHierarchyUserFilterSQL($link, (int)USER_ID, 'Supervisor', 'cl', 'user_id', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
 }
 
 $dWhereSql = "WHERE " . implode(' AND ', $dWhere);
@@ -391,6 +441,46 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
         ]);
     }
     fputcsv($out, []);
+
+    // 2b. Admin Rollup (for Super Admin & Admin)
+    if (($isSuperAdmin || $isAdmin) && !empty($adminRows)) {
+        fputcsv($out, ['=== 2b. ADMIN ORGANIZATIONAL ROLLUP ===']);
+        fputcsv($out, ['Admin Name', 'Supervisors Count', 'Officers Count', 'Total Dials', 'Connected', 'Connect Rate', 'Interested', 'Converted Leads']);
+        foreach ($adminRows as $adm) {
+            fputcsv($out, [
+                $adm['admin_name'],
+                $adm['total_supervisors'],
+                $adm['total_officers'],
+                $adm['total_dials'],
+                $adm['connected'],
+                $adm['connect_rate'] . '%',
+                $adm['interested'],
+                $adm['converted_leads']
+            ]);
+        }
+        fputcsv($out, []);
+    }
+
+    // 2c. Supervisor Rollup
+    if (($isSuperAdmin || $isAdmin || $isSupervisor) && !empty($supRows)) {
+        fputcsv($out, ['=== 2c. SUPERVISOR & SQUAD PERFORMANCE ROLLUP ===']);
+        fputcsv($out, ['Supervisor Name', 'Squad Team', 'Officers Count', 'Total Dials', 'Connected', 'Connect Rate', 'Interested', 'Converted Leads', 'Squad Target', 'Squad Achievement %']);
+        foreach ($supRows as $sup) {
+            fputcsv($out, [
+                $sup['supervisor_name'],
+                $sup['team_name'],
+                $sup['total_officers'],
+                $sup['total_dials'],
+                $sup['connected'],
+                $sup['connect_rate'] . '%',
+                $sup['interested'],
+                $sup['converted_leads'],
+                $sup['team_target'],
+                $sup['achievement_pct'] . '%'
+            ]);
+        }
+        fputcsv($out, []);
+    }
 
     // 3. Hourly Performance Analytics
     fputcsv($out, ['=== 3. HOURLY CALLING ANALYTICS (09:30 AM TO 06:30 PM) ===']);
@@ -758,15 +848,23 @@ include __DIR__ . '/../../php_scripts/header.php';
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?= $active_tab === 'employees' ? 'active' : '' ?>" id="employees-tab" data-bs-toggle="tab" data-bs-target="#tab-employees" type="button" role="tab">
-                <i class="bi bi-person-badge me-1 text-primary"></i> Officers Performance
+                <i class="bi bi-person-badge me-1 text-primary"></i> <?= $isOfficer ? 'My Performance' : 'Officers Performance' ?>
                 <span class="badge bg-primary ms-1 fs-xs"><?= count($empRows) ?></span>
             </button>
         </li>
-        <?php if ($isSuperAdmin || $isAdmin || $isManager): ?>
+        <?php if ($isSuperAdmin || $isAdmin || $isSupervisor): ?>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?= $active_tab === 'supervisors' ? 'active' : '' ?>" id="supervisors-tab" data-bs-toggle="tab" data-bs-target="#tab-supervisors" type="button" role="tab">
                 <i class="bi bi-people me-1 text-warning"></i> Supervisor Rollup
                 <span class="badge bg-warning ms-1 fs-xs"><?= count($supRows) ?></span>
+            </button>
+        </li>
+        <?php endif; ?>
+        <?php if ($isSuperAdmin || $isAdmin): ?>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $active_tab === 'admins' ? 'active' : '' ?>" id="admins-tab" data-bs-toggle="tab" data-bs-target="#tab-admins" type="button" role="tab">
+                <i class="bi bi-diagram-3 me-1 text-purple"></i> Admin Rollup
+                <span class="badge bg-purple ms-1 fs-xs"><?= count($adminRows) ?></span>
             </button>
         </li>
         <?php endif; ?>
@@ -789,11 +887,13 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <?php endif; ?>
             </button>
         </li>
+        <?php if (!$isOfficer): ?>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?= $active_tab === 'rankings' ? 'active' : '' ?>" id="rankings-tab" data-bs-toggle="tab" data-bs-target="#tab-rankings" type="button" role="tab">
                 <i class="bi bi-trophy me-1 text-warning"></i> Rankings & Scores
             </button>
         </li>
+        <?php endif; ?>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?= $active_tab === 'drilldown' ? 'active' : '' ?>" id="drilldown-tab" data-bs-toggle="tab" data-bs-target="#tab-drilldown" type="button" role="tab">
                 <i class="bi bi-clock-history me-1 text-secondary"></i> Call History
@@ -1065,7 +1165,7 @@ include __DIR__ . '/../../php_scripts/header.php';
             </div>
         </div>
 
-        <?php if ($isSuperAdmin || $isAdmin || $isManager): ?>
+        <?php if ($isSuperAdmin || $isAdmin || $isSupervisor): ?>
         <!-- TAB 5: SUPERVISOR & TEAM PERFORMANCE ROLLUP -->
         <div class="tab-pane fade <?= $active_tab === 'supervisors' ? 'show active' : '' ?>" id="tab-supervisors" role="tabpanel">
             <div class="crm-card mb-3">
@@ -1115,6 +1215,54 @@ include __DIR__ . '/../../php_scripts/header.php';
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr><td colspan="10" class="text-center py-4 text-muted fs-xs">No supervisor squads found.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($isSuperAdmin || $isAdmin): ?>
+        <!-- TAB 5b: ADMIN ORGANIZATIONAL ROLLUP -->
+        <div class="tab-pane fade <?= $active_tab === 'admins' ? 'show active' : '' ?>" id="tab-admins" role="tabpanel">
+            <div class="crm-card mb-3">
+                <div class="crm-card-header d-flex align-items-center justify-content-between">
+                    <div class="crm-card-title mb-0"><i class="bi bi-diagram-3 text-purple me-2"></i>Admin-Level Organizational Performance</div>
+                    <span class="badge badge-purple fs-xs"><?= count($adminRows) ?> Admin Accounts</span>
+                </div>
+                <div class="crm-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Admin</th>
+                                    <th class="text-center">Supervisors Under</th>
+                                    <th class="text-center">Officers Under</th>
+                                    <th class="text-center">Total Dials</th>
+                                    <th class="text-center">Connected</th>
+                                    <th class="text-center">Connect %</th>
+                                    <th class="text-center">Interested</th>
+                                    <th class="text-center">Converted Leads</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($adminRows)): ?>
+                                    <?php foreach ($adminRows as $adm): ?>
+                                        <tr>
+                                            <td><strong class="text-dark fs-xs"><i class="bi bi-person-fill-gear me-1 text-purple"></i> <?= htmlspecialchars($adm['admin_name']) ?></strong></td>
+                                            <td class="text-center fs-xs fw-semibold"><?= (int)$adm['total_supervisors'] ?></td>
+                                            <td class="text-center fs-xs fw-semibold"><?= (int)$adm['total_officers'] ?></td>
+                                            <td class="text-center fs-xs fw-bold text-dark"><?= number_format($adm['total_dials']) ?></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($adm['connected']) ?></span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-success"><?= $adm['connect_rate'] ?>%</span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-info"><?= number_format($adm['interested']) ?></span></td>
+                                            <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($adm['converted_leads']) ?></span></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="8" class="text-center py-4 text-muted fs-xs">No admin records found.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -1279,6 +1427,7 @@ include __DIR__ . '/../../php_scripts/header.php';
             </div>
         </div>
 
+        <?php if (!$isOfficer): ?>
         <!-- TAB 9: RANKINGS & PRODUCTIVITY LEADERBOARD -->
         <div class="tab-pane fade <?= $active_tab === 'rankings' ? 'show active' : '' ?>" id="tab-rankings" role="tabpanel">
             <div class="crm-card mb-3">
@@ -1361,6 +1510,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- TAB 10: DETAILED CALL LOGS DRILLDOWN -->
         <div class="tab-pane fade <?= $active_tab === 'drilldown' ? 'show active' : '' ?>" id="tab-drilldown" role="tabpanel">

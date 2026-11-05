@@ -118,6 +118,20 @@ if (($_POST['action'] ?? '') === 'delete') {
 }
 
 // Fetch all teams with supervisor, manager & member count
+$userRole = USER_ROLE;
+$userId   = (int)USER_ID;
+
+$teamScopeWhere = "WHERE 1=1";
+if (!isSuperAdmin()) {
+    $authTeamIds = getAuthorizedTeamIds($link, $userId, $userRole);
+    if (!empty($authTeamIds)) {
+        $tList = implode(',', array_map('intval', $authTeamIds));
+        $teamScopeWhere = "WHERE t.ID IN ($tList)";
+    } else {
+        $teamScopeWhere = "WHERE 1=0";
+    }
+}
+
 $teams_query = "
     SELECT
         t.ID,
@@ -130,6 +144,7 @@ $teams_query = "
     FROM " . tn('TBL_TEAMS') . " t
     LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID
     LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
+    $teamScopeWhere
     ORDER BY t.NAME
 ";
 $teams_result = mysqli_query($link, $teams_query);
@@ -137,25 +152,31 @@ $total_teams  = mysqli_num_rows($teams_result);
 
 // Fetch supervisors & managers
 $all_supervisors = [];
-$sup_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin' ORDER BY NAME");
-while ($s = mysqli_fetch_assoc($sup_res)) $all_supervisors[] = $s;
+$supWhere = isSuperAdmin() 
+    ? "WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin'" 
+    : "WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, $userId, $userRole, 'u', 'ID');
+$sup_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " u $supWhere ORDER BY NAME");
+if ($sup_res) while ($s = mysqli_fetch_assoc($sup_res)) $all_supervisors[] = $s;
 
 $all_managers = [];
-$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND ROLE != 'Super Admin' ORDER BY NAME");
-while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
+$mgrWhere = isSuperAdmin() ? "WHERE ROLE = 'Manager' AND ROLE != 'Super Admin'" : "WHERE ID = $userId";
+$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " $mgrWhere ORDER BY NAME");
+if ($mgr_res) while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
 
 // All teams for reassign dropdown
 $all_teams = [];
-$at_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
-while ($r = mysqli_fetch_assoc($at_res)) $all_teams[] = $r;
+$at_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " t $teamScopeWhere ORDER BY NAME");
+if ($at_res) while ($r = mysqli_fetch_assoc($at_res)) $all_teams[] = $r;
 
 // Members grouped by team
 $team_members = [];
 $total_assigned_members = 0;
-$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM " . tn('TBL_USERS') . " u WHERE u.TEAM_ID IS NOT NULL AND u.ROLE != 'Super Admin' ORDER BY u.TEAM_ID, u.NAME");
-while ($m = mysqli_fetch_assoc($members_res)) {
-    $team_members[$m['TEAM_ID']][] = $m;
-    $total_assigned_members++;
+$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM " . tn('TBL_USERS') . " u WHERE u.TEAM_ID IS NOT NULL AND u.ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, $userId, $userRole, 'u', 'ID') . " ORDER BY u.TEAM_ID, u.NAME");
+if ($members_res) {
+    while ($m = mysqli_fetch_assoc($members_res)) {
+        $team_members[$m['TEAM_ID']][] = $m;
+        $total_assigned_members++;
+    }
 }
 ?>
 <?php $pageTitle = 'Teams & Squad Management - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>

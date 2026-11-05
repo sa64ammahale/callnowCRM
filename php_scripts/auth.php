@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/hierarchy_engine.php';
 
 function appRedirect(string $path): void {
     $base = defined('APP_BASE') ? APP_BASE : '';
@@ -228,7 +229,12 @@ function logActivity($link, $userId, $actionType = null, $actionDetails = null, 
 
 // Return array of user IDs accessible to current user (for filtering queries)
 function getAccessibleUserIds($link) : array {
-    if (isAdmin() || isSuperAdmin()) {
+    if (isSuperAdmin()) {
+        return [];
+    }
+    $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
+    return getAuthorizedUserIds($link, (int)USER_ID, USER_ROLE, $uTeam);
+    if (false) {
         return []; // empty meaning "no restriction" for usage below
     }
     if (isManager()) {

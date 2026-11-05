@@ -10,7 +10,13 @@ $role    = $_GET['role'] ?? '';
 $team_id = $_GET['team'] ?? '';
 $package = $_GET['package'] ?? '';
 
-$where  = "WHERE 1=1 AND u.ID != 1 AND u.ROLE != 'Super Admin'";
+$userRole = USER_ROLE;
+$userId   = (int)USER_ID;
+$userTeamId = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
+
+// Hierarchy Scope: filter users accessible by current role
+$userScopeSql = getHierarchyUserFilterSQL($link, $userId, $userRole, 'u', 'ID', $userTeamId);
+$where  = "WHERE 1=1 AND $userScopeSql";
 $params = [];
 $types  = "";
 
@@ -82,7 +88,13 @@ foreach ($usersList as $u) {
 }
 
 $allRoles = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IS NOT NULL AND ROLE != 'Super Admin' ORDER BY ROLE"), MYSQLI_ASSOC);
-$allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC);
+$authTeamIds = getAuthorizedTeamIds($link, $userId, $userRole);
+if (!empty($authTeamIds)) {
+    $authTeamList = implode(',', array_map('intval', $authTeamIds));
+    $allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($authTeamList) ORDER BY NAME"), MYSQLI_ASSOC);
+} else {
+    $allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC);
+}
 $packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM " . tn('TBL_USERS') . " WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
 
 // Role description lookup
@@ -90,8 +102,8 @@ $roleDesc = [];
 $rd = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES'));
 if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['description'];
 
-$globalTotal = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ID != 1 AND ROLE != 'Super Admin'"))[0];
-$totalActive = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE STATUS='Active' AND ID != 1 AND ROLE != 'Super Admin'"))[0];
+$globalTotal = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " u WHERE $userScopeSql"))[0];
+$totalActive = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_USERS') . " u WHERE STATUS='Active' AND $userScopeSql"))[0];
 $totalInactive = max(0, $globalTotal - $totalActive);
 ?>
 <?php $pageTitle = 'User Management - CallNow CRM'; include __DIR__ . '/../../php_scripts/header.php'; ?>

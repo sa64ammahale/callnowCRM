@@ -3,6 +3,7 @@ if (!defined('APP_BASE')) {
     require_once __DIR__ . '/../config.php';
 }
 require_once __DIR__ . '/reporting_schema.php';
+require_once __DIR__ . '/hierarchy_engine.php';
 
 ensureReportingAndConversionSchema($GLOBALS['link']);
 
@@ -64,36 +65,84 @@ function saveReportingTargets(mysqli $link, array $targets, string $role = 'Offi
 }
 
 /**
+ * Determine effective authorized scope for any actor
+ */
+function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
+    $normRole = getNormalizedRole($userRole);
+    $actorId = defined('USER_ID') ? (int)USER_ID : ($userId ?? 0);
+    $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
+
+    if ($normRole === 'Officer') {
+        return [
+            'mode' => 'officer',
+            'user_ids' => [$actorId],
+            'team_ids' => $uTeam ? [$uTeam] : [],
+            'supervisor_ids' => [],
+        ];
+    }
+
+    if ($normRole === 'Supervisor') {
+        $assignedOfficers = getSupervisorAssignedOfficerIds($link, $actorId, $uTeam);
+        $allowedUserIds = array_merge([$actorId], $assignedOfficers);
+        $allowedTeamIds = getAuthorizedTeamIds($link, $actorId, 'Supervisor', $uTeam);
+
+        $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
+        $filteredTeamIds = ($teamId && in_array($teamId, $allowedTeamIds, true)) ? [$teamId] : $allowedTeamIds;
+
+        return [
+            'mode' => 'supervisor',
+            'user_ids' => $filteredUserIds,
+            'team_ids' => $filteredTeamIds,
+            'supervisor_ids' => [$actorId],
+        ];
+    }
+
+    if ($normRole === 'Admin') {
+        $assignedSups = getAdminAssignedSupervisorIds($link, $actorId);
+        $assignedOfficers = getAdminAssignedOfficerIds($link, $actorId);
+        $allowedUserIds = array_merge([$actorId], $assignedSups, $assignedOfficers);
+        $allowedTeamIds = getAdminManagedTeamIds($link, $actorId);
+
+        $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
+        $filteredTeamIds = ($teamId && in_array($teamId, $allowedTeamIds, true)) ? [$teamId] : $allowedTeamIds;
+        $filteredSupIds  = ($supervisorId && in_array($supervisorId, $assignedSups, true)) ? [$supervisorId] : $assignedSups;
+
+        return [
+            'mode' => 'admin',
+            'user_ids' => $filteredUserIds,
+            'team_ids' => $filteredTeamIds,
+            'supervisor_ids' => $filteredSupIds,
+        ];
+    }
+
+    // Super Admin: global access
+    $filteredUserIds = $userId ? [$userId] : [];
+    $filteredTeamIds = $teamId ? [$teamId] : [];
+    $filteredSupIds  = $supervisorId ? [$supervisorId] : [];
+
+    return [
+        'mode' => 'super_admin',
+        'user_ids' => $filteredUserIds,
+        'team_ids' => $filteredTeamIds,
+        'supervisor_ids' => $filteredSupIds,
+    ];
+}
+
+/**
  * Get Client Contact metrics according to role and team scoping
  */
 function getClientContactMetrics(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+    $superAdminIds = getSuperAdminUserIds($link);
     $where = [];
-    $params = [];
-    $types = '';
 
-    if ($userRole === 'Officer' || ($userId && $userRole === 'Officer')) {
-        $where[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($userId) {
-        $where[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($teamId) {
-        $where[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-        $params[] = $teamId;
-        $types .= 'i';
+    if (!empty($scope['user_ids'])) {
+        $inU = implode(',', array_map('intval', $scope['user_ids']));
+        $where[] = "m.MAINDATABASE_CALL_DIALED_USER IN ($inU)";
     } elseif ($supervisorId) {
-        $where[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ?)";
-        $params[] = $supervisorId;
-        $types .= 'i';
-    } elseif ($userRole === 'Supervisor') {
-        $where[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ? OR u.TEAM_ID = ?)";
-        $supId = defined('USER_ID') ? (int)USER_ID : 0;
-        $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : 0;
-        $params[] = $supId;
-        $params[] = $uTeam;
-        $types .= 'ii';
+        $where[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = " . (int)$supervisorId . ")";
+    } elseif ($teamId) {
+        $where[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = " . (int)$teamId . ")";
     }
 
     $whereSql = !empty($where) ? "WHERE " . implode(' AND ', $where) : "";
@@ -115,16 +164,12 @@ function getClientContactMetrics(mysqli $link, ?int $userId, ?int $teamId, ?int 
         $whereSql
     ";
 
-    $stmt = $link->prepare($sql);
-    if (!empty($params)) $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $res = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $res = $link->query($sql)->fetch_assoc();
 
-    // Query pending followups on contacts
+    // Query pending followups on contacts within scope
     $foSql = "SELECT COUNT(DISTINCT f.client_contact_id) as pending_followups FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f WHERE f.status = 'OPEN' AND f.client_contact_id IS NOT NULL";
-    if ($userId) {
-        $foSql .= " AND f.user_id = " . (int)$userId;
+    if (!empty($scope['user_ids'])) {
+        $foSql .= " AND f.user_id IN (" . implode(',', array_map('intval', $scope['user_ids'])) . ")";
     }
     $foRes = $link->query($foSql);
     $foRow = $foRes ? $foRes->fetch_assoc() : ['pending_followups' => 0];
@@ -149,181 +194,154 @@ function getClientContactMetrics(mysqli $link, ?int $userId, ?int $teamId, ?int 
  * Get Calling Activity metrics (dials, durations, connect rates) in date range
  */
 function getCallingMetrics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
-    $where = ["COALESCE(cl.call_time, cl.created_at) >= ? AND COALESCE(cl.call_time, cl.created_at) < ? + INTERVAL 1 DAY"];
-    $params = [$from, $to];
-    $types = 'ss';
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+    $superAdminIds = getSuperAdminUserIds($link);
 
-    if ($userRole === 'Officer' || ($userId && $userRole === 'Officer')) {
-        $where[] = "cl.user_id = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($userId) {
-        $where[] = "cl.user_id = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($teamId) {
-        $where[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-        $params[] = $teamId;
-        $types .= 'i';
+    $where = [
+        "COALESCE(cl.call_time, cl.created_at) >= '$from'",
+        "COALESCE(cl.call_time, cl.created_at) < '$to' + INTERVAL 1 DAY",
+        "cl.user_id NOT IN (" . implode(',', $superAdminIds) . ")"
+    ];
+
+    if (!empty($scope['user_ids'])) {
+        $inU = implode(',', array_map('intval', $scope['user_ids']));
+        $where[] = "cl.user_id IN ($inU)";
     } elseif ($supervisorId) {
-        $where[] = "cl.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ?)";
-        $params[] = $supervisorId;
-        $types .= 'i';
-    } elseif ($userRole === 'Supervisor') {
-        $where[] = "cl.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ? OR u.TEAM_ID = ?)";
-        $supId = defined('USER_ID') ? (int)USER_ID : 0;
-        $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : 0;
-        $params[] = $supId;
-        $params[] = $uTeam;
-        $types .= 'ii';
+        $where[] = "cl.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = " . (int)$supervisorId . ")";
+    } elseif ($teamId) {
+        $where[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = " . (int)$teamId . ")";
     }
 
     $whereSql = "WHERE " . implode(' AND ', $where);
 
     $sql = "
         SELECT 
-            COUNT(cl.id) AS total_attempts,
-            COUNT(DISTINCT cl.client_contact_id) AS unique_contacts_called,
-            SUM(CASE WHEN cl.call_duration > 0 OR LOWER(cl.call_status) IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up', 'deal converted') THEN 1 ELSE 0 END) AS connected_calls,
-            SUM(CASE WHEN (cl.call_duration = 0 OR cl.call_duration IS NULL) AND LOWER(cl.call_status) NOT IN ('connected', 'interested', 'lead') THEN 1 ELSE 0 END) AS not_connected_calls,
-            SUM(COALESCE(cl.call_duration, 0)) AS total_duration_seconds,
-            AVG(CASE WHEN cl.call_duration > 0 THEN cl.call_duration ELSE NULL END) AS avg_duration_seconds
+            COUNT(cl.id) AS total_dials,
+            COUNT(DISTINCT cl.client_contact_id) AS unique_called,
+            SUM(CASE WHEN cl.call_duration > 0 OR LOWER(cl.call_status) IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up') THEN 1 ELSE 0 END) AS connected,
+            SUM(CASE WHEN (cl.call_duration = 0 OR cl.call_duration IS NULL) AND LOWER(cl.call_status) NOT IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up') THEN 1 ELSE 0 END) AS not_connected,
+            SUM(CASE WHEN cl.call_duration > 0 AND cl.call_duration <= 20 THEN 1 ELSE 0 END) AS short_calls,
+            SUM(CASE WHEN cl.call_duration > 20 THEN 1 ELSE 0 END) AS conversations,
+            SUM(CASE WHEN LOWER(cl.call_status) NOT LIKE '%not%' AND (LOWER(cl.call_status) LIKE '%interest%' OR LOWER(cl.call_status) LIKE '%enquiry%' OR LOWER(cl.call_status) LIKE '%lead%') THEN 1 ELSE 0 END) AS interested,
+            SUM(CASE WHEN LOWER(cl.call_status) LIKE '%not interest%' THEN 1 ELSE 0 END) AS not_interested,
+            SUM(CASE WHEN LOWER(cl.call_status) LIKE '%callback%' OR LOWER(cl.call_status) LIKE '%call back%' OR LOWER(cl.call_status) LIKE '%busy%' OR LOWER(cl.call_status) LIKE '%follow%' THEN 1 ELSE 0 END) AS callback_busy,
+            SUM(CASE WHEN LOWER(cl.call_status) IN ('do not call', 'dnd', 'dnc', 'do not disturb') THEN 1 ELSE 0 END) AS dnd,
+            SUM(CASE WHEN LOWER(cl.call_status) IN ('invalid', 'delete', 'wrong number') THEN 1 ELSE 0 END) AS invalid,
+            SUM(CASE WHEN LOWER(cl.call_status) IN ('switch off', 'switch_off') THEN 1 ELSE 0 END) AS switch_off,
+            SUM(CASE WHEN LOWER(cl.call_status) IN ('not reachable', 'not rechable') THEN 1 ELSE 0 END) AS not_reachable,
+            SUM(CASE WHEN LOWER(cl.call_status) IN ('ringing') THEN 1 ELSE 0 END) AS ringing,
+            COALESCE(SUM(cl.call_duration), 0) AS total_duration_seconds
         FROM " . tn('TBL_CALL_LOGS') . " cl
         $whereSql
     ";
 
-    $stmt = $link->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $res = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $res = $link->query($sql)->fetch_assoc();
 
-    $tot = (int)($res['total_attempts'] ?? 0);
-    $conn = (int)($res['connected_calls'] ?? 0);
-    $rate = $tot > 0 ? round(($conn / $tot) * 100, 1) : 0.0;
+    $totDials = (int)($res['total_dials'] ?? 0);
+    $connected = (int)($res['connected'] ?? 0);
+    $connectRate = $totDials > 0 ? round(($connected / $totDials) * 100, 1) : 0.0;
     $durSec = (int)($res['total_duration_seconds'] ?? 0);
-    $avgSec = (int)round($res['avg_duration_seconds'] ?? 0);
+    $avgDur = $connected > 0 ? round($durSec / $connected) : 0;
 
-    // Followups created & completed in range
-    $foSql = "
-        SELECT 
-            SUM(CASE WHEN f.created_at >= ? AND f.created_at < ? + INTERVAL 1 DAY THEN 1 ELSE 0 END) as fo_created,
-            SUM(CASE WHEN f.status = 'DONE' AND f.completed_at >= ? AND f.completed_at < ? + INTERVAL 1 DAY THEN 1 ELSE 0 END) as fo_completed
-        FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f
-    ";
-    $foStmt = $link->prepare($foSql);
-    $foStmt->bind_param('ssss', $from, $to, $from, $to);
-    $foStmt->execute();
-    $foRes = $foStmt->get_result()->fetch_assoc();
-    $foStmt->close();
+    $durHours = floor($durSec / 3600);
+    $durMins = floor(($durSec % 3600) / 60);
 
     return [
-        'total_attempts' => $tot,
-        'unique_contacts_called' => (int)($res['unique_contacts_called'] ?? 0),
-        'connected_calls' => $conn,
-        'not_connected_calls' => (int)($res['not_connected_calls'] ?? 0),
-        'connect_rate' => $rate,
+        'total_dials' => $totDials,
+        'unique_called' => (int)($res['unique_called'] ?? 0),
+        'connected' => $connected,
+        'not_connected' => (int)($res['not_connected'] ?? 0),
+        'connect_rate' => $connectRate,
+        'short_calls' => (int)($res['short_calls'] ?? 0),
+        'conversations' => (int)($res['conversations'] ?? 0),
+        'interested' => (int)($res['interested'] ?? 0),
+        'not_interested' => (int)($res['not_interested'] ?? 0),
+        'callback_busy' => (int)($res['callback_busy'] ?? 0),
+        'dnd' => (int)($res['dnd'] ?? 0),
+        'invalid' => (int)($res['invalid'] ?? 0),
+        'switch_off' => (int)($res['switch_off'] ?? 0),
+        'not_reachable' => (int)($res['not_reachable'] ?? 0),
+        'ringing' => (int)($res['ringing'] ?? 0),
         'total_duration_seconds' => $durSec,
-        'total_talk_time_formatted' => sprintf('%02dh %02dm %02ds', floor($durSec / 3600), floor(($durSec % 3600) / 60), $durSec % 60),
-        'avg_duration_seconds' => $avgSec,
-        'avg_duration_formatted' => sprintf('%02dm %02ds', floor($avgSec / 60), $avgSec % 60),
-        'followups_created' => (int)($foRes['fo_created'] ?? 0),
-        'followups_completed' => (int)($foRes['fo_completed'] ?? 0),
+        'talk_time_formatted' => sprintf('%02dh %02dm', $durHours, $durMins),
+        'avg_call_duration_seconds' => $avgDur,
     ];
 }
 
 /**
- * Get Converted Lead & Loan Pipeline metrics in date range
+ * Get Converted Leads & Loan Pipeline metrics in date range
  */
 function getLeadConversionMetrics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
-    $where = ["(l.created_at >= ? AND l.created_at < ? + INTERVAL 1 DAY)"];
-    $params = [$from, $to];
-    $types = 'ss';
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+    $superAdminIds = getSuperAdminUserIds($link);
 
-    if ($userRole === 'Officer' || ($userId && $userRole === 'Officer')) {
-        $where[] = "l.assigned_to = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($userId) {
-        $where[] = "l.assigned_to = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($teamId) {
-        $where[] = "l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-        $params[] = $teamId;
-        $types .= 'i';
+    $where = [
+        "l.created_at >= '$from'",
+        "l.created_at < '$to' + INTERVAL 1 DAY",
+        "l.assigned_to NOT IN (" . implode(',', $superAdminIds) . ")"
+    ];
+
+    if (!empty($scope['user_ids'])) {
+        $inU = implode(',', array_map('intval', $scope['user_ids']));
+        $where[] = "l.assigned_to IN ($inU)";
     } elseif ($supervisorId) {
-        $where[] = "l.assigned_to IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ?)";
-        $params[] = $supervisorId;
-        $types .= 'i';
-    } elseif ($userRole === 'Supervisor') {
-        $where[] = "l.assigned_to IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ? OR u.TEAM_ID = ?)";
-        $supId = defined('USER_ID') ? (int)USER_ID : 0;
-        $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : 0;
-        $params[] = $supId;
-        $params[] = $uTeam;
-        $types .= 'ii';
+        $where[] = "l.assigned_to IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = " . (int)$supervisorId . ")";
+    } elseif ($teamId) {
+        $where[] = "l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = " . (int)$teamId . ")";
     }
 
     $whereSql = "WHERE " . implode(' AND ', $where);
 
     $sql = "
         SELECT 
-            COUNT(l.lead_id) AS new_leads_created,
-            SUM(CASE WHEN l.loan_amount IS NOT NULL AND l.loan_amount != '' THEN 1 ELSE 0 END) AS qualified_leads,
-            SUM(CASE WHEN l.lead_status_new IN ('INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED') THEN 1 ELSE 0 END) AS documents_collected,
-            SUM(CASE WHEN l.lead_status_new IN ('LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED') THEN 1 ELSE 0 END) AS applications_logged_in,
-            SUM(CASE WHEN l.lead_status_new IN ('SANCTIONED', 'DISBURSED') THEN 1 ELSE 0 END) AS sanctioned_loans,
-            SUM(CASE WHEN l.lead_status_new = 'DISBURSED' THEN 1 ELSE 0 END) AS disbursed_loans,
-            SUM(CASE WHEN l.lead_status_new = 'DISBURSED' THEN CAST(REPLACE(REPLACE(l.loan_amount, ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END) AS disbursed_amount
+            COUNT(l.lead_id) AS total_converted_leads,
+            SUM(CASE WHEN l.lead_status_new = 'DISBURSED' THEN 1 ELSE 0 END) AS disbursed_count,
+            SUM(CASE WHEN l.lead_status_new = 'DISBURSED' THEN CAST(REPLACE(REPLACE(l.loan_amount, ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END) AS disbursed_volume,
+            SUM(CASE WHEN l.lead_status_new = 'SANCTIONED' THEN 1 ELSE 0 END) AS sanctioned_count,
+            SUM(CASE WHEN l.lead_status_new = 'LOGIN' THEN 1 ELSE 0 END) AS in_login_count,
+            SUM(CASE WHEN l.lead_status_new = 'INTERNAL_UNDERWRITING' THEN 1 ELSE 0 END) AS in_underwriting_count,
+            SUM(CASE WHEN l.lead_status_new = 'REJECT' THEN 1 ELSE 0 END) AS rejected_count,
+            SUM(CASE WHEN l.lead_status_new IN ('LEAD', 'FOLLOWUP') OR l.lead_status_new IS NULL THEN 1 ELSE 0 END) AS open_leads_count,
+            COUNT(DISTINCT l.cust_id) AS unique_contacts_converted
         FROM " . tn('TBL_LEADS') . " l
         $whereSql
     ";
 
-    $stmt = $link->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $res = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $res = $link->query($sql)->fetch_assoc();
 
     return [
-        'new_leads_created' => (int)($res['new_leads_created'] ?? 0),
-        'qualified_leads' => (int)($res['qualified_leads'] ?? 0),
-        'documents_collected' => (int)($res['documents_collected'] ?? 0),
-        'applications_logged_in' => (int)($res['applications_logged_in'] ?? 0),
-        'sanctioned_loans' => (int)($res['sanctioned_loans'] ?? 0),
-        'disbursed_loans' => (int)($res['disbursed_loans'] ?? 0),
-        'disbursed_amount' => (float)($res['disbursed_amount'] ?? 0.0),
+        'total_converted_leads' => (int)($res['total_converted_leads'] ?? 0),
+        'unique_contacts_converted' => (int)($res['unique_contacts_converted'] ?? 0),
+        'disbursed_count' => (int)($res['disbursed_count'] ?? 0),
+        'disbursed_volume' => (float)($res['disbursed_volume'] ?? 0),
+        'sanctioned_count' => (int)($res['sanctioned_count'] ?? 0),
+        'in_login_count' => (int)($res['in_login_count'] ?? 0),
+        'in_underwriting_count' => (int)($res['in_underwriting_count'] ?? 0),
+        'rejected_count' => (int)($res['rejected_count'] ?? 0),
+        'open_leads_count' => (int)($res['open_leads_count'] ?? 0),
     ];
 }
 
 /**
- * Hourly Calling Analytics between 09:30 AM and 06:30 PM
+ * Get Hourly Calling Analytics (09:00 to 18:00) with volume, connect ratios and talk time
  */
 function getHourlyCallingAnalytics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
-    $where = ["COALESCE(cl.call_time, cl.created_at) >= ? AND COALESCE(cl.call_time, cl.created_at) < ? + INTERVAL 1 DAY"];
-    $params = [$from, $to];
-    $types = 'ss';
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+    $superAdminIds = getSuperAdminUserIds($link);
 
-    if ($userId) {
-        $where[] = "cl.user_id = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($teamId) {
-        $where[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-        $params[] = $teamId;
-        $types .= 'i';
+    $where = [
+        "COALESCE(cl.call_time, cl.created_at) >= '$from'",
+        "COALESCE(cl.call_time, cl.created_at) < '$to' + INTERVAL 1 DAY",
+        "cl.user_id NOT IN (" . implode(',', $superAdminIds) . ")"
+    ];
+
+    if (!empty($scope['user_ids'])) {
+        $inU = implode(',', array_map('intval', $scope['user_ids']));
+        $where[] = "cl.user_id IN ($inU)";
     } elseif ($supervisorId) {
-        $where[] = "cl.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ?)";
-        $params[] = $supervisorId;
-        $types .= 'i';
-    } elseif ($userRole === 'Supervisor') {
-        $where[] = "cl.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ? OR u.TEAM_ID = ?)";
-        $supId = defined('USER_ID') ? (int)USER_ID : 0;
-        $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : 0;
-        $params[] = $supId;
-        $params[] = $uTeam;
-        $types .= 'ii';
+        $where[] = "cl.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = " . (int)$supervisorId . ")";
+    } elseif ($teamId) {
+        $where[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = " . (int)$teamId . ")";
     }
 
     $whereSql = "WHERE " . implode(' AND ', $where);
@@ -335,18 +353,14 @@ function getHourlyCallingAnalytics(mysqli $link, string $from, string $to, ?int 
             SUM(CASE WHEN cl.call_duration > 0 OR LOWER(cl.call_status) IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up') THEN 1 ELSE 0 END) AS connected_calls,
             SUM(CASE WHEN LOWER(cl.call_status) NOT LIKE '%not%' AND (LOWER(cl.call_status) LIKE '%interest%' OR LOWER(cl.call_status) LIKE '%enquiry%' OR LOWER(cl.call_status) LIKE '%lead%') THEN 1 ELSE 0 END) AS interested_calls,
             COUNT(DISTINCT cl.client_contact_id) AS unique_contacts,
-            SUM(COALESCE(cl.call_duration, 0)) AS total_duration
+            COALESCE(SUM(cl.call_duration), 0) AS total_duration
         FROM " . tn('TBL_CALL_LOGS') . " cl
         $whereSql
-        GROUP BY call_hour
+        GROUP BY HOUR(COALESCE(cl.call_time, cl.created_at))
         ORDER BY call_hour ASC
     ";
 
-    $stmt = $link->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+    $rows = $link->query($sql)->fetch_all(MYSQLI_ASSOC);
 
     $hourlyMap = [];
     foreach ($rows as $r) {
@@ -354,7 +368,6 @@ function getHourlyCallingAnalytics(mysqli $link, string $from, string $to, ?int 
     }
 
     $analytics = [];
-    // Standard working windows: 9 AM to 6 PM (18:00)
     for ($h = 9; $h <= 18; $h++) {
         $startLabel = sprintf('%02d:00', $h);
         $endLabel = sprintf('%02d:00', $h + 1);
@@ -392,33 +405,22 @@ function getHourlyCallingAnalytics(mysqli $link, string $from, string $to, ?int 
  * Get Employee-wise calling performance, targets and conversion metrics
  */
 function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int $teamId, ?int $supervisorId, ?int $userId, string $userRole, array $targets): array {
-    $where = ["u.STATUS = 'Active'"];
-    $params = [];
-    $types = '';
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+    $superAdminIds = getSuperAdminUserIds($link);
 
-    if ($userRole === 'Officer') {
-        $where[] = "u.ID = ?";
-        $params[] = defined('USER_ID') ? (int)USER_ID : 0;
-        $types .= 'i';
-    } elseif ($userId) {
-        $where[] = "u.ID = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($teamId) {
-        $where[] = "u.TEAM_ID = ?";
-        $params[] = $teamId;
-        $types .= 'i';
+    $where = [
+        "u.STATUS = 'Active'",
+        "u.ROLE NOT IN ('Super Admin')",
+        "u.ID NOT IN (" . implode(',', $superAdminIds) . ")"
+    ];
+
+    if (!empty($scope['user_ids'])) {
+        $inU = implode(',', array_map('intval', $scope['user_ids']));
+        $where[] = "u.ID IN ($inU)";
     } elseif ($supervisorId) {
-        $where[] = "t.SUPERVISOR_ID = ?";
-        $params[] = $supervisorId;
-        $types .= 'i';
-    } elseif ($userRole === 'Supervisor') {
-        $supId = defined('USER_ID') ? (int)USER_ID : 0;
-        $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : 0;
-        $where[] = "(t.SUPERVISOR_ID = ? OR u.TEAM_ID = ?)";
-        $params[] = $supId;
-        $params[] = $uTeam;
-        $types .= 'ii';
+        $where[] = "t.SUPERVISOR_ID = " . (int)$supervisorId;
+    } elseif ($teamId) {
+        $where[] = "u.TEAM_ID = " . (int)$teamId;
     }
 
     $whereSql = "WHERE " . implode(' AND ', $where);
@@ -496,14 +498,10 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
             GROUP BY user_id
         ) fo ON u.ID = fo.user_id
         $whereSql
-        ORDER BY cl.total_dials DESC, u.NAME ASC
+        ORDER BY total_dials DESC
     ";
 
-    $stmt = $link->prepare($sql);
-    if (!empty($params)) $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+    $rows = $link->query($sql)->fetch_all(MYSQLI_ASSOC);
 
     $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
 
@@ -525,15 +523,38 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
 /**
  * Get Supervisor-wise performance rollup
  */
-function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?int $teamId, array $targets): array {
-    $where = ["t.SUPERVISOR_ID IS NOT NULL"];
-    $params = [];
-    $types = '';
+function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?int $teamId, array $targets, ?int $actorUserId = null, string $actorRole = 'Super Admin'): array {
+    $normRole = getNormalizedRole($actorRole);
+    $superAdminIds = getSuperAdminUserIds($link);
+
+    // Officers cannot view supervisor rollup
+    if ($normRole === 'Officer') {
+        return [];
+    }
+
+    $where = [
+        "t.SUPERVISOR_ID IS NOT NULL",
+        "s.ID NOT IN (" . implode(',', $superAdminIds) . ")"
+    ];
+
+    if ($normRole === 'Supervisor') {
+        $supActor = $actorUserId ?: (defined('USER_ID') ? (int)USER_ID : 0);
+        $where[] = "s.ID = $supActor";
+    } elseif ($normRole === 'Admin') {
+        $adminActor = $actorUserId ?: (defined('USER_ID') ? (int)USER_ID : 0);
+        $adminSups = getAdminAssignedSupervisorIds($link, $adminActor);
+        $adminTeams = getAdminManagedTeamIds($link, $adminActor);
+        if (!empty($adminTeams) || !empty($adminSups)) {
+            $tIn = !empty($adminTeams) ? implode(',', array_map('intval', $adminTeams)) : '0';
+            $sIn = !empty($adminSups) ? implode(',', array_map('intval', $adminSups)) : '0';
+            $where[] = "(t.ID IN ($tIn) OR s.ID IN ($sIn))";
+        } else {
+            $where[] = "1=0";
+        }
+    }
 
     if ($teamId) {
-        $where[] = "t.ID = ?";
-        $params[] = $teamId;
-        $types .= 'i';
+        $where[] = "t.ID = " . (int)$teamId;
     }
 
     $whereSql = "WHERE " . implode(' AND ', $where);
@@ -557,7 +578,7 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
             COALESCE(SUM(fo.fo_created), 0) AS fo_created
         FROM " . tn('TBL_TEAMS') . " t
         JOIN " . tn('TBL_USERS') . " s ON t.SUPERVISOR_ID = s.ID
-        LEFT JOIN " . tn('TBL_USERS') . " u ON (u.TEAM_ID = t.ID AND u.STATUS = 'Active')
+        LEFT JOIN " . tn('TBL_USERS') . " u ON (u.TEAM_ID = t.ID AND u.STATUS = 'Active' AND u.ROLE != 'Super Admin')
         LEFT JOIN (
             SELECT MAINDATABASE_CALL_DIALED_USER, COUNT(ID) AS assigned_contacts 
             FROM " . tn('TBL_MAIN') . " 
@@ -597,11 +618,7 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
         ORDER BY total_dials DESC
     ";
 
-    $stmt = $link->prepare($sql);
-    if (!empty($params)) $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+    $rows = $link->query($sql)->fetch_all(MYSQLI_ASSOC);
 
     $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
 
@@ -622,32 +639,153 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
 }
 
 /**
- * Get follow-up list with customer and officer details
+ * Get Admin-wise performance rollup across authorized organizational structure
+ */
+function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $scopedAdminId, array $targets, string $actorRole = 'Super Admin'): array {
+    $normRole = getNormalizedRole($actorRole);
+    $superAdminIds = getSuperAdminUserIds($link);
+
+    // Officers and Supervisors cannot view Admin-level reports
+    if ($normRole === 'Officer' || $normRole === 'Supervisor') {
+        return [];
+    }
+
+    $whereAdmin = [
+        "u.ROLE IN ('Admin', 'Manager')",
+        "u.ID NOT IN (" . implode(',', $superAdminIds) . ")",
+        "u.STATUS = 'Active'"
+    ];
+
+    if ($normRole === 'Admin') {
+        $actorAdminId = $scopedAdminId ?: (defined('USER_ID') ? (int)USER_ID : 0);
+        $whereAdmin[] = "u.ID = $actorAdminId";
+    } elseif ($scopedAdminId && !in_array($scopedAdminId, $superAdminIds, true)) {
+        $whereAdmin[] = "u.ID = " . (int)$scopedAdminId;
+    }
+
+    $whereSql = "WHERE " . implode(' AND ', $whereAdmin);
+    $sql = "SELECT u.ID, u.NAME, u.MOBILE, u.EMAIL, u.ROLE FROM " . tn('TBL_USERS') . " u $whereSql ORDER BY u.NAME";
+    $res = $link->query($sql);
+    $admins = [];
+    if ($res) {
+        while ($r = $res->fetch_assoc()) $admins[] = $r;
+    }
+
+    $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
+    $rows = [];
+
+    foreach ($admins as $adm) {
+        $aId = (int)$adm['ID'];
+        $teamIds = getAdminManagedTeamIds($link, $aId);
+        $supIds  = getAdminAssignedSupervisorIds($link, $aId);
+        $offIds  = getAdminAssignedOfficerIds($link, $aId);
+        $allStaffIds = array_unique(array_merge($supIds, $offIds));
+
+        if (empty($allStaffIds)) {
+            $rows[] = [
+                'admin_id' => $aId,
+                'admin_name' => $adm['NAME'],
+                'mobile' => $adm['MOBILE'],
+                'email' => $adm['EMAIL'],
+                'total_teams' => count($teamIds),
+                'total_supervisors' => count($supIds),
+                'total_officers' => count($offIds),
+                'assigned_contacts' => 0,
+                'total_dials' => 0,
+                'unique_called' => 0,
+                'connected' => 0,
+                'connect_rate' => 0.0,
+                'total_duration' => 0,
+                'talk_time_formatted' => '00h 00m',
+                'interested' => 0,
+                'converted_leads' => 0,
+                'conversion_rate' => 0.0,
+                'disbursed_loans' => 0,
+                'disbursed_amount' => 0.0,
+                'achievement_pct' => 0.0,
+            ];
+            continue;
+        }
+
+        $inStaff = implode(',', array_map('intval', $allStaffIds));
+
+        $clSql = "
+            SELECT 
+                COUNT(id) AS total_dials,
+                COUNT(DISTINCT client_contact_id) AS unique_called,
+                SUM(CASE WHEN call_duration > 0 OR LOWER(call_status) IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up') THEN 1 ELSE 0 END) AS connected,
+                SUM(CASE WHEN LOWER(call_status) NOT LIKE '%not%' AND (LOWER(call_status) LIKE '%interest%' OR LOWER(call_status) LIKE '%enquiry%' OR LOWER(call_status) LIKE '%lead%') THEN 1 ELSE 0 END) AS interested,
+                SUM(COALESCE(call_duration, 0)) AS total_duration
+            FROM " . tn('TBL_CALL_LOGS') . "
+            WHERE user_id IN ($inStaff)
+              AND COALESCE(call_time, created_at) >= '$from' AND COALESCE(call_time, created_at) < '$to' + INTERVAL 1 DAY
+        ";
+        $cl = $link->query($clSql)->fetch_assoc();
+
+        $ldSql = "
+            SELECT 
+                COUNT(lead_id) AS converted_leads,
+                SUM(CASE WHEN lead_status_new = 'DISBURSED' THEN 1 ELSE 0 END) AS disbursed_loans,
+                SUM(CASE WHEN lead_status_new = 'DISBURSED' THEN CAST(REPLACE(REPLACE(loan_amount, ',', ''), ' ', '') AS DECIMAL(15,2)) ELSE 0 END) AS disbursed_amount
+            FROM " . tn('TBL_LEADS') . "
+            WHERE assigned_to IN ($inStaff)
+              AND created_at >= '$from' AND created_at < '$to' + INTERVAL 1 DAY
+        ";
+        $ld = $link->query($ldSql)->fetch_assoc();
+
+        $cSql = "SELECT COUNT(ID) AS assigned_contacts FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_CALL_DIALED_USER IN ($inStaff)";
+        $c = $link->query($cSql)->fetch_assoc();
+
+        $totDials = (int)($cl['total_dials'] ?? 0);
+        $conn = (int)($cl['connected'] ?? 0);
+        $durSec = (int)($cl['total_duration'] ?? 0);
+        $leads = (int)($ld['converted_leads'] ?? 0);
+        $officersCount = max(1, count($offIds));
+        $adminTarget = $dailyTarget * $officersCount;
+
+        $rows[] = [
+            'admin_id' => $aId,
+            'admin_name' => $adm['NAME'],
+            'mobile' => $adm['MOBILE'],
+            'email' => $adm['EMAIL'],
+            'total_teams' => count($teamIds),
+            'total_supervisors' => count($supIds),
+            'total_officers' => count($offIds),
+            'assigned_contacts' => (int)($c['assigned_contacts'] ?? 0),
+            'total_dials' => $totDials,
+            'unique_called' => (int)($cl['unique_called'] ?? 0),
+            'connected' => $conn,
+            'connect_rate' => $totDials > 0 ? round(($conn / $totDials) * 100, 1) : 0.0,
+            'total_duration' => $durSec,
+            'talk_time_formatted' => sprintf('%02dh %02dm', floor($durSec / 3600), floor(($durSec % 3600) / 60)),
+            'interested' => (int)($cl['interested'] ?? 0),
+            'converted_leads' => $leads,
+            'conversion_rate' => $totDials > 0 ? round(($leads / $totDials) * 100, 2) : 0.0,
+            'disbursed_loans' => (int)($ld['disbursed_loans'] ?? 0),
+            'disbursed_amount' => (float)($ld['disbursed_amount'] ?? 0),
+            'achievement_pct' => $adminTarget > 0 ? min(200, round(($totDials / $adminTarget) * 100, 1)) : 0.0,
+        ];
+    }
+
+    return $rows;
+}
+
+/**
+ * Get follow-up list with customer and officer details, strictly scoped by role
  */
 function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userRole, string $filter = 'all', int $limit = 100): array {
-    $where = [];
-    $params = [];
-    $types = '';
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, null, $userRole);
+    $superAdminIds = getSuperAdminUserIds($link);
 
-    if ($userId) {
-        $where[] = "f.user_id = ?";
-        $params[] = $userId;
-        $types .= 'i';
-    } elseif ($userRole === 'Officer') {
-        $where[] = "f.user_id = ?";
-        $params[] = defined('USER_ID') ? (int)USER_ID : 0;
-        $types .= 'i';
+    $where = [
+        "f.user_id NOT IN (" . implode(',', $superAdminIds) . ")"
+    ];
+
+    if (!empty($scope['user_ids'])) {
+        $inU = implode(',', array_map('intval', $scope['user_ids']));
+        $where[] = "f.user_id IN ($inU)";
     } elseif ($teamId) {
-        $where[] = "f.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-        $params[] = $teamId;
-        $types .= 'i';
-    } elseif ($userRole === 'Supervisor') {
-        $supId = defined('USER_ID') ? (int)USER_ID : 0;
-        $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : 0;
-        $where[] = "f.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = ? OR u.TEAM_ID = ?)";
-        $params[] = $supId;
-        $params[] = $uTeam;
-        $types .= 'ii';
+        $where[] = "f.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = " . (int)$teamId . ")";
     }
 
     if ($filter === 'today') {
@@ -660,7 +798,7 @@ function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userR
         $where[] = "f.status = 'OPEN'";
     }
 
-    $whereSql = !empty($where) ? "WHERE " . implode(' AND ', $where) : "";
+    $whereSql = "WHERE " . implode(' AND ', $where);
 
     $sql = "
         SELECT 
@@ -680,11 +818,8 @@ function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userR
         LIMIT ?
     ";
 
-    $params[] = $limit;
-    $types .= 'i';
-
     $stmt = $link->prepare($sql);
-    $stmt->bind_param($types, ...$params);
+    $stmt->bind_param('i', $limit);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -703,47 +838,44 @@ function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int
 
     foreach ($empRows as $emp) {
         $tot = (int)$emp['total_dials'];
-        $rate = (float)$emp['connect_rate'];
+        $conn = (int)$emp['connected'];
+        $rate = $tot > 0 ? ($conn / $tot) * 100 : 0.0;
         $overdue = (int)$emp['fo_overdue'];
-        $name = $emp['employee_name'];
+        $name = htmlspecialchars($emp['employee_name'] ?? 'Officer', ENT_QUOTES, 'UTF-8');
 
-        // 1. Critical: Overdue callbacks > threshold
+        if ($tot > 0 && $rate < $minRate && $tot >= 15) {
+            $alerts[] = [
+                'severity' => 'critical',
+                'badge' => 'CRITICAL CONNECT RATE',
+                'title' => 'Low Connect Ratio Alert',
+                'message' => "$name connect rate is {$rate}% (target minimum is {$minRate}%). Requires calling script review.",
+                'user_id' => $emp['user_id'],
+                'officer' => $name,
+            ];
+        }
+
         if ($overdue >= $maxOverdue) {
             $alerts[] = [
-                'severity' => 'danger',
-                'badge' => 'CRITICAL',
-                'title' => 'High Overdue Callbacks',
-                'message' => "$name has $overdue overdue follow-ups awaiting telecalling action.",
+                'severity' => 'critical',
+                'badge' => 'OVERDUE FOLLOW-UPS',
+                'title' => 'High Overdue Follow-ups',
+                'message' => "$name has $overdue overdue follow-up callback(s) pending customer action.",
                 'user_id' => $emp['user_id'],
                 'officer' => $name,
             ];
         }
 
-        // 2. Warning: Below 50% daily target
-        if ($tot > 0 && $tot < ($dailyTarget * 0.50)) {
+        if ($tot > 0 && $tot < ($dailyTarget * 0.40) && (int)date('H') >= 15) {
             $alerts[] = [
                 'severity' => 'warning',
-                'badge' => 'WARNING',
-                'title' => 'Below 50% Daily Calling Target',
-                'message' => "$name has dialed $tot / $dailyTarget calls (" . round(($tot / $dailyTarget) * 100) . "% target achievement).",
+                'badge' => 'BEHIND TARGET',
+                'title' => 'Daily Calling Quota Lagging',
+                'message' => "$name has logged only $tot calls against the daily target of $dailyTarget.",
                 'user_id' => $emp['user_id'],
                 'officer' => $name,
             ];
         }
 
-        // 3. Warning: Low connection rate < threshold
-        if ($tot >= 15 && $rate < $minRate) {
-            $alerts[] = [
-                'severity' => 'warning',
-                'badge' => 'LOW CONNECT',
-                'title' => 'Low Call Connection Rate',
-                'message' => "$name's connection rate is {$rate}% (Minimum benchmark is {$minRate}%).",
-                'user_id' => $emp['user_id'],
-                'officer' => $name,
-            ];
-        }
-
-        // 4. Success: Exceeded daily target
         if ($tot >= $dailyTarget) {
             $alerts[] = [
                 'severity' => 'success',
@@ -756,7 +888,7 @@ function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int
         }
     }
 
-    // 5. System Check: Interested contacts not yet converted to leads
+    // System Check: Interested contacts not yet converted to leads
     $unconvQ = $link->query("
         SELECT COUNT(ID) as c 
         FROM " . tn('TBL_MAIN') . " 
@@ -764,7 +896,7 @@ function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int
           AND ID NOT IN (SELECT cust_id FROM " . tn('TBL_LEADS') . " WHERE cust_id IS NOT NULL)
     ");
     $unconvCount = $unconvQ ? (int)$unconvQ->fetch_assoc()['c'] : 0;
-    if ($unconvCount > 0) {
+    if ($unconvCount > 0 && ($userRole === 'Super Admin' || $userRole === 'Admin')) {
         $alerts[] = [
             'severity' => 'info',
             'badge' => 'CONVERSION PENDING',
@@ -799,7 +931,6 @@ function calculateProductivityRankings(array $empRows, array $targets): array {
         $foComp = (int)$r['fo_completed'];
         $foRate = $foCreated > 0 ? ($foComp / $foCreated) : 1.0;
 
-        // Calling productivity score components (out of 100)
         $sTarget = min(1.0, $dials / $dailyTarget) * 30.0;
         $sConn   = min(1.0, $conn / $dailyConn) * 20.0;
         $sUniq   = min(1.0, $uniq / ($dailyTarget * 0.8)) * 15.0;
@@ -809,7 +940,6 @@ function calculateProductivityRankings(array $empRows, array $targets): array {
 
         $r['calling_score'] = round($sTarget + $sConn + $sUniq + $sInter + $sFo + $sTalk, 1);
 
-        // Loan sales score components (out of 100)
         $leads = (int)$r['converted_leads'];
         $disbCount = (int)$r['disbursed_loans'];
         $disbAmt = (float)$r['disbursed_amount'];
@@ -822,12 +952,11 @@ function calculateProductivityRankings(array $empRows, array $targets): array {
     }
     unset($r);
 
-    // Sort by calling score descending
     usort($ranked, function($a, $b) {
         if ($b['calling_score'] == $a['calling_score']) {
             return $b['total_dials'] <=> $a['total_dials'];
         }
-        return ($b['calling_score'] > $a['calling_score']) ? 1 : -1;
+        return $b['calling_score'] <=> $a['calling_score'];
     });
 
     return $ranked;
