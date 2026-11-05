@@ -460,6 +460,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     
     $rawSource = strtoupper(trim($input['source'] ?? 'MAIN'));
+    if (!in_array($rawSource, ['MAIN', 'TEMP', 'TEMPORARY'], true)) {
+        apiError(400, 'Invalid source. Use MAIN or TEMP');
+    }
     $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
     
     $rawStatus = trim($input['call_status'] ?? ($input['status'] ?? 'Connected'));
@@ -478,21 +481,42 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     $nextFollowup = !empty($input['next_followup']) ? date('Y-m-d H:i:s', strtotime($input['next_followup'])) : (!empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null);
+    $recordingUrl = !empty($input['recording_url']) ? trim((string)$input['recording_url']) : null;
+    $simSlot = !empty($input['sim_slot']) ? trim((string)$input['sim_slot']) : null;
+    $totalDuration = isset($input['total_duration']) ? (int)$input['total_duration'] : $duration;
+    $callTime = !empty($input['call_time']) ? date('Y-m-d H:i:s', strtotime($input['call_time'])) : date('Y-m-d H:i:s');
+    $dialTime = !empty($input['dial_time']) ? date('Y-m-d H:i:s', strtotime($input['dial_time'])) : null;
+    $callEndTime = !empty($input['call_end_time']) ? date('Y-m-d H:i:s', strtotime($input['call_end_time'])) : null;
+    if (isset($input['metadata'])) {
+        $metadata = is_array($input['metadata']) ? json_encode($input['metadata'], JSON_UNESCAPED_UNICODE) : (string)$input['metadata'];
+    } else {
+        $knownKeys = ['source', 'call_status', 'status', 'notes', 'call_duration', 'duration_seconds', 'timing_classification', 'next_followup', 'next_followup_at', 'recording_url', 'call_time', 'dial_time', 'call_end_time', 'total_duration', 'sim_slot'];
+        $extra = array_diff_key($input, array_flip($knownKeys));
+        $metadata = !empty($extra) ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null;
+    }
     
     // Retrieve phone number to guarantee cross-database DND synchronization and lead management
     $targetMobile = '';
     if ($source === 'MAIN') {
-        $mStmt = $link->prepare("SELECT MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+        $mStmt = $link->prepare("SELECT MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER AS assigned_user FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
         $mStmt->bind_param('i', $recordId);
         $mStmt->execute();
-        $targetMobile = (string)($mStmt->get_result()->fetch_assoc()['MAINDATABASE_MOBILE'] ?? '');
+        $record = $mStmt->get_result()->fetch_assoc();
         $mStmt->close();
     } else {
-        $mStmt = $link->prepare("SELECT CUST_MOBILE FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
+        $mStmt = $link->prepare("SELECT CUST_MOBILE, CALL_DIALED_TELECALLER AS assigned_user FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
         $mStmt->bind_param('i', $recordId);
         $mStmt->execute();
-        $targetMobile = (string)($mStmt->get_result()->fetch_assoc()['CUST_MOBILE'] ?? '');
+        $record = $mStmt->get_result()->fetch_assoc();
         $mStmt->close();
+    }
+    if (!$record) {
+        apiError(404, 'Record not found');
+    }
+    $targetMobile = (string)($source === 'MAIN' ? ($record['MAINDATABASE_MOBILE'] ?? '') : ($record['CUST_MOBILE'] ?? ''));
+    $assignedUserId = (int)($record['assigned_user'] ?? 0);
+    if ($assignedUserId > 0 && $assignedUserId !== $userId && !in_array($userRole, ['Admin', 'Manager'], true)) {
+        apiError(403, 'Not authorized to update this record');
     }
 
     // 1. Update master table based on source (clear batch lease, increment call count)
@@ -534,20 +558,13 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $link->query("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = '$targetMobileSafe'");
     }
     
-    // 2. Insert record into call_logs using exact remote column names
+    // 2. Insert full call detail into call_logs
     $sqlLog = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-        (user_id, record_id, source, call_status, call_duration, timing_classification, notes, next_followup, call_time, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        (user_id, record_id, source, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
     $stmt = $link->prepare($sqlLog);
-    if (!$stmt) {
-        $sqlLogFallback = "INSERT INTO " . tn('TBL_CALL_LOGS') . " 
-            (user_id, record_id, source, call_status, call_duration, notes, call_time, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())";
-        $stmt = $link->prepare($sqlLogFallback);
-        $stmt->bind_param('iissis', $userId, $recordId, $source, $status, $duration, $notes);
-    } else {
-        $stmt->bind_param('iississs', $userId, $recordId, $source, $status, $duration, $timingTier, $notes, $nextFollowup);
-    }
+    if (!$stmt) throw new Exception('Unable to prepare call log insert');
+    $stmt->bind_param('iissiisssssssss', $userId, $recordId, $source, $status, $duration, $totalDuration, $timingTier, $notes, $metadata, $nextFollowup, $recordingUrl, $simSlot, $callTime, $dialTime, $callEndTime);
     $stmt->execute();
     $logId = $stmt->insert_id;
     $stmt->close();
@@ -565,6 +582,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         'is_lead_generated' => ($autoLeadId !== null && $autoLeadId > 0),
         'timing_classification' => $timingTier,
         'duration' => $duration,
+        'total_duration' => $totalDuration,
     ]);
 
 // -----------------------------------------------------------------------------
@@ -696,19 +714,28 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         cl.source as source,
         cl.call_status as call_status,
         cl.call_duration as call_duration,
+        cl.total_duration,
         CASE 
             WHEN cl.call_duration = 0 THEN 'NOT_CONNECTED'
             WHEN cl.call_duration <= 20 THEN 'CONNECTED_SHORT'
             ELSE 'CONNECTED_CONVERSATION'
         END as timing_classification,
         cl.notes,
+        cl.metadata,
         cl.next_followup,
+        cl.recording_url,
+        cl.sim_slot,
+        cl.call_time,
+        cl.dial_time,
+        cl.call_end_time,
         cl.created_at,
+        u.NAME as user_name,
         COALESCE(m.MAINDATABASE_NAME, t.CUST_NAME, '') as customer_name,
         COALESCE(m.MAINDATABASE_MOBILE, t.CUST_MOBILE, '') as customer_mobile,
         COALESCE(m.MAINDATABASE_COMPANY, t.CUST_COMPANY, '') as customer_company,
         COALESCE(m.MAINDATABASE_PACKAGE, t.CUST_PACKAGE, '') as customer_package
     FROM " . tn('TBL_CALL_LOGS') . " cl
+    LEFT JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID
     LEFT JOIN " . tn('TBL_MAIN') . " m ON (cl.source != 'TEMP') AND cl.record_id = m.ID
     LEFT JOIN " . tn('TBL_TEMP') . " t ON (cl.source = 'TEMP') AND cl.record_id = t.ID
     WHERE $whereSql
@@ -730,11 +757,18 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             'customer_package' => $r['customer_package'],
             'call_status' => $r['call_status'],
             'call_duration' => (int)$r['call_duration'],
+            'total_duration' => $r['total_duration'] !== null ? (int)$r['total_duration'] : null,
             'timing_classification' => $r['timing_classification'],
             'notes' => $r['notes'] ?? '',
+            'metadata' => $r['metadata'] ?? null,
             'next_followup' => $r['next_followup'] ?? null,
-            'call_time' => $r['created_at'],
+            'recording_url' => $r['recording_url'] ?? null,
+            'sim_slot' => $r['sim_slot'] ?? null,
+            'call_time' => $r['call_time'] ?? $r['created_at'],
+            'dial_time' => $r['dial_time'] ?? null,
+            'call_end_time' => $r['call_end_time'] ?? null,
             'created_at' => $r['created_at'],
+            'user_name' => $r['user_name'] ?? '',
         ];
     }
     
@@ -758,12 +792,28 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
     $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
     
-    $sql = "SELECT id, record_id, source, user_id, call_status, call_duration, timing_classification, notes, next_followup, created_at
-            FROM " . tn('TBL_CALL_LOGS') . "
-            WHERE record_id = ? AND source = ?
+    $scopeSql = '';
+    $scopeTypes = 'is';
+    $scopeParams = [$recordId, $source];
+    if (in_array($userRole, ['Admin', 'Manager'], true)) {
+        $scopeSql = '';
+    } elseif ($userRole === 'Supervisor' && $teamId) {
+        $scopeSql = ' AND EXISTS (SELECT 1 FROM ' . tn('TBL_USERS') . ' owner_u WHERE owner_u.ID = cl.user_id AND owner_u.TEAM_ID = ?)';
+        $scopeTypes .= 'i';
+        $scopeParams[] = $teamId;
+    } else {
+        $scopeSql = ' AND cl.user_id = ?';
+        $scopeTypes .= 'i';
+        $scopeParams[] = $userId;
+    }
+
+    $sql = "SELECT id, record_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, created_at
+            FROM " . tn('TBL_CALL_LOGS') . " cl
+            WHERE record_id = ? AND source = ?" . $scopeSql . "
             ORDER BY created_at DESC";
     $stmt = $link->prepare($sql);
-    $stmt->bind_param('is', $recordId, $source);
+    if (!$stmt) throw new Exception('Query preparation failed: ' . $link->error);
+    $stmt->bind_param($scopeTypes, ...$scopeParams);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();

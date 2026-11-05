@@ -148,10 +148,16 @@ $sql = "
         cl.source,
         cl.call_status,
         cl.call_duration,
+        cl.total_duration,
+        cl.timing_classification,
         cl.notes,
+        cl.metadata,
         cl.next_followup,
         cl.recording_url,
+        cl.sim_slot,
         cl.call_time,
+        cl.dial_time,
+        cl.call_end_time,
         cl.created_at,
         u.NAME AS user_name,
         COALESCE(t.CUST_NAME, m.MAINDATABASE_NAME, l.NAME) AS cust_name,
@@ -358,6 +364,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                 <th style="width:10%;">Source</th>
                                 <th style="width:14%;">Status</th>
                                 <th style="width:10%;">Duration</th>
+                                <th style="width:15%;">Call Details</th>
                                 <th style="width:14%;">Telecaller</th>
                                 <th style="width:10%;">Follow-up</th>
                                 <th style="width:6%;">Audio</th>
@@ -408,6 +415,30 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             </span>
                                         <?php else: ?>
                                             <span class="text-muted fs-xs">0s</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div class="fs-xs text-dark">
+                                            <span class="badge badge-secondary"><?= htmlspecialchars($r['timing_classification'] ?: '—') ?></span>
+                                            <?php if ($r['total_duration'] !== null): ?>
+                                                <span class="text-muted ms-1">Total: <?= (int)$r['total_duration'] ?>s</span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php if ($r['sim_slot']): ?>
+                                            <div class="text-muted fs-xs mt-1">SIM: <?= htmlspecialchars($r['sim_slot']) ?></div>
+                                        <?php endif; ?>
+                                        <?php if ($r['dial_time'] || $r['call_end_time']): ?>
+                                            <div class="text-muted fs-xs mt-1">
+                                                <?= $r['dial_time'] ? htmlspecialchars(date('d M, h:i A', strtotime($r['dial_time']))) : '—' ?>
+                                                <span class="mx-1">→</span>
+                                                <?= $r['call_end_time'] ? htmlspecialchars(date('d M, h:i A', strtotime($r['call_end_time']))) : '—' ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if ($r['metadata']): ?>
+                                            <details class="fs-xs mt-1">
+                                                <summary class="text-primary">Metadata</summary>
+                                                <pre class="mb-0 mt-1 text-wrap"><?= htmlspecialchars($r['metadata']) ?></pre>
+                                            </details>
                                         <?php endif; ?>
                                     </td>
                                     <td>

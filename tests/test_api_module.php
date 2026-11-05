@@ -249,13 +249,22 @@ assertTest("/telecaller/next-call returns 200", $r['code'] === 200);
 // Test 2.5: Submit call completion via /calls/{id}/complete
 $targetRecId = !empty($leads[0]['id']) ? $leads[0]['id'] : ($leasedTemp['ID'] ?? ($leasedMain['ID'] ?? 1));
 $targetSource = !empty($leads[0]['source']) ? $leads[0]['source'] : (!empty($leasedTemp) ? 'TEMP' : 'MAIN');
+$callMetadata = ['network' => '4g', 'signal' => 'full', 'test_run' => 'api_module'];
+$callDialTime = date('Y-m-d H:i:s', strtotime('-45 seconds'));
+$callEndTime = date('Y-m-d H:i:s');
 
 $r = callApi('POST', "$baseUrl/telecaller/calls/$targetRecId/complete", [
     'source' => $targetSource,
     'call_status' => 'Connected',
     'call_duration' => 45,
+    'total_duration' => 52,
     'notes' => 'Customer was interested, discussed pricing.',
     'next_followup' => date('Y-m-d H:i:s', strtotime('+2 days')),
+    'recording_url' => 'https://example.test/recordings/api-module-test.mp3',
+    'sim_slot' => 'SIM1',
+    'metadata' => $callMetadata,
+    'dial_time' => $callDialTime,
+    'call_end_time' => $callEndTime,
 ], $authToken);
 assertTest("POST /telecaller/calls/{id}/complete logs call successfully", 
     $r['code'] === 200 && ($r['json']['data']['timing_classification'] ?? '') === 'CONNECTED_CONVERSATION'
@@ -267,6 +276,15 @@ $logId = $r['json']['data']['log_id'] ?? 0;
 $logEntry = $link->query("SELECT * FROM " . tn('TBL_CALL_LOGS') . " WHERE id = $logId")->fetch_assoc();
 assertTest("TBL_CALL_LOGS saved record_id, source, call_duration, call_status", 
     !empty($logEntry) && (int)$logEntry['record_id'] === (int)$targetRecId && (int)$logEntry['call_duration'] === 45 && $logEntry['call_status'] === 'Connected'
+);
+assertTest("Call completion persists full call detail payload",
+    !empty($logEntry)
+    && (int)$logEntry['total_duration'] === 52
+    && $logEntry['recording_url'] === 'https://example.test/recordings/api-module-test.mp3'
+    && $logEntry['sim_slot'] === 'SIM1'
+    && ($logEntry['metadata'] ?? '') === json_encode($callMetadata)
+    && ($logEntry['dial_time'] ?? '') === $callDialTime
+    && ($logEntry['call_end_time'] ?? '') === $callEndTime
 );
 
 // Test 2.7: Verify master table lease cleared and LAST_CONNECTED_PERIOD updated to datetime
@@ -303,11 +321,41 @@ $r = callApi('GET', "$baseUrl/telecaller/calls?period=all", [], $authToken);
 assertTest("/telecaller/calls returns rich joined call list", 
     $r['code'] === 200 && is_array($r['json']['data']['data'] ?? null) && count($r['json']['data']['data']) >= 1
 );
+$listedCall = null;
+foreach (($r['json']['data']['data'] ?? []) as $call) {
+    if ((int)($call['log_id'] ?? 0) === (int)$logId) {
+        $listedCall = $call;
+        break;
+    }
+}
+assertTest("/telecaller/calls returns full call detail fields",
+    !empty($listedCall)
+    && (int)($listedCall['total_duration'] ?? 0) === 52
+    && ($listedCall['recording_url'] ?? '') === 'https://example.test/recordings/api-module-test.mp3'
+    && ($listedCall['sim_slot'] ?? '') === 'SIM1'
+    && ($listedCall['metadata'] ?? '') === json_encode($callMetadata)
+    && isset($listedCall['dial_time'], $listedCall['call_end_time'], $listedCall['user_name'])
+);
 
 // Test 2.11: Specific record call history
 $r = callApi('GET', "$baseUrl/telecaller/call-history/$targetRecId?source=$targetSource", [], $authToken);
 assertTest("/telecaller/call-history/{id} returns historical logs for record", 
     $r['code'] === 200 && ($r['json']['data']['total'] ?? 0) >= 1
+);
+$historyCall = null;
+foreach (($r['json']['data']['data'] ?? []) as $call) {
+    if ((int)($call['id'] ?? 0) === (int)$logId) {
+        $historyCall = $call;
+        break;
+    }
+}
+assertTest("/telecaller/call-history/{id} returns full call detail fields",
+    !empty($historyCall)
+    && (int)($historyCall['total_duration'] ?? 0) === 52
+    && ($historyCall['recording_url'] ?? '') === 'https://example.test/recordings/api-module-test.mp3'
+    && ($historyCall['sim_slot'] ?? '') === 'SIM1'
+    && ($historyCall['metadata'] ?? '') === json_encode($callMetadata)
+    && isset($historyCall['dial_time'], $historyCall['call_end_time'])
 );
 
 // Test 2.12: Voluntary release active queue

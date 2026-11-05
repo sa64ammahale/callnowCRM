@@ -34,6 +34,9 @@ foreach ($required as $field) {
 
 $recordId = (int)$input['record_id'];
 $rawSource = strtoupper(trim($input['source']));
+if (!in_array($rawSource, ['MAIN', 'TEMP', 'TEMPORARY'], true)) {
+    apiError(400, 'Invalid source. Use MAIN or TEMP');
+}
 $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
 $rawCallStatus = trim($input['call_status']);
 $rawStatusLow = strtolower($rawCallStatus);
