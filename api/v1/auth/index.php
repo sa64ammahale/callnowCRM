@@ -361,6 +361,22 @@ function handleMobileProfileUpdate(mysqli $link, int $userId, array $input): voi
         $types .= 's';
     }
 
+    // Daily Calling Limit update
+    if (isset($input['daily_calling_limit'])) {
+        $dailyLimit = max(0, (int)$input['daily_calling_limit']);
+        $updates[] = "daily_calling_limit = ?";
+        $params[] = $dailyLimit;
+        $types .= 'i';
+    }
+
+    // Monthly Disbursement Limit update
+    if (isset($input['monthly_disbursement_limit'])) {
+        $monthlyLimit = max(0.0, (float)$input['monthly_disbursement_limit']);
+        $updates[] = "monthly_disbursement_limit = ?";
+        $params[] = $monthlyLimit;
+        $types .= 'd';
+    }
+
     // Optional profile photo via base64
     if (!empty($input['profile_photo_base64'])) {
         $photoData = $input['profile_photo_base64'];

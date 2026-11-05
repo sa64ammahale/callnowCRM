@@ -27,6 +27,12 @@ function ensureHierarchySchema(mysqli $link): void {
         if (!isset($uCols['admin_id'])) {
             @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN admin_id INT NULL DEFAULT NULL AFTER supervisor_id, ADD INDEX idx_user_admin (admin_id)");
         }
+        if (!isset($uCols['daily_calling_limit'])) {
+            @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN daily_calling_limit INT NOT NULL DEFAULT 250 AFTER admin_id");
+        }
+        if (!isset($uCols['monthly_disbursement_limit'])) {
+            @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN monthly_disbursement_limit DECIMAL(15,2) NOT NULL DEFAULT 1500000.00 AFTER daily_calling_limit");
+        }
 
         $tCols = [];
         $tRes = $link->query("SHOW COLUMNS FROM " . tn('TBL_TEAMS'));

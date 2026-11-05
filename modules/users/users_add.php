@@ -81,6 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $team_id      = $_POST['team_id'] ?? '';
         $package      = trim($_POST['package'] ?? '');
         $status       = $_POST['status'] ?? 'Active';
+        $daily_calling_limit = isset($_POST['daily_calling_limit']) && $_POST['daily_calling_limit'] !== '' ? max(0, (int)$_POST['daily_calling_limit']) : 250;
+        $monthly_disbursement_limit = isset($_POST['monthly_disbursement_limit']) && $_POST['monthly_disbursement_limit'] !== '' ? max(0.0, (float)$_POST['monthly_disbursement_limit']) : 1500000.00;
         $company      = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
         $allowedRoles = array_column($allRoles, 'role_name');
         $allowedTeams = array_map('intval', array_column($allTeams, 'ID'));
@@ -144,9 +146,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
 
             if (!$Message) {
                 if ($isEdit) {
-                    $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $team_id, $package, $status, $company];
-                    $types = "ssssssisss";
+                    $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $team_id, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
+                    $types = "ssssssisssid";
 
                     if (!empty($password)) {
                         $sql .= ", PASSWORD=?";
@@ -158,10 +160,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $types .= "i";
                 } else {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
-                    $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, JOIN_DATE)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $team_id, $package, $status, $company];
-                    $types = "sssssssisss";
+                    $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, daily_calling_limit, monthly_disbursement_limit, JOIN_DATE)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $team_id, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
+                    $types = "sssssssisssid";
                 }
 
                 $stmt = mysqli_prepare($link, $sql);
@@ -363,6 +365,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                                 <option value="Inactive" <?= ($editUser['STATUS'] ?? '')=='Inactive'?'selected':'' ?>>Inactive (Deactivated)</option>
                                 <option value="Suspended" <?= ($editUser['STATUS'] ?? '')=='Suspended'?'selected':'' ?>>Suspended (Access Blocked)</option>
                             </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted mb-1">Daily Calling Limit (Connected Calls) <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-telephone-outbound text-primary"></i></span>
+                                <input type="number" min="0" step="1" name="daily_calling_limit" class="form-control" value="<?= htmlspecialchars((string)($editUser['daily_calling_limit'] ?? 250)) ?>" required>
+                                <span class="input-group-text">calls/day</span>
+                            </div>
+                            <div class="text-muted fs-xs mt-1">Default: 250 connected calls/day. Synced to Mobile App.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted mb-1">Monthly Disbursement Limit <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" min="0" step="1000" name="monthly_disbursement_limit" class="form-control" value="<?= htmlspecialchars((string)($editUser['monthly_disbursement_limit'] ?? 1500000)) ?>" required>
+                                <span class="input-group-text">INR/mo</span>
+                            </div>
+                            <div class="text-muted fs-xs mt-1">Default: ₹15,00,000 (15 Lakhs). Synced to Mobile App.</div>
                         </div>
                     </div>
                 </div>

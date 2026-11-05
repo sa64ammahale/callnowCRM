@@ -273,6 +273,7 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                 <th style="width: 110px;">Joined</th>
                                 <th style="width: 120px;">Role</th>
                                 <th style="min-width: 130px;">Team</th>
+                                <th style="width: 100px;">Limits &amp; Targets</th>
                                 <th style="width: 100px;">Package</th>
                                 <th style="width: 90px;" class="text-end">Actions</th>
                             </tr>
@@ -307,6 +308,18 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                         <?php else: ?>
                                             <span class="text-muted small">—</span>
                                         <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div class="small text-nowrap">
+                                            <span class="badge bg-primary-subtle text-primary border" style="font-size:0.68rem;" title="Daily Calling Limit">
+                                                <i class="bi bi-telephone me-1"></i><?= (int)($u['daily_calling_limit'] ?? 250) ?> calls
+                                            </span>
+                                        </div>
+                                        <div class="small text-nowrap mt-1">
+                                            <span class="badge bg-success-subtle text-success border" style="font-size:0.68rem;" title="Monthly Disbursement Limit">
+                                                <i class="bi bi-cash me-1"></i>₹<?= number_format(((float)($u['monthly_disbursement_limit'] ?? 1500000))/100000, 1) ?>L
+                                            </span>
+                                        </div>
                                     </td>
                                     <td>
                                         <?php if ($u['PACKAGE']): ?>

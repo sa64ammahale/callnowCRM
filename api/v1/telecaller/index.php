@@ -149,12 +149,23 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $stmt->close();
     $pendingCount += (int)($mainRow['c'] ?? 0);
     
+    // Check user calling limit & monthly target
+    $uLimitRes = $link->query("SELECT daily_calling_limit, monthly_disbursement_limit FROM " . tn('TBL_USERS') . " WHERE ID = $userId LIMIT 1");
+    $uLimitRow = $uLimitRes ? $uLimitRes->fetch_assoc() : [];
+    $dailyCallingLimit = isset($uLimitRow['daily_calling_limit']) ? (int)$uLimitRow['daily_calling_limit'] : 250;
+    $monthlyDisbLimit = isset($uLimitRow['monthly_disbursement_limit']) ? (float)$uLimitRow['monthly_disbursement_limit'] : 1500000.00;
+
     apiSuccess([
         'today_calls' => $todayCalls,
         'today_connected' => $todayConnected,
         'today_talk_time' => $todayTalkTime,
         'today_pending' => $pendingCount,
         'total_assigned' => $todayCalls + $pendingCount,
+        'daily_calling_limit' => $dailyCallingLimit,
+        'monthly_disbursement_limit' => $monthlyDisbLimit,
+        'daily_calls_target' => $dailyCallingLimit,
+        'monthly_disbursement_target' => $monthlyDisbLimit,
+        'calling_limit_progress_pct' => $dailyCallingLimit > 0 ? round(($todayConnected / $dailyCallingLimit) * 100, 1) : 0,
     ]);
 
 // -----------------------------------------------------------------------------
@@ -511,6 +522,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $statusMap[$st] = (int)$sr['cnt'];
     }
     
+    // Fetch user limits for performance progress tracking
+    $uLimitRes = $link->query("SELECT daily_calling_limit, monthly_disbursement_limit FROM " . tn('TBL_USERS') . " WHERE ID = $userId LIMIT 1");
+    $uLimitRow = $uLimitRes ? $uLimitRes->fetch_assoc() : [];
+    $userDailyLimit = isset($uLimitRow['daily_calling_limit']) ? (int)$uLimitRow['daily_calling_limit'] : 250;
+    $userMonthlyDisb = isset($uLimitRow['monthly_disbursement_limit']) ? (float)$uLimitRow['monthly_disbursement_limit'] : 1500000.00;
+
     apiSuccess([
         'period' => $period,
         'total_calls' => $totalCalls,
@@ -518,6 +535,11 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         'avg_duration_seconds' => $avgDuration,
         'connected_calls' => $connectedCalls,
         'connection_rate_percent' => $connectionRate,
+        'daily_calling_limit' => $userDailyLimit,
+        'daily_call_target' => $userDailyLimit,
+        'monthly_disbursement_limit' => $userMonthlyDisb,
+        'monthly_disbursement_target' => $userMonthlyDisb,
+        'calling_limit_progress_pct' => $userDailyLimit > 0 ? round(($connectedCalls / $userDailyLimit) * 100, 1) : 0,
         'timing_tiers' => [
             'not_connected' => (int)($agg['not_connected_calls'] ?? 0),
             'connected_short' => (int)($agg['connected_short_calls'] ?? 0),

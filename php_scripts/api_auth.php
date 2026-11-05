@@ -531,6 +531,8 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
                     'profile_picture' => $raw['profile_picture'] ?? '',
                     'profile_picture_blob' => $raw['profile_picture_blob'] ?? null,
                     'current_calling_db' => $raw['current_calling_db'] ?? 'temporary',
+                    'daily_calling_limit' => isset($raw['daily_calling_limit']) ? (int)$raw['daily_calling_limit'] : 250,
+                    'monthly_disbursement_limit' => isset($raw['monthly_disbursement_limit']) ? (float)$raw['monthly_disbursement_limit'] : 1500000.00,
                 ];
 
                 if (!empty($user['team_id'])) {
@@ -643,6 +645,10 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
         'profile_picture_url' => $photoUrl,
         'photo' => $photoUrl,
         'current_calling_db' => $user['current_calling_db'] ?? 'temporary',
+        'daily_calling_limit' => (int)($user['daily_calling_limit'] ?? 250),
+        'monthly_disbursement_limit' => (float)($user['monthly_disbursement_limit'] ?? 1500000.00),
+        'daily_call_target' => (int)($user['daily_calling_limit'] ?? 250),
+        'monthly_disbursement_target' => (float)($user['monthly_disbursement_limit'] ?? 1500000.00),
     ];
 }
 

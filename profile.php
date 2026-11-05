@@ -6,7 +6,7 @@ $type = '';
 $currentUserId = USER_ID;
 
 // 1. Fetch fresh user profile directly from MySQL database
-$userStmt = mysqli_prepare($link, "SELECT ID, NAME, MOBILE, EMAIL, LOGIN_ID, ROLE, role_id, TEAM_ID, COMPANY_NAME, COMPANY, JOIN_DATE, CREATED_AT, STATUS, profile_photo, profile_picture, profile_picture_blob FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
+$userStmt = mysqli_prepare($link, "SELECT ID, NAME, MOBILE, EMAIL, LOGIN_ID, ROLE, role_id, TEAM_ID, COMPANY_NAME, COMPANY, JOIN_DATE, CREATED_AT, STATUS, daily_calling_limit, monthly_disbursement_limit, profile_photo, profile_picture, profile_picture_blob FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
 mysqli_stmt_bind_param($userStmt, "i", $currentUserId);
 mysqli_stmt_execute($userStmt);
 $userRow = mysqli_stmt_get_result($userStmt)->fetch_assoc();
@@ -70,6 +70,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
                 $updateFields = ["NAME = ?", "MOBILE = ?", "LOGIN_ID = ?", "EMAIL = ?"];
                 $params = [$name, $mobile, $login_id, $login_id];
                 $types  = "ssss";
+
+                if (isset($_POST['daily_calling_limit']) && $_POST['daily_calling_limit'] !== '') {
+                    $daily_limit = max(0, (int)$_POST['daily_calling_limit']);
+                    $updateFields[] = "daily_calling_limit = ?";
+                    $params[] = $daily_limit;
+                    $types .= "i";
+                }
+
+                if (isset($_POST['monthly_disbursement_limit']) && $_POST['monthly_disbursement_limit'] !== '') {
+                    $monthly_limit = max(0.0, (float)$_POST['monthly_disbursement_limit']);
+                    $updateFields[] = "monthly_disbursement_limit = ?";
+                    $params[] = $monthly_limit;
+                    $types .= "d";
+                }
 
                 if ($password !== '') {
                     $updateFields[] = "PASSWORD = ?";
@@ -301,6 +315,14 @@ include __DIR__ . '/php_scripts/header.php';
                     <span class="text-muted small text-uppercase fw-semibold"><i class="bi bi-people me-1"></i>Team Assigned</span>
                     <span class="badge bg-secondary"><?= htmlspecialchars($teamName) ?></span>
                 </div>
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-subtle">
+                    <span class="text-muted small text-uppercase fw-semibold"><i class="bi bi-telephone-outbound me-1"></i>Daily Call Limit</span>
+                    <span class="badge bg-primary fs-xs"><?= number_format((int)($userRow['daily_calling_limit'] ?? 250)) ?> calls</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-subtle">
+                    <span class="text-muted small text-uppercase fw-semibold"><i class="bi bi-cash-stack me-1"></i>Disbursement Target</span>
+                    <span class="badge bg-success fs-xs">₹<?= number_format((float)($userRow['monthly_disbursement_limit'] ?? 1500000)) ?></span>
+                </div>
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="text-muted small text-uppercase fw-semibold"><i class="bi bi-hash me-1"></i>Account ID</span>
                     <span class="badge bg-secondary font-monospace">#<?= USER_ID ?></span>
@@ -424,7 +446,34 @@ include __DIR__ . '/php_scripts/header.php';
                         </div>
                     </div>
 
-                    <!-- Section 3: Change Password -->
+                    <!-- Section 3: Performance & Targets Configuration -->
+                    <div class="form-section-title mb-2">
+                        <i class="bi bi-speedometer2 text-primary me-1"></i> Performance Limits &amp; Targets
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label" for="daily_calling_limit">Daily Calling Limit (Connected Calls) <span class="req text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-telephone-outbound text-primary"></i></span>
+                                <input type="number" min="0" step="1" class="form-control" id="daily_calling_limit" name="daily_calling_limit" value="<?= htmlspecialchars((string)($userRow['daily_calling_limit'] ?? 250)) ?>" required />
+                                <span class="input-group-text">calls/day</span>
+                            </div>
+                            <div class="text-muted fs-xs mt-1">Default: 250 connected calls per day. Real-time synced with Mobile App.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="monthly_disbursement_limit">Monthly Disbursement Limit <span class="req text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" min="0" step="1000" class="form-control" id="monthly_disbursement_limit" name="monthly_disbursement_limit" value="<?= htmlspecialchars((string)($userRow['monthly_disbursement_limit'] ?? 1500000)) ?>" required />
+                                <span class="input-group-text">INR/mo</span>
+                            </div>
+                            <div class="text-muted fs-xs mt-1">Default: ₹15,00,000 (15 Lakhs). Real-time synced with Mobile App.</div>
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Change Password -->
                     <div class="form-section-title mb-2">
                         <i class="bi bi-shield-lock text-primary me-1"></i> Change Password
                         <span class="text-muted fw-normal fs-xs ms-2">(Leave blank to keep current password)</span>
