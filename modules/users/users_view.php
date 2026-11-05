@@ -4,10 +4,6 @@ require_once __DIR__ . '/../../php_scripts/team_auth.php';
 
 requirePermission('manage_users');
 
-$limit  = 50;
-$page   = max(1, intval($_GET['page'] ?? 1));
-$offset = ($page - 1) * $limit;
-
 $search  = trim($_GET['search'] ?? '');
 $status  = $_GET['status'] ?? '';
 $role    = $_GET['role'] ?? '';
@@ -50,7 +46,6 @@ $stmt = mysqli_prepare($link, $countSql);
 if ($params) mysqli_stmt_bind_param($stmt, $types, ...$params);
 mysqli_stmt_execute($stmt);
 $totalRecords = mysqli_stmt_get_result($stmt)->fetch_row()[0];
-$totalPages   = max(1, ceil($totalRecords / $limit));
 
 $sql = "
     SELECT
@@ -62,14 +57,10 @@ $sql = "
     ORDER BY
         CASE WHEN u.STATUS = 'Active' THEN 0 ELSE 1 END,
         u.JOIN_DATE DESC, u.ID DESC
-    LIMIT ? OFFSET ?
 ";
 
 $stmt = mysqli_prepare($link, $sql);
 $finalParams   = $params;
-$finalParams[] = $limit;
-$finalParams[] = $offset;
-$types        .= "ii";
 
 mysqli_stmt_bind_param($stmt, $types, ...$finalParams);
 mysqli_stmt_execute($stmt);
@@ -123,13 +114,10 @@ $totalInactive = max(0, $globalTotal - $totalActive);
             </div>
             <p class="text-muted small mb-0">Manage agent logins, operational roles, team assignments, and calling permissions</p>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <button id="exportBtn" class="btn btn-outline-secondary btn-sm" type="button">
-                <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-            </button>
-            <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-diagram-3 me-1"></i> Teams Hub
-            </a>
+            <div class="d-flex align-items-center gap-2">
+                <a href="<?= url('modules/users/teams_dashboard.php') ?>" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-diagram-3 me-1"></i> Teams Hub
+                </a>
             <a href="<?= url('modules/users/users_add.php') ?>" class="btn btn-primary btn-sm">
                 <i class="bi bi-person-plus me-1"></i> Add User
             </a>
@@ -354,7 +342,7 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                     </div>
                 <?php else: ?>
                     <div class="table-responsive">
-                        <table class="table crm-table align-middle mb-0">
+                        <table class="table crm-table align-middle mb-0" id="usersTable-inactive">
                             <thead>
                                 <tr>
                                     <th style="width: 70px;">ID</th>
@@ -428,56 +416,68 @@ $totalInactive = max(0, $globalTotal - $totalActive);
         </div>
     </div>
 
-    <!-- Pagination -->
-    <?php if ($totalPages > 1):
-        $baseUrl = url('modules/users/users_view.php');
-        $q = http_build_query(array_merge($_GET, ['page' => '']));
-    ?>
-        <div class="d-flex justify-content-center mt-3">
-            <nav aria-label="Users pagination">
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item <?= $page<=1?'disabled':'' ?>">
-                        <a class="page-link" href="<?= $baseUrl ?>?page=1&<?= $q ?>">&laquo;</a>
-                    </li>
-                    <li class="page-item <?= $page<=1?'disabled':'' ?>">
-                        <a class="page-link" href="<?= $baseUrl ?>?page=<?= $page-1 ?>&<?= $q ?>">&lsaquo;</a>
-                    </li>
-                    <?php for($i=max(1,$page-2); $i<=min($totalPages,$page+2); $i++): ?>
-                        <li class="page-item <?= $i==$page?'active':'' ?>">
-                            <a class="page-link" href="<?= $baseUrl ?>?page=<?= $i ?>&<?= $q ?>"><?= $i ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    <li class="page-item <?= $page>=$totalPages?'disabled':'' ?>">
-                        <a class="page-link" href="<?= $baseUrl ?>?page=<?= $page+1 ?>&<?= $q ?>">&rsaquo;</a>
-                    </li>
-                    <li class="page-item <?= $page>=$totalPages?'disabled':'' ?>">
-                        <a class="page-link" href="<?= $baseUrl ?>?page=<?= $totalPages ?>&<?= $q ?>">&raquo;</a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    <?php endif; ?>
+
+</div>
 
 </div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 
-<script src="<?= vnd('js/table2excel.min.js') ?>"></script>
+<script src="<?= vnd('dt/dataTables.min.js') ?>"></script>
+<script src="<?= vnd('dt/dataTables.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/jszip.min.js') ?>"></script>
+<script src="<?= vnd('dt/pdfmake.min.js') ?>"></script>
+<script src="<?= vnd('dt/vfs_fonts.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.html5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.print.min.js') ?>"></script>
+
 <script>
-document.getElementById("exportBtn").addEventListener("click", function(){
-    var btn = this;
-    var originalHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Exporting...';
-    btn.disabled = true;
-    
-    new Table2Excel().export(document.querySelector("#usersTable"), {
-        name: "CallNow_Users",
-        filename: "CallNow_Users_" + new Date().toISOString().slice(0,10)
+const APP_BASE = <?= json_encode(APP_BASE) ?>;
+const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+
+function initUsersTable(tableId) {
+    if ($.fn.dataTable.isDataTable('#' + tableId)) {
+        return $('#' + tableId).DataTable();
+    }
+    return $('#' + tableId).DataTable({
+        processing: false,
+        serverSide: false,
+        searching: true,
+        ordering: true,
+        paging: true,
+        pageLength: 50,
+        lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'All']],
+        destroy: true,
+        dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
+        buttons: [
+            { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
+            { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'CallNow_Users_' + new Date().toISOString().slice(0,10) },
+            { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm', title: 'CallNow_Users_' + new Date().toISOString().slice(0,10) },
+            { extend: 'print', text: '<i class="bi bi-printer me-1"></i> Print', className: 'btn btn-secondary btn-sm' }
+        ],
+        language: {
+            lengthMenu: "Show _MENU_",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            paginate: {
+                next: '<i class="bi bi-chevron-right"></i>',
+                previous: '<i class="bi bi-chevron-left"></i>'
+            }
+        }
     });
-    
-    setTimeout(function(){
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-    }, 1500);
+}
+
+$(document).ready(function() {
+    initUsersTable('usersTable');
+
+    var inactiveCollapse = document.getElementById('inactiveCollapse');
+    if (inactiveCollapse) {
+        inactiveCollapse.addEventListener('shown.bs.collapse', function () {
+            setTimeout(function() {
+                initUsersTable('usersTable-inactive');
+            }, 100);
+        });
+    }
 });
 </script>

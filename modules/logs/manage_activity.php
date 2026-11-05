@@ -360,7 +360,7 @@ $baseQuery = $_GET;
             <input type="hidden" name="action" value="delete_bulk">
 
             <div class="table-responsive">
-                <table class="table crm-table align-middle mb-0">
+                <table class="table crm-table align-middle mb-0" id="activityLogTable">
                     <thead>
                         <tr>
                             <th style="width: 38px;" class="text-center"><input id="select_all" type="checkbox" class="form-check-input"></th>
@@ -562,6 +562,105 @@ $baseQuery = $_GET;
         </div>
     </div>
 </div>
+
+<script src="<?= vnd('dt/dataTables.min.js') ?>"></script>
+<script src="<?= vnd('dt/dataTables.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/jszip.min.js') ?>"></script>
+<script src="<?= vnd('dt/pdfmake.min.js') ?>"></script>
+<script src="<?= vnd('dt/vfs_fonts.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.html5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.print.min.js') ?>"></script>
+
+<script>
+const APP_BASE = <?= json_encode(APP_BASE) ?>;
+const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+const IS_ADMIN = <?= ($userRole === 'Admin') ? 'true' : 'false' ?>;
+
+$(document).ready(function() {
+    if ($.fn.dataTable.isDataTable('#activityLogTable')) {
+        return;
+    }
+    $('#activityLogTable').DataTable({
+        processing: true,
+        serverSide: true,
+        searching: true,
+        ordering: true,
+        paging: true,
+        pageLength: 15,
+        lengthMenu: [[15, 25, 50, 100, -1], [15, 25, 50, 100, 'All']],
+        destroy: true,
+        ajax: {
+            url: APP_BASE + '/modules/logs/manage_activity_data.php',
+            type: 'GET',
+            data: function (d) {
+                d.filter_user = <?= json_encode($filter_user ?? '') ?>;
+                d.filter_action = <?= json_encode($filter_action ?? '') ?>;
+                d.filter_table = <?= json_encode($filter_table ?? '') ?>;
+                d.q = <?= json_encode($q ?? '') ?>;
+                d.date_from = <?= json_encode($date_from ?? '') ?>;
+                d.date_to = <?= json_encode($date_to ?? '') ?>;
+                var phpSearch = <?= json_encode($q ?? '') ?>;
+                if (phpSearch && !d['search']['value']) {
+                    d['search']['value'] = phpSearch;
+                }
+            },
+            dataSrc: function (json) {
+                if (json === null || typeof json !== 'object') {
+                    console.error('DataTables: invalid response from server', json);
+                    return [];
+                }
+                return json.data || [];
+            }
+        },
+        dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
+        buttons: [
+            { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
+            { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'ActivityLog_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm', title: 'ActivityLog_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            { extend: 'print', text: '<i class="bi bi-printer me-1"></i> Print', className: 'btn btn-secondary btn-sm' }
+        ],
+        columnDefs: [
+            {
+                targets: 0,
+                orderable: false,
+                searchable: false,
+                render: function (data, type, row) {
+                    return '<input type="checkbox" class="form-check-input row_cb" name="bulk_ids[]" value="' + data + '">';
+                }
+            },
+            {
+                targets: 8,
+                orderable: false,
+                searchable: false,
+                render: function (data, type, row) {
+                    var logId = row[0];
+                    var logJson = JSON.stringify({
+                        LOG_ID: row[0], USER_NAME: row[1], USER_ROLE: row[2],
+                        ACTION_TYPE: row[3], TARGET_TABLE: row[4], ACTION_DETAILS: row[5],
+                        LOG_TIME: row[6], IP_ADDRESS: row[7]
+                    }).replace(/'/g, '&#39;');
+                    var html = '<button type="button" class="btn btn-sm btn-outline-secondary px-2 py-1" data-bs-toggle="modal" data-bs-target="#viewModal" data-log=\'' + logJson + '\' title="View Record"><i class="bi bi-eye"></i></button>';
+                    if (IS_ADMIN) {
+                        html += '<button type="button" class="btn btn-sm btn-outline-danger px-2 py-1 ms-1 single-delete-btn" data-id="' + logId + '" title="Delete Record"><i class="bi bi-trash"></i></button>';
+                    }
+                    return html;
+                }
+            }
+        ],
+        language: {
+            processing: "<div class='spinner-border spinner-border-sm text-primary' role='status'></div> Processing...",
+            lengthMenu: "Show _MENU_",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            paginate: {
+                next: '<i class="bi bi-chevron-right"></i>',
+                previous: '<i class="bi bi-chevron-left"></i>'
+            }
+        }
+    });
+});
+</script>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
 

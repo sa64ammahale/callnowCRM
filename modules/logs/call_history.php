@@ -356,7 +356,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0" id="callHistoryTable">
                         <thead>
                             <tr>
                                 <th style="width:14%;">Date & Time</th>
@@ -534,6 +534,175 @@ include __DIR__ . '/../../php_scripts/header.php';
     }
     setInterval(keepAlive, 300000);
 })();
+</script>
+
+<script src="<?= vnd('dt/dataTables.min.js') ?>"></script>
+<script src="<?= vnd('dt/dataTables.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/jszip.min.js') ?>"></script>
+<script src="<?= vnd('dt/pdfmake.min.js') ?>"></script>
+<script src="<?= vnd('dt/vfs_fonts.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.html5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.print.min.js') ?>"></script>
+
+<script>
+const APP_BASE = <?= json_encode(APP_BASE) ?>;
+const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+
+$(document).ready(function() {
+    if ($.fn.dataTable.isDataTable('#callHistoryTable')) {
+        return;
+    }
+    $('#callHistoryTable').DataTable({
+        processing: true,
+        serverSide: true,
+        searching: true,
+        ordering: true,
+        paging: true,
+        pageLength: 25,
+        lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'All']],
+        destroy: true,
+        ajax: {
+            url: APP_BASE + '/modules/logs/call_history_data.php',
+            type: 'GET',
+            data: function (d) {
+                d.source = <?= json_encode($_GET['source'] ?? 'all') ?>;
+                d.status = <?= json_encode($_GET['status'] ?? '') ?>;
+                d.from = <?= json_encode($_GET['from'] ?? '') ?>;
+                d.to = <?= json_encode($_GET['to'] ?? '') ?>;
+                var phpSearch = <?= json_encode($_GET['search'] ?? '') ?>;
+                if (phpSearch && !d['search']['value']) {
+                    d['search']['value'] = phpSearch;
+                }
+            },
+            dataSrc: function (json) {
+                if (json === null || typeof json !== 'object') {
+                    console.error('DataTables: invalid response from server', json);
+                    return [];
+                }
+                return json.data || [];
+            }
+        },
+        dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
+        buttons: [
+            { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
+            { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'CallHistory_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm', title: 'CallHistory_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            { extend: 'print', text: '<i class="bi bi-printer me-1"></i> Print', className: 'btn btn-secondary btn-sm' }
+        ],
+        columnDefs: [
+            { visible: false, targets: [9, 10, 11, 12, 13, 14, 15, 16, 17] },
+            {
+                targets: 0,
+                render: function (data) {
+                    if (!data) return '—';
+                    var d = new Date(data + 'Z');
+                    if (isNaN(d.getTime())) return data;
+                    return d.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + ' ' + d.getFullYear() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+                }
+            },
+            {
+                targets: 1,
+                render: function (data, type, row) {
+                    var name = data || '—';
+                    var mobile = row[9] || '';
+                    var company = row[10] || '';
+                    var html = '<strong class="text-dark fs-xs">' + name + '</strong>';
+                    if (mobile) html += '<div class="fs-xs"><a href="tel:' + mobile + '" class="text-decoration-none font-monospace text-muted"><i class="bi bi-telephone text-primary me-1"></i>' + mobile + '</a></div>';
+                    if (company) html += '<div class="fs-xs text-muted text-truncate" style="max-width:200px;"><i class="bi bi-building me-1"></i>' + company + '</div>';
+                    return html;
+                }
+            },
+            {
+                targets: 2,
+                render: function (data) {
+                    var badge = { TEMP: 'badge-warning', MAIN: 'badge-primary', LEADS: 'badge-success' }[data] || 'badge-secondary';
+                    var label = { TEMP: 'Temporary', MAIN: 'Main DB', LEADS: 'Leads' }[data] || data;
+                    return '<span class="badge ' + badge + ' fs-xs"><i class="bi bi-database me-1"></i>' + label + '</span>';
+                }
+            },
+            {
+                targets: 3,
+                render: function (data) {
+                    var norm = String(data || '').toLowerCase();
+                    var cls = 'badge-secondary';
+                    if (['connected','lead','interested','interested / hot','deal converted'].indexOf(norm) !== -1) cls = 'badge-success';
+                    else if (['not interested','not_interested'].indexOf(norm) !== -1) cls = 'badge-secondary';
+                    else if (['busy','busy / no answer'].indexOf(norm) !== -1) cls = 'badge-warning';
+                    else if (['no answer','no_answer'].indexOf(norm) !== -1) cls = 'badge-secondary';
+                    else if (['do not call','dnc','dnd','dnd number','do not disturb','do_not_call','do_not_disturb','not_connected_dnd'].indexOf(norm) !== -1) cls = 'badge-danger';
+                    else if (['pending','follow up','follow-up','follow-up needed','callback / follow-up','call back','callback'].indexOf(norm) !== -1) cls = 'badge-info';
+                    else if (norm === 'dialed') cls = 'badge-primary';
+                    return '<span class="badge ' + cls + ' fs-xs">' + data + '</span>';
+                }
+            },
+            {
+                targets: 4,
+                render: function (data) {
+                    var sec = parseInt(data) || 0;
+                    if (sec <= 0) return '<span class="text-muted fs-xs">0s</span>';
+                    var m = Math.floor(sec / 60), s = sec % 60;
+                    return '<span class="badge badge-secondary fs-xs"><i class="bi bi-stopwatch me-1"></i>' + (m > 0 ? m + 'm ' : '') + s + 's</span>';
+                }
+            },
+            {
+                targets: 5,
+                render: function (data, type, row) {
+                    var html = '';
+                    if (data) html += '<div class="text-muted fs-xs mt-1 text-truncate" style="max-width:180px;" title="' + String(data).replace(/"/g, '&quot;') + '"><i class="bi bi-chat-left-text me-1"></i>' + data + '</div>';
+                    var tc = row[11] || '';
+                    var td = parseInt(row[12]) || 0;
+                    if (tc || td > 0) {
+                        html += '<div class="fs-xs text-dark"><span class="badge badge-secondary">' + tc + '</span>';
+                        if (td > 0) html += ' <span class="text-muted ms-1">Total: ' + td + 's</span>';
+                        html += '</div>';
+                    }
+                    var sim = row[13] || '';
+                    if (sim) html += '<div class="text-muted fs-xs mt-1">SIM: ' + sim + '</div>';
+                    var dt = row[14] || '', et = row[15] || '';
+                    if (dt || et) html += '<div class="text-muted fs-xs mt-1">' + (dt ? dt : '—') + ' <span class="mx-1">→</span> ' + (et ? et : '—') + '</div>';
+                    var md = row[16] || '';
+                    if (md) html += '<details class="fs-xs mt-1"><summary class="text-primary">Metadata</summary><pre class="mb-0 mt-1 text-wrap">' + md.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre></details>';
+                    return html || '—';
+                }
+            },
+            {
+                targets: 6,
+                render: function (data) {
+                    var name = data || '—';
+                    var initials = name ? name.split(' ').map(function (p) { return p.charAt(0); }).join('').toUpperCase().slice(0,2) : '?';
+                    return '<div class="d-flex align-items-center gap-2"><div class="avatar-circle" style="width:26px; height:26px; font-size:10px;">' + initials + '</div><div class="fw-semibold fs-xs text-truncate" style="max-width:120px;" title="' + name + '">' + name + '</div></div>';
+                }
+            },
+            {
+                targets: 7,
+                render: function (data) {
+                    if (!data) return '<span class="text-muted fs-xs">—</span>';
+                    var d = new Date(data + 'Z');
+                    if (isNaN(d.getTime())) return data;
+                    return '<span class="badge badge-warning fs-xs"><i class="bi bi-calendar-event me-1"></i>' + d.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + ' ' + d.getFullYear() + '</span>';
+                }
+            },
+            {
+                targets: 8,
+                render: function (data) {
+                    if (!data) return '<span class="text-muted fs-xs">—</span>';
+                    return '<a href="' + data + '" target="_blank" class="btn btn-secondary btn-sm py-1 px-2 fs-xs" title="Play Recording"><i class="bi bi-play-circle text-primary"></i></a>';
+                }
+            }
+        ],
+        language: {
+            processing: "<div class='spinner-border spinner-border-sm text-primary' role='status'></div> Processing...",
+            lengthMenu: "Show _MENU_",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            paginate: {
+                next: '<i class="bi bi-chevron-right"></i>',
+                previous: '<i class="bi bi-chevron-left"></i>'
+            }
+        }
+    });
+});
 </script>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

@@ -43,6 +43,36 @@ $faviconUrl = $appLogoUrl ?: 'data:image/svg+xml,' . rawurlencode('<svg xmlns="h
     <link href="<?= vnd('css/bootstrap-icons.css') ?>" rel="stylesheet">
     <link href="<?= (defined('APP_BASE') && APP_BASE !== '' ? APP_BASE . '/' : '') ?>assets/css/app-theme.css?v=<?= file_exists(__DIR__ . '/../assets/css/app-theme.css') ? filemtime(__DIR__ . '/../assets/css/app-theme.css') : '5.1' ?>" rel="stylesheet">
     <script src="<?= vnd('js/jquery.min.js') ?>"></script>
+<style>
+/* DataTables polish (no vendored DT CSS) */
+table.dataTable thead .sorting,
+table.dataTable thead .sorting_asc,
+table.dataTable thead .sorting_desc {
+    cursor: pointer;
+    position: relative;
+    padding-right: 1.5rem;
+}
+table.dataTable thead .sorting::after,
+table.dataTable thead .sorting_asc::after,
+table.dataTable thead .sorting_desc::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 0.5rem;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    margin-top: -3px;
+}
+table.dataTable thead .sorting::after { border-bottom: 5px solid #adb5bd; }
+table.dataTable thead .sorting_asc::after { border-bottom: 5px solid #6c757d; }
+table.dataTable thead .sorting_desc::after { border-top: 5px solid #6c757d; }
+table.dataTable .dataTables_wrapper .dt-buttons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+table.dataTable .dataTables_length select { margin: 0 0.5rem; }
+table.dataTable .dataTables_filter input { margin: 0 0.5rem; }
+table.dataTable .dataTables_info { margin-top: 0.5rem; }
+</style>
 </head>
 <body>
 <div class="app-shell">

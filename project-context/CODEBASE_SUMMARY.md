@@ -48,7 +48,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/users/
 | File | Purpose | Notes |
 |---|---|---|
-| `users_view.php` | List/filter users (Admin) | Prepared, escaped, Excel export. System Admin (ID=1) and other Admin accounts are non-editable (Protected badge shown). |
+| `users_view.php` | List/filter users (Admin) | Prepared, escaped, Excel export. System Admin (ID=1) and other Admin accounts are non-editable (Protected badge shown). Table enhanced with client-side DataTables (search, sort, paging, copy/csv/excel/print). |
 | `users_add.php` | Add/edit user | Admin full; Supervisor limited to own team. Server-side guard prevents editing ID=1 or other Admin accounts. |
 | `DeleteRow.php` | Legacy destructive delete | **DELETED** — SQL injection + schema corruption |
 | `teams_dashboard.php` | Team CRUD + reassignment | Was missing role guard |
@@ -58,9 +58,11 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose | Notes |
 |---|---|---|
 | `Reports.php` | Call performance reports (gated `view_reports`) | Modern single date-range page: preset ranges, high-contrast hero KPIs (Total, Connected, Interested, Not Interested, Connect Rate), Team & Telecaller Summary with full disposition categorization (Connected, Interested, Not Interested, Follow-up, Busy / No Answer, DNC, Other), duration column, detailed calls drill-down, Doughnut status breakdown, and clean Excel/CSV export |
-| `call_history.php` | Real-time call logs audit trail (gated `view_reports`) | Log of all dialed calls from mobile app & web CRM; status badges (Interested, Not Interested, Busy/No Answer, DND, Follow-up, Wrong Number), duration pills, audio playback, pagination |
+| `call_history.php` | Real-time call logs audit trail (gated `view_reports`) | Log of all dialed calls from mobile app & web CRM; status badges, duration pills, audio playback, pagination. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `call_history_data.php`. |
 | `ViewDialList.php` | Legacy per-user dial list | **DELETED** — broken schema + SQLi on dates |
-| `manage_activity.php` | Activity log viewer/admin | CSRF-protected, sort whitelist |
+| `manage_activity.php` | Activity log viewer/admin | CSRF-protected, sort whitelist. Table enhanced with server-side DataTables (copy/csv/excel/print + reuse existing `?export=csv`); JSON endpoint at `manage_activity_data.php`. |
+| `call_history_data.php` | DataTables server-side JSON for call_history.php | GET-only, read-only; reuses existing WHERE/COUNT logic + role scoping; supports `length=-1` full export. |
+| `manage_activity_data.php` | DataTables server-side JSON for manage_activity.php | GET-only, read-only; reuses existing WHERE/COUNT logic + role scoping; supports `length=-1` full export. |
 
 ### modules/leads/
 | File | Purpose | Notes |
@@ -86,7 +88,8 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose | Notes |
 |---|---|---|
 | `upload_data.php` | CSV upload + archive | Was debug-logging sensitive data; now removed |
-| `ViewDND.php` | DND numbers list (gated `manage_database`) | Dual-database listing (queries both `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC'), origin badges (Main DB vs Temp DB), search, pagination, restore to queue, permanent delete, CSRF-protected |
+| `ViewDND.php` | DND numbers list (gated `manage_database`) | Dual-database listing (queries both `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC'), origin badges (Main DB vs Temp DB), search, pagination, restore to queue, permanent delete, CSRF-protected. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `ViewDND_data.php`. |
+| `ViewDND_data.php` | DataTables server-side JSON for ViewDND.php | GET-only, read-only; DND union (TEMP+MAIN) SELECT/COUNT + search; returns action HTML for restore/delete; supports `length=-1` full export. |
 | `data_management_temporary.php` | AJAX CRUD on TEMPORARY_DATABASE | Was missing role guard; now Admin/Manager |
 | `data_management_main.php` | Main DB DataTables view + bulk ops | References bulk_assign.php (missing) |
 | `add_update_status.php` | Insert/Update + bulk status by ID range (Admin) | CSRF-protected |

@@ -384,7 +384,7 @@ include __DIR__ . '/../../php_scripts/header.php';
     <div class="crm-card">
         <div class="crm-card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0" id="viewDndTable">
                     <thead>
                         <tr>
                             <th>Customer Name</th>
@@ -556,7 +556,83 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-shield-x me-1"></i> Block Number</button>
             </div>
         </form>
-    </div>
+<script src="<?= vnd('dt/dataTables.min.js') ?>"></script>
+<script src="<?= vnd('dt/dataTables.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.bootstrap5.min.js') ?>"></script>
+<script src="<?= vnd('dt/jszip.min.js') ?>"></script>
+<script src="<?= vnd('dt/pdfmake.min.js') ?>"></script>
+<script src="<?= vnd('dt/vfs_fonts.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.html5.min.js') ?>"></script>
+<script src="<?= vnd('dt/buttons.print.min.js') ?>"></script>
+
+<script>
+const APP_BASE = <?= json_encode(APP_BASE) ?>;
+const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+
+$(document).ready(function() {
+    if ($.fn.dataTable.isDataTable('#viewDndTable')) {
+        return;
+    }
+    $('#viewDndTable').DataTable({
+        processing: true,
+        serverSide: true,
+        searching: true,
+        ordering: true,
+        paging: true,
+        pageLength: 50,
+        lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'All']],
+        destroy: true,
+        ajax: {
+            url: APP_BASE + '/modules/database/ViewDND_data.php',
+            type: 'GET',
+            data: function (d) {
+                d.source = <?= json_encode(strtoupper(trim($_GET['source'] ?? 'ALL'))) ?>;
+                var phpSearch = <?= json_encode($_GET['search'] ?? '') ?>;
+                if (phpSearch && !d['search']['value']) {
+                    d['search']['value'] = phpSearch;
+                }
+            },
+            dataSrc: function (json) {
+                if (json === null || typeof json !== 'object') {
+                    console.error('DataTables: invalid response from server', json);
+                    return [];
+                }
+                return json.data || [];
+            }
+        },
+        dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
+        buttons: [
+            { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
+            { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'DND_Register_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm', title: 'DND_Register_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            { extend: 'print', text: '<i class="bi bi-printer me-1"></i> Print', className: 'btn btn-secondary btn-sm' }
+        ],
+        columnDefs: [
+            {
+                targets: 3,
+                render: function (data) {
+                    var badge = { TEMP: 'badge-warning', MAIN: 'badge-primary' }[data] || 'badge-secondary';
+                    var label = { TEMP: 'Temporary', MAIN: 'Main DB' }[data] || data;
+                    return '<span class="badge ' + badge + ' fs-xs"><i class="bi bi-database me-1"></i>' + label + '</span>';
+                }
+            }
+        ],
+        language: {
+            processing: "<div class='spinner-border spinner-border-sm text-primary' role='status'></div> Processing...",
+            lengthMenu: "Show _MENU_",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            paginate: {
+                next: '<i class="bi bi-chevron-right"></i>',
+                previous: '<i class="bi bi-chevron-left"></i>'
+            }
+        }
+    });
+});
+</script>
+
+</div>
+
 </div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
