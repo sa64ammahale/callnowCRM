@@ -23,7 +23,8 @@ function assertTest(string $desc, bool $condition): void {
 // Setup test test contact in main_database
 $testMobile = '99999' . str_pad((string)mt_rand(10000, 99999), 5, '0', STR_PAD_LEFT);
 $testName = 'Test Candidate ' . bin2hex(random_bytes(3));
-$officerId = 1; // Admin / Officer
+$officerRow = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Officer' AND STATUS = 'Active' LIMIT 1")->fetch_assoc();
+$officerId = $officerRow ? (int)$officerRow['ID'] : 4;
 
 $insC = $link->prepare("
     INSERT INTO " . tn('TBL_MAIN') . " 
@@ -102,7 +103,7 @@ $lMetrics = getLeadConversionMetrics($link, date('Y-m-d', strtotime('-1 day')), 
 assertTest("Scenario 7: Disbursed lead counts in disbursement metrics", $lMetrics['disbursed_loans'] >= 1 && $lMetrics['disbursed_amount'] >= 750000.0);
 
 // Scenario 8: Role Permissions & Scoping
-$adminMetrics = getClientContactMetrics($link, null, null, null, 'Admin');
+$adminMetrics = getClientContactMetrics($link, null, null, null, 'Super Admin');
 assertTest("Scenario 8: Admin scope retrieves organizational metrics", $adminMetrics['total_assigned'] >= $cMetrics['total_assigned']);
 
 // Scenario 9: Hourly Calling Analytics

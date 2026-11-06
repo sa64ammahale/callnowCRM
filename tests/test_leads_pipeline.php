@@ -51,9 +51,11 @@ try {
     $id = (int)$lead['lead_id'];
     $reject = ['csrf_token' => 'lp-test-token', 'lead_id' => $id, 'customer_name' => $tag, 'mobile' => $mobile, 'assigned_to' => $owner, 'lead_status_new' => 'REJECT'];
     $r = leadRequest('modules/leads/lead_update.php', $owner, $reject);
-    checkLeadTest('Customer can decline before underwriting', dbFetchOne('SELECT lead_status_new FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?', [$id])['lead_status_new'] === 'REJECT', json_encode($r['result']));
+    checkLeadTest('Officer cannot change lead status', dbFetchOne('SELECT lead_status_new FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?', [$id])['lead_status_new'] === 'LEAD');
+    $r = leadRequest('modules/leads/lead_update.php', 1, $reject);
+    checkLeadTest('Customer can decline before underwriting via Admin', dbFetchOne('SELECT lead_status_new FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?', [$id])['lead_status_new'] === 'REJECT', json_encode($r['result']));
     $reject['lead_status_new'] = 'LEAD';
-    leadRequest('modules/leads/lead_update.php', $owner, $reject);
+    leadRequest('modules/leads/lead_update.php', 1, $reject);
     $r = leadRequest('modules/leads/lead_insert.php', $owner, $create);
     checkLeadTest('Duplicate mobile does not create another lead', (int)dbFetchOne('SELECT COUNT(*) AS n FROM ' . tn('TBL_LEADS') . ' WHERE cust_id = ?', [$customer['ID']])['n'] === 1);
     foreach (['lead_note_add', 'lead_followup_add', 'lead_forward_toggle', 'lead_send_backward_toggle', 'lead_clone_bank', 'lead_assign'] as $action) {
@@ -86,7 +88,7 @@ try {
     $save = $base + ['customer_name' => $tag, 'mobile' => $mobile, 'assigned_to' => $owner, 'next_followup_at' => '2027-02-12T16:45', 'login_status' => 'PENDING'];
     foreach (['LOGIN', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'] as $index => $stage) {
         $data = $save; $data['lead_status_new'] = $stage; $data['login_status'] = $index >= 5 ? 'SUCCESS' : 'PENDING';
-        $r = leadRequest('modules/leads/lead_update.php', $owner, $data);
+        $r = leadRequest('modules/leads/lead_update.php', 1, $data);
         $actual = dbFetchOne('SELECT lead_status_new, next_followup_at FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?', [$id]);
         $expected = $index === 0 ? 'LEAD' : ($index === 4 ? 'LOGIN' : $stage);
         checkLeadTest('Workflow step ' . $index . ': ' . $stage . ' => ' . $expected, $actual['lead_status_new'] === $expected, json_encode($r['result']) . $r['errors']);

@@ -314,6 +314,8 @@ function getLeadConversionMetrics(mysqli $link, string $from, string $to, ?int $
         'unique_contacts_converted' => (int)($res['unique_contacts_converted'] ?? 0),
         'disbursed_count' => (int)($res['disbursed_count'] ?? 0),
         'disbursed_volume' => (float)($res['disbursed_volume'] ?? 0),
+        'disbursed_loans' => (int)($res['disbursed_count'] ?? 0),
+        'disbursed_amount' => (float)($res['disbursed_volume'] ?? 0),
         'sanctioned_count' => (int)($res['sanctioned_count'] ?? 0),
         'in_login_count' => (int)($res['in_login_count'] ?? 0),
         'in_underwriting_count' => (int)($res['in_underwriting_count'] ?? 0),

@@ -363,6 +363,11 @@ function getLeadAssignableTBL_USERS(mysqli $link): array
     return $result ? mysqli_fetch_all($result, MYSQLI_ASSOC) : [];
 }
 
+function getLeadAssignableUsers(mysqli $link): array
+{
+    return getLeadAssignableTBL_USERS($link);
+}
+
 function canAssignLeadToUserId(mysqli $link, int $targetUserId): bool
 {
     if ($targetUserId <= 0) {
@@ -431,6 +436,11 @@ function canEditLead(array $lead): bool
         return true;
     }
 
+    global $link;
+    if ($link && inLeadManagerChain($link, $assignedTo)) {
+        return true;
+    }
+
     if (can('manage_leads')) {
         $teamId = (int)($lead['team_id'] ?? 0);
         if ($teamId > 0 && userBelongsToTeam((int)USER_ID, $teamId)) {
@@ -462,7 +472,7 @@ function canViewLead(mysqli $link, array $lead): bool
 
 function canPullToTray(array $lead): bool
 {
-    if (isAdmin() || isManager() || isSuperAdmin()) {
+    if (isAdmin() || isManager() || isSuperAdmin() || isSupervisor()) {
         return true;
     }
 
@@ -497,6 +507,14 @@ function inLeadManagerChain(mysqli $link, int $ownerUserId): bool
 {
     if ($ownerUserId <= 0) {
         return false;
+    }
+
+    $accessible = getAccessibleUserIds($link);
+    if (empty($accessible)) {
+        return true;
+    }
+    if (in_array($ownerUserId, $accessible, true)) {
+        return true;
     }
 
     if (isManager()) {

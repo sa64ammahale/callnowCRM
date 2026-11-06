@@ -193,6 +193,24 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Goal (2026-11-06): Comprehensive Leads Section Testing & Bug Resolution
+- **Supervisor & Hierarchy Permissions in `lead_common.php`**:
+  - Enhanced `canEditLead()` to allow Supervisors to edit and move stages for leads belonging to their team or assigned officers (`inLeadManagerChain()`).
+  - Extended `inLeadManagerChain()` to utilize `getAccessibleUserIds()` for reliable RBAC hierarchy resolution.
+  - Added `canPullToTray()` support for Supervisor role.
+  - Provided `getLeadAssignableUsers()` backwards-compatible alias.
+- **SQL & Concurrency Hardening**:
+  - `lead_clone_bank.php`: Replaced concatenated SQL query with a parameterized prepared statement.
+  - `lead_insert.php`: Resolved `team_id` from assigned user's `TEAM_ID` upon lead creation.
+  - `lead_insert.php`: Enforced `canMoveLeadStage()` on new lead submissions so Telecallers / Officers start strictly at `LEAD` stage.
+  - `lead_list.php`, `lead_pipeline.php`, `lead_cards_data.php`: Guarded `mysqli_fetch_row()` count queries with null-safe checks.
+  - `reporting_engine.php`: Added `disbursed_loans` and `disbursed_amount` alias keys in `getLeadConversionMetrics()`.
+- **Automated Verification**:
+  - `tests/test_leads_pipeline.php`: 57/57 tests passing 100% (covering lead insert, officer stage gating, supervisor/admin workflow progression, bank cloning, notes, follow-up idempotency, deletion cascades, and cards filtering).
+  - `tests/test_loan_telecalling_performance.php`: 17/17 tests passing 100% (covering contact calling, idempotent conversions, disbursement metrics, hourly analytics, and follow-up completion).
+  - Executed tests under isolated audit environment (`run_project_audit.php`) with 0 errors.
+  - Repository-wide PHP syntax check passed with 0 errors.
+
 ## Completed Feature (2026-11-06): Status-Colored Lead Cards for CRM Web & Flutter Mobile App
 - **CRM Web Application (`modules/leads/lead_list.php`, `modules/leads/lead_pipeline.php`, `assets/css/app-theme.css`)**:
   - Implemented dynamic status card color themes:

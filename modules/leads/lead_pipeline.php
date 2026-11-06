@@ -47,7 +47,9 @@ $sql = "
              l.updated_at DESC, l.lead_id DESC
     LIMIT 500
 ";
-$dbTotalAll = (int)mysqli_fetch_row(mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_LEADS') . " l {$where}"))[0];
+$cntRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_LEADS') . " l {$where}");
+$cntRow = $cntRes ? mysqli_fetch_row($cntRes) : null;
+$dbTotalAll = (int)($cntRow[0] ?? 0);
 $result = mysqli_query($link, $sql);
 if (!$result) {
     $rows = [];

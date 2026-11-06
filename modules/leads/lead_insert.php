@@ -14,6 +14,7 @@ $loanTypeOptions = loanTypeOptions();
 $bankOptions = indianBankOptions();
 
 $TBL_USERS = getLeadAssignableTBL_USERS($link);
+$canMoveStage = canMoveLeadStage();
 
 $form = [
     'login_date' => '',
@@ -52,7 +53,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $form[$key] = trim((string)($_POST[$key] ?? $value));
         }
 
-        $form['lead_status_new'] = in_array($form['lead_status_new'], $statusOptions, true) ? $form['lead_status_new'] : 'LEAD';
+        if (!$canMoveStage) {
+            $form['lead_status_new'] = 'LEAD';
+        } else {
+            $form['lead_status_new'] = in_array($form['lead_status_new'], $statusOptions, true) ? $form['lead_status_new'] : 'LEAD';
+        }
         $form['login_mode'] = in_array($form['login_mode'], $loginModeOptions, true) ? $form['login_mode'] : '';
 
         $assignedTo = (int)$form['assigned_to'];
@@ -120,6 +125,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     );
                 }
 
+                $teamId = 0;
+                if ($assignedTo > 0) {
+                    $tuStmt = mysqli_prepare($link, "SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = ? LIMIT 1");
+                    if ($tuStmt) {
+                        mysqli_stmt_bind_param($tuStmt, 'i', $assignedTo);
+                        mysqli_stmt_execute($tuStmt);
+                        $tuRow = mysqli_stmt_get_result($tuStmt)->fetch_assoc();
+                        mysqli_stmt_close($tuStmt);
+                        if ($tuRow && !empty($tuRow['TEAM_ID'])) {
+                            $teamId = (int)$tuRow['TEAM_ID'];
+                        }
+                    }
+                }
+
                 $legacyStatus = match ($form['lead_status_new']) {
                     'DISBURSED' => 'Converted',
                     'FOLLOWUP' => 'Follow_Up',
@@ -129,12 +148,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $stmt = mysqli_prepare(
                     $link,
                     "INSERT INTO " . tn('TBL_LEADS') . " (
-                        cust_id, assigned_to, assigned_by, lead_status, lead_stage, priority, created_by, updated_by,
+                        cust_id, assigned_to, team_id, assigned_by, lead_status, lead_stage, priority, created_by, updated_by,
                         login_date, net_salary, salary_account, bank_name, loan_amount, loan_tenure, promo_code,
                         login_bank_name, lead_status_new, login_mode, loan_type, loan_app_no, login_location,
                         bank_rm_name, bt_details, remarks, dsa_name, next_followup_at, created_at, updated_at
                     ) VALUES (
-                        ?, ?, ?, ?, 'Cold', 'Medium', ?, ?,
+                        ?, ?, ?, ?, ?, 'Cold', 'Medium', ?, ?,
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
                     )"
                 );
@@ -159,9 +178,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $dsaName = $form['dsa_name'];
                 mysqli_stmt_bind_param(
                     $stmt,
-                                        'iiisiissssssssssssssssss',
+                    'iiiisiissssssssssssssssss',
                     $custId,
                     $assignedTo,
+                    $teamId,
                     $assignedBy,
                     $legacyStatus,
                     $createdBy,
@@ -404,11 +424,17 @@ include __DIR__ . '/../../php_scripts/header.php';
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="lead_status_new">Initial Pipeline Status</label>
-                                <select name="lead_status_new" id="lead_status_new" class="form-select">
-                                    <?php foreach ($statusOptions as $status): ?>
-                                        <option value="<?= htmlspecialchars($status) ?>" <?= $form['lead_status_new'] === $status ? 'selected' : '' ?>><?= htmlspecialchars($status) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <?php if ($canMoveStage): ?>
+                                    <select name="lead_status_new" id="lead_status_new" class="form-select">
+                                        <?php foreach ($statusOptions as $status): ?>
+                                            <option value="<?= htmlspecialchars($status) ?>" <?= $form['lead_status_new'] === $status ? 'selected' : '' ?>><?= htmlspecialchars($status) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                <?php else: ?>
+                                    <input type="text" class="form-control bg-light" value="LEAD" readonly>
+                                    <input type="hidden" name="lead_status_new" value="LEAD">
+                                    <small class="text-muted d-block mt-1" style="font-size:0.75rem;"><i class="bi bi-info-circle me-1"></i>New leads start at LEAD stage.</small>
+                                <?php endif; ?>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="next_followup_at">Next Follow-up Date</label>

@@ -127,7 +127,9 @@ if ($search !== '') {
 
 $whereSql = $conditions ? (' WHERE ' . implode(' AND ', $conditions)) : '';
 $totalSql = "SELECT COUNT(*) {$baseFrom} {$whereSql}";
-$totalRecords = (int)mysqli_fetch_row(mysqli_query($link, $totalSql))[0];
+$totalRes = mysqli_query($link, $totalSql);
+$totalRow = $totalRes ? mysqli_fetch_row($totalRes) : null;
+$totalRecords = (int)($totalRow[0] ?? 0);
 $totalPages = max(1, (int)ceil($totalRecords / $perPage));
 if ($page > $totalPages) {
     $page = $totalPages;

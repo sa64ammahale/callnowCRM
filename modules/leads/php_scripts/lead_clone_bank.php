@@ -14,7 +14,11 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 }
 
 $leadId = (int)($_POST['lead_id'] ?? 0);
-$lead = mysqli_fetch_assoc(mysqli_query($link, "SELECT * FROM " . tn('TBL_LEADS') . " WHERE lead_id = $leadId"));
+$stmt = mysqli_prepare($link, "SELECT * FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? LIMIT 1");
+mysqli_stmt_bind_param($stmt, 'i', $leadId);
+mysqli_stmt_execute($stmt);
+$lead = mysqli_stmt_get_result($stmt)->fetch_assoc();
+mysqli_stmt_close($stmt);
 if (!$lead || !canViewLead($link, $lead)) {
     api_error('Lead not found or access denied', 404);
 }

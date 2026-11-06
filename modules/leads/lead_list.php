@@ -20,10 +20,9 @@ if ($accessCondition !== null) {
 }
 $baseWhere = $baseConditions ? ('WHERE ' . implode(' AND ', $baseConditions)) : '';
 
-$totalRecords = (int)mysqli_fetch_row(mysqli_query(
-    $link,
-    "SELECT COUNT(*) FROM " . tn('TBL_LEADS') . " l {$baseWhere}"
-))[0];
+$totRes = mysqli_query($link, "SELECT COUNT(*) FROM " . tn('TBL_LEADS') . " l {$baseWhere}");
+$totRow = $totRes ? mysqli_fetch_row($totRes) : null;
+$totalRecords = (int)($totRow[0] ?? 0);
 
 $loginMonths = [];
 $followupMonths = [];
