@@ -193,6 +193,21 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Feature (2026-11-06): Status-Colored Lead Cards for CRM Web & Flutter Mobile App
+- **CRM Web Application (`modules/leads/lead_list.php`, `modules/leads/lead_pipeline.php`, `assets/css/app-theme.css`)**:
+  - Implemented dynamic status card color themes:
+    - **Danger card for Reject**: Red wash (`#FEF2F2` to `#FFFFFF`), `#FECDD3` border, `4px solid #DC2626` left accent stripe.
+    - **Success card for Disbursal**: Emerald wash (`#F0FDF4` to `#FFFFFF`), `#BBF7D0` border, `4px solid #16A34A` left accent stripe.
+    - **Warning card when Rework**: Amber wash (`#FFFBEB` to `#FFFFFF`), `#FDE68A` border, `4px solid #D97706` left accent stripe.
+    - **Regular card for Lead**: Clean white surface, `#E2E8F0` border, `4px solid #6D45F9` left accent stripe.
+    - Status-matched colors for other stages (`FOLLOWUP`, `INTERNAL_UNDERWRITING`, `LOGIN`, `BANK_UNDERWRITING`, `SANCTIONED`).
+  - Applied across both the Leads Grid Cards view (`lead_list.php`) and Kanban Pipeline Board (`lead_pipeline.php`).
+  - Added global utility classes in `assets/css/app-theme.css`.
+- **Flutter Mobile Application (`lib/model/crm_lead.dart`, `lib/screens/leads_screen.dart`)**:
+  - Updated `CrmLead` model to parse `rework_flag` and expose `isRework`, `isDisbursed`, `isRejected`.
+  - Updated `_buildLeadCard(CrmLead lead)` in `leads_screen.dart` with status-colored card backgrounds, borders, colored left indicator stripe (4.5px), and prominent Action Required Rework warning banner.
+  - Zero logic changes; purely presentation & UI enhancement. Verified with `flutter analyze` (0 issues).
+
 ## Completed Feature (2026-11-05): Client Contacts, Call Reporting & Loan Telecalling Performance Management System
 - **Core Business Distinction**:
   - Maintained strict separation between **Client Contacts** (`main_database` / `temporary_database`) and **Leads** (`leads_table`).

@@ -171,8 +171,12 @@ $totalAll = count($rows);
                             $followup = $lead['next_followup_at'] ? date('d M', strtotime($lead['next_followup_at'])) : '';
                             $isOverdue = $lead['next_followup_at'] && strtotime($lead['next_followup_at']) < time();
                             $isToday = $lead['next_followup_at'] && date('Y-m-d') === date('Y-m-d', strtotime($lead['next_followup_at']));
+                            $cardStatusClass = 'status-card-' . strtolower($status);
+                            if (!empty($lead['rework_flag'])) {
+                                $cardStatusClass .= ' status-card-rework';
+                            }
                             ?>
-                            <article class="pl-card" id="lead-<?= (int)$lead['lead_id'] ?>" data-lead-id="<?= (int)$lead['lead_id'] ?>">
+                            <article class="pl-card <?= $cardStatusClass ?>" id="lead-<?= (int)$lead['lead_id'] ?>" data-lead-id="<?= (int)$lead['lead_id'] ?>">
                                 <div class="pl-card-main">
                                     <div class="d-flex justify-content-between align-items-start gap-1">
                                         <div class="min-w-0">
@@ -306,14 +310,73 @@ $totalAll = count($rows);
 .pl-card {
     background: #FFFFFF;
     border: 1px solid var(--border-default);
+    border-left: 4px solid #6D45F9;
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-card);
     transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+    overflow: hidden;
 }
 .pl-card:hover {
     border-color: #D6D6DC;
     box-shadow: var(--shadow-card-hover);
     transform: translateY(-2px);
+}
+.pl-card.status-card-lead {
+    background: #FFFFFF;
+    border-color: #E2E8F0;
+    border-left: 4px solid #6D45F9 !important;
+}
+.pl-card.status-card-reject {
+    background: linear-gradient(180deg, #FEF2F2 0%, #FFFFFF 85%) !important;
+    border-color: #FECDD3 !important;
+    border-left: 4px solid #DC2626 !important;
+}
+.pl-card.status-card-reject:hover {
+    border-color: #F87171 !important;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.14) !important;
+}
+.pl-card.status-card-disbursed {
+    background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 85%) !important;
+    border-color: #BBF7D0 !important;
+    border-left: 4px solid #16A34A !important;
+}
+.pl-card.status-card-disbursed:hover {
+    border-color: #4ADE80 !important;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.14) !important;
+}
+.pl-card.status-card-rework {
+    background: linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 85%) !important;
+    border-color: #FDE68A !important;
+    border-left: 4px solid #D97706 !important;
+}
+.pl-card.status-card-rework:hover {
+    border-color: #F59E0B !important;
+    box-shadow: 0 4px 16px rgba(217, 119, 6, 0.14) !important;
+}
+.pl-card.status-card-followup {
+    background: linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 85%) !important;
+    border-color: #BAE6FD !important;
+    border-left: 4px solid #0284C7 !important;
+}
+.pl-card.status-card-internal_underwriting {
+    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 85%) !important;
+    border-color: #CBD5E1 !important;
+    border-left: 4px solid #64748B !important;
+}
+.pl-card.status-card-login {
+    background: linear-gradient(180deg, #FFFDF0 0%, #FFFFFF 85%) !important;
+    border-color: #FEF08A !important;
+    border-left: 4px solid #CA8A04 !important;
+}
+.pl-card.status-card-bank_underwriting {
+    background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 85%) !important;
+    border-color: #E9D5FF !important;
+    border-left: 4px solid #9333EA !important;
+}
+.pl-card.status-card-sanctioned {
+    background: linear-gradient(180deg, #ECFDF5 0%, #FFFFFF 85%) !important;
+    border-color: #99F6E4 !important;
+    border-left: 4px solid #059669 !important;
 }
 .pl-card-main {
     padding: 0.625rem;

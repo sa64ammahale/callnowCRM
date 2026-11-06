@@ -260,17 +260,100 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
 .crm-lead-card {
     background: #FFFFFF;
     border: 1px solid var(--border-default);
+    border-left: 4px solid #6D45F9;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
     transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
     height: 100%;
     display: flex;
     flex-direction: column;
+    position: relative;
+    overflow: hidden;
 }
 .crm-lead-card:hover {
-    border-color: #D6D6DC;
     box-shadow: var(--shadow-card-hover);
     transform: translateY(-2px);
+}
+.crm-lead-card.status-card-lead {
+    background: #FFFFFF;
+    border-color: #E2E8F0;
+    border-left: 4px solid #6D45F9 !important;
+}
+.crm-lead-card.status-card-lead:hover {
+    border-color: #C7D2FE;
+    box-shadow: 0 4px 16px rgba(109, 69, 249, 0.12);
+}
+.crm-lead-card.status-card-reject {
+    background: linear-gradient(180deg, #FEF2F2 0%, #FFFFFF 85%) !important;
+    border-color: #FECDD3 !important;
+    border-left: 4px solid #DC2626 !important;
+}
+.crm-lead-card.status-card-reject:hover {
+    border-color: #F87171 !important;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.14) !important;
+}
+.crm-lead-card.status-card-disbursed {
+    background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 85%) !important;
+    border-color: #BBF7D0 !important;
+    border-left: 4px solid #16A34A !important;
+}
+.crm-lead-card.status-card-disbursed:hover {
+    border-color: #4ADE80 !important;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.14) !important;
+}
+.crm-lead-card.status-card-rework {
+    background: linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 85%) !important;
+    border-color: #FDE68A !important;
+    border-left: 4px solid #D97706 !important;
+}
+.crm-lead-card.status-card-rework:hover {
+    border-color: #F59E0B !important;
+    box-shadow: 0 4px 16px rgba(217, 119, 6, 0.14) !important;
+}
+.crm-lead-card.status-card-followup {
+    background: linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 85%) !important;
+    border-color: #BAE6FD !important;
+    border-left: 4px solid #0284C7 !important;
+}
+.crm-lead-card.status-card-followup:hover {
+    border-color: #38BDF8 !important;
+    box-shadow: 0 4px 16px rgba(2, 132, 199, 0.12) !important;
+}
+.crm-lead-card.status-card-internal_underwriting {
+    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 85%) !important;
+    border-color: #CBD5E1 !important;
+    border-left: 4px solid #64748B !important;
+}
+.crm-lead-card.status-card-internal_underwriting:hover {
+    border-color: #94A3B8 !important;
+    box-shadow: 0 4px 16px rgba(100, 116, 139, 0.12) !important;
+}
+.crm-lead-card.status-card-login {
+    background: linear-gradient(180deg, #FFFDF0 0%, #FFFFFF 85%) !important;
+    border-color: #FEF08A !important;
+    border-left: 4px solid #CA8A04 !important;
+}
+.crm-lead-card.status-card-login:hover {
+    border-color: #FACC15 !important;
+    box-shadow: 0 4px 16px rgba(202, 138, 4, 0.12) !important;
+}
+.crm-lead-card.status-card-bank_underwriting {
+    background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 85%) !important;
+    border-color: #E9D5FF !important;
+    border-left: 4px solid #9333EA !important;
+}
+.crm-lead-card.status-card-bank_underwriting:hover {
+    border-color: #C084FC !important;
+    box-shadow: 0 4px 16px rgba(147, 51, 234, 0.12) !important;
+}
+.crm-lead-card.status-card-sanctioned {
+    background: linear-gradient(180deg, #ECFDF5 0%, #FFFFFF 85%) !important;
+    border-color: #99F6E4 !important;
+    border-left: 4px solid #059669 !important;
+}
+.crm-lead-card.status-card-sanctioned:hover {
+    border-color: #34D399 !important;
+    box-shadow: 0 4px 16px rgba(5, 150, 105, 0.12) !important;
 }
 .crm-lead-card-header {
     padding: 0.75rem 0.875rem 0.5rem;
@@ -285,19 +368,19 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
 }
 .crm-lead-card-footer {
     padding: 0.5rem 0.875rem;
-    border-top: 1px solid var(--border);
-    background: var(--bg-subtle);
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    background: rgba(255, 255, 255, 0.65);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 .crm-lead-extras {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.2s ease;
-    background: var(--bg-subtle);
-    border-top: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.75);
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 .crm-lead-card.expanded .crm-lead-extras {
     max-height: 300px;
@@ -430,8 +513,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            var statusLower = (card.status || 'lead').toLowerCase();
+            var cardStatusClass = 'status-card-' + statusLower;
+            if (card.rework_flag) {
+                cardStatusClass += ' status-card-rework';
+            }
+
             return '<div class="col-xl-4 col-md-6">'
-                + '<div class="crm-lead-card" data-id="' + card.lead_id + '">'
+                + '<div class="crm-lead-card ' + cardStatusClass + '" data-id="' + card.lead_id + '">'
                 + '<div class="crm-lead-card-header">'
                 + '<div class="min-w-0">'
                 + '<a href="' + viewBase + '/lead_view.php?id=' + card.lead_id + '" class="fw-semibold text-dark text-decoration-none d-block text-truncate">' + escapeHtml(card.customer_name) + '</a>'
