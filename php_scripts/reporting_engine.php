@@ -246,11 +246,37 @@ function getCallingMetrics(mysqli $link, string $from, string $to, ?int $userId,
     $durHours = floor($durSec / 3600);
     $durMins = floor(($durSec % 3600) / 60);
 
+    // Follow-ups created and completed in date window for this scope
+    $foWhere = [
+        "f.created_at >= '$from'",
+        "f.created_at < '$to' + INTERVAL 1 DAY"
+    ];
+    if (!empty($scope['user_ids'])) {
+        $inU = implode(',', array_map('intval', $scope['user_ids']));
+        $foWhere[] = "f.user_id IN ($inU)";
+    } elseif ($supervisorId) {
+        $foWhere[] = "f.user_id IN (SELECT u.ID FROM " . tn('TBL_USERS') . " u JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE t.SUPERVISOR_ID = " . (int)$supervisorId . ")";
+    } elseif ($teamId) {
+        $foWhere[] = "f.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = " . (int)$teamId . ")";
+    }
+    $foSql = "SELECT 
+        COUNT(f.id) AS fo_created,
+        SUM(CASE WHEN f.status = 'DONE' THEN 1 ELSE 0 END) AS fo_completed
+        FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f WHERE " . implode(' AND ', $foWhere);
+    $foRes = $link->query($foSql);
+    $foRow = $foRes ? $foRes->fetch_assoc() : null;
+    $foCreated = (int)($foRow['fo_created'] ?? 0);
+    $foCompleted = (int)($foRow['fo_completed'] ?? 0);
+
     return [
         'total_dials' => $totDials,
+        'total_attempts' => $totDials,
         'unique_called' => (int)($res['unique_called'] ?? 0),
+        'unique_contacts_called' => (int)($res['unique_called'] ?? 0),
         'connected' => $connected,
+        'connected_calls' => $connected,
         'not_connected' => (int)($res['not_connected'] ?? 0),
+        'not_connected_calls' => (int)($res['not_connected'] ?? 0),
         'connect_rate' => $connectRate,
         'short_calls' => (int)($res['short_calls'] ?? 0),
         'conversations' => (int)($res['conversations'] ?? 0),
@@ -264,7 +290,11 @@ function getCallingMetrics(mysqli $link, string $from, string $to, ?int $userId,
         'ringing' => (int)($res['ringing'] ?? 0),
         'total_duration_seconds' => $durSec,
         'talk_time_formatted' => sprintf('%02dh %02dm', $durHours, $durMins),
+        'total_talk_time_formatted' => sprintf('%02dh %02dm', $durHours, $durMins),
         'avg_call_duration_seconds' => $avgDur,
+        'avg_duration_formatted' => sprintf('%02dm %02ds', floor($avgDur / 60), $avgDur % 60),
+        'followups_created' => $foCreated,
+        'followups_completed' => $foCompleted,
     ];
 }
 
@@ -311,16 +341,21 @@ function getLeadConversionMetrics(mysqli $link, string $from, string $to, ?int $
 
     return [
         'total_converted_leads' => (int)($res['total_converted_leads'] ?? 0),
+        'new_leads_created' => (int)($res['total_converted_leads'] ?? 0),
         'unique_contacts_converted' => (int)($res['unique_contacts_converted'] ?? 0),
         'disbursed_count' => (int)($res['disbursed_count'] ?? 0),
         'disbursed_volume' => (float)($res['disbursed_volume'] ?? 0),
         'disbursed_loans' => (int)($res['disbursed_count'] ?? 0),
         'disbursed_amount' => (float)($res['disbursed_volume'] ?? 0),
         'sanctioned_count' => (int)($res['sanctioned_count'] ?? 0),
+        'sanctioned_loans' => (int)($res['sanctioned_count'] ?? 0),
         'in_login_count' => (int)($res['in_login_count'] ?? 0),
+        'applications_logged_in' => (int)($res['in_login_count'] ?? 0),
         'in_underwriting_count' => (int)($res['in_underwriting_count'] ?? 0),
+        'documents_collected' => (int)($res['in_underwriting_count'] ?? 0),
         'rejected_count' => (int)($res['rejected_count'] ?? 0),
         'open_leads_count' => (int)($res['open_leads_count'] ?? 0),
+        'qualified_leads' => (int)($res['open_leads_count'] ?? 0),
     ];
 }
 
