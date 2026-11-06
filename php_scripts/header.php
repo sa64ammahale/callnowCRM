@@ -44,34 +44,49 @@ $faviconUrl = $appLogoUrl ?: 'data:image/svg+xml,' . rawurlencode('<svg xmlns="h
     <link href="<?= (defined('APP_BASE') && APP_BASE !== '' ? APP_BASE . '/' : '') ?>assets/css/app-theme.css?v=<?= file_exists(__DIR__ . '/../assets/css/app-theme.css') ? filemtime(__DIR__ . '/../assets/css/app-theme.css') : '5.1' ?>" rel="stylesheet">
     <script src="<?= vnd('js/jquery.min.js') ?>"></script>
 <style>
-/* DataTables polish (no vendored DT CSS) */
+/* Modern DataTables Styling (Clean White Canvas Style) */
 table.dataTable thead .sorting,
-table.dataTable thead .sorting_asc,
-table.dataTable thead .sorting_desc {
+table.dataTable thead th.sorting,
+table.dataTable thead td.sorting {
     cursor: pointer;
     position: relative;
-    padding-right: 1.5rem;
+    padding-right: 1.75rem !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.65rem center !important;
+    background-size: 14px 14px !important;
+}
+table.dataTable thead .sorting_asc,
+table.dataTable thead th.sorting_asc,
+table.dataTable thead td.sorting_asc {
+    cursor: pointer;
+    position: relative;
+    padding-right: 1.75rem !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236d45f9' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m18 15-6-6-6 6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.65rem center !important;
+    background-size: 14px 14px !important;
+}
+table.dataTable thead .sorting_desc,
+table.dataTable thead th.sorting_desc,
+table.dataTable thead td.sorting_desc {
+    cursor: pointer;
+    position: relative;
+    padding-right: 1.75rem !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236d45f9' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.65rem center !important;
+    background-size: 14px 14px !important;
 }
 table.dataTable thead .sorting::after,
 table.dataTable thead .sorting_asc::after,
-table.dataTable thead .sorting_desc::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    right: 0.5rem;
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    margin-top: -3px;
+table.dataTable thead .sorting_desc::after,
+table.dataTable thead .sorting::before,
+table.dataTable thead .sorting_asc::before,
+table.dataTable thead .sorting_desc::before {
+    display: none !important;
+    content: none !important;
 }
-table.dataTable thead .sorting::after { border-bottom: 5px solid #adb5bd; }
-table.dataTable thead .sorting_asc::after { border-bottom: 5px solid #6c757d; }
-table.dataTable thead .sorting_desc::after { border-top: 5px solid #6c757d; }
-table.dataTable .dataTables_wrapper .dt-buttons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-table.dataTable .dataTables_length select { margin: 0 0.5rem; }
-table.dataTable .dataTables_filter input { margin: 0 0.5rem; }
-table.dataTable .dataTables_info { margin-top: 0.5rem; }
 </style>
 </head>
 <body>

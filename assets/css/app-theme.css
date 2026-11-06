@@ -1588,70 +1588,151 @@ nav[aria-label="breadcrumb"],
 }
 
 /* ==========================================================================
-   Data Tables — Flux Clean Style (No Zebra, 14px Outer Radius)
+   Modern SaaS Data Tables — Clean Canvas Style (Matching Screenshot Reference)
    ========================================================================== */
 
-.table {
+.table,
+.crm-table,
+table.dataTable {
     --bs-table-bg: transparent;
-    --bs-table-color: var(--text-primary);
+    --bs-table-color: #1E293B;
     --bs-table-striped-bg: transparent;
-    --bs-table-hover-bg: #FAFAFC;
-    --bs-table-border-color: var(--border-subtle);
-    color: var(--text-primary);
+    --bs-table-hover-bg: #F8FAFC;
+    --bs-table-border-color: #F1F5F9;
+    color: #1E293B;
     margin-bottom: 0;
     font-size: 0.8125rem;
     vertical-align: middle;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
 }
 
-.table > :not(caption) > * > * {
-    padding: 0.75rem 0.875rem;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.table thead th {
-    background: #F8F8FA;
-    color: #666673;
-    font-weight: 600;
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    border-bottom: 1px solid var(--border-default);
+/* Crisp White Table Header */
+.table thead th,
+.crm-table thead th,
+table.dataTable thead th {
+    background: #FFFFFF !important;
+    color: #475569 !important;
+    font-weight: 500 !important;
+    font-size: 0.8125rem !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    border-top: none !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    border-left: none !important;
+    border-right: none !important;
     white-space: nowrap;
-    padding: 0.625rem 0.875rem;
+    padding: 0.875rem 1rem !important;
+    vertical-align: middle !important;
 }
 
-.table tbody tr {
+/* Spacious Table Cells */
+.table > :not(caption) > * > *,
+.table tbody td,
+.crm-table tbody td,
+table.dataTable tbody td {
+    padding: 0.875rem 1rem !important;
+    border-top: none !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    border-left: none !important;
+    border-right: none !important;
+    color: #334155;
+    font-size: 0.8125rem;
+    vertical-align: middle !important;
     background-color: #FFFFFF;
-    transition: background-color 0.12s ease;
 }
 
-.table tbody tr:nth-child(even) {
-    background-color: #F5F5F8;
+/* Pure White Rows (No Zebra Striping) */
+.table tbody tr,
+.crm-table tbody tr,
+table.dataTable tbody tr {
+    background-color: #FFFFFF !important;
+    transition: background-color 0.15s ease-in-out;
 }
 
-.table tbody tr:hover > * {
-    background-color: #FAFAFC !important;
+.table tbody tr:nth-child(even),
+.crm-table tbody tr:nth-child(even),
+table.dataTable tbody tr:nth-child(even) {
+    background-color: #FFFFFF !important;
+}
+
+/* Clean Hover State */
+.table tbody tr:hover,
+.table tbody tr:hover > *,
+.crm-table tbody tr:hover > *,
+table.dataTable tbody tr:hover > * {
+    background-color: #F8FAFC !important;
 }
 
 .table tbody tr.table-active > *,
-.table tbody tr.selected > * {
+.table tbody tr.selected > *,
+table.dataTable tbody tr.selected > * {
     background-color: #F5F2FF !important;
 }
 
 .table-nowrap td, .table-nowrap th { white-space: nowrap; }
 
 /* Table Container Wrapper */
-.table-responsive-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg); /* 14px */
+.table-responsive-card,
+.card:has(.table),
+.crm-card:has(.table) {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 12px !important;
     overflow: hidden;
     margin-bottom: 1.25rem;
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
 }
 
-.table-responsive-card .table-responsive {
+.table-responsive-card .table-responsive,
+.card:has(.table) .table-responsive,
+.crm-card:has(.table) .table-responsive {
     overflow-x: auto;
+    border: none !important;
+}
+
+/* Table Checkboxes */
+.table .form-check-input,
+.crm-table .form-check-input,
+table.dataTable .form-check-input {
+    width: 17px;
+    height: 17px;
+    margin-top: 0;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 5px;
+    background-color: #FFFFFF;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.table .form-check-input:checked,
+.crm-table .form-check-input:checked,
+table.dataTable .form-check-input:checked {
+    background-color: #2563EB;
+    border-color: #2563EB;
+}
+
+.table .form-check-input:focus,
+.crm-table .form-check-input:focus,
+table.dataTable .form-check-input:focus {
+    border-color: #2563EB;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Subtle Row Action Chevron */
+.table-row-chevron {
+    color: #94A3B8;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.table tbody tr:hover .table-row-chevron {
+    color: var(--primary, #6D45F9);
+    transform: translateX(2px);
 }
 
 /* ==========================================================================
@@ -2182,65 +2263,282 @@ a.dropdown-toggle::after,
 }
 
 /* ==========================================================================
-   DataTables Custom Styling
+   DataTables Modern Controls (Matching Clean SaaS Toolbar & Pagination)
    ========================================================================== */
 
-.dataTables_wrapper .dataTables_length,
-.dataTables_wrapper .dataTables_filter,
-.dataTables_wrapper .dataTables_info,
-.dataTables_wrapper .dataTables_paginate {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    padding-top: 0.5rem;
+.dataTables_wrapper {
+    width: 100%;
 }
 
-.dataTables_wrapper .dataTables_length select,
-.dataTables_wrapper .dataTables_filter input {
-    border: 1px solid var(--border-default);
-    background: #FFFFFF;
-    color: var(--text-primary);
-    border-radius: var(--radius-sm);
-    font-size: 0.75rem;
-    padding: 0.3rem 0.5rem;
-    margin: 0 0.25rem;
+/* Control Toolbars */
+.dataTables_wrapper .border-bottom {
+    padding: 0.75rem 1rem !important;
+    background: #FFFFFF !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.dataTables_wrapper .border-top {
+    padding: 0.75rem 1rem !important;
+    background: #FFFFFF !important;
+    border-top: 1px solid #E2E8F0 !important;
+}
+
+/* Length Menu (Show X entries) */
+.dataTables_wrapper .dataTables_length {
+    color: #475569;
+    font-size: 0.8125rem;
+    font-weight: 500;
 }
 
 .dataTables_wrapper .dataTables_length select {
-    padding-right: 1.6rem !important;
-    background-position: right 0.45rem center !important;
-    background-size: 10px 6px !important;
+    border: 1px solid #E2E8F0 !important;
+    background: #FFFFFF !important;
+    color: #334155 !important;
+    border-radius: 8px !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    padding: 0.35rem 1.75rem 0.35rem 0.65rem !important;
+    margin: 0 0.35rem !important;
+    outline: none !important;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: all 0.15s ease;
 }
 
-.dataTables_wrapper .dataTables_filter input:focus,
 .dataTables_wrapper .dataTables_length select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px var(--primary-soft);
+    border-color: #6D45F9 !important;
+    box-shadow: 0 0 0 3px rgba(109, 69, 249, 0.12) !important;
+}
+
+/* Search Box */
+.dataTables_wrapper .dataTables_filter {
+    color: #475569;
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.dataTables_wrapper .dataTables_filter input {
+    border: 1px solid #E2E8F0 !important;
+    background: #FFFFFF !important;
+    color: #0F172A !important;
+    border-radius: 8px !important;
+    font-size: 0.8125rem !important;
+    padding: 0.4rem 0.85rem !important;
+    margin-left: 0.35rem !important;
+    width: 220px !important;
+    outline: none !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: all 0.15s ease;
+}
+
+.dataTables_wrapper .dataTables_filter input:focus {
+    border-color: #6D45F9 !important;
+    box-shadow: 0 0 0 3px rgba(109, 69, 249, 0.12) !important;
+}
+
+/* DT Buttons (Copy, CSV, Excel, Print) */
+.dataTables_wrapper .dt-buttons {
+    display: inline-flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.dataTables_wrapper .dt-buttons .btn,
+.dataTables_wrapper .dt-button {
+    border: 1px solid #E2E8F0 !important;
+    background: #FFFFFF !important;
+    color: #475569 !important;
+    border-radius: 8px !important;
+    font-size: 0.775rem !important;
+    font-weight: 500 !important;
+    padding: 0.35rem 0.75rem !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+    transition: all 0.15s ease;
+}
+
+.dataTables_wrapper .dt-buttons .btn:hover,
+.dataTables_wrapper .dt-button:hover {
+    background: #F8FAFC !important;
+    border-color: #CBD5E1 !important;
+    color: #0F172A !important;
+}
+
+/* Info Text */
+.dataTables_wrapper .dataTables_info {
+    color: #64748B !important;
+    font-size: 0.8125rem !important;
+    font-weight: 400 !important;
+}
+
+/* Pagination Controls */
+.dataTables_wrapper .dataTables_paginate {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
 }
 
 .dataTables_wrapper .dataTables_paginate .paginate_button {
-    border: 1px solid var(--border-default) !important;
+    border: 1px solid #E2E8F0 !important;
     background: #FFFFFF !important;
-    color: var(--text-secondary) !important;
-    border-radius: var(--radius-sm) !important;
-    padding: 0.25rem 0.6rem !important;
-    margin: 0 0.15rem !important;
-    font-size: 0.75rem !important;
+    color: #475569 !important;
+    border-radius: 8px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    padding: 0 0.5rem !important;
+    margin: 0 !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
     transition: all 0.12s ease;
 }
 
 .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
-    background: var(--bg-muted) !important;
-    color: var(--text-primary) !important;
-    border-color: var(--border-strong) !important;
+    background: #F8FAFC !important;
+    color: #0F172A !important;
+    border-color: #CBD5E1 !important;
 }
 
 .dataTables_wrapper .dataTables_paginate .paginate_button.current,
 .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
-    background: var(--primary) !important;
+    background: #6D45F9 !important;
     color: #FFFFFF !important;
-    border-color: var(--primary) !important;
-    box-shadow: 0 2px 6px rgba(109, 69, 249, 0.25);
+    border-color: #6D45F9 !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 4px rgba(109, 69, 249, 0.25) !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {
+    background: #F8FAFC !important;
+    color: #CBD5E1 !important;
+    border-color: #E2E8F0 !important;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Solid Pill Badges inside Tables (Matching Screenshot Severity/Status) */
+.table .badge,
+.crm-table .badge,
+table.dataTable .badge {
+    border-radius: 9999px !important;
+    padding: 0.32rem 0.85rem !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 68px;
+    text-align: center;
+    line-height: 1.35;
+    border: none !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Critical / Danger / Reject / Lost -> Deep Burgundy */
+.table .badge.bg-danger,
+.table .badge.badge-danger,
+.table .badge.badge-critical,
+.table .badge.bg-danger-subtle,
+.crm-table .badge.bg-danger,
+.crm-table .badge.bg-danger-subtle {
+    background-color: #4C0519 !important;
+    color: #FFFFFF !important;
+}
+
+/* High / Medium / Warning -> Rich Warm Amber / Orange */
+.table .badge.bg-warning,
+.table .badge.badge-warning,
+.table .badge.badge-medium,
+.table .badge.bg-warning-subtle,
+.crm-table .badge.bg-warning,
+.crm-table .badge.bg-warning-subtle {
+    background-color: #D97706 !important;
+    color: #FFFFFF !important;
+}
+
+/* Passed / Success / Active / Converted -> Rich Emerald Green */
+.table .badge.bg-success,
+.table .badge.badge-success,
+.table .badge.badge-passed,
+.table .badge.bg-success-subtle,
+.crm-table .badge.bg-success,
+.crm-table .badge.bg-success-subtle {
+    background-color: #16A34A !important;
+    color: #FFFFFF !important;
+}
+
+/* None / Low / Neutral / Secondary -> Solid Slate */
+.table .badge.bg-secondary,
+.table .badge.badge-secondary,
+.table .badge.badge-none,
+.table .badge.bg-secondary-subtle,
+.crm-table .badge.bg-secondary,
+.crm-table .badge.bg-secondary-subtle {
+    background-color: #64748B !important;
+    color: #FFFFFF !important;
+}
+
+/* Primary / Roles / Admin -> Rich Purple/Violet */
+.table .badge.bg-primary,
+.table .badge.badge-primary,
+.table .badge.bg-purple,
+.table .badge.bg-primary-subtle,
+.table .badge.bg-purple-subtle,
+.crm-table .badge.bg-primary,
+.crm-table .badge.bg-purple {
+    background-color: #6D28D9 !important;
+    color: #FFFFFF !important;
+}
+
+/* Info / Supervisor / Manager -> Electric Cyan/Blue */
+.table .badge.bg-info,
+.table .badge.badge-info,
+.table .badge.bg-info-subtle,
+.crm-table .badge.bg-info,
+.crm-table .badge.bg-info-subtle {
+    background-color: #0284C7 !important;
+    color: #FFFFFF !important;
+}
+
+/* Modern Tab Navigation (matching screenshot top tabs) */
+.nav-tabs-clean {
+    border-bottom: 1px solid #E2E8F0;
+    gap: 1.5rem;
+}
+.nav-tabs-clean .nav-link {
+    border: none;
+    background: transparent;
+    color: #64748B;
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 0.65rem 0.25rem;
+    position: relative;
+    transition: color 0.15s ease;
+}
+.nav-tabs-clean .nav-link:hover {
+    color: #0F172A;
+}
+.nav-tabs-clean .nav-link.active {
+    color: #2563EB;
+    font-weight: 600;
+}
+.nav-tabs-clean .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: #2563EB;
+    border-radius: 2px;
 }
 
 /* ==========================================================================
