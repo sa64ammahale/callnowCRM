@@ -42,13 +42,18 @@ $relativePath = '/' . trim($relativePath, '/');
 
 // Helper to build date condition for reports & calls
 function buildDateCondition(string $period, ?string $dateFrom, ?string $dateTo, string $col = 'created_at'): string {
-    switch (strtolower($period)) {
+    switch (strtolower(trim($period))) {
         case 'yesterday':
             return "($col >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND $col < CURDATE())";
+        case 'week':
         case 'this_week':
             return "YEARWEEK($col, 1) = YEARWEEK(CURDATE(), 1)";
+        case 'month':
         case 'this_month':
             return "($col >= DATE_FORMAT(CURDATE(), '%Y-%m-01 00:00:00') AND $col < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01 00:00:00'), INTERVAL 1 MONTH))";
+        case 'year':
+        case 'this_year':
+            return "YEAR($col) = YEAR(CURDATE())";
         case 'custom':
             if ($dateFrom && $dateTo) {
                 $f = preg_replace('/[^0-9\-]/', '', $dateFrom);
@@ -478,7 +483,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $dateFrom = $_GET['date_from'] ?? null;
     $dateTo = $_GET['date_to'] ?? null;
     
-    $dateCond = buildDateCondition($period, $dateFrom, $dateTo, 'created_at');
+    $dateCond = buildDateCondition($period, $dateFrom, $dateTo, 'COALESCE(call_time, created_at)');
     
     // Calculate aggregate metrics using duration_seconds
     $sql = "SELECT 
@@ -565,7 +570,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $timingFilter = $_GET['timing_tier'] ?? null;
     $search = trim($_GET['search'] ?? '');
     
-    $dateCond = buildDateCondition($period, $dateFrom, $dateTo, 'cl.created_at');
+    $dateCond = buildDateCondition($period, $dateFrom, $dateTo, 'COALESCE(cl.call_time, cl.created_at)');
     
     $whereParts = ["cl.user_id = $userId", $dateCond];
     if ($statusFilter && $statusFilter !== 'all') {
@@ -666,13 +671,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         ];
     }
     
+    $totalPages = $totalCount > 0 ? (int)ceil($totalCount / $limit) : 1;
     apiSuccess([
         'data' => $calls,
         'pagination' => [
             'page' => $page,
             'limit' => $limit,
             'total' => $totalCount,
-            'total_pages' => ceil($totalCount / $limit),
+            'total_pages' => $totalPages,
+            'has_more' => $page < $totalPages,
         ]
     ]);
 
@@ -684,11 +691,25 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $recordId = (int)$matches[1];
     $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
-    $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
+    if ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') {
+        $source = 'TEMP';
+    } elseif ($rawSource === 'LEADS' || $rawSource === 'LEAD') {
+        $source = 'LEADS';
+    } else {
+        $source = 'MAIN';
+    }
     
+    if ($source === 'LEADS') {
+        $whereRecord = "((cl.record_id = ? AND cl.source = 'LEADS') OR cl.lead_id = ?)";
+        $scopeTypes = 'ii';
+        $scopeParams = [$recordId, $recordId];
+    } else {
+        $whereRecord = "((cl.record_id = ? AND cl.source = ?) OR (cl.client_contact_id = ? AND cl.source = ?))";
+        $scopeTypes = 'isis';
+        $scopeParams = [$recordId, $source, $recordId, $source];
+    }
+
     $scopeSql = '';
-    $scopeTypes = 'is';
-    $scopeParams = [$recordId, $source];
     if (in_array($userRole, ['Admin', 'Manager'], true)) {
         $scopeSql = '';
     } elseif ($userRole === 'Supervisor' && $teamId) {
@@ -701,10 +722,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $scopeParams[] = $userId;
     }
 
-    $sql = "SELECT id, record_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, created_at
+    $sql = "SELECT id, record_id, lead_id, client_contact_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, metadata, next_followup, recording_url, sim_slot, call_time, dial_time, call_end_time, created_at
             FROM " . tn('TBL_CALL_LOGS') . " cl
-            WHERE record_id = ? AND source = ?" . $scopeSql . "
-            ORDER BY created_at DESC";
+            WHERE $whereRecord" . $scopeSql . "
+            ORDER BY COALESCE(cl.call_time, cl.created_at) DESC";
     $stmt = $link->prepare($sql);
     if (!$stmt) throw new Exception('Query preparation failed: ' . $link->error);
     $stmt->bind_param($scopeTypes, ...$scopeParams);
@@ -734,10 +755,17 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $search = trim($_GET['search'] ?? '');
         $statusFilter = trim($_GET['status'] ?? 'all');
         $sourceFilter = strtoupper(trim($_GET['source'] ?? 'all'));
+        $period = $_GET['period'] ?? null;
+        $dateFrom = $_GET['date_from'] ?? null;
+        $dateTo = $_GET['date_to'] ?? null;
 
         $whereParts = [];
         $params = [];
         $types = '';
+
+        if ($period !== null && strtolower(trim($period)) !== 'all') {
+            $whereParts[] = buildDateCondition($period, $dateFrom, $dateTo, 'COALESCE(l.created_at, l.updated_at)');
+        }
 
         if ($userRole === 'Admin' || $userRole === 'Manager' || $userRole === 'Super Admin') {
             if (!empty($_GET['user_id'])) {
@@ -852,13 +880,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             ];
         }
 
+        $totalPages = $total > 0 ? (int)ceil($total / $limit) : 1;
         apiSuccess([
             'leads' => $leadsList,
             'pagination' => [
                 'page' => $page,
                 'limit' => $limit,
                 'total' => $total,
-                'total_pages' => $total > 0 ? (int)ceil($total / $limit) : 1,
+                'total_pages' => $totalPages,
+                'has_more' => $page < $totalPages,
             ]
         ]);
 
@@ -1233,6 +1263,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $status = $_GET['status'] ?? 'OPEN';
         $due = $_GET['due'] ?? 'all';
+        $period = $_GET['period'] ?? null;
+        $dateFrom = $_GET['date_from'] ?? null;
+        $dateTo = $_GET['date_to'] ?? null;
         $page = max(1, (int)($_GET['page'] ?? 1));
         $limit = min(100, max(1, (int)($_GET['limit'] ?? 25)));
         $offset = ($page - 1) * $limit;
@@ -1241,20 +1274,38 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $params = [];
         $types = '';
 
-        if (!in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) {
-            if ($userRole === 'Supervisor' && $teamId) {
-                $where[] = "f.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-                $params[] = $teamId;
-                $types .= 'i';
+        if ($period !== null && strtolower(trim($period)) !== 'all') {
+            $where[] = buildDateCondition($period, $dateFrom, $dateTo, 'f.followup_at');
+        }
+
+        $scope = strtolower(trim($_GET['scope'] ?? 'mine'));
+        if (!empty($_GET['user_id'])) {
+            $targetUserId = (int)$_GET['user_id'];
+            if ($targetUserId === $userId || in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) || ($userRole === 'Supervisor' && $teamId)) {
+                $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
+                $params[] = $targetUserId;
+                $params[] = $targetUserId;
+                $types .= 'ii';
             } else {
-                $where[] = "f.user_id = ?";
+                $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
                 $params[] = $userId;
-                $types .= 'i';
+                $params[] = $userId;
+                $types .= 'ii';
             }
-        } elseif (!empty($_GET['user_id'])) {
-            $where[] = "f.user_id = ?";
-            $params[] = (int)$_GET['user_id'];
-            $types .= 'i';
+        } elseif ($scope === 'all' && (in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) || $userId === 1)) {
+            // Admin/Manager viewing all follow-ups company-wide - no user filter
+        } elseif ($scope === 'all' && $userRole === 'Supervisor' && $teamId) {
+            // Supervisor viewing team-wide follow-ups
+            $where[] = "(f.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?) OR l.team_id = ?)";
+            $params[] = $teamId;
+            $params[] = $teamId;
+            $types .= 'ii';
+        } else {
+            // Default: 'mine' - strict personal follow-ups for the telecaller
+            $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
+            $params[] = $userId;
+            $params[] = $userId;
+            $types .= 'ii';
         }
 
         if ($status !== 'all' && $status !== '') {
@@ -1282,6 +1333,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $sql = "SELECT 
                     f.id, f.lead_id, f.client_contact_id, f.contact_source, f.source_call_id, f.user_id, f.followup_at, f.note, f.status, f.completed_at, f.created_at,
                     u.NAME as officer_name,
+                    l.assigned_to as lead_assigned_to,
                     COALESCE(l.NAME, m.MAINDATABASE_NAME, t.CUST_NAME, '') as customer_name,
                     COALESCE(l.MOBILE, m.MAINDATABASE_MOBILE, t.CUST_MOBILE, '') as customer_mobile,
                     COALESCE(l.COMPANY_NAME, m.MAINDATABASE_COMPANY, t.CUST_COMPANY, '') as company_name,
@@ -1305,7 +1357,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        apiSuccess(['data' => $items, 'total' => $total, 'page' => $page, 'limit' => $limit]);
+        $totalPages = $total > 0 ? (int)ceil($total / $limit) : 1;
+        apiSuccess([
+            'data' => $items,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+            'total_pages' => $totalPages,
+            'has_more' => $page < $totalPages
+        ]);
 
     } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $input = apiReadJson();

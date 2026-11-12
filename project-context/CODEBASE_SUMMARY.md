@@ -73,7 +73,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `leads_dashboard.php` | Lead summary dashboard | Escaped, access scoped |
 | `lead_insert.php` | Add new lead (upserts MAIN_DATABASE) | Transaction-wrapped |
 | `lead_update.php` | POST save handler | Transaction-wrapped |
-| `lead_pipeline.php` | Kanban board (7 columns) | Read-only |
+| `lead_pipeline.php` | Kanban board (8 stages) with Drag & Drop and per-column pagination | Drag & drop RBAC gated |
 | `lead_list.php` | Lead register (card SPA) | Filter state server-persisted |
 | `lead_view.php` | Single lead view/edit form | Access-controlled |
 | `AddEnquiry.php` | Legacy enquiry form | **DELETED** — SQLi + broken schema |
@@ -81,6 +81,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 #### modules/leads/php_scripts/
 | File | Purpose |
 |---|---|
+| `lead_pipeline_ajax.php` | Drag & Drop stage movement and per-column lazy loading/pagination |
 | `lead_list_data.php` | DataTables server-side JSON (legacy grid) |
 | `lead_cards_data.php` | Cards JSON for lead_list.php |
 | `lead_list_filter_state.php` | Persist user filter prefs |

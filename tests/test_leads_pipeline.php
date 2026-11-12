@@ -119,6 +119,17 @@ try {
     }
     $r = leadRequest('modules/leads/php_scripts/lead_assign.php', 1, $base + ['to_user_id' => $outsider, 'reason' => 'Customer moved to second officer']);
     checkLeadTest('Admin reassigns lead with audit history', ($r['json']['success'] ?? false) && (int)dbFetchOne('SELECT assigned_to FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?', [$id])['assigned_to'] === $outsider, $r['body'] . $r['errors']);
+
+    // Test Pipeline Drag-and-Drop & Pagination AJAX
+    $r = leadRequest('modules/leads/php_scripts/lead_pipeline_ajax.php', $owner, ['action' => 'move_stage', 'lead_id' => $id, 'new_stage' => 'SANCTIONED', 'csrf_token' => 'lp-test-token']);
+    checkLeadTest('Officer cannot move stage via lead_pipeline_ajax', ($r['result']['status'] ?? 0) === 403);
+
+    $r = leadRequest('modules/leads/php_scripts/lead_pipeline_ajax.php', 1, ['action' => 'move_stage', 'lead_id' => $id, 'new_stage' => 'SANCTIONED', 'csrf_token' => 'lp-test-token']);
+    checkLeadTest('Admin can move stage via lead_pipeline_ajax', ($r['json']['success'] ?? false) === true && ($r['json']['new_stage'] ?? '') === 'SANCTIONED');
+
+    $r = leadRequest('modules/leads/php_scripts/lead_pipeline_ajax.php', 1, ['action' => 'load_more', 'stage' => 'SANCTIONED', 'offset' => 0, 'limit' => 10, 'search' => $tag, 'csrf_token' => 'lp-test-token']);
+    checkLeadTest('Pipeline load_more returns valid card HTML', ($r['json']['success'] ?? false) === true && str_contains($r['json']['html'] ?? '', 'pl-card'));
+
     $r = leadRequest('modules/leads/php_scripts/lead_note_add.php', $owner, $base + ['note' => 'Previous owner update']);
     checkLeadTest('Previous owner loses edit access after transfer', in_array($r['result']['status'] ?? 0, [403, 404], true));
     $r = leadRequest('modules/leads/php_scripts/lead_note_add.php', $outsider, $base + ['note' => 'New owner contacted customer']);

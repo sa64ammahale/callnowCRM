@@ -628,9 +628,135 @@ function saveUserPageFilterPreference(mysqli $link, int $userId, string $pageKey
              filter_json = VALUES(filter_json),
              updated_at = CURRENT_TIMESTAMP"
     );
-    mysqli_stmt_bind_param($stmt, 'iss', $userId, $pageKey, $json);
-    $ok = mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-
     return $ok;
+}
+
+function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStage): string
+{
+    $leadId = (int)($lead['lead_id'] ?? 0);
+    $statusKey = strtoupper(trim((string)($currentStage ?: ($lead['lead_status_new'] ?? 'LEAD'))));
+    $customerName = htmlspecialchars($lead['customer_name'] ?? ('Lead #' . $leadId), ENT_QUOTES, 'UTF-8');
+    $assignedName = htmlspecialchars($lead['assigned_name'] ?? 'Unassigned', ENT_QUOTES, 'UTF-8');
+    $companyName = htmlspecialchars($lead['company_name'] ?? '', ENT_QUOTES, 'UTF-8');
+    $mobile = htmlspecialchars($lead['mobile'] ?? 'N/A', ENT_QUOTES, 'UTF-8');
+    $loanAmount = htmlspecialchars($lead['loan_amount'] ?? '', ENT_QUOTES, 'UTF-8');
+    $loanType = htmlspecialchars($lead['loan_type'] ?? '', ENT_QUOTES, 'UTF-8');
+
+    $daysInStage = !empty($lead['updated_at']) ? (int)floor((time() - strtotime($lead['updated_at'])) / 86400) : 0;
+    $created = !empty($lead['created_at']) ? date('d M', strtotime($lead['created_at'])) : '—';
+    $followup = !empty($lead['next_followup_at']) ? date('d M', strtotime($lead['next_followup_at'])) : '';
+    $isOverdue = !empty($lead['next_followup_at']) && strtotime($lead['next_followup_at']) < time();
+    $isToday = !empty($lead['next_followup_at']) && date('Y-m-d') === date('Y-m-d', strtotime($lead['next_followup_at']));
+
+    $cardStatusClass = 'status-card-' . strtolower($statusKey);
+    if (!empty($lead['rework_flag'])) {
+        $cardStatusClass .= ' status-card-rework';
+    }
+
+    $viewUrl = url('modules/leads/lead_view.php?id=' . $leadId);
+    $draggableAttr = $canMoveStage ? 'draggable="true"' : 'draggable="false"';
+
+    $badgeDays = '';
+    if ($daysInStage > 3) {
+        $badgeClass = $daysInStage > 7 ? 'bg-danger text-white' : 'bg-warning text-dark';
+        $badgeDays = '<span class="badge ' . $badgeClass . ' ms-auto" style="font-size:0.625rem;">' . $daysInStage . 'd in stage</span>';
+    }
+
+    $reworkBadge = '';
+    if (!empty($lead['rework_flag'])) {
+        $reworkBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle" title="Rework pending"><i class="bi bi-exclamation-triangle me-1"></i>Rework</span>';
+    }
+
+    $loanBadge = '';
+    if ($loanAmount !== '') {
+        $loanBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-cash me-1"></i>' . $loanAmount . '</span>';
+    }
+
+    $typeBadge = '';
+    if ($loanType !== '') {
+        $typeBadge = '<span class="badge bg-light text-secondary border">' . $loanType . '</span>';
+    }
+
+    $followupBadge = '';
+    if ($followup !== '') {
+        $followClass = $isOverdue ? 'text-danger fw-semibold' : ($isToday ? 'text-warning fw-semibold' : 'text-muted');
+        $followupBadge = '<span class="' . $followClass . '"><i class="bi bi-clock me-1"></i>' . $followup . '</span>';
+    }
+
+    $dragHandle = '';
+    if ($canMoveStage) {
+        $dragHandle = '<div class="pl-drag-handle" title="Drag to change stage"><i class="bi bi-grip-vertical"></i></div>';
+    }
+
+    $companyHtml = $companyName !== '' ? ' &bull; ' . $companyName : '';
+
+    $drawerItems = [];
+    if (!empty($lead['login_bank_name'])) {
+        $drawerItems[] = '<div class="col-6"><span class="text-muted">Bank:</span> ' . htmlspecialchars($lead['login_bank_name'], ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+    if (!empty($lead['net_salary'])) {
+        $drawerItems[] = '<div class="col-6"><span class="text-muted">Salary:</span> ' . htmlspecialchars($lead['net_salary'], ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+    if (!empty($lead['loan_tenure'])) {
+        $drawerItems[] = '<div class="col-6"><span class="text-muted">Tenure:</span> ' . htmlspecialchars($lead['loan_tenure'], ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+    if (!empty($lead['followup_count']) && (int)$lead['followup_count'] > 0) {
+        $drawerItems[] = '<div class="col-6"><span class="text-muted">Follow-ups:</span> ' . (int)$lead['followup_count'] . '</div>';
+    }
+
+    $drawerHtml = '';
+    if (!empty($drawerItems) || !empty($lead['remarks'])) {
+        $drawerHtml .= '<div class="pl-card-detail"><div class="p-2 bg-subtle border-top small" style="font-size:0.6875rem;">';
+        if (!empty($drawerItems)) {
+            $drawerHtml .= '<div class="row g-1">' . implode('', $drawerItems) . '</div>';
+        }
+        if (!empty($lead['remarks'])) {
+            $drawerHtml .= '<div class="mt-1 pt-1 border-top text-secondary"><i class="bi bi-chat-left-text me-1"></i>' . htmlspecialchars($lead['remarks'], ENT_QUOTES, 'UTF-8') . '</div>';
+        }
+        $drawerHtml .= '</div></div>';
+    }
+
+    return '<article class="pl-card ' . $cardStatusClass . '" id="lead-' . $leadId . '" data-lead-id="' . $leadId . '" data-stage="' . htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') . '" ' . $draggableAttr . '>
+        <div class="pl-card-main">
+            <div class="d-flex align-items-start gap-1">
+                ' . $dragHandle . '
+                <div class="min-w-0 flex-grow-1">
+                    <div class="d-flex align-items-center justify-content-between gap-1">
+                        <a href="' . $viewUrl . '" class="fw-semibold text-dark small text-truncate d-block text-decoration-none pl-card-title">
+                            ' . $customerName . '
+                        </a>
+                        ' . $badgeDays . '
+                    </div>
+                    <div class="text-muted small text-truncate" style="font-size:0.6875rem;">
+                        <i class="bi bi-person me-1"></i>' . $assignedName . $companyHtml . '
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-1 my-1">
+                <a href="tel:' . $mobile . '" class="badge bg-secondary text-decoration-none" title="Call customer">
+                    <i class="bi bi-telephone me-1"></i>' . $mobile . '
+                </a>
+                ' . $loanBadge . '
+                ' . $typeBadge . '
+                ' . $reworkBadge . '
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between pt-1 border-top" style="font-size:0.6875rem;">
+                <div class="d-flex align-items-center gap-2">
+                    ' . $followupBadge . '
+                    <span class="text-muted" title="Lead created date">' . $created . '</span>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <a href="' . $viewUrl . '" class="btn btn-ghost btn-sm p-1" title="Manage Record">
+                        <i class="bi bi-pencil-square"></i>
+                    </a>
+                    <button type="button" class="btn btn-ghost btn-sm p-1 pl-expand-btn" title="Toggle Details">
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        ' . $drawerHtml . '
+    </article>';
 }

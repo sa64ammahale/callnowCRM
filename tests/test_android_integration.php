@@ -74,7 +74,8 @@ foreach (['GET', 'PUT'] as $method) {
 }
 $r = androidApi('POST', '/telecaller/leads', ['name' => 'Duplicate takeover', 'mobile' => $mobile], $b);
 androidCheck('Duplicate mobile cannot take over another officer lead', $r['status'] === 403, $r);
-$payload = ['record_id' => $recordId, 'source' => 'MAIN', 'call_status' => 'Connected', 'call_duration' => 65, 'total_duration' => 70, 'sim_slot' => 'SIM2', 'recording_url' => 'https://example.test/test.mp3', 'metadata' => ['android_version' => '15', 'network' => '4g'], 'notes' => 'ग्राहक interested', 'dial_time' => '2026-11-05T12:00:00+05:30', 'call_time' => '2026-11-05T12:00:05+05:30', 'call_end_time' => '2026-11-05T12:01:10+05:30', 'client_call_id' => $tag . '-call-1'];
+$nowIso = date('Y-m-d\TH:i:sP');
+$payload = ['record_id' => $recordId, 'source' => 'MAIN', 'call_status' => 'Connected', 'call_duration' => 65, 'total_duration' => 70, 'sim_slot' => 'SIM2', 'recording_url' => 'https://example.test/test.mp3', 'metadata' => ['android_version' => '15', 'network' => '4g'], 'notes' => 'ग्राहक interested', 'dial_time' => $nowIso, 'call_time' => $nowIso, 'call_end_time' => $nowIso, 'client_call_id' => $tag . '-call-1'];
 $r = androidApi('POST', '/telecaller/submit_call', $payload, $a);
 $logId = (int)($r['json']['data']['log_id'] ?? 0);
 androidCheck('Full Android call telemetry is saved', $r['status'] === 200 && $logId > 0, $r);
@@ -87,6 +88,43 @@ $row = dbFetchOne('SELECT * FROM ' . tn('TBL_CALL_LOGS') . ' WHERE id = ?', [$lo
 androidCheck('Timezone and Unicode survive round trip', ($row['dial_time'] ?? '') === '2026-11-05 12:00:00' && ($row['notes'] ?? '') === $payload['notes']);
 $r = androidApi('GET', '/telecaller/calls?period=all', null, $a);
 androidCheck('Android call list returns SIM and recording', ($r['json']['data']['data'][0]['sim_slot'] ?? '') === 'SIM2' && ($r['json']['data']['data'][0]['recording_url'] ?? '') === $payload['recording_url'], $r);
+
+// Test period aliases (month, week) and pagination metadata
+$rMonth = androidApi('GET', '/telecaller/calls?period=month&limit=1', null, $a);
+androidCheck('Android call list period=month returns monthly calls', $rMonth['status'] === 200 && count($rMonth['json']['data']['data'] ?? []) >= 1, $rMonth);
+androidCheck('Android call list pagination contains total and has_more', isset($rMonth['json']['data']['pagination']['total']) && isset($rMonth['json']['data']['pagination']['has_more']), $rMonth);
+
+$rWeek = androidApi('GET', '/telecaller/calls?period=week', null, $a);
+androidCheck('Android call list period=week returns calls', $rWeek['status'] === 200 && count($rWeek['json']['data']['data'] ?? []) >= 1, $rWeek);
+
+$rSummary = androidApi('GET', '/telecaller/reports/summary?period=month', null, $a);
+androidCheck('Android reports summary period=month aggregates monthly calls', $rSummary['status'] === 200 && ($rSummary['json']['data']['total_calls'] ?? 0) >= 1, $rSummary);
+
+$rLeadsMonth = androidApi('GET', '/telecaller/leads?period=month', null, $a);
+androidCheck('Android leads list supports period=month filter', $rLeadsMonth['status'] === 200 && isset($rLeadsMonth['json']['data']['pagination']['has_more']), $rLeadsMonth);
+
+// Test Follow-up user isolation & scoping
+$rFCreate = androidApi('POST', '/telecaller/follow-ups', [
+    'lead_id' => $recordId,
+    'followup_at' => date('Y-m-d H:i:s', strtotime('+2 hours')),
+    'note' => 'Client callback requested',
+    'contact_source' => 'MAIN',
+], $a);
+androidCheck('Officer A creates follow-up', $rFCreate['status'] === 200 && ($rFCreate['json']['data']['followup_id'] ?? 0) > 0, $rFCreate);
+$fId = (int)($rFCreate['json']['data']['followup_id'] ?? 0);
+
+$rFListA = androidApi('GET', '/telecaller/follow-ups?scope=mine', null, $a);
+androidCheck('Officer A sees own follow-up in mine scope', $rFListA['status'] === 200 && in_array($fId, array_column($rFListA['json']['data']['data'] ?? [], 'id')), $rFListA);
+
+$rFListB = androidApi('GET', '/telecaller/follow-ups?scope=mine', null, $b);
+androidCheck('Officer B does not see Officer A follow-up in mine scope', $rFListB['status'] === 200 && !in_array($fId, array_column($rFListB['json']['data']['data'] ?? [], 'id')), $rFListB);
+
+$rFListBAll = androidApi('GET', '/telecaller/follow-ups?scope=all', null, $b);
+androidCheck('Officer B clamped to own follow-ups even with scope=all', $rFListBAll['status'] === 200 && !in_array($fId, array_column($rFListBAll['json']['data']['data'] ?? [], 'id')), $rFListBAll);
+
+$rHistoryLead = androidApi('GET', '/telecaller/call-history/' . $recordId . '?source=MAIN', null, $a);
+androidCheck('Officer can read own contact call history', ($rHistoryLead['json']['data']['total'] ?? 0) >= 1, $rHistoryLead);
+
 $r = androidApi('GET', '/telecaller/call-history/' . $recordId, null, $b);
 androidCheck('Other officer cannot read call history', ($r['json']['data']['total'] ?? -1) === 0, $r);
 foreach (['call_duration' => -1, 'total_duration' => 'invalid', 'call_time' => 'invalid-date', 'source' => 'LEADS', 'recording_url' => 'javascript:alert(1)', 'notes' => str_repeat('x', 16001)] as $field => $value) {
