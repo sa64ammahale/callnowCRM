@@ -392,12 +392,12 @@ $maxHourlyCall = max(1, max($hourlyCalls));
                     <!-- Charts Division -->
                     <div class="dash-charts-grid">
                         <!-- Chart A: 7-Day Call Volume & Connected Trend -->
-                        <div class="dash-chart-card">
+                        <div class="dash-chart-card dash-chart-card-trend">
                             <div class="dash-chart-card-header">
-                                <span class="dash-chart-card-title">
-                                    <i class="bi bi-graph-up text-primary"></i> Call Volume Trend
+                                <span class="dash-chart-card-title text-truncate">
+                                    <i class="bi bi-graph-up text-primary"></i> Call Volume
                                 </span>
-                                <span class="dash-chart-card-sub">Last 7 Days</span>
+                                <span class="dash-chart-card-sub text-nowrap">Last 7 Days</span>
                             </div>
                             <div class="dash-chart-canvas-wrap">
                                 <canvas id="dashCallTrendChart"></canvas>
@@ -405,12 +405,12 @@ $maxHourlyCall = max(1, max($hourlyCalls));
                         </div>
 
                         <!-- Chart B: Lead & Contact Disposition Breakdown -->
-                        <div class="dash-chart-card">
+                        <div class="dash-chart-card dash-chart-card-disp">
                             <div class="dash-chart-card-header">
-                                <span class="dash-chart-card-title">
-                                    <i class="bi bi-pie-chart text-success"></i> Database Dispositions
+                                <span class="dash-chart-card-title text-truncate">
+                                    <i class="bi bi-pie-chart text-success"></i> Dispositions
                                 </span>
-                                <span class="dash-chart-card-sub">Active Records</span>
+                                <span class="dash-chart-card-sub text-nowrap">Database</span>
                             </div>
                             <div class="dash-chart-canvas-wrap">
                                 <canvas id="dashDispositionChart"></canvas>
@@ -441,15 +441,15 @@ $maxHourlyCall = max(1, max($hourlyCalls));
 
                     <!-- 3 Metric Boxes -->
                     <div class="dash-snapshot-metrics">
-                        <div class="dash-metric-box">
+                        <div class="dash-metric-box dash-metric-box-dialed">
                             <div class="dash-metric-box-lbl">Dialed</div>
                             <div class="dash-metric-box-val"><?= fmt($today_calls) ?></div>
                         </div>
-                        <div class="dash-metric-box">
+                        <div class="dash-metric-box dash-metric-box-connected">
                             <div class="dash-metric-box-lbl">Connected</div>
                             <div class="dash-metric-box-val text-green"><?= fmt($today_connected) ?></div>
                         </div>
-                        <div class="dash-metric-box">
+                        <div class="dash-metric-box dash-metric-box-rate">
                             <div class="dash-metric-box-lbl">Connect Rate</div>
                             <div class="dash-metric-box-val text-purple"><?= $connect_rate ?>%</div>
                         </div>
@@ -480,7 +480,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
                 <div class="dash-activity-widget">
                     <div class="dash-activity-widget-header">
                         <span><i class="bi bi-bar-chart-steps me-1"></i> Hourly Fleet Activity (Today)</span>
-                        <span class="badge bg-light text-muted font-mono" style="font-size:10px;">09:00 - 18:00</span>
+                        <span class="badge bg-white text-muted font-mono border" style="font-size:10px;">09:00 - 18:00</span>
                     </div>
                     <?php if ($today_calls > 0): ?>
                     <div class="dash-waveform-row" title="Hourly dialed calls today">
@@ -499,9 +499,9 @@ $maxHourlyCall = max(1, max($hourlyCalls));
                         <span>18:00</span>
                     </div>
                     <?php else: ?>
-                    <div class="p-3 text-center bg-white rounded border border-light" style="border-radius:10px;">
-                        <i class="bi bi-headset text-muted fs-4 d-block mb-1"></i>
-                        <div class="text-dark fw-semibold" style="font-size:12px;">Fleet Standby</div>
+                    <div class="dash-activity-standby">
+                        <i class="bi bi-headset text-primary fs-4 d-block mb-1"></i>
+                        <div class="text-dark fw-bold" style="font-size:12px;">Fleet Standby</div>
                         <div class="text-muted" style="font-size:11px;">Waiting for telecaller outbound calls</div>
                     </div>
                     <?php endif; ?>
@@ -523,7 +523,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
         </div>
         <div class="row g-3">
             <div class="col-sm-6">
-                <div class="p-3 border rounded bg-white shadow-xs" style="border-radius:14px;">
+                <div class="dash-fleet-box-1">
                     <div class="text-muted small text-uppercase fw-semibold mb-1" style="font-size:11px; letter-spacing:0.04em;">Fleet Connect Ratio</div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
                         <span class="fs-4 fw-bold text-dark font-mono"><?= $connect_rate ?>%</span>
@@ -535,7 +535,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
                 </div>
             </div>
             <div class="col-sm-6">
-                <div class="p-3 border rounded bg-white shadow-xs" style="border-radius:14px;">
+                <div class="dash-fleet-box-2">
                     <div class="text-muted small text-uppercase fw-semibold mb-1" style="font-size:11px; letter-spacing:0.04em;">Calling Queue Capacity</div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
                         <span class="fs-4 fw-bold text-dark font-mono"><?= fmt($unused_numbers) ?></span>
@@ -572,7 +572,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
         <div class="dash-section-grid">
             <!-- Section 1: Activities & Reports -->
             <?php if (can('view_reports') || can('view_activity')): ?>
-            <div class="dash-module-card">
+            <div class="dash-module-card dash-mod-reports">
                 <div class="dash-module-header">
                     <div class="dash-module-lead">
                         <div class="dash-module-icon" style="background:#F0ECFF; color:var(--dash-primary-purple);">
@@ -635,7 +635,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
             <?php endif; ?>
 
             <!-- Section 2: Leads & Sales Pipeline -->
-            <div class="dash-module-card">
+            <div class="dash-module-card dash-mod-pipeline">
                 <div class="dash-module-header">
                     <div class="dash-module-lead">
                         <div class="dash-module-icon" style="background:#DBEAFE; color:var(--dash-electric-blue);">
@@ -696,7 +696,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
 
             <!-- Section 3: Data Management & Calling Queue -->
             <?php if (can('manage_database')): ?>
-            <div class="dash-module-card">
+            <div class="dash-module-card dash-mod-database">
                 <div class="dash-module-header">
                     <div class="dash-module-lead">
                         <div class="dash-module-icon" style="background:#DCFCE7; color:var(--dash-success-green);">
@@ -756,7 +756,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
 
             <!-- Section 4: Users & Teams Management -->
             <?php if (can('manage_users') || can('manage_teams')): ?>
-            <div class="dash-module-card">
+            <div class="dash-module-card dash-mod-users">
                 <div class="dash-module-header">
                     <div class="dash-module-lead">
                         <div class="dash-module-icon" style="background:#FEF3C7; color:var(--dash-warning-amber);">
@@ -820,7 +820,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
 
             <!-- Section 5: Settings & Administration -->
             <?php if (can('manage_settings') || isSuperAdmin()): ?>
-            <div class="dash-module-card">
+            <div class="dash-module-card dash-mod-settings">
                 <div class="dash-module-header">
                     <div class="dash-module-lead">
                         <div class="dash-module-icon" style="background:#F1F5F9; color:#475569;">
@@ -885,7 +885,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
             <?php endif; ?>
 
             <!-- Section 6: Workspace & Profile -->
-            <div class="dash-module-card">
+            <div class="dash-module-card dash-mod-profile">
                 <div class="dash-module-header">
                     <div class="dash-module-lead">
                         <div class="dash-module-icon" style="background:#F0ECFF; color:var(--dash-primary-purple);">

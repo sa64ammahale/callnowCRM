@@ -1,7 +1,7 @@
 /* ==========================================================================
    Sales & Telecalling Dashboard — Premium Modern SaaS UI
    Theme: Modern Indigo-Violet Aesthetic
-   Visual match for reference: media_1794487363538_baca1657.jpg
+   Visual match for reference with rich, vibrant card background colorings
    ========================================================================== */
 
 :root {
@@ -24,7 +24,7 @@
     --dash-radius-pill: 9999px;
     --dash-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.04), 0 1px 2px rgba(16, 24, 40, 0.02);
     --dash-shadow-md: 0 4px 16px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.03);
-    --dash-shadow-hover: 0 8px 24px rgba(109, 59, 255, 0.08), 0 2px 6px rgba(16, 24, 40, 0.04);
+    --dash-shadow-hover: 0 8px 24px rgba(109, 59, 255, 0.10), 0 2px 6px rgba(16, 24, 40, 0.04);
 }
 
 /* Page Canvas */
@@ -32,6 +32,7 @@
     max-width: 100%;
     margin: 0 auto;
     padding-bottom: 24px;
+    overflow-x: hidden;
 }
 
 /* --------------------------------------------------------------------------
@@ -56,14 +57,15 @@
     width: 48px;
     height: 48px;
     border-radius: 14px;
-    background: #F0ECFF;
+    background: linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%);
     color: var(--dash-primary-purple);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 24px;
     flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(109, 59, 255, 0.12);
+    box-shadow: 0 3px 10px rgba(109, 59, 255, 0.16);
+    border: 1px solid #C4B5FD;
 }
 
 .dash-header-title {
@@ -94,14 +96,15 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    background: #EBFDF2;
-    border: 1px solid #B8F5D0;
-    color: #16A34A;
+    background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+    border: 1.5px solid #A7F3D0;
+    color: #065F46;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     padding: 7px 14px;
     border-radius: var(--dash-radius-pill);
     letter-spacing: 0.01em;
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.10);
 }
 
 .dash-status-pill .dash-dots {
@@ -114,7 +117,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background-color: #16A34A;
+    background-color: #059669;
 }
 
 /* Header Buttons */
@@ -122,7 +125,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    background: var(--dash-primary-purple);
+    background: linear-gradient(135deg, #6D3BFF 0%, #7C3AED 100%);
     color: #FFFFFF !important;
     font-size: 13px;
     font-weight: 600;
@@ -130,14 +133,14 @@
     border-radius: var(--dash-radius-btn);
     border: 1px solid transparent;
     text-decoration: none;
-    box-shadow: 0 4px 14px rgba(109, 59, 255, 0.28);
+    box-shadow: 0 4px 14px rgba(109, 59, 255, 0.32);
     transition: all 180ms ease;
     cursor: pointer;
 }
 
 .dash-btn-primary:hover {
-    background: #5A2EE5;
-    box-shadow: 0 6px 18px rgba(109, 59, 255, 0.36);
+    background: linear-gradient(135deg, #5A2EE5 0%, #6D28D9 100%);
+    box-shadow: 0 6px 18px rgba(109, 59, 255, 0.40);
     transform: translateY(-1px);
 }
 
@@ -151,7 +154,7 @@
     font-weight: 500;
     padding: 8px 16px;
     border-radius: var(--dash-radius-btn);
-    border: 1px solid var(--dash-border);
+    border: 1.5px solid var(--dash-border);
     text-decoration: none;
     box-shadow: var(--dash-shadow-sm);
     transition: all 180ms ease;
@@ -160,7 +163,7 @@
 
 .dash-btn-secondary:hover {
     background: #F8FAFC;
-    border-color: #D6DAE5;
+    border-color: #CBD5E1;
     color: var(--dash-primary-purple) !important;
     transform: translateY(-1px);
 }
@@ -169,12 +172,12 @@
    2. Welcome & Quick Actions Card
    -------------------------------------------------------------------------- */
 .dash-welcome-card {
-    background: var(--dash-card-bg);
-    border: 1px solid var(--dash-border);
+    background: linear-gradient(135deg, #F8F7FF 0%, #EEF2FF 45%, #F8FAFC 100%);
+    border: 1.5px solid #E0E7FF;
     border-radius: var(--dash-radius-card);
     padding: 18px 24px;
     margin-bottom: 20px;
-    box-shadow: var(--dash-shadow-sm);
+    box-shadow: 0 4px 20px rgba(109, 59, 255, 0.05);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -194,6 +197,7 @@
 
 .dash-welcome-user {
     color: var(--dash-electric-blue);
+    font-weight: 800;
 }
 
 .dash-welcome-desc {
@@ -216,20 +220,21 @@
     background: #FFFFFF;
     color: var(--dash-text-primary);
     font-size: 12.5px;
-    font-weight: 500;
+    font-weight: 600;
     padding: 7px 14px;
     border-radius: var(--dash-radius-btn);
-    border: 1px solid var(--dash-border);
+    border: 1.5px solid #E2E8F0;
     text-decoration: none;
-    box-shadow: var(--dash-shadow-sm);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
     transition: all 180ms ease;
     white-space: nowrap;
 }
 
 .dash-action-btn:hover {
-    background: #F8FAFC;
+    background: #FFFFFF;
     border-color: #CBD5E1;
     color: var(--dash-text-primary);
+    box-shadow: 0 4px 12px rgba(16, 24, 40, 0.06);
     transform: translateY(-1px);
 }
 
@@ -238,7 +243,7 @@
 .dash-action-btn .btn-icon-blue { color: var(--dash-electric-blue); }
 
 /* --------------------------------------------------------------------------
-   3. Six KPI Cards — 3 Columns Grid (2 Rows of 3 Cards)
+   3. Six KPI Cards — Rich & Vibrant Card Background Colorings
    -------------------------------------------------------------------------- */
 .dash-kpi-grid {
     display: grid;
@@ -261,7 +266,6 @@
 
 /* KPI Card Base */
 .dash-kpi-card {
-    background: var(--dash-card-bg);
     border-radius: var(--dash-radius-kpi);
     padding: 18px 20px 14px 20px;
     position: relative;
@@ -270,7 +274,6 @@
     flex-direction: column;
     justify-content: space-between;
     min-height: 136px;
-    box-shadow: var(--dash-shadow-sm);
     transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
@@ -296,6 +299,7 @@
     justify-content: center;
     font-size: 20px;
     flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 .dash-kpi-content {
@@ -327,7 +331,7 @@
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     padding: 2.5px 10px;
     border-radius: var(--dash-radius-pill);
     white-space: nowrap;
@@ -339,102 +343,120 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 28px;
+    height: 30px;
     width: 100%;
     pointer-events: none;
     z-index: 1;
-    opacity: 0.55;
+    opacity: 0.65;
 }
 
-/* Specific Card Themes (matching reference screenshot) */
+/* Specific Card Themes with Rich Pastel Colored Backgrounds */
 /* 1. Calls Today - Purple */
 .dash-kpi-purple {
-    background: linear-gradient(180deg, #FAF8FF 0%, #FFFFFF 100%);
-    border: 1.5px solid #E9D5FF;
-    border-top: 2.5px solid var(--dash-secondary-violet);
+    background: linear-gradient(145deg, #F5EEFF 0%, #FAF5FF 55%, #FFFFFF 100%);
+    border: 1.5px solid #D8B4FE;
+    border-top: 3.5px solid #7C3AED;
+    box-shadow: 0 3px 12px rgba(109, 59, 255, 0.07);
 }
 .dash-kpi-purple .dash-kpi-icon-wrap {
-    background: #F0ECFF;
-    color: var(--dash-primary-purple);
+    background: #EDE9FE;
+    color: #6D3BFF;
+    border: 1px solid #DDD6FE;
 }
 .dash-kpi-purple .dash-kpi-pill {
-    background: #F0ECFF;
-    color: var(--dash-primary-purple);
+    background: #EDE9FE;
+    color: #5B21B6;
+    border: 1px solid #DDD6FE;
 }
 
 /* 2. Connected - Green */
 .dash-kpi-green {
-    background: linear-gradient(180deg, #F4FBF7 0%, #FFFFFF 100%);
-    border: 1.5px solid #BBF7D0;
-    border-top: 2.5px solid var(--dash-success-green);
+    background: linear-gradient(145deg, #ECFDF5 0%, #F0FDF4 55%, #FFFFFF 100%);
+    border: 1.5px solid #86EFAC;
+    border-top: 3.5px solid #16A34A;
+    box-shadow: 0 3px 12px rgba(22, 163, 74, 0.07);
 }
 .dash-kpi-green .dash-kpi-icon-wrap {
     background: #DCFCE7;
-    color: var(--dash-success-green);
+    color: #15803D;
+    border: 1px solid #BBF7D0;
 }
 .dash-kpi-green .dash-kpi-pill {
     background: #DCFCE7;
-    color: var(--dash-success-green);
+    color: #166534;
+    border: 1px solid #BBF7D0;
 }
 
 /* 3. Connect Rate - Blue */
 .dash-kpi-blue {
-    background: linear-gradient(180deg, #F3F8FF 0%, #FFFFFF 100%);
-    border: 1.5px solid #BFDBFE;
-    border-top: 2.5px solid var(--dash-electric-blue);
+    background: linear-gradient(145deg, #EFF6FF 0%, #F0F7FF 55%, #FFFFFF 100%);
+    border: 1.5px solid #93C5FD;
+    border-top: 3.5px solid #2563EB;
+    box-shadow: 0 3px 12px rgba(37, 99, 235, 0.07);
 }
 .dash-kpi-blue .dash-kpi-icon-wrap {
     background: #DBEAFE;
-    color: var(--dash-electric-blue);
+    color: #1D4ED8;
+    border: 1px solid #BFDBFE;
 }
 .dash-kpi-blue .dash-kpi-pill {
     background: #DBEAFE;
-    color: var(--dash-electric-blue);
+    color: #1E40AF;
+    border: 1px solid #BFDBFE;
 }
 
 /* 4. Hot Leads - Amber */
 .dash-kpi-amber {
-    background: linear-gradient(180deg, #FFFDF5 0%, #FFFFFF 100%);
-    border: 1.5px solid #FDE68A;
-    border-top: 2.5px solid var(--dash-warning-amber);
+    background: linear-gradient(145deg, #FFFBEB 0%, #FEF9C3 55%, #FFFFFF 100%);
+    border: 1.5px solid #FCD34D;
+    border-top: 3.5px solid #F59E0B;
+    box-shadow: 0 3px 12px rgba(245, 158, 11, 0.07);
 }
 .dash-kpi-amber .dash-kpi-icon-wrap {
     background: #FEF3C7;
-    color: #D97706;
+    color: #B45309;
+    border: 1px solid #FDE68A;
 }
 .dash-kpi-amber .dash-kpi-pill {
     background: #FEF3C7;
-    color: #B45309;
+    color: #92400E;
+    border: 1px solid #FDE68A;
 }
 
 /* 5. Fresh Pending - Rose/Red */
 .dash-kpi-rose {
-    background: linear-gradient(180deg, #FFF5F7 0%, #FFFFFF 100%);
-    border: 1.5px solid #FECDD3;
-    border-top: 2.5px solid var(--dash-error-red);
+    background: linear-gradient(145deg, #FFF1F2 0%, #FFE4E6 55%, #FFFFFF 100%);
+    border: 1.5px solid #FDA4AF;
+    border-top: 3.5px solid #F43F5E;
+    box-shadow: 0 3px 12px rgba(244, 63, 94, 0.07);
 }
 .dash-kpi-rose .dash-kpi-icon-wrap {
     background: #FFE4E6;
-    color: #E11D48;
+    color: #BE123C;
+    border: 1px solid #FECDD3;
 }
 .dash-kpi-rose .dash-kpi-pill {
     background: #FFE4E6;
-    color: #BE123C;
+    color: #9F1239;
+    border: 1px solid #FECDD3;
 }
 
 /* 6. Main Database - Violet */
 .dash-kpi-violet {
-    background: linear-gradient(180deg, #F8F5FF 0%, #FFFFFF 100%);
-    border: 1.5px solid #DDD6FE;
-    border-top: 2.5px solid #7C3AED;
+    background: linear-gradient(145deg, #F5F3FF 0%, #EDE9FE 55%, #FFFFFF 100%);
+    border: 1.5px solid #C4B5FD;
+    border-top: 3.5px solid #6D28D9;
+    box-shadow: 0 3px 12px rgba(124, 58, 237, 0.07);
 }
 .dash-kpi-violet .dash-kpi-icon-wrap {
     background: #EDE9FE;
-    color: #7C3AED;
+    color: #6D28D9;
+    border: 1px solid #DDD6FE;
 }
 .dash-kpi-violet .dash-kpi-pill {
     background: #EDE9FE;
-    color: #6D28D9;
+    color: #5B21B6;
+    border: 1px solid #DDD6FE;
 }
 
 /* --------------------------------------------------------------------------
@@ -442,6 +464,7 @@
    -------------------------------------------------------------------------- */
 .dash-analytics-row {
     display: flex;
+    align-items: stretch;
     gap: 20px;
     margin-bottom: 24px;
 }
@@ -449,11 +472,13 @@
 .dash-analytics-col-left {
     flex: 0 0 calc(62% - 10px);
     max-width: calc(62% - 10px);
+    min-width: 0;
 }
 
 .dash-analytics-col-right {
     flex: 0 0 calc(38% - 10px);
     max-width: calc(38% - 10px);
+    min-width: 0;
 }
 
 @media (max-width: 1200px) {
@@ -469,10 +494,10 @@
 
 /* Left Panel: Call Performance Reports & Analytics */
 .dash-reports-panel {
-    background: var(--dash-card-bg);
-    border: 1px solid var(--dash-border);
+    background: linear-gradient(180deg, #FAF8FF 0%, #FFFFFF 35%, #F8FAFD 100%);
+    border: 1.5px solid #E0E7FF;
     border-radius: var(--dash-radius-card);
-    box-shadow: var(--dash-shadow-sm);
+    box-shadow: 0 4px 20px rgba(16, 24, 40, 0.05);
     position: relative;
     overflow: hidden;
     height: 100%;
@@ -481,16 +506,17 @@
 }
 
 .dash-reports-topbar-accent {
-    height: 3.5px;
-    background: linear-gradient(90deg, var(--dash-primary-purple) 0%, var(--dash-secondary-violet) 100%);
+    height: 4px;
+    background: linear-gradient(90deg, #6D3BFF 0%, #8B5CF6 50%, #2563EB 100%);
     width: 100%;
 }
 
 .dash-reports-body {
-    padding: 24px;
+    padding: 22px 24px;
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .dash-reports-badge-row {
@@ -498,7 +524,7 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 .dash-badge-hub {
@@ -506,6 +532,7 @@
     align-items: center;
     gap: 5px;
     background: #F3E8FF;
+    border: 1px solid #E9D5FF;
     color: #7E22CE;
     font-size: 11px;
     font-weight: 700;
@@ -519,8 +546,8 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: #F8FAFC;
-    border: 1px solid var(--dash-border);
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
     color: var(--dash-text-secondary);
     font-size: 11px;
     font-weight: 600;
@@ -540,52 +567,76 @@
     font-size: 13px;
     color: var(--dash-text-secondary);
     line-height: 1.5;
-    margin: 0 0 18px 0;
-    max-width: 680px;
+    margin: 0 0 16px 0;
 }
 
 .dash-reports-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     flex-wrap: wrap;
-    margin-bottom: 22px;
+    margin-bottom: 20px;
 }
 
-/* Charts Inside Left Panel */
+.dash-reports-actions .dash-btn-primary,
+.dash-reports-actions .dash-btn-secondary {
+    font-size: 12px;
+    padding: 6px 12px;
+}
+
+/* Charts Grid (Contained, Equal 1fr 1fr, Zero Overflow) */
 .dash-charts-grid {
     display: grid;
-    grid-template-columns: 1.5fr 1fr;
-    gap: 18px;
-    padding-top: 18px;
-    border-top: 1px solid var(--dash-border-subtle);
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding-top: 16px;
+    border-top: 1.5px solid var(--dash-border-subtle);
     margin-top: auto;
+    width: 100%;
+    min-width: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1280px) {
     .dash-charts-grid {
         grid-template-columns: 1fr;
     }
 }
 
 .dash-chart-card {
-    background: #FAFBFF;
-    border: 1px solid var(--dash-border);
     border-radius: 14px;
-    padding: 14px 16px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+}
+
+/* Card A: Call Volume Trend */
+.dash-chart-card-trend {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8F9FE 100%);
+    border: 1.5px solid #E2E8F0;
+    border-top: 3px solid #6D3BFF;
+}
+
+/* Card B: Database Dispositions */
+.dash-chart-card-disp {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FDF9 100%);
+    border: 1.5px solid #E2E8F0;
+    border-top: 3px solid #16A34A;
 }
 
 .dash-chart-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+    gap: 6px;
 }
 
 .dash-chart-card-title {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     color: var(--dash-text-primary);
     text-transform: uppercase;
@@ -593,17 +644,25 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .dash-chart-card-sub {
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--dash-text-secondary);
+    font-weight: 600;
+    flex-shrink: 0;
 }
 
 .dash-chart-canvas-wrap {
     position: relative;
     width: 100%;
-    height: 190px;
+    max-width: 100%;
+    height: 180px;
+    overflow: hidden;
+    min-width: 0;
 }
 
 /* Center Text for Donut Chart */
@@ -616,15 +675,15 @@
     pointer-events: none;
 }
 .dash-donut-center-num {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 800;
     color: var(--dash-text-primary);
     font-family: 'JetBrains Mono', monospace;
     line-height: 1;
 }
 .dash-donut-center-lbl {
-    font-size: 10px;
-    font-weight: 600;
+    font-size: 9.5px;
+    font-weight: 700;
     color: var(--dash-text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -635,22 +694,23 @@
    Right Panel: Real-Time Calling Snapshot
    -------------------------------------------------------------------------- */
 .dash-snapshot-panel {
-    background: var(--dash-card-bg);
-    border: 1px solid var(--dash-border);
+    background: linear-gradient(180deg, #FAF8FF 0%, #FFFFFF 35%, #F8FAFD 100%);
+    border: 1.5px solid #E0E7FF;
     border-radius: var(--dash-radius-card);
-    padding: 24px;
-    box-shadow: var(--dash-shadow-sm);
+    padding: 22px 24px;
+    box-shadow: 0 4px 20px rgba(16, 24, 40, 0.05);
     height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    min-width: 0;
 }
 
 .dash-snapshot-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 
 .dash-snapshot-title {
@@ -667,7 +727,7 @@
 
 .dash-snapshot-link {
     font-size: 12.5px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--dash-primary-purple);
     text-decoration: none;
     display: inline-flex;
@@ -681,33 +741,52 @@
     gap: 7px;
 }
 
-/* Metrics Row (3 Boxes) */
+/* Metrics Row (3 Distinct Color Tinted Boxes) */
 .dash-snapshot-metrics {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 
 .dash-metric-box {
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
     border-radius: 12px;
     padding: 12px 6px;
     text-align: center;
-    transition: transform 150ms ease, border-color 150ms ease;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.03);
 }
 
 .dash-metric-box:hover {
-    border-color: #CBD5E1;
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 24, 40, 0.06);
+}
+
+.dash-metric-box-dialed {
+    background: linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%);
+    border: 1.5px solid #CBD5E1;
+    border-top: 3px solid #64748B;
+}
+
+.dash-metric-box-connected {
+    background: linear-gradient(180deg, #F0FDF4 0%, #DCFCE7 100%);
+    border: 1.5px solid #86EFAC;
+    border-top: 3px solid #16A34A;
+}
+
+.dash-metric-box-rate {
+    background: linear-gradient(180deg, #FAF5FF 0%, #F3E8FF 100%);
+    border: 1.5px solid #D8B4FE;
+    border-top: 3px solid #6D3BFF;
 }
 
 .dash-metric-box-lbl {
     font-size: 11px;
     color: var(--dash-text-secondary);
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .dash-metric-box-val {
@@ -718,17 +797,17 @@
     line-height: 1.1;
 }
 
-.dash-metric-box-val.text-green { color: var(--dash-success-green); }
-.dash-metric-box-val.text-purple { color: var(--dash-primary-purple); }
+.dash-metric-box-val.text-green { color: #15803D; }
+.dash-metric-box-val.text-purple { color: #6D3BFF; }
 
 /* Quick Links in Snapshot */
 .dash-snapshot-links {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
     padding-top: 14px;
-    border-top: 1px solid var(--dash-border-subtle);
+    border-top: 1.5px solid var(--dash-border-subtle);
 }
 
 .dash-sub-link-card {
@@ -736,7 +815,7 @@
     align-items: center;
     justify-content: space-between;
     background: #FFFFFF;
-    border: 1px solid var(--dash-border);
+    border: 1.5px solid #E2E8F0;
     border-radius: 10px;
     padding: 10px 12px;
     text-decoration: none;
@@ -749,7 +828,7 @@
 
 .dash-sub-link-card:hover {
     background: #F8FAFC;
-    border-color: #D6DAE5;
+    border-color: #CBD5E1;
     color: var(--dash-primary-purple);
     transform: translateY(-1px);
 }
@@ -762,10 +841,11 @@
 
 /* Activity Waveform / Histogram */
 .dash-activity-widget {
-    background: #FAFBFF;
-    border: 1px solid var(--dash-border);
-    border-radius: 12px;
-    padding: 12px 14px;
+    background: linear-gradient(180deg, #F8FAFC 0%, #EEF2FF 100%);
+    border: 1.5px solid #E0E7FF;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.03);
 }
 
 .dash-activity-widget-header {
@@ -783,14 +863,14 @@
 .dash-waveform-row {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
+    gap: 5px;
     height: 48px;
     padding: 4px 0;
 }
 
 .dash-waveform-bar {
     flex: 1;
-    background: #E0E7FF;
+    background: #C7D2FE;
     border-radius: 3px;
     min-height: 4px;
     transition: height 200ms ease, background 180ms ease;
@@ -805,12 +885,22 @@
     background: var(--dash-primary-purple);
 }
 
+.dash-activity-standby {
+    padding: 14px;
+    text-align: center;
+    background: #FFFFFF;
+    border-radius: 10px;
+    border: 1.5px solid #E2E8F0;
+    box-shadow: 0 2px 6px rgba(16, 24, 40, 0.02);
+}
+
 /* --------------------------------------------------------------------------
    5. Fleet Capacity & Operational Modules
    -------------------------------------------------------------------------- */
 .dash-fleet-card {
-    background: var(--dash-card-bg);
-    border: 1px solid var(--dash-border);
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFF 100%);
+    border: 1.5px solid #E0E7FF;
+    border-top: 3.5px solid var(--dash-primary-purple);
     border-radius: var(--dash-radius-card);
     padding: 20px 24px;
     box-shadow: var(--dash-shadow-sm);
@@ -836,6 +926,22 @@
     gap: 8px;
 }
 
+.dash-fleet-box-1 {
+    background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 100%);
+    border: 1.5px solid #BBF7D0;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(22, 163, 74, 0.05);
+}
+
+.dash-fleet-box-2 {
+    background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 100%);
+    border: 1.5px solid #DDD6FE;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(109, 59, 255, 0.05);
+}
+
 .dash-section-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -855,8 +961,6 @@
 }
 
 .dash-module-card {
-    background: var(--dash-card-bg);
-    border: 1px solid var(--dash-border);
     border-radius: 16px;
     padding: 16px;
     box-shadow: var(--dash-shadow-sm);
@@ -864,9 +968,50 @@
 }
 
 .dash-module-card:hover {
-    border-color: #D6DAE5;
     box-shadow: var(--dash-shadow-hover);
     transform: translateY(-2px);
+}
+
+/* Card 1: Reports */
+.dash-mod-reports {
+    background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 100%);
+    border: 1.5px solid #E9D5FF;
+    border-top: 3.5px solid #6D3BFF;
+}
+
+/* Card 2: Pipeline */
+.dash-mod-pipeline {
+    background: linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 100%);
+    border: 1.5px solid #BAE6FD;
+    border-top: 3.5px solid #0090DF;
+}
+
+/* Card 3: Database */
+.dash-mod-database {
+    background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 100%);
+    border: 1.5px solid #BBF7D0;
+    border-top: 3.5px solid #16A34A;
+}
+
+/* Card 4: Users */
+.dash-mod-users {
+    background: linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 100%);
+    border: 1.5px solid #FDE68A;
+    border-top: 3.5px solid #F59E0B;
+}
+
+/* Card 5: Settings */
+.dash-mod-settings {
+    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+    border: 1.5px solid #E2E8F0;
+    border-top: 3.5px solid #64748B;
+}
+
+/* Card 6: Profile */
+.dash-mod-profile {
+    background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 100%);
+    border: 1.5px solid #DDD6FE;
+    border-top: 3.5px solid #8B5CF6;
 }
 
 .dash-module-header {
@@ -875,7 +1020,7 @@
     justify-content: space-between;
     padding-bottom: 12px;
     margin-bottom: 10px;
-    border-bottom: 1px solid var(--dash-border-subtle);
+    border-bottom: 1.5px solid var(--dash-border-subtle);
 }
 
 .dash-module-lead {
@@ -893,6 +1038,7 @@
     justify-content: center;
     font-size: 18px;
     flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .dash-module-name {
@@ -925,7 +1071,7 @@
 }
 
 .dash-module-link-item:hover {
-    background: #F8FAFC;
+    background: rgba(255, 255, 255, 0.85);
     color: var(--dash-primary-purple);
 }
 
