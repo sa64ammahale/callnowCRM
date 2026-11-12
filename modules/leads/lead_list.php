@@ -134,7 +134,7 @@ $canDelete = isAdmin() || isManager() || isSupervisor() || isSuperAdmin();
         </a>
         <?php if (can('manage_leads')): ?>
         <a href="<?= url('modules/leads/lead_insert.php') ?>" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-lg"></i> + Add Lead
+            <i class="bi bi-plus-lg me-1"></i> Add Lead
         </a>
         <?php endif; ?>
     </div>

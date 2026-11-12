@@ -96,68 +96,73 @@ $userName = $_SESSION['name'] ?? 'User';
     </div>
     <div class="crm-module-header-actions">
         <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="btn btn-secondary btn-sm">
-            <i class="bi bi-kanban"></i> Pipeline Board
+            <i class="bi bi-kanban me-1"></i> Pipeline Board
         </a>
         <a href="<?= url('modules/leads/lead_list.php') ?>" class="btn btn-secondary btn-sm">
-            <i class="bi bi-person-lines-fill"></i> View Leads Register
+            <i class="bi bi-person-lines-fill me-1"></i> View Leads Register
         </a>
         <?php if (can('manage_leads')): ?>
         <a href="<?= url('modules/leads/lead_insert.php') ?>" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-lg"></i> + Add Lead
+            <i class="bi bi-plus-lg me-1"></i> Add Lead
         </a>
         <?php endif; ?>
     </div>
 </div>
 
-<!-- Welcome / Scope Strip (Wash Card) -->
-<div class="welcome-strip card border-0 flux-brand-wash p-3 p-md-4 mb-4" style="border-radius:var(--radius-lg); box-shadow:var(--shadow-card);">
-    <div>
-        <h2 class="welcome-strip-title mb-1">Hello, <?= htmlspecialchars($userName) ?></h2>
-        <p class="welcome-strip-desc text-secondary mb-0">Access Scope: <span class="badge bg-secondary"><?= htmlspecialchars(USER_ROLE) ?></span> &bull; <?= number_format($totalLeads) ?> customer leads in your assigned portfolio.</p>
-    </div>
-    <form method="get" action="<?= url('modules/leads/lead_list.php') ?>" class="d-flex align-items-center gap-2">
-        <div class="input-group input-group-sm" style="width: 280px;">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" name="q" class="form-control form-control-sm" placeholder="Search lead name, phone...">
+<!-- Welcome / Scope Strip -->
+<div class="welcome-strip mb-4">
+    <div class="d-flex align-items-center gap-3">
+        <div class="welcome-icon-box">
+            <i class="bi bi-person-badge"></i>
         </div>
-        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+        <div>
+            <h2 class="welcome-strip-title mb-1">Hello, <?= htmlspecialchars($userName) ?></h2>
+            <p class="welcome-strip-desc text-secondary mb-0">Access Scope: <span class="badge bg-secondary"><?= htmlspecialchars(USER_ROLE) ?></span> &bull; <strong class="text-dark"><?= number_format($totalLeads) ?></strong> customer leads in your assigned portfolio.</p>
+        </div>
+    </div>
+    <form method="get" action="<?= url('modules/leads/lead_list.php') ?>" class="d-flex align-items-center gap-2 m-0">
+        <div class="input-group input-group-sm" style="width: 280px;">
+            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" name="q" class="form-control form-control-sm border-start-0" placeholder="Search lead name, phone...">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm px-3">Search</button>
     </form>
 </div>
 
 <!-- KPI Summary Cards -->
 <div class="row g-3 mb-4">
     <div class="col-xl col-lg-4 col-md-6 col-sm-6">
-        <div class="metric-card">
-            <div class="metric-card-icon"><i class="bi bi-person-lines-fill"></i></div>
+        <div class="metric-card metric-primary">
+            <div class="metric-card-icon purple"><i class="bi bi-people-fill"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Total Leads</div>
                 <div class="metric-card-value"><?= number_format($totalLeads) ?></div>
-                <div class="metric-card-sub"><span class="text-success fw-semibold">+<?= number_format($todayNew) ?></span> created today</div>
+                <div class="metric-card-sub"><span class="badge bg-primary-subtle text-primary border me-1">+<?= number_format($todayNew) ?></span> created today</div>
             </div>
         </div>
     </div>
     <div class="col-xl col-lg-4 col-md-6 col-sm-6">
-        <div class="metric-card">
+        <div class="metric-card metric-info">
             <div class="metric-card-icon info"><i class="bi bi-kanban"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Active Pipeline</div>
                 <div class="metric-card-value"><?= number_format($activePipeline) ?></div>
-                <div class="metric-card-sub"><?= round(($activePipeline / max(1, $totalLeads)) * 100, 0) ?>% active ratio</div>
+                <div class="metric-card-sub"><span class="fw-semibold text-dark"><?= round(($activePipeline / max(1, $totalLeads)) * 100, 0) ?>%</span> active ratio</div>
             </div>
         </div>
     </div>
     <div class="col-xl col-lg-4 col-md-6 col-sm-6">
-        <div class="metric-card">
-            <div class="metric-card-icon <?= $todayFollowups > 0 ? 'warning' : 'success' ?>"><i class="bi bi-clock-history"></i></div>
+        <div class="metric-card <?= $todayFollowups > 0 ? 'metric-warning' : 'metric-neutral' ?>">
+            <div class="metric-card-icon <?= $todayFollowups > 0 ? 'warning' : 'neutral' ?>"><i class="bi bi-clock-history"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Today's Follow-ups</div>
                 <div class="metric-card-value"><?= number_format($todayFollowups) ?></div>
-                <div class="metric-card-sub"><?= $todayFollowups > 0 ? 'Action required today' : 'All clear' ?></div>
+                <div class="metric-card-sub"><?= $todayFollowups > 0 ? '<span class="text-warning-emphasis fw-semibold">Action required today</span>' : 'All clear' ?></div>
             </div>
         </div>
     </div>
     <div class="col-xl col-lg-4 col-md-6 col-sm-6">
-        <div class="metric-card">
+        <div class="metric-card metric-warning">
             <div class="metric-card-icon warning"><i class="bi bi-bank"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Monthly Logins</div>
@@ -167,12 +172,12 @@ $userName = $_SESSION['name'] ?? 'User';
         </div>
     </div>
     <div class="col-xl col-lg-4 col-md-6 col-sm-6">
-        <div class="metric-card">
+        <div class="metric-card metric-success">
             <div class="metric-card-icon success"><i class="bi bi-check2-circle"></i></div>
             <div class="metric-card-body">
                 <div class="metric-card-label">Conversion Rate</div>
                 <div class="metric-card-value"><?= number_format($conversionRate, 1) ?>%</div>
-                <div class="metric-card-sub"><?= number_format($statusCounts['DISBURSED']) ?> disbursed</div>
+                <div class="metric-card-sub"><span class="text-success fw-semibold"><?= number_format($statusCounts['DISBURSED']) ?></span> disbursed</div>
             </div>
         </div>
     </div>

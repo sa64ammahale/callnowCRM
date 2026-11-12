@@ -210,7 +210,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
             </span>
             <?php if (can('manage_leads')): ?>
             <a href="<?= url('modules/leads/lead_insert.php') ?>" class="dash-btn-primary">
-                <i class="bi bi-plus-lg"></i> + Add Lead
+                <i class="bi bi-plus-lg me-1"></i> Add Lead
             </a>
             <?php endif; ?>
             <?php if (can('view_reports')): ?>

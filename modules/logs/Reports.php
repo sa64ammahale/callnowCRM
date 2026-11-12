@@ -596,157 +596,6 @@ include __DIR__ . '/../../php_scripts/header.php';
         <?php unset($_SESSION['success_message']); ?>
     <?php endif; ?>
 
-    <!-- 3-Tier Multi-Dimensional Hero KPI Cards -->
-    <!-- TIER 1: CLIENT CONTACT COVERAGE -->
-    <div class="d-flex align-items-center justify-content-between mb-2">
-        <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-person-vcard text-primary me-1"></i> Client Contact Coverage</span>
-        <span class="text-muted fs-xs">Base: Assigned Customer Records</span>
-    </div>
-    <div class="row g-2 mb-3">
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-neutral p-3">
-                <div class="metric-card-title">Total Assigned Contacts</div>
-                <div class="metric-card-value text-dark text-nowrap"><?= number_format($contactMetrics['total_assigned']) ?></div>
-                <div class="metric-card-subtitle text-muted">In CRM repository</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-primary p-3">
-                <div class="metric-card-title">Contacts Attempted</div>
-                <div class="metric-card-value text-primary text-nowrap"><?= number_format($contactMetrics['attempted']) ?></div>
-                <div class="metric-card-subtitle text-muted"><?= $contactMetrics['total_assigned'] > 0 ? round(($contactMetrics['attempted']/$contactMetrics['total_assigned'])*100, 1) : 0 ?>% coverage</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-secondary p-3">
-                <div class="metric-card-title">Not Yet Called</div>
-                <div class="metric-card-value text-secondary text-nowrap"><?= number_format($contactMetrics['not_yet_called']) ?></div>
-                <div class="metric-card-subtitle text-muted">Fresh contact queue</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-success p-3">
-                <div class="metric-card-title">Interested Contacts</div>
-                <div class="metric-card-value text-success text-nowrap"><?= number_format($contactMetrics['interested']) ?></div>
-                <div class="metric-card-subtitle text-muted">Expressed loan interest</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-warning p-3">
-                <div class="metric-card-title">Callback / Busy</div>
-                <div class="metric-card-value text-warning text-nowrap"><?= number_format($contactMetrics['callback_busy']) ?></div>
-                <div class="metric-card-subtitle text-muted">Follow-up needed</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-danger p-3">
-                <div class="metric-card-title">DND Contacts</div>
-                <div class="metric-card-value text-danger text-nowrap"><?= number_format($contactMetrics['dnd']) ?></div>
-                <div class="metric-card-subtitle text-muted">Blocked from calling</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- TIER 2: CALLING ACTIVITY & CONVERSATIONS -->
-    <div class="d-flex align-items-center justify-content-between mb-2">
-        <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-telephone-outbound text-info me-1"></i> Calling Productivity & Conversations</span>
-        <span class="text-muted fs-xs">Window: <?= htmlspecialchars($rangeLabel) ?></span>
-    </div>
-    <div class="row g-2 mb-3">
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-neutral p-3">
-                <div class="metric-card-title">Total Call Attempts</div>
-                <div class="metric-card-value text-dark text-nowrap"><?= number_format($callMetrics['total_attempts']) ?></div>
-                <div class="metric-card-subtitle text-muted">Calls dialed by officers</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-primary p-3">
-                <div class="metric-card-title">Connected Calls</div>
-                <div class="metric-card-value text-primary text-nowrap"><?= number_format($callMetrics['connected_calls']) ?></div>
-                <div class="metric-card-subtitle text-muted">Dur &gt; 0s / Conversation</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card <?= $callMetrics['connect_rate'] >= $targets['min_connect_rate_pct'] ? 'metric-success' : 'metric-danger' ?> p-3">
-                <div class="metric-card-title">Connection Rate</div>
-                <div class="metric-card-value <?= $callMetrics['connect_rate'] >= $targets['min_connect_rate_pct'] ? 'text-success' : 'text-danger' ?> text-nowrap"><?= $callMetrics['connect_rate'] ?>%</div>
-                <div class="metric-card-subtitle text-muted">Target: <?= $targets['min_connect_rate_pct'] ?>%+</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-info p-3">
-                <div class="metric-card-title">Total Talk Time</div>
-                <div class="metric-card-value text-info text-nowrap"><?= $callMetrics['total_talk_time_formatted'] ?></div>
-                <div class="metric-card-subtitle text-muted">Connected conversation</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-secondary p-3">
-                <div class="metric-card-title">Avg Call Duration</div>
-                <div class="metric-card-value text-dark text-nowrap"><?= $callMetrics['avg_duration_formatted'] ?></div>
-                <div class="metric-card-subtitle text-muted">Per connected call</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-purple p-3">
-                <div class="metric-card-title">Follow-ups Handled</div>
-                <div class="metric-card-value text-purple text-nowrap"><?= number_format($callMetrics['followups_completed']) ?> <small class="fs-xs text-muted">/ <?= number_format($callMetrics['followups_created']) ?></small></div>
-                <div class="metric-card-subtitle text-muted"><?= $callMetrics['followups_created'] > 0 ? round(($callMetrics['followups_completed'] / $callMetrics['followups_created']) * 100) : 100 ?>% completion</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- TIER 3: LOAN PIPELINE & CONVERSIONS -->
-    <div class="d-flex align-items-center justify-content-between mb-2">
-        <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-cash-stack text-success me-1"></i> Loan Sales Conversions & Pipeline</span>
-        <span class="text-muted fs-xs">Disbursements & Sanctions</span>
-    </div>
-    <div class="row g-2 mb-3">
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-success p-3">
-                <div class="metric-card-title">New Converted Leads</div>
-                <div class="metric-card-value text-success text-nowrap"><?= number_format($leadMetrics['new_leads_created']) ?></div>
-                <div class="metric-card-subtitle text-muted">From interested contacts</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-primary p-3">
-                <div class="metric-card-title">Qualified Leads</div>
-                <div class="metric-card-value text-primary text-nowrap"><?= number_format($leadMetrics['qualified_leads']) ?></div>
-                <div class="metric-card-subtitle text-muted">Salary & details verified</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-info p-3">
-                <div class="metric-card-title">Documents Collected</div>
-                <div class="metric-card-value text-info text-nowrap"><?= number_format($leadMetrics['documents_collected']) ?></div>
-                <div class="metric-card-subtitle text-muted">Underwriting review</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-secondary p-3">
-                <div class="metric-card-title">Applications Logged In</div>
-                <div class="metric-card-value text-dark text-nowrap"><?= number_format($leadMetrics['applications_logged_in']) ?></div>
-                <div class="metric-card-subtitle text-muted">Bank portal submissions</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-purple p-3">
-                <div class="metric-card-title">Sanctioned Loans</div>
-                <div class="metric-card-value text-purple text-nowrap"><?= number_format($leadMetrics['sanctioned_loans']) ?></div>
-                <div class="metric-card-subtitle text-muted">Approved by lenders</div>
-            </div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6">
-            <div class="metric-card metric-success p-3">
-                <div class="metric-card-title">Disbursed Volume</div>
-                <div class="metric-card-value text-success text-nowrap"><?= $leadMetrics['disbursed_loans'] ?> <small class="fs-xs fw-normal text-muted">(₹<?= number_format($leadMetrics['disbursed_amount']) ?>)</small></div>
-                <div class="metric-card-subtitle text-muted">Final payouts realized</div>
-            </div>
-        </div>
-    </div>
-
     <!-- Advanced Filter Toolbar -->
     <div class="crm-card mb-3">
         <div class="crm-card-body py-2">
@@ -827,82 +676,102 @@ include __DIR__ . '/../../php_scripts/header.php';
         </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <ul class="nav nav-tabs nav-fill mb-3" id="reportTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'overview' ? 'active' : '' ?>" id="overview-tab" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button" role="tab">
-                <i class="bi bi-graph-up me-1 text-primary"></i> Overview & Trends
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'contacts' ? 'active' : '' ?>" id="contacts-tab" data-bs-toggle="tab" data-bs-target="#tab-contacts" type="button" role="tab">
-                <i class="bi bi-person-vcard me-1 text-info"></i> Client Contacts
-                <span class="badge bg-secondary ms-1 fs-xs"><?= count($contactTableRows) ?></span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'leads' ? 'active' : '' ?>" id="leads-tab" data-bs-toggle="tab" data-bs-target="#tab-leads" type="button" role="tab">
-                <i class="bi bi-cash-stack me-1 text-success"></i> Converted Leads
-                <span class="badge bg-success ms-1 fs-xs"><?= count($leadTableRows) ?></span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'employees' ? 'active' : '' ?>" id="employees-tab" data-bs-toggle="tab" data-bs-target="#tab-employees" type="button" role="tab">
-                <i class="bi bi-person-badge me-1 text-primary"></i> <?= $isOfficer ? 'My Performance' : 'Officers Performance' ?>
-                <span class="badge bg-primary ms-1 fs-xs"><?= count($empRows) ?></span>
-            </button>
-        </li>
-        <?php if ($isSuperAdmin || $isAdmin || $isSupervisor): ?>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'supervisors' ? 'active' : '' ?>" id="supervisors-tab" data-bs-toggle="tab" data-bs-target="#tab-supervisors" type="button" role="tab">
-                <i class="bi bi-people me-1 text-warning"></i> Supervisor Rollup
-                <span class="badge bg-warning ms-1 fs-xs"><?= count($supRows) ?></span>
-            </button>
-        </li>
-        <?php endif; ?>
-        <?php if ($isSuperAdmin || $isAdmin): ?>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'admins' ? 'active' : '' ?>" id="admins-tab" data-bs-toggle="tab" data-bs-target="#tab-admins" type="button" role="tab">
-                <i class="bi bi-diagram-3 me-1 text-purple"></i> Admin Rollup
-                <span class="badge bg-purple ms-1 fs-xs"><?= count($adminRows) ?></span>
-            </button>
-        </li>
-        <?php endif; ?>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'hourly' ? 'active' : '' ?>" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#tab-hourly" type="button" role="tab">
-                <i class="bi bi-hourglass-split me-1 text-info"></i> Hourly Calling
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'followups' ? 'active' : '' ?>" id="followups-tab" data-bs-toggle="tab" data-bs-target="#tab-followups" type="button" role="tab">
-                <i class="bi bi-calendar-check me-1 text-purple"></i> Follow-ups Hub
-                <span class="badge bg-purple ms-1 fs-xs"><?= count($followupList) ?></span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'alerts' ? 'active' : '' ?>" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#tab-alerts" type="button" role="tab">
-                <i class="bi bi-bell me-1 text-danger"></i> Performance Alerts
-                <?php if (!empty($alerts)): ?>
-                    <span class="badge bg-danger ms-1 fs-xs"><?= count($alerts) ?></span>
-                <?php endif; ?>
-            </button>
-        </li>
-        <?php if (!$isOfficer): ?>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'rankings' ? 'active' : '' ?>" id="rankings-tab" data-bs-toggle="tab" data-bs-target="#tab-rankings" type="button" role="tab">
-                <i class="bi bi-trophy me-1 text-warning"></i> Rankings & Scores
-            </button>
-        </li>
-        <?php endif; ?>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link <?= $active_tab === 'drilldown' ? 'active' : '' ?>" id="drilldown-tab" data-bs-toggle="tab" data-bs-target="#tab-drilldown" type="button" role="tab">
-                <i class="bi bi-clock-history me-1 text-secondary"></i> Call History
-                <?php if (!empty($detailRows)): ?>
-                    <span class="badge bg-secondary ms-1 fs-xs"><?= count($detailRows) ?></span>
-                <?php endif; ?>
-            </button>
-        </li>
-    </ul>
+    <!-- Reports Navigation Directory -->
+    <div class="report-nav-hub mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-grid-fill text-primary me-1"></i> Reports &amp; Analytics Hub</span>
+                <span class="text-muted fs-xs d-none d-sm-inline">&bull; Click any module to inspect detailed reports</span>
+            </div>
+            <span class="badge bg-light text-secondary border fs-xs"><i class="bi bi-compass me-1"></i> Quick Nav</span>
+        </div>
+        <ul class="nav report-nav-deck" id="reportTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'overview' ? 'active' : '' ?>" id="overview-tab" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button" role="tab" data-theme="purple">
+                    <span class="report-tab-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                    <span>Overview &amp; Trends</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'contacts' ? 'active' : '' ?>" id="contacts-tab" data-bs-toggle="tab" data-bs-target="#tab-contacts" type="button" role="tab" data-theme="blue">
+                    <span class="report-tab-icon"><i class="bi bi-person-vcard"></i></span>
+                    <span>Client Contacts</span>
+                    <span class="report-tab-badge bg-primary-subtle text-primary border"><?= count($contactTableRows) ?></span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'leads' ? 'active' : '' ?>" id="leads-tab" data-bs-toggle="tab" data-bs-target="#tab-leads" type="button" role="tab" data-theme="green">
+                    <span class="report-tab-icon"><i class="bi bi-cash-coin"></i></span>
+                    <span>Converted Leads</span>
+                    <span class="report-tab-badge bg-success-subtle text-success border"><?= count($leadTableRows) ?></span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'employees' ? 'active' : '' ?>" id="employees-tab" data-bs-toggle="tab" data-bs-target="#tab-employees" type="button" role="tab" data-theme="teal">
+                    <span class="report-tab-icon"><i class="bi bi-person-badge"></i></span>
+                    <span><?= $isOfficer ? 'My Performance' : 'Officers Performance' ?></span>
+                    <span class="report-tab-badge bg-info-subtle text-info border"><?= count($empRows) ?></span>
+                </button>
+            </li>
+            <?php if ($isSuperAdmin || $isAdmin || $isSupervisor): ?>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'supervisors' ? 'active' : '' ?>" id="supervisors-tab" data-bs-toggle="tab" data-bs-target="#tab-supervisors" type="button" role="tab" data-theme="amber">
+                    <span class="report-tab-icon"><i class="bi bi-people-fill"></i></span>
+                    <span>Supervisor Rollup</span>
+                    <span class="report-tab-badge bg-warning-subtle text-warning-emphasis border"><?= count($supRows) ?></span>
+                </button>
+            </li>
+            <?php endif; ?>
+            <?php if ($isSuperAdmin || $isAdmin): ?>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'admins' ? 'active' : '' ?>" id="admins-tab" data-bs-toggle="tab" data-bs-target="#tab-admins" type="button" role="tab" data-theme="indigo">
+                    <span class="report-tab-icon"><i class="bi bi-diagram-3-fill"></i></span>
+                    <span>Admin Rollup</span>
+                    <span class="report-tab-badge bg-purple-subtle text-purple border"><?= count($adminRows) ?></span>
+                </button>
+            </li>
+            <?php endif; ?>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'hourly' ? 'active' : '' ?>" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#tab-hourly" type="button" role="tab" data-theme="sky">
+                    <span class="report-tab-icon"><i class="bi bi-clock-history"></i></span>
+                    <span>Hourly Calling</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'followups' ? 'active' : '' ?>" id="followups-tab" data-bs-toggle="tab" data-bs-target="#tab-followups" type="button" role="tab" data-theme="fuchsia">
+                    <span class="report-tab-icon"><i class="bi bi-calendar2-check"></i></span>
+                    <span>Follow-ups Hub</span>
+                    <span class="report-tab-badge bg-purple-subtle text-purple border"><?= count($followupList) ?></span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'alerts' ? 'active' : '' ?>" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#tab-alerts" type="button" role="tab" data-theme="rose">
+                    <span class="report-tab-icon"><i class="bi bi-bell-fill"></i></span>
+                    <span>Performance Alerts</span>
+                    <?php if (!empty($alerts)): ?>
+                        <span class="report-tab-badge bg-danger-subtle text-danger border"><?= count($alerts) ?></span>
+                    <?php endif; ?>
+                </button>
+            </li>
+            <?php if (!$isOfficer): ?>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'rankings' ? 'active' : '' ?>" id="rankings-tab" data-bs-toggle="tab" data-bs-target="#tab-rankings" type="button" role="tab" data-theme="gold">
+                    <span class="report-tab-icon"><i class="bi bi-trophy-fill"></i></span>
+                    <span>Rankings &amp; Scores</span>
+                </button>
+            </li>
+            <?php endif; ?>
+            <li class="nav-item" role="presentation">
+                <button class="report-tab-btn <?= $active_tab === 'drilldown' ? 'active' : '' ?>" id="drilldown-tab" data-bs-toggle="tab" data-bs-target="#tab-drilldown" type="button" role="tab" data-theme="slate">
+                    <span class="report-tab-icon"><i class="bi bi-journal-text"></i></span>
+                    <span>Call History</span>
+                    <?php if (!empty($detailRows)): ?>
+                        <span class="report-tab-badge bg-secondary-subtle text-secondary border"><?= count($detailRows) ?></span>
+                    <?php endif; ?>
+                </button>
+            </li>
+        </ul>
+    </div>
 
     <!-- Tab Contents Container -->
     <div class="tab-content" id="reportTabsContent">
@@ -928,6 +797,167 @@ include __DIR__ . '/../../php_scripts/header.php';
                         </div>
                         <div class="crm-card-body">
                             <div style="position:relative; height:280px;"><canvas id="dispositionDoughnutChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3-Tier Multi-Dimensional Hero KPI Cards -->
+            <div class="mt-4 pt-2">
+                <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                    <div>
+                        <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-speedometer2 text-primary me-2"></i>Key Performance Indicators &amp; Conversion Overview</h6>
+                        <span class="text-muted fs-xs">Operational summary across contact coverage, calling activity, and loan conversions</span>
+                    </div>
+                    <span class="badge bg-secondary-subtle text-secondary border fs-xs">Period: <?= htmlspecialchars($rangeLabel) ?></span>
+                </div>
+
+                <!-- TIER 1: CLIENT CONTACT COVERAGE -->
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-person-vcard text-primary me-1"></i> Client Contact Coverage</span>
+                    <span class="text-muted fs-xs">Base: Assigned Customer Records</span>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-neutral p-3">
+                            <div class="metric-card-title">Total Assigned Contacts</div>
+                            <div class="metric-card-value text-dark text-nowrap"><?= number_format($contactMetrics['total_assigned']) ?></div>
+                            <div class="metric-card-subtitle text-muted">In CRM repository</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-primary p-3">
+                            <div class="metric-card-title">Contacts Attempted</div>
+                            <div class="metric-card-value text-primary text-nowrap"><?= number_format($contactMetrics['attempted']) ?></div>
+                            <div class="metric-card-subtitle text-muted"><?= $contactMetrics['total_assigned'] > 0 ? round(($contactMetrics['attempted']/$contactMetrics['total_assigned'])*100, 1) : 0 ?>% coverage</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-secondary p-3">
+                            <div class="metric-card-title">Not Yet Called</div>
+                            <div class="metric-card-value text-secondary text-nowrap"><?= number_format($contactMetrics['not_yet_called']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Fresh contact queue</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-success p-3">
+                            <div class="metric-card-title">Interested Contacts</div>
+                            <div class="metric-card-value text-success text-nowrap"><?= number_format($contactMetrics['interested']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Expressed loan interest</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-warning p-3">
+                            <div class="metric-card-title">Callback / Busy</div>
+                            <div class="metric-card-value text-warning text-nowrap"><?= number_format($contactMetrics['callback_busy']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Follow-up needed</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-danger p-3">
+                            <div class="metric-card-title">DND Contacts</div>
+                            <div class="metric-card-value text-danger text-nowrap"><?= number_format($contactMetrics['dnd']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Blocked from calling</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TIER 2: CALLING ACTIVITY & CONVERSATIONS -->
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-telephone-outbound text-info me-1"></i> Calling Productivity &amp; Conversations</span>
+                    <span class="text-muted fs-xs">Window: <?= htmlspecialchars($rangeLabel) ?></span>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-neutral p-3">
+                            <div class="metric-card-title">Total Call Attempts</div>
+                            <div class="metric-card-value text-dark text-nowrap"><?= number_format($callMetrics['total_attempts']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Calls dialed by officers</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-primary p-3">
+                            <div class="metric-card-title">Connected Calls</div>
+                            <div class="metric-card-value text-primary text-nowrap"><?= number_format($callMetrics['connected_calls']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Dur &gt; 0s / Conversation</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card <?= $callMetrics['connect_rate'] >= $targets['min_connect_rate_pct'] ? 'metric-success' : 'metric-danger' ?> p-3">
+                            <div class="metric-card-title">Connection Rate</div>
+                            <div class="metric-card-value <?= $callMetrics['connect_rate'] >= $targets['min_connect_rate_pct'] ? 'text-success' : 'text-danger' ?> text-nowrap"><?= $callMetrics['connect_rate'] ?>%</div>
+                            <div class="metric-card-subtitle text-muted">Target: <?= $targets['min_connect_rate_pct'] ?>%+</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-info p-3">
+                            <div class="metric-card-title">Total Talk Time</div>
+                            <div class="metric-card-value text-info text-nowrap"><?= $callMetrics['total_talk_time_formatted'] ?></div>
+                            <div class="metric-card-subtitle text-muted">Connected conversation</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-secondary p-3">
+                            <div class="metric-card-title">Avg Call Duration</div>
+                            <div class="metric-card-value text-dark text-nowrap"><?= $callMetrics['avg_duration_formatted'] ?></div>
+                            <div class="metric-card-subtitle text-muted">Per connected call</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-purple p-3">
+                            <div class="metric-card-title">Follow-ups Handled</div>
+                            <div class="metric-card-value text-purple text-nowrap"><?= number_format($callMetrics['followups_completed']) ?> <small class="fs-xs text-muted">/ <?= number_format($callMetrics['followups_created']) ?></small></div>
+                            <div class="metric-card-subtitle text-muted"><?= $callMetrics['followups_created'] > 0 ? round(($callMetrics['followups_completed'] / $callMetrics['followups_created']) * 100) : 100 ?>% completion</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TIER 3: LOAN PIPELINE & CONVERSIONS -->
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fs-xs fw-bold text-uppercase text-secondary tracking-wider"><i class="bi bi-cash-stack text-success me-1"></i> Loan Sales Conversions &amp; Pipeline</span>
+                    <span class="text-muted fs-xs">Disbursements &amp; Sanctions</span>
+                </div>
+                <div class="row g-2">
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-success p-3">
+                            <div class="metric-card-title">New Converted Leads</div>
+                            <div class="metric-card-value text-success text-nowrap"><?= number_format($leadMetrics['new_leads_created']) ?></div>
+                            <div class="metric-card-subtitle text-muted">From interested contacts</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-primary p-3">
+                            <div class="metric-card-title">Qualified Leads</div>
+                            <div class="metric-card-value text-primary text-nowrap"><?= number_format($leadMetrics['qualified_leads']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Salary &amp; details verified</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-info p-3">
+                            <div class="metric-card-title">Documents Collected</div>
+                            <div class="metric-card-value text-info text-nowrap"><?= number_format($leadMetrics['documents_collected']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Underwriting review</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-secondary p-3">
+                            <div class="metric-card-title">Applications Logged In</div>
+                            <div class="metric-card-value text-dark text-nowrap"><?= number_format($leadMetrics['applications_logged_in']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Bank portal submissions</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-purple p-3">
+                            <div class="metric-card-title">Sanctioned Loans</div>
+                            <div class="metric-card-value text-purple text-nowrap"><?= number_format($leadMetrics['sanctioned_loans']) ?></div>
+                            <div class="metric-card-subtitle text-muted">Approved by lenders</div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="metric-card metric-success p-3">
+                            <div class="metric-card-title">Disbursed Volume</div>
+                            <div class="metric-card-value text-success text-nowrap"><?= $leadMetrics['disbursed_loans'] ?> <small class="fs-xs fw-normal text-muted">(₹<?= number_format($leadMetrics['disbursed_amount']) ?>)</small></div>
+                            <div class="metric-card-subtitle text-muted">Final payouts realized</div>
                         </div>
                     </div>
                 </div>

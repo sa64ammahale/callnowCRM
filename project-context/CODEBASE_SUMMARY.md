@@ -59,7 +59,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/logs/
 | File | Purpose | Notes |
 |---|---|---|
-| `Reports.php` | Call performance reports (gated `view_reports`) | Modern single date-range page: preset ranges, high-contrast hero KPIs (Total, Connected, Interested, Not Interested, Connect Rate), Team & Telecaller Summary with full disposition categorization (Connected, Interested, Not Interested, Follow-up, Busy / No Answer, DNC, Other), duration column, detailed calls drill-down, Doughnut status breakdown, and clean Excel/CSV export |
+| `Reports.php` | Call performance reports (gated `view_reports`) | Modern reports hub: interactive Report Navigation Directory with themed micro-icon pills & live count badges; 3-tier multi-dimensional KPI cards relocated below charts inside Overview & Trends; presets, drilldowns, Doughnut breakdown, CSV export |
 | `call_history.php` | Real-time call logs audit trail (gated `view_reports`) | Log of all dialed calls from mobile app & web CRM; status badges, duration pills, audio playback, pagination. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `call_history_data.php`. |
 | `ViewDialList.php` | Legacy per-user dial list | **DELETED** — broken schema + SQLi on dates |
 | `manage_activity.php` | Activity log viewer/admin | CSRF-protected, sort whitelist. Table enhanced with server-side DataTables (copy/csv/excel/print + reuse existing `?export=csv`); JSON endpoint at `manage_activity_data.php`. |
@@ -70,7 +70,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose | Notes |
 |---|---|---|
 | `lead_common.php` | Shared helpers + runtime schema migrations | ALTER TABLE on load (static-guarded) |
-| `leads_dashboard.php` | Lead summary dashboard | Escaped, access scoped |
+| `leads_dashboard.php` | Lead summary dashboard | Escaped, access scoped; modern horizontal welcome strip, semantic KPI metric cards |
 | `lead_insert.php` | Add new lead (upserts MAIN_DATABASE) | Transaction-wrapped |
 | `lead_update.php` | POST save handler | Transaction-wrapped |
 | `lead_pipeline.php` | Modern premium Kanban pipeline board (8 stages) matching SaaS design | Drag & drop RBAC gated, 8 horizontal summary KPI cards, live search & multi-facet filters, custom empty states, `assets/css/pipeline-premium.css` |
