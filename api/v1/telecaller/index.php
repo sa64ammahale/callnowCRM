@@ -1324,7 +1324,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 
         $whereSql = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $cntStmt = $link->prepare("SELECT COUNT(*) as c FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f $whereSql");
+        $cntStmt = $link->prepare("SELECT COUNT(*) as c FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f LEFT JOIN " . tn('TBL_LEADS') . " l ON f.lead_id = l.lead_id $whereSql");
         if (!empty($params)) $cntStmt->bind_param($types, ...$params);
         $cntStmt->execute();
         $total = (int)$cntStmt->get_result()->fetch_assoc()['c'];

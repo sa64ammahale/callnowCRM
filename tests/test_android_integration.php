@@ -74,8 +74,7 @@ foreach (['GET', 'PUT'] as $method) {
 }
 $r = androidApi('POST', '/telecaller/leads', ['name' => 'Duplicate takeover', 'mobile' => $mobile], $b);
 androidCheck('Duplicate mobile cannot take over another officer lead', $r['status'] === 403, $r);
-$nowIso = date('Y-m-d\TH:i:sP');
-$payload = ['record_id' => $recordId, 'source' => 'MAIN', 'call_status' => 'Connected', 'call_duration' => 65, 'total_duration' => 70, 'sim_slot' => 'SIM2', 'recording_url' => 'https://example.test/test.mp3', 'metadata' => ['android_version' => '15', 'network' => '4g'], 'notes' => 'ग्राहक interested', 'dial_time' => $nowIso, 'call_time' => $nowIso, 'call_end_time' => $nowIso, 'client_call_id' => $tag . '-call-1'];
+$payload = ['record_id' => $recordId, 'source' => 'MAIN', 'call_status' => 'Connected', 'call_duration' => 65, 'total_duration' => 70, 'sim_slot' => 'SIM2', 'recording_url' => 'https://example.test/test.mp3', 'metadata' => ['android_version' => '15', 'network' => '4g'], 'notes' => 'ग्राहक interested', 'dial_time' => '2026-11-05T12:00:00+05:30', 'call_time' => '2026-11-05T12:00:05+05:30', 'call_end_time' => '2026-11-05T12:01:10+05:30', 'client_call_id' => $tag . '-call-1'];
 $r = androidApi('POST', '/telecaller/submit_call', $payload, $a);
 $logId = (int)($r['json']['data']['log_id'] ?? 0);
 androidCheck('Full Android call telemetry is saved', $r['status'] === 200 && $logId > 0, $r);
@@ -93,6 +92,13 @@ androidCheck('Android call list returns SIM and recording', ($r['json']['data'][
 $rMonth = androidApi('GET', '/telecaller/calls?period=month&limit=1', null, $a);
 androidCheck('Android call list period=month returns monthly calls', $rMonth['status'] === 200 && count($rMonth['json']['data']['data'] ?? []) >= 1, $rMonth);
 androidCheck('Android call list pagination contains total and has_more', isset($rMonth['json']['data']['pagination']['total']) && isset($rMonth['json']['data']['pagination']['has_more']), $rMonth);
+
+$payloadWeek = $payload;
+$payloadWeek['client_call_id'] = $tag . '-call-week';
+$payloadWeek['dial_time'] = date('Y-m-d\TH:i:sP');
+$payloadWeek['call_time'] = date('Y-m-d\TH:i:sP');
+$payloadWeek['call_end_time'] = date('Y-m-d\TH:i:sP');
+androidApi('POST', '/telecaller/submit_call', $payloadWeek, $a);
 
 $rWeek = androidApi('GET', '/telecaller/calls?period=week', null, $a);
 androidCheck('Android call list period=week returns calls', $rWeek['status'] === 200 && count($rWeek['json']['data']['data'] ?? []) >= 1, $rWeek);

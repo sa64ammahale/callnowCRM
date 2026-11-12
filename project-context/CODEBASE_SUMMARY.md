@@ -507,3 +507,20 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - **Empty States**: Added centered empty-state styling for preview area and log accordion when no data is present.
 - **Tests Verified**: Mobile normalization (`+91`, `0`, leading zeros), canonical header mapping, quoted-field CSV parsing, header alias resolution, and duplicate-key detection logic all validated.
 
+## Mobile App & Telecaller Sync / Filtering Enhancements (2026-11-12)
+
+- **Target Bank Selection & Custom Input**:
+  - In `leads_screen.dart` (`_showAddLeadModal`), added `isExpanded: true` and `selectedItemBuilder` on all dropdowns (`Target Bank`, `Initial Stage`, `Priority`, `Temperature`), eliminating text clipping and `RenderFlex overflowed by X pixels` errors on long bank names (such as "Punjab National Bank (PNB)" or "State Bank of India (SBI)").
+  - Added `+ Other / Custom Bank` option: when selected, dynamically displays an editable `TextFormField` (`customBankCtrl`, label: "Enter Target Bank Name *") allowing users to enter custom/unlisted bank names.
+  - Form validation and submission seamlessly forwards either the selected partner bank or the typed custom bank name via `loginBank`.
+- **Follow-Up Section User Scoping & Cross-Contamination Fix**:
+  - **Backend (`api/v1/telecaller/index.php`)**: Added default scope `scope=mine`. Restricts query to `(f.user_id = ? OR l.assigned_to = ?)` for the authenticated user, fixing a critical leak where Admins, Managers, and Super Admins received all company follow-ups by default. Added `scope=all` restricted to management roles (company-wide) or supervisors (team-wide). Count query now properly joins `tbl_leads` so `l.assigned_to` resolves cleanly.
+  - **Mobile Model (`followup_model.dart`)**: Added `userId` and `officerName` to `FollowupModel` with full JSON serialization and copy constructors.
+  - **Mobile Service (`followup_service.dart`)**: Storage key is now partitioned by logged-in user (`callnow_saved_followups_uid_${userId}`). Added `clearLocalCache()` called on logout in `ConfigService.clearAuthData()`. `syncWithServer(scope: 'mine')` enforces client-side data isolation, discarding stale or foreign follow-ups.
+  - **Mobile UI (`followup_screen.dart`)**: Added a scope toggle pill (`My Follow-ups` vs `All Team Follow-ups`) for Admin/Manager/Supervisor roles. Follow-up cards now render an officer badge (`👤 Officer: <Name>`) when viewing team records.
+- **Verification**:
+  - `tests/test_android_integration.php`: Added assertions for follow-up isolation (`scope=mine` vs `scope=all`), officer boundary clamping, and period filtering.
+  - Full audit suite (`tests/run_project_audit.php`): Passed 100% across all 25 page audits and test suites (62/62 android integration assertions, 5/5 concurrency, 46/46 API module, 39/39 users section, 31/31 users view, 10/10 auth, 27/27 data workflows).
+  - Mobile app `dart analyze`: 0 errors, 0 warnings.
+
+
