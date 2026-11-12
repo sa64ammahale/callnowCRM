@@ -95,6 +95,13 @@ try {
 $unused_numbers = (int)($row5['unused'] ?? 0);
 $pending_pct = $total_numbers > 0 ? round(($unused_numbers / $total_numbers) * 100, 1) : 0;
 
+$dashLeadScope = getHierarchyLeadFilterSQL($link, $userId, $userRole, 'l', $userTeamId);
+$total_pipeline_leads = 0;
+try {
+    $resLeads = mysqli_query($link, "SELECT COUNT(*) as cnt FROM " . tn('TBL_LEADS') . " l WHERE $dashLeadScope");
+    $total_pipeline_leads = (int)($resLeads ? mysqli_fetch_assoc($resLeads)['cnt'] : 0);
+} catch (\Throwable $e) {}
+
 $hour = (int)date('H');
 $greeting = $hour < 12 ? 'Good Morning' : ($hour < 17 ? 'Good Afternoon' : 'Good Evening');
 $todayDateFormatted = date('l, d F Y');
@@ -245,7 +252,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
         </div>
     </div>
 
-    <!-- 3. KPI Cards — Six-Column Analytics Grid (Matching Reference Screenshot) -->
+    <!-- 3. KPI Cards — Eight-Column Analytics Grid (4 per row on Desktop) -->
     <div class="dash-kpi-grid">
         <!-- Card 1: Calls Today (Purple) -->
         <div class="dash-kpi-card dash-kpi-purple">
@@ -300,7 +307,24 @@ $maxHourlyCall = max(1, max($hourlyCalls));
             </svg>
         </div>
 
-        <!-- Card 4: Hot Leads (Amber) -->
+        <!-- Card 4: Active Callers (Cyan) -->
+        <div class="dash-kpi-card dash-kpi-cyan">
+            <div class="dash-kpi-inner">
+                <div class="dash-kpi-icon-wrap">
+                    <i class="bi bi-headset"></i>
+                </div>
+                <div class="dash-kpi-content">
+                    <div class="dash-kpi-label">ACTIVE CALLERS</div>
+                    <div class="dash-kpi-value"><?= fmt($active_callers_today) ?></div>
+                    <div class="dash-kpi-pill">On duty today</div>
+                </div>
+            </div>
+            <svg class="dash-kpi-sparkline" viewBox="0 0 100 24" preserveAspectRatio="none">
+                <path d="M0,16 Q25,6 60,18 T100,10" fill="none" stroke="#0891B2" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+        </div>
+
+        <!-- Card 5: Hot Leads (Amber) -->
         <div class="dash-kpi-card dash-kpi-amber">
             <div class="dash-kpi-inner">
                 <div class="dash-kpi-icon-wrap">
@@ -317,7 +341,24 @@ $maxHourlyCall = max(1, max($hourlyCalls));
             </svg>
         </div>
 
-        <!-- Card 5: Fresh Pending (Rose/Red) -->
+        <!-- Card 6: Pipeline Leads (Teal) -->
+        <div class="dash-kpi-card dash-kpi-teal">
+            <div class="dash-kpi-inner">
+                <div class="dash-kpi-icon-wrap">
+                    <i class="bi bi-kanban"></i>
+                </div>
+                <div class="dash-kpi-content">
+                    <div class="dash-kpi-label">PIPELINE LEADS</div>
+                    <div class="dash-kpi-value"><?= fmt($total_pipeline_leads) ?></div>
+                    <div class="dash-kpi-pill">Loan applications</div>
+                </div>
+            </div>
+            <svg class="dash-kpi-sparkline" viewBox="0 0 100 24" preserveAspectRatio="none">
+                <path d="M0,18 Q35,8 65,16 T100,8" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+        </div>
+
+        <!-- Card 7: Fresh Pending (Rose/Red) -->
         <div class="dash-kpi-card dash-kpi-rose">
             <div class="dash-kpi-inner">
                 <div class="dash-kpi-icon-wrap">
@@ -334,7 +375,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
             </svg>
         </div>
 
-        <!-- Card 6: Main Database (Violet) -->
+        <!-- Card 8: Main Database (Violet) -->
         <div class="dash-kpi-card dash-kpi-violet">
             <div class="dash-kpi-inner">
                 <div class="dash-kpi-icon-wrap">

@@ -243,16 +243,16 @@
 .dash-action-btn .btn-icon-blue { color: var(--dash-electric-blue); }
 
 /* --------------------------------------------------------------------------
-   3. Six KPI Cards — Rich & Vibrant Card Background Colorings
+   3. Eight KPI Cards — Rich & Vibrant Card Background Colorings (4 Columns Grid)
    -------------------------------------------------------------------------- */
 .dash-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     margin-bottom: 22px;
 }
 
-@media (max-width: 992px) {
+@media (max-width: 1200px) {
     .dash-kpi-grid {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -405,7 +405,25 @@
     border: 1px solid #BFDBFE;
 }
 
-/* 4. Hot Leads - Amber */
+/* 4. Active Callers - Cyan / Electric Sky */
+.dash-kpi-cyan {
+    background: linear-gradient(145deg, #ECFEFF 0%, #F0FDFA 55%, #FFFFFF 100%);
+    border: 1.5px solid #A5F3FC;
+    border-top: 3.5px solid #0891B2;
+    box-shadow: 0 3px 12px rgba(8, 145, 178, 0.07);
+}
+.dash-kpi-cyan .dash-kpi-icon-wrap {
+    background: #CFFAFE;
+    color: #0E7490;
+    border: 1px solid #A5F3FC;
+}
+.dash-kpi-cyan .dash-kpi-pill {
+    background: #CFFAFE;
+    color: #155E75;
+    border: 1px solid #A5F3FC;
+}
+
+/* 5. Hot Leads - Amber */
 .dash-kpi-amber {
     background: linear-gradient(145deg, #FFFBEB 0%, #FEF9C3 55%, #FFFFFF 100%);
     border: 1.5px solid #FCD34D;
@@ -421,6 +439,24 @@
     background: #FEF3C7;
     color: #92400E;
     border: 1px solid #FDE68A;
+}
+
+/* 6. Pipeline Leads - Teal / Emerald */
+.dash-kpi-teal {
+    background: linear-gradient(145deg, #F0FDF4 0%, #DCFCE7 55%, #FFFFFF 100%);
+    border: 1.5px solid #86EFAC;
+    border-top: 3.5px solid #059669;
+    box-shadow: 0 3px 12px rgba(5, 150, 105, 0.07);
+}
+.dash-kpi-teal .dash-kpi-icon-wrap {
+    background: #D1FAE5;
+    color: #047857;
+    border: 1px solid #A7F3D0;
+}
+.dash-kpi-teal .dash-kpi-pill {
+    background: #D1FAE5;
+    color: #065F46;
+    border: 1px solid #A7F3D0;
 }
 
 /* 5. Fresh Pending - Rose/Red */

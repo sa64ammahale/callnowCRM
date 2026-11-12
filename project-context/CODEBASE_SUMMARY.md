@@ -451,7 +451,7 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - **Premium Modern SaaS Dashboard Redesign (2026-11-12)**:
   - Redesigned `dashboard.php` to match modern Indigo-Violet SaaS aesthetic (`#6D3BFF`, `#8B5CF6`, `#2563EB`, `#16A34A`, `#F59E0B`, `#F43F5E`) based on reference redesign specification without altering sidebar or top navbar.
   - Added `assets/css/dashboard-premium.css` for scoped styling, 18-20px rounded cards, subtle shadows, and responsive grid layout.
-  - Implemented 6-card KPI grid with pastel backgrounds, distinct borders, and bottom sparklines (Calls Today, Connected, Connect Rate, Hot Leads, Fresh Pending, Main Database).
+  - Implemented 8-card KPI grid with pastel backgrounds, distinct borders, and bottom sparklines (Calls Today, Connected, Connect Rate, Active Callers, Hot Leads, Pipeline Leads, Fresh Pending, Main Database).
   - Main analytics section with two columns (62% Left for Call Performance & Disposition Analytics with Chart.js Area & Donut charts, 38% Right for Real-Time Calling Snapshot & Hourly Activity Histogram).
   - Preserved all existing role-gated CRM module shortcuts and operational fleet status. Tested with 25/25 passing web page tests.
   - **All Sections & Operational Modules Directory**: Added a comprehensive 6-card shortcut directory on `dashboard.php` representing all 6 CRM modules (Reports, Leads, Database, Users & Teams, Settings, Profile), fully role-gated via `can(...)` with direct links and descriptions.
