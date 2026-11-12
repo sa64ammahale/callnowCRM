@@ -551,5 +551,30 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - `tests/run_project_audit.php`: All 9 test suites passed with exit code 0 (68/68 android integration assertions).
   - `dart analyze` in Flutter app: 0 issues found (0 errors, 0 warnings).
 
+## Completed Feature (2026-11-12): Production Multi-Tenant Architecture & Subdomain Hosting
+- **Subdomain-to-Database Resolution Engine (`php_scripts/tenant_manager.php`, `config/tenants.php`)**:
+  - Extracts subdomains from `HTTP_HOST` (e.g. `zenith.increditsolutions.in` -> `zenith`).
+  - Maps company slugs to independent MySQL credentials (host, port, db name, user, password, company name) without requiring a central database.
+  - Supports `config/tenants.local.php` (git-ignored) for secret production credentials.
+  - Gracefully falls back to `.env` / `callnow_incredit` for the main domain, localhost, or test harness.
+  - Returns friendly 404/Suspended tenant screens for unregistered subdomains.
+- **Session & Cookie Scoping**:
+  - Sets isolated session names per tenant (`CALLNOW_<hash>`) and scopes cookies strictly to the current host (`domain: <host>`, `httponly: true`, `samesite: 'Lax'`, `secure: true` on HTTPS).
+- **Universal Production Baseline Schema (`database/production_schema.sql`)**:
+  - Complete, idempotent DDL for all 27 tables (users, roles, permissions, role_permissions, user_permissions, teams, main_database, temporary_database, leads_table with banking & qualifications, call_logs with telemetry, password_reset_tokens, etc.).
+  - Pre-seeds universal Super Admin account (`admin@callnow.com` / `Admin@CallNow2026!`) in every tenant database with role `Super Admin`.
+- **One-Command CLI Tenant Provisioner (`bin/provision_tenant.php`)**:
+  - CLI utility (`php bin/provision_tenant.php --slug=... --name=... --dbname=... --dbuser=...`) to create target MySQL database, import baseline schema, update `config/tenants.local.php`, and verify Super Admin login.
+- **Mobile App Multi-Tenant Support (`lib/services/config_service.dart`, `lib/screens/server_settings_screen.dart`)**:
+  - Added `ConfigService.resolveServerUrl()` allowing telecallers to enter a simple company code (e.g. `zenith`) which auto-expands to `https://zenith.increditsolutions.in/api/v1`.
+- **Verification**:
+  - `tests/test_production_schema.php`: 50/50 assertions passed (all 27 tables, columns, Super Admin login).
+  - `tests/test_tenant_resolution.php`: 18/18 assertions passed (subdomains, main domain, unregistered domains).
+  - `tests/test_multi_tenant_connection.php`: 5/5 assertions passed (tenant connection, header resolution).
+  - `tests/test_tenant_provisioning.php`: 8/8 assertions passed (CLI database creation, schema import, config update).
+  - `tests/run_project_audit.php`: All 9 test suites passed with exit code 0.
+  - `dart analyze`: 0 issues found across Flutter codebase.
+
+
 
 

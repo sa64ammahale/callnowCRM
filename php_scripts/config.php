@@ -19,11 +19,43 @@ date_default_timezone_set('Asia/Kolkata');
         }
     }
 
-    $DB_SERVERNAME = getenv('DB_SERVERNAME') ?: (getenv('DB_HOST') ?: "localhost");
-    $DB_PORT = getenv('DB_PORT') ?: "3306";
-    $DB_USERNAME = getenv('DB_USERNAME') ?: "root";
-    $DB_PASSWORD = getenv('DB_PASSWORD') ?: "";
-    $DB_NAME = getenv('DB_NAME') ?: "callnow_incredit";
+    // Production error shielding
+    $isAppDebug = (getenv('APP_DEBUG') === '1' || getenv('APP_DEBUG') === 'true');
+    if (!defined('APP_DEBUG')) {
+        define('APP_DEBUG', $isAppDebug);
+    }
+    if (!$isAppDebug) {
+        @ini_set('display_errors', '0');
+        @ini_set('display_startup_errors', '0');
+        error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+    }
+
+    // Production security headers
+    if (php_sapi_name() !== 'cli' && !headers_sent()) {
+        header('X-Frame-Options: SAMEORIGIN');
+        header('X-Content-Type-Options: nosniff');
+        header('X-XSS-Protection: 1; mode=block');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+    }
+
+    require_once __DIR__ . '/tenant_manager.php';
+
+    // Resolve tenant credentials from subdomain / header / default
+    $activeTenant = resolveTenant($_SERVER['HTTP_HOST'] ?? 'localhost');
+    if (!$activeTenant['found'] || !($activeTenant['active'] ?? true)) {
+        renderTenantNotFoundPage($_SERVER['HTTP_HOST'] ?? 'localhost');
+    }
+
+    $DB_SERVERNAME = !empty($activeTenant['db_host']) ? $activeTenant['db_host'] : (getenv('DB_SERVERNAME') ?: (getenv('DB_HOST') ?: "localhost"));
+    $DB_PORT       = (int)(!empty($activeTenant['db_port']) ? $activeTenant['db_port'] : (getenv('DB_PORT') ?: 3306));
+    $DB_USERNAME   = !empty($activeTenant['db_user']) ? $activeTenant['db_user'] : (getenv('DB_USERNAME') ?: (getenv('DB_USER') ?: "root"));
+    $DB_PASSWORD   = isset($activeTenant['db_pass']) && $activeTenant['db_pass'] !== false ? $activeTenant['db_pass'] : (getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (getenv('DB_PASS') !== false ? getenv('DB_PASS') : ''));
+    $DB_NAME       = !empty($activeTenant['db_name']) ? $activeTenant['db_name'] : (getenv('DB_NAME') ?: "callnow_incredit");
+
+    if (!defined('APP_TENANT_SLUG')) {
+        define('APP_TENANT_SLUG', $activeTenant['slug'] ?? 'default');
+        define('APP_COMPANY_NAME', $activeTenant['company_name'] ?? 'CallNow CRM');
+    }
 
     $link = mysqli_connect($DB_SERVERNAME, $DB_USERNAME, $DB_PASSWORD, $DB_NAME, (int)$DB_PORT);
     if($link === false){
@@ -44,6 +76,26 @@ date_default_timezone_set('Asia/Kolkata');
     $rawHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $host = preg_replace('/[^a-zA-Z0-9\.\-:]/', '', $rawHost);
     if ($host === '') $host = 'localhost';
+    $hostOnly = explode(':', $host)[0];
+
+    // Session hardening per tenant subdomain
+    if (session_status() === PHP_SESSION_NONE && php_sapi_name() !== 'cli') {
+        $sessName = getTenantSessionName(APP_TENANT_SLUG, $DB_NAME);
+        if (isset($_COOKIE['PHPSESSID']) && !isset($_COOKIE[$sessName])) {
+            $sessName = 'PHPSESSID';
+        }
+        @session_name($sessName);
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+        $cookieDomain = ($hostOnly === 'localhost' || filter_var($hostOnly, FILTER_VALIDATE_IP)) ? '' : $hostOnly;
+        @session_set_cookie_params([
+            'lifetime' => 0,
+            'path'     => '/',
+            'domain'   => $cookieDomain,
+            'secure'   => $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
 
     // App install path relative to the document root.
     // Derive it from THIS file's physical location (php_scripts/config.php lives
@@ -220,15 +272,19 @@ date_default_timezone_set('Asia/Kolkata');
         }
     }
 
-    define('APP_DEBUG', getenv('APP_DEBUG') === '1');
-    error_reporting(E_ALL);
-    ini_set('display_errors', APP_DEBUG ? '1' : '0');
-    ini_set('display_startup_errors', APP_DEBUG ? '1' : '0');
-    ini_set('log_errors', '1');
+    if (!defined('APP_DEBUG')) {
+        define('APP_DEBUG', getenv('APP_DEBUG') === '1' || getenv('APP_DEBUG') === 'true');
+    }
+    if (APP_DEBUG) {
+        error_reporting(E_ALL);
+        @ini_set('display_errors', '1');
+        @ini_set('display_startup_errors', '1');
+    }
+    @ini_set('log_errors', '1');
 
     if (!function_exists('ensureCsrfToken')) {
         function ensureCsrfToken(): void {
-            if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+            if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) { @session_start(); }
             if (empty($_SESSION['csrf_token'])) {
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             }

@@ -1,5 +1,5 @@
 <?php
-if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) { @session_start(); }
 require_once __DIR__ . '/../config.php';
 
 function ensureSuperAdminSchema(mysqli $link): void {
