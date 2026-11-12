@@ -15,8 +15,9 @@ function apiReadJson(): array {
     if (json_last_error() !== JSON_ERROR_NONE || !is_array($input) || substr(ltrim($raw), 0, 1) !== '{') {
         apiError(400, 'Request body must be a valid JSON object');
     }
+    $allowedArrayKeys = ['metadata', 'loan_qualification', 'loan_details', 'qualification'];
     foreach ($input as $key => $value) {
-        if ($key !== 'metadata' && (is_array($value) || is_object($value))) {
+        if (!in_array($key, $allowedArrayKeys, true) && (is_array($value) || is_object($value))) {
             apiError(400, 'Invalid value for ' . $key);
         }
     }

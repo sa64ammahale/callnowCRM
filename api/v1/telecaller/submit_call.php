@@ -29,6 +29,67 @@ if (isset($callCompletionRecordId)) {
 }
 
 global $link;
+
+// Resolve phone number if record_id is a phone number or explicit phone fields are provided
+$rawRecordId = $input['record_id'] ?? null;
+$rawPhone = $input['phone_number'] ?? ($input['mobile'] ?? ($input['phone'] ?? ($input['customer_mobile'] ?? null)));
+
+// If record_id is a phone string (e.g. 10+ digits, "+91...", or > 2147483647), treat it as phone number
+if ($rawRecordId !== null) {
+    if (is_string($rawRecordId) && preg_match('/^[0-9+ ]{10,}$/', trim($rawRecordId))) {
+        if (!$rawPhone) $rawPhone = trim($rawRecordId);
+        unset($input['record_id']);
+    } elseif (is_numeric($rawRecordId) && (float)$rawRecordId > 2147483647) {
+        if (!$rawPhone) $rawPhone = (string)$rawRecordId;
+        unset($input['record_id']);
+    }
+}
+
+if ((empty($input['record_id']) || (int)$input['record_id'] <= 0) && !empty($rawPhone)) {
+    $cleanPhone = preg_replace('/[^0-9]/', '', (string)$rawPhone);
+    if (strlen($cleanPhone) > 10) {
+        $cleanPhone = substr($cleanPhone, -10);
+    }
+    if (strlen($cleanPhone) >= 10) {
+        $qM = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
+        $qM->bind_param('s', $cleanPhone);
+        $qM->execute();
+        $mRow = $qM->get_result()->fetch_assoc();
+        $qM->close();
+
+        if ($mRow) {
+            $input['record_id'] = (int)$mRow['ID'];
+            $input['source'] = 'MAIN';
+        } else {
+            $qT = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE CUST_MOBILE = ? LIMIT 1");
+            $qT->bind_param('s', $cleanPhone);
+            $qT->execute();
+            $tRow = $qT->get_result()->fetch_assoc();
+            $qT->close();
+
+            if ($tRow) {
+                $input['record_id'] = (int)$tRow['ID'];
+                $input['source'] = 'TEMP';
+            } else {
+                $custName = trim($input['customer_name'] ?? ($input['name'] ?? 'Direct Dialed'));
+                $insM = $link->prepare("INSERT INTO " . tn('TBL_MAIN') . " (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER, MAINDATABASE_UPLOAD_DATETIME) VALUES (?, ?, ?, NOW())");
+                $insM->bind_param('ssi', $custName, $cleanPhone, $userId);
+                $insM->execute();
+                $input['record_id'] = (int)$insM->insert_id;
+                $input['source'] = 'MAIN';
+                $insM->close();
+            }
+        }
+    }
+}
+
+if (!empty($input['status']) && empty($input['call_status'])) {
+    $input['call_status'] = $input['status'];
+}
+if (empty($input['source'])) {
+    $input['source'] = 'MAIN';
+}
+
 foreach (['call_duration', 'duration_seconds', 'total_duration', 'record_id'] as $field) {
     if (isset($input[$field]) && (filter_var($input[$field], FILTER_VALIDATE_INT) === false || (int)$input[$field] < 0 || (int)$input[$field] > 2147483647)) {
         apiError(400, 'Invalid nonnegative integer: ' . $field);

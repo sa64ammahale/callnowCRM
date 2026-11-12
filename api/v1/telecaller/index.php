@@ -735,7 +735,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     apiSuccess(['data' => $rows, 'total' => count($rows)]);
     
-} elseif ($relativePath === '/submit_call' || $relativePath === '/submit_call/') {
+} elseif (in_array($relativePath, ['/submit_call', '/submit_call/', '/submit-call', '/submit-call/', '/calls/submit', '/calls/submit/', '/call/submit', '/call/submit/'], true)) {
     require __DIR__ . '/submit_call.php';
     exit;
 
@@ -746,6 +746,187 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $link->query("UPDATE " . tn('TBL_MAIN') . " SET BATCH_ASSIGNED_AT = NULL, MAINDATABASE_CALL_DIALED_USER = NULL WHERE MAINDATABASE_CALL_DIALED_USER = $userId AND BATCH_ASSIGNED_AT IS NOT NULL");
     $relMain = $link->affected_rows;
     apiSuccess(['total_released' => $relTemp + $relMain]);
+
+} elseif ($relativePath === '/team-officers' || $relativePath === '/team-officers/' || $relativePath === '/teams-and-officers') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
+
+    $isManagerOrAdmin = in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) || $userId === 1;
+    $isSupervisor = ($userRole === 'Supervisor');
+
+    $teams = [];
+    $officers = [];
+
+    if ($isManagerOrAdmin) {
+        $tRes = $link->query("SELECT ID, TEAM_NAME FROM " . tn('TBL_TEAMS') . " ORDER BY TEAM_NAME ASC");
+        while ($t = $tRes->fetch_assoc()) {
+            $teams[] = ['id' => (int)$t['ID'], 'name' => $t['TEAM_NAME']];
+        }
+        $uRes = $link->query("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY NAME ASC");
+        while ($u = $uRes->fetch_assoc()) {
+            $officers[] = [
+                'id' => (int)$u['ID'],
+                'name' => $u['NAME'],
+                'team_id' => (int)($u['TEAM_ID'] ?? 0),
+                'role' => $u['ROLE'],
+            ];
+        }
+    } elseif ($isSupervisor && $teamId) {
+        $tStmt = $link->prepare("SELECT ID, TEAM_NAME FROM " . tn('TBL_TEAMS') . " WHERE ID = ? LIMIT 1");
+        $tStmt->bind_param('i', $teamId);
+        $tStmt->execute();
+        $tRow = $tStmt->get_result()->fetch_assoc();
+        $tStmt->close();
+        if ($tRow) {
+            $teams[] = ['id' => (int)$tRow['ID'], 'name' => $tRow['TEAM_NAME']];
+        }
+        $uStmt = $link->prepare("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? AND STATUS = 'Active' ORDER BY NAME ASC");
+        $uStmt->bind_param('i', $teamId);
+        $uStmt->execute();
+        $uRes = $uStmt->get_result();
+        while ($u = $uRes->fetch_assoc()) {
+            $officers[] = [
+                'id' => (int)$u['ID'],
+                'name' => $u['NAME'],
+                'team_id' => (int)($u['TEAM_ID'] ?? 0),
+                'role' => $u['ROLE'],
+            ];
+        }
+        $uStmt->close();
+    } else {
+        $officers[] = ['id' => $userId, 'name' => $tokenData['user_name'] ?? 'Me', 'team_id' => (int)$teamId, 'role' => $userRole];
+    }
+
+    apiSuccess([
+        'teams' => $teams,
+        'officers' => $officers,
+        'can_filter_teams' => $isManagerOrAdmin || $isSupervisor,
+    ]);
+
+} elseif ($relativePath === '/lookup-contact' || $relativePath === '/lookup-contact/') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
+    $rawPhone = trim($_GET['phone'] ?? ($_GET['mobile'] ?? ''));
+    if ($rawPhone === '') apiError(400, 'Phone number is required');
+    $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+    if (strlen($cleanPhone) > 10) {
+        $cleanPhone = substr($cleanPhone, -10);
+    }
+    if (strlen($cleanPhone) < 10) {
+        apiError(400, 'Invalid phone number: must have at least 10 digits');
+    }
+
+    $contactData = null;
+
+    $stmtLead = $link->prepare("
+        SELECT l.lead_id, l.cust_id, l.NAME, l.MOBILE, l.EMAIL, l.CITY, l.STATE, l.loan_type, l.loan_amount,
+               l.lead_status_new, l.target_bank, l.assigned_to, l.NOTES, u.NAME as officer_name
+        FROM " . tn('TBL_LEADS') . " l
+        LEFT JOIN " . tn('TBL_USERS') . " u ON l.assigned_to = u.ID
+        WHERE l.MOBILE LIKE ?
+        ORDER BY l.lead_id DESC LIMIT 1
+    ");
+    $phoneParam = "%$cleanPhone";
+    $stmtLead->bind_param('s', $phoneParam);
+    $stmtLead->execute();
+    $leadRow = $stmtLead->get_result()->fetch_assoc();
+    $stmtLead->close();
+
+    if ($leadRow) {
+        $contactData = [
+            'found' => true,
+            'source_type' => 'LEAD',
+            'lead_id' => (int)$leadRow['lead_id'],
+            'record_id' => (int)($leadRow['cust_id'] ?? $leadRow['lead_id']),
+            'name' => $leadRow['NAME'] ?? '',
+            'mobile' => $leadRow['MOBILE'] ?? '',
+            'email' => $leadRow['EMAIL'] ?? '',
+            'city' => $leadRow['CITY'] ?? '',
+            'state' => $leadRow['STATE'] ?? '',
+            'status' => $leadRow['lead_status_new'] ?? 'Lead',
+            'loan_type' => $leadRow['loan_type'] ?? '',
+            'loan_amount' => $leadRow['loan_amount'] ?? '',
+            'target_bank' => $leadRow['target_bank'] ?? '',
+            'assigned_to' => (int)$leadRow['assigned_to'],
+            'officer_name' => $leadRow['officer_name'] ?? '',
+            'notes' => $leadRow['NOTES'] ?? '',
+            'is_lead' => true,
+        ];
+    } else {
+        $stmtMain = $link->prepare("
+            SELECT m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE, m.MAINDATABASE_EMAIL, m.MAINDATABASE_CITY,
+                   m.MAINDATABASE_CALL_DIALED_STATUS, m.MAINDATABASE_CALL_DIALED_USER, m.MAINDATABASE_OTHER_INFO,
+                   m.LAST_DIALED_DATE_TIME, m.LAST_CONNECTED_PERIOD, u.NAME as officer_name
+            FROM " . tn('TBL_MAIN') . " m
+            LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID
+            WHERE m.MAINDATABASE_MOBILE LIKE ?
+            ORDER BY m.ID DESC LIMIT 1
+        ");
+        $stmtMain->bind_param('s', $phoneParam);
+        $stmtMain->execute();
+        $mainRow = $stmtMain->get_result()->fetch_assoc();
+        $stmtMain->close();
+
+        if ($mainRow) {
+            $contactData = [
+                'found' => true,
+                'source_type' => 'MAIN',
+                'record_id' => (int)$mainRow['ID'],
+                'name' => $mainRow['MAINDATABASE_NAME'] ?? '',
+                'mobile' => $mainRow['MAINDATABASE_MOBILE'] ?? '',
+                'email' => $mainRow['MAINDATABASE_EMAIL'] ?? '',
+                'city' => $mainRow['MAINDATABASE_CITY'] ?? '',
+                'status' => $mainRow['MAINDATABASE_CALL_DIALED_STATUS'] ?: 'Pending',
+                'assigned_to' => (int)($mainRow['MAINDATABASE_CALL_DIALED_USER'] ?? 0),
+                'officer_name' => $mainRow['officer_name'] ?? '',
+                'notes' => $mainRow['MAINDATABASE_OTHER_INFO'] ?? '',
+                'last_dialed' => $mainRow['LAST_DIALED_DATE_TIME'],
+                'last_connected' => $mainRow['LAST_CONNECTED_PERIOD'],
+                'is_lead' => false,
+            ];
+        } else {
+            $stmtTemp = $link->prepare("
+                SELECT t.ID, t.CUST_NAME, t.CUST_MOBILE, t.CUST_EMAIL, t.CUST_CITY,
+                       t.CALL_DIALED_STATUS, t.CALL_DIALED_TELECALLER, t.CUST_OTHER_INFO,
+                       t.LAST_DIALED_DATE_TIME, t.LAST_CONNECTED_PERIOD, u.NAME as officer_name
+                FROM " . tn('TBL_TEMP') . " t
+                LEFT JOIN " . tn('TBL_USERS') . " u ON t.CALL_DIALED_TELECALLER = u.ID
+                WHERE t.CUST_MOBILE LIKE ?
+                ORDER BY t.ID DESC LIMIT 1
+            ");
+            $stmtTemp->bind_param('s', $phoneParam);
+            $stmtTemp->execute();
+            $tempRow = $stmtTemp->get_result()->fetch_assoc();
+            $stmtTemp->close();
+
+            if ($tempRow) {
+                $contactData = [
+                    'found' => true,
+                    'source_type' => 'TEMP',
+                    'record_id' => (int)$tempRow['ID'],
+                    'name' => $tempRow['CUST_NAME'] ?? '',
+                    'mobile' => $tempRow['CUST_MOBILE'] ?? '',
+                    'email' => $tempRow['CUST_EMAIL'] ?? '',
+                    'city' => $tempRow['CUST_CITY'] ?? '',
+                    'status' => $tempRow['CALL_DIALED_STATUS'] ?: 'Pending',
+                    'assigned_to' => (int)($tempRow['CALL_DIALED_TELECALLER'] ?? 0),
+                    'officer_name' => $tempRow['officer_name'] ?? '',
+                    'notes' => $tempRow['CUST_OTHER_INFO'] ?? '',
+                    'last_dialed' => $tempRow['LAST_DIALED_DATE_TIME'],
+                    'last_connected' => $tempRow['LAST_CONNECTED_PERIOD'],
+                    'is_lead' => false,
+                ];
+            } else {
+                $contactData = [
+                    'found' => false,
+                    'source_type' => 'NEW',
+                    'mobile' => $cleanPhone,
+                    'status' => 'New Prospect',
+                    'is_lead' => false,
+                ];
+            }
+        }
+    }
+
+    apiSuccess($contactData);
 
 } elseif ($relativePath === '/leads' || $relativePath === '/leads/') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -767,20 +948,53 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             $whereParts[] = buildDateCondition($period, $dateFrom, $dateTo, 'COALESCE(l.created_at, l.updated_at)');
         }
 
-        if ($userRole === 'Admin' || $userRole === 'Manager' || $userRole === 'Super Admin') {
-            if (!empty($_GET['user_id'])) {
+        $scope = strtolower(trim($_GET['scope'] ?? 'all'));
+        $filterUserId = !empty($_GET['user_id']) ? (int)$_GET['user_id'] : null;
+        $filterTeamId = !empty($_GET['team_id']) ? (int)$_GET['team_id'] : null;
+
+        if ($userRole === 'Admin' || $userRole === 'Manager' || $userRole === 'Super Admin' || $userId === 1) {
+            if ($scope === 'mine') {
+                $whereParts[] = "(l.assigned_to = ? OR l.created_by = ?)";
+                $params[] = $userId;
+                $params[] = $userId;
+                $types .= 'ii';
+            } elseif ($filterUserId) {
                 $whereParts[] = "l.assigned_to = ?";
-                $params[] = (int)$_GET['user_id'];
+                $params[] = $filterUserId;
                 $types .= 'i';
+            } elseif ($filterTeamId) {
+                $whereParts[] = "(u.TEAM_ID = ? OR l.team_id = ?)";
+                $params[] = $filterTeamId;
+                $params[] = $filterTeamId;
+                $types .= 'ii';
             } else {
                 $whereParts[] = "1=1";
             }
         } elseif ($userRole === 'Supervisor' && $teamId) {
-            $whereParts[] = "(u.TEAM_ID = ? OR l.assigned_to = ? OR l.created_by = ?)";
-            $params[] = $teamId;
-            $params[] = $userId;
-            $params[] = $userId;
-            $types .= 'iii';
+            if ($scope === 'mine') {
+                $whereParts[] = "(l.assigned_to = ? OR l.created_by = ?)";
+                $params[] = $userId;
+                $params[] = $userId;
+                $types .= 'ii';
+            } elseif ($filterUserId) {
+                $whereParts[] = "l.assigned_to = ? AND (u.TEAM_ID = ? OR l.team_id = ?)";
+                $params[] = $filterUserId;
+                $params[] = $teamId;
+                $params[] = $teamId;
+                $types .= 'iii';
+            } elseif ($filterTeamId && $filterTeamId === $teamId) {
+                $whereParts[] = "(u.TEAM_ID = ? OR l.team_id = ?)";
+                $params[] = $teamId;
+                $params[] = $teamId;
+                $types .= 'ii';
+            } else {
+                $whereParts[] = "(u.TEAM_ID = ? OR l.team_id = ? OR l.assigned_to = ? OR l.created_by = ?)";
+                $params[] = $teamId;
+                $params[] = $teamId;
+                $params[] = $userId;
+                $params[] = $userId;
+                $types .= 'iiii';
+            }
         } else {
             $whereParts[] = "(l.assigned_to = ? OR l.created_by = ?)";
             $params[] = $userId;
@@ -839,10 +1053,22 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                         m.LAST_DIALED_DATE_TIME as last_call_time,
                         COALESCE(l.created_at, m.MAINDATABASE_UPLOAD_DATETIME) as upload_time,
                         COALESCE(m.CALL_COUNT, 0) as call_count,
-                        u.NAME as assigned_user_name
+                        l.assigned_to,
+                        u.NAME as assigned_user_name,
+                        COALESCE(l.team_id, u.TEAM_ID) as team_id,
+                        t.TEAM_NAME as team_name,
+                        l.loan_type,
+                        l.lead_stage,
+                        l.priority,
+                        l.login_bank_name,
+                        l.bank_name,
+                        l.net_salary,
+                        l.salary_account,
+                        l.next_followup_at
                     FROM " . tn('TBL_LEADS') . " l
                     LEFT JOIN " . tn('TBL_MAIN') . " m ON l.cust_id = m.ID
                     LEFT JOIN " . tn('TBL_USERS') . " u ON l.assigned_to = u.ID
+                    LEFT JOIN " . tn('TBL_TEAMS') . " t ON (COALESCE(l.team_id, u.TEAM_ID) = t.ID)
                     $whereSql
                     ORDER BY COALESCE(l.created_at, l.updated_at) DESC, l.lead_id DESC
                     LIMIT ? OFFSET ?";
@@ -877,6 +1103,19 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 'upload_time' => $r['upload_time'],
                 'call_count' => (int)($r['call_count'] ?? 0),
                 'assigned_user' => $r['assigned_user_name'] ?? null,
+                'assigned_user_name' => $r['assigned_user_name'] ?? null,
+                'assigned_user_id' => (int)($r['assigned_to'] ?? 0),
+                'team_id' => (int)($r['team_id'] ?? 0),
+                'team_name' => $r['team_name'] ?? null,
+                'is_own_lead' => ((int)($r['assigned_to'] ?? 0) === $userId || (int)($r['created_by'] ?? 0) === $userId),
+                'loan_type' => $r['loan_type'] ?? 'Personal Loan',
+                'lead_stage' => $r['lead_stage'] ?? 'Warm',
+                'priority' => $r['priority'] ?? 'Medium',
+                'login_bank_name' => $r['login_bank_name'] ?? null,
+                'bank_name' => $r['bank_name'] ?? null,
+                'net_salary' => $r['net_salary'] ?? null,
+                'salary_account' => $r['salary_account'] ?? null,
+                'next_followup_at' => $r['next_followup_at'] ?? null,
             ];
         }
 
@@ -1025,28 +1264,89 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             }
         }
 
+        $loanType = trim($input['loan_type'] ?? '');
+        $leadStage = trim($input['lead_stage'] ?? ($input['stage'] ?? 'Warm'));
+        if (!in_array($leadStage, ['Hot', 'Warm', 'Cold'], true)) $leadStage = 'Warm';
+        $priority = trim($input['priority'] ?? 'Medium');
+        if (!in_array($priority, ['High', 'Medium', 'Low'], true)) $priority = 'Medium';
+        $loginBank = trim($input['login_bank_name'] ?? ($input['bank_name'] ?? ''));
+        $bankName = trim($input['bank_name'] ?? $loginBank);
+        $netSalary = trim($input['net_salary'] ?? '');
+        $salaryAccount = trim($input['salary_account'] ?? '');
+        $leadStatusNew = strtoupper(trim($input['lead_status_new'] ?? ($input['status'] ?? 'LEAD')));
+        $validPipeline = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
+        if (!in_array($leadStatusNew, $validPipeline, true)) $leadStatusNew = 'LEAD';
+        $nextFollowupAt = !empty($input['next_followup_at']) ? date('Y-m-d H:i:s', strtotime($input['next_followup_at'])) : null;
+
         $newLeadId = 0;
-        if ($source === 'MAIN' && $createdId > 0) {
-            $lChk = $link->prepare("SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = ? LIMIT 1");
+        if ($createdId > 0) {
+            $lChk = $link->prepare("SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE cust_id = ? OR MOBILE = ? ORDER BY lead_id DESC LIMIT 1");
             if ($lChk) {
-                $lChk->bind_param('i', $createdId);
+                $lChk->bind_param('is', $createdId, $mobile);
                 $lChk->execute();
                 $lExist = $lChk->get_result()->fetch_assoc();
                 $lChk->close();
 
                 if (!$lExist) {
                     $lStmt = $link->prepare("INSERT INTO " . tn('TBL_LEADS') . " (
-                        cust_id, assigned_to, assigned_by, lead_status, lead_status_new,
-                        loan_amount, remarks, created_by, updated_by, created_at, updated_at
-                    ) VALUES (?, ?, ?, 'New', 'LEAD', ?, ?, ?, ?, NOW(), NOW())");
+                        cust_id, NAME, MOBILE, COMPANY_NAME, OTHER_INFO, assigned_to, assigned_by,
+                        lead_status, lead_status_new, loan_amount, loan_type, login_bank_name, bank_name,
+                        net_salary, salary_account, priority, lead_stage, next_followup_at, remarks,
+                        created_by, updated_by, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
                     if ($lStmt) {
-                        $lStmt->bind_param('iiissii', $createdId, $userId, $userId, $package, $otherInfo, $userId, $userId);
+                        $lStmt->bind_param('issssiisssssssssssii',
+                            $createdId, $name, $mobile, $company, $otherInfo, $userId, $userId,
+                            $leadStatusNew, $package, $loanType, $loginBank, $bankName,
+                            $netSalary, $salaryAccount, $priority, $leadStage, $nextFollowupAt, $otherInfo,
+                            $userId, $userId
+                        );
                         $lStmt->execute();
                         $newLeadId = (int)$lStmt->insert_id;
                         $lStmt->close();
                     }
                 } else {
                     $newLeadId = (int)$lExist['lead_id'];
+                    $lUpd = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET 
+                        NAME = CASE WHEN ? != '' THEN ? ELSE NAME END,
+                        MOBILE = CASE WHEN ? != '' THEN ? ELSE MOBILE END,
+                        COMPANY_NAME = CASE WHEN ? != '' THEN ? ELSE COMPANY_NAME END,
+                        OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE OTHER_INFO END,
+                        loan_amount = CASE WHEN ? != '' THEN ? ELSE loan_amount END,
+                        loan_type = CASE WHEN ? != '' THEN ? ELSE loan_type END,
+                        login_bank_name = CASE WHEN ? != '' THEN ? ELSE login_bank_name END,
+                        bank_name = CASE WHEN ? != '' THEN ? ELSE bank_name END,
+                        net_salary = CASE WHEN ? != '' THEN ? ELSE net_salary END,
+                        salary_account = CASE WHEN ? != '' THEN ? ELSE salary_account END,
+                        priority = CASE WHEN ? != '' THEN ? ELSE priority END,
+                        lead_stage = CASE WHEN ? != '' THEN ? ELSE lead_stage END,
+                        next_followup_at = COALESCE(?, next_followup_at),
+                        remarks = CASE WHEN ? != '' THEN ? ELSE remarks END,
+                        updated_by = ?,
+                        updated_at = NOW()
+                        WHERE lead_id = ?");
+                    if ($lUpd) {
+                        $lUpd->bind_param('ssssssssssssssssssssssssssii',
+                            $name, $name,
+                            $mobile, $mobile,
+                            $company, $company,
+                            $otherInfo, $otherInfo,
+                            $package, $package,
+                            $loanType, $loanType,
+                            $loginBank, $loginBank,
+                            $bankName, $bankName,
+                            $netSalary, $netSalary,
+                            $salaryAccount, $salaryAccount,
+                            $priority, $priority,
+                            $leadStage, $leadStage,
+                            $nextFollowupAt,
+                            $otherInfo, $otherInfo,
+                            $userId,
+                            $newLeadId
+                        );
+                        $lUpd->execute();
+                        $lUpd->close();
+                    }
                 }
             }
         }
@@ -1254,6 +1554,29 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $stmt->execute();
         $stmt->close();
 
+        $lUpd = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET 
+            NAME = CASE WHEN ? != '' THEN ? ELSE NAME END,
+            COMPANY_NAME = CASE WHEN ? != '' THEN ? ELSE COMPANY_NAME END,
+            loan_amount = CASE WHEN ? != '' THEN ? ELSE loan_amount END,
+            remarks = CASE WHEN ? != '' THEN ? ELSE remarks END,
+            OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE OTHER_INFO END,
+            updated_by = ?,
+            updated_at = NOW()
+            WHERE lead_id = ? OR cust_id = ?");
+        if ($lUpd) {
+            $lUpd->bind_param('sssssssssiii',
+                $name, $name,
+                $company, $company,
+                $package, $package,
+                $otherInfo, $otherInfo,
+                $otherInfo,
+                $userId,
+                $leadId, $leadId
+            );
+            $lUpd->execute();
+            $lUpd->close();
+        }
+
         apiSuccess(['message' => 'Lead updated successfully']);
     } else {
         apiError(405, 'Method not allowed');
@@ -1377,7 +1700,41 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $note = trim($input['note'] ?? ($input['remarks'] ?? ''));
 
         if (!$followupAt) apiError(400, 'followup_at date/time is required');
-        if (!$leadId && !$contactId) apiError(400, 'Either lead_id or client_contact_id is required');
+        if (!$leadId && !$contactId) {
+            $mobile = trim($input['customer_mobile'] ?? ($input['phone_number'] ?? ($input['mobile'] ?? ($input['phone'] ?? ''))));
+            $mobile = preg_replace('/[^0-9]/', '', $mobile);
+            if (strlen($mobile) > 10 && substr($mobile, 0, 2) === '91') $mobile = substr($mobile, 2);
+            if (!empty($mobile) && strlen($mobile) >= 10) {
+                $custName = trim($input['customer_name'] ?? ($input['name'] ?? 'Follow-up Contact'));
+                $mStmt = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
+                $mStmt->bind_param('s', $mobile);
+                $mStmt->execute();
+                $mRow = $mStmt->get_result()->fetch_assoc();
+                $mStmt->close();
+                if ($mRow) {
+                    $contactId = (int)$mRow['ID'];
+                    $contactSource = 'MAIN';
+                } else {
+                    $tStmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE CUST_MOBILE = ? LIMIT 1");
+                    $tStmt->bind_param('s', $mobile);
+                    $tStmt->execute();
+                    $tRow = $tStmt->get_result()->fetch_assoc();
+                    $tStmt->close();
+                    if ($tRow) {
+                        $contactId = (int)$tRow['ID'];
+                        $contactSource = 'TEMP';
+                    } else {
+                        $ins = $link->prepare("INSERT INTO " . tn('TBL_MAIN') . " (MAINDATABASE_NAME, MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER, MAINDATABASE_UPLOAD_DATETIME) VALUES (?, ?, ?, NOW())");
+                        $ins->bind_param('ssi', $custName, $mobile, $userId);
+                        $ins->execute();
+                        $contactId = (int)$ins->insert_id;
+                        $contactSource = 'MAIN';
+                        $ins->close();
+                    }
+                }
+            }
+        }
+        if (!$leadId && !$contactId) apiError(400, 'Either lead_id, client_contact_id, or valid phone_number is required');
 
         $stmt = $link->prepare("INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, client_contact_id, contact_source, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'OPEN', NOW())");
         $stmt->bind_param('iissis', $leadId, $contactId, $contactSource, $userId, $followupAt, $note);

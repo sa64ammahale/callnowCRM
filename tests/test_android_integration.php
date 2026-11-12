@@ -168,5 +168,72 @@ dbExecute('INSERT INTO ' . tn('TBL_API_SETTINGS') . ' (setting_key, setting_valu
 $r = androidApi('POST', '/auth/login', ['username' => $users[0]['login'], 'password' => $password]);
 androidCheck('Disabled API blocks Android login', $r['status'] === 503, $r);
 dbExecute('UPDATE ' . tn('TBL_API_SETTINGS') . ' SET setting_value = ? WHERE setting_key = ?', ['1', 'api_enabled']);
+
+// Re-login user 0 to get an active token for subsequent tests
+$rLoginActive = androidApi('POST', '/auth/login', ['username' => $users[0]['login'], 'password' => $password]);
+$activeToken = $rLoginActive['json']['data']['token'] ?? '';
+
+// Verify mobile password reset OTP flow
+$rForgot = androidApi('POST', '/auth/forgot-password', ['email' => $users[0]['login']]);
+androidCheck('Forgot password returns success', $rForgot['status'] === 200 && ($rForgot['json']['success'] ?? false) === true, $rForgot);
+$otp = $rForgot['json']['data']['debug_otp'] ?? null;
+if ($otp) {
+    $rReset = androidApi('POST', '/auth/reset-password', [
+        'email' => $users[0]['login'],
+        'otp' => $otp,
+        'new_password' => 'NewPassword!123',
+        'password_confirmation' => 'NewPassword!123',
+    ]);
+    androidCheck('Reset password with OTP succeeds', $rReset['status'] === 200 && ($rReset['json']['success'] ?? false) === true, $rReset);
+    // Restore original password
+    $restoreHash = password_hash($password, PASSWORD_DEFAULT);
+    dbExecute('UPDATE ' . tn('TBL_USERS') . ' SET PASSWORD = ? WHERE ID = ?', [$restoreHash, $users[0]['id']]);
+    // Re-login to get active session
+    $rRelogin = androidApi('POST', '/auth/login', ['username' => $users[0]['login'], 'password' => $password]);
+    $activeToken = $rRelogin['json']['data']['token'] ?? $activeToken;
+}
+
+// Verify lead creation with complete financial & bank fields
+$leadMobile = '98' . sprintf('%08d', random_int(10000000, 99999999));
+$rLead = androidApi('POST', '/telecaller/leads', [
+    'name' => 'Auto Lead Test',
+    'mobile' => $leadMobile,
+    'company' => 'Acme Corp',
+    'package' => '500000',
+    'loan_type' => 'Business Loan',
+    'lead_stage' => 'Hot',
+    'priority' => 'High',
+    'login_bank_name' => 'HDFC Bank',
+    'bank_name' => 'HDFC Bank',
+    'net_salary' => '75000',
+    'salary_account' => 'ICICI Bank',
+    'status' => 'LEAD',
+], $activeToken);
+androidCheck('Lead creation with bank & finance fields succeeds', $rLead['status'] === 201 || $rLead['status'] === 200, $rLead);
+$createdLId = (int)($rLead['json']['data']['lead']['lead_id'] ?? 0);
+$checkLeadDb = dbFetchOne('SELECT loan_type, login_bank_name, net_salary, priority FROM ' . tn('TBL_LEADS') . ' WHERE MOBILE = ?', [$leadMobile]);
+androidCheck('TBL_LEADS persisted financial and bank columns', ($checkLeadDb['login_bank_name'] ?? '') === 'HDFC Bank' && ($checkLeadDb['loan_type'] ?? '') === 'Business Loan', $checkLeadDb ?: []);
+
+// Verify phone-only follow-up creation
+$fPhoneMobile = '97' . sprintf('%08d', random_int(10000000, 99999999));
+$rFPhone = androidApi('POST', '/telecaller/follow-ups', [
+    'phone_number' => $fPhoneMobile,
+    'customer_name' => 'Direct Phone Followup',
+    'followup_at' => date('Y-m-d H:i:s', time() + 3600),
+    'note' => 'Call back regarding quotation',
+], $activeToken);
+androidCheck('Follow-up creation with phone number succeeds', $rFPhone['status'] === 200 && !empty($rFPhone['json']['data']['followup_id']), $rFPhone);
+
+// Verify phone-only background call submission
+$bgCallMobile = '96' . sprintf('%08d', random_int(10000000, 99999999));
+$rBgCall = androidApi('POST', '/telecaller/submit_call', [
+    'phone_number' => $bgCallMobile,
+    'call_status' => 'Connected',
+    'call_duration' => 45,
+    'source' => 'MAIN',
+    'notes' => 'Background tracked call test',
+], $activeToken);
+androidCheck('Background call submission with phone number succeeds', $rBgCall['status'] === 200 && !empty($rBgCall['json']['data']['log_id']), $rBgCall);
+
 echo "Android integration: $passed passed, $failed failed" . PHP_EOL;
 exit($failed ? 1 : 0);

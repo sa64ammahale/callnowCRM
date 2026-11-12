@@ -518,9 +518,38 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - **Mobile Model (`followup_model.dart`)**: Added `userId` and `officerName` to `FollowupModel` with full JSON serialization and copy constructors.
   - **Mobile Service (`followup_service.dart`)**: Storage key is now partitioned by logged-in user (`callnow_saved_followups_uid_${userId}`). Added `clearLocalCache()` called on logout in `ConfigService.clearAuthData()`. `syncWithServer(scope: 'mine')` enforces client-side data isolation, discarding stale or foreign follow-ups.
   - **Mobile UI (`followup_screen.dart`)**: Added a scope toggle pill (`My Follow-ups` vs `All Team Follow-ups`) for Admin/Manager/Supervisor roles. Follow-up cards now render an officer badge (`👤 Officer: <Name>`) when viewing team records.
+
+## Completed Feature (2026-11-12): Comprehensive Mobile App & CRM API Parity Audit & Fixes
+- **Mobile Password Reset via OTP (`api/v1/auth/index.php`)**:
+  - Implemented `POST /api/v1/auth/forgot-password` (and aliases `/auth/send-otp`, `/auth/reset-password/otp`, `/auth/password/email-otp`): verifies active user, generates 6-digit numeric OTP, saves sha256 hash in `password_reset_tokens` (15-min expiry), sends email notification, and returns success JSON.
+  - Implemented `POST /api/v1/auth/reset-password` (and aliases `/auth/verify-otp-reset`, `/auth/password/reset`): validates OTP hash against `password_reset_tokens`, updates bcrypt password in `TBL_USERS`, expires the token, revokes active `TBL_API_TOKENS`, and returns success JSON.
+- **Lead Creation & Update Full Field Persistence (`api/v1/telecaller/index.php`)**:
+  - `POST /telecaller/leads`: Now persists all financial and banking fields (`loan_type`, `login_bank_name`, `bank_name`, `net_salary`, `salary_account`, `priority`, `lead_stage`, `next_followup_at`, `lead_status_new`, `NAME`, `MOBILE`, `COMPANY_NAME`, `OTHER_INFO`) into `TBL_LEADS` on both insert and update.
+  - `PUT /telecaller/leads/$id`: Now synchronizes updates to `TBL_LEADS` simultaneously with `TBL_MAIN`/`TBL_TEMP`, preventing data divergence between web pipeline board and mobile screens.
+- **Background Call Tracking & Phone Resolution (`api/v1/telecaller/submit_call.php`, `call_tracking_service.dart`)**:
+  - Updated `submit_call.php` to handle non-integer or > 2,147,483,647 phone numbers in `record_id` and explicit `phone_number`/`mobile` fields. It searches `TBL_MAIN` and `TBL_TEMP` by 10-digit mobile number, or automatically creates a contact record in `TBL_MAIN` for external dialed calls, completely eliminating HTTP 400 integer validation errors and HTTP 404 missing record errors during background call logging.
+  - Aligned `call_tracking_service.dart` to send `phone_number` and `mobile` in background call sync payloads.
+- **Follow-up Creation Fallback by Phone (`api/v1/telecaller/index.php`, `api_service.dart`, `followup_service.dart`)**:
+  - Updated `POST /telecaller/follow-ups` to accept `phone_number` and `customer_name` when `lead_id` and `client_contact_id` are absent. Resolves existing contact in `TBL_MAIN` or `TBL_TEMP` by 10-digit mobile number, or auto-creates contact in `TBL_MAIN`, associating the follow-up record cleanly.
+  - Updated `ApiService.createServerFollowup` and `FollowupService.addFollowup` to forward `customerName` and `phoneNumber`.
 - **Verification**:
-  - `tests/test_android_integration.php`: Added assertions for follow-up isolation (`scope=mine` vs `scope=all`), officer boundary clamping, and period filtering.
-  - Full audit suite (`tests/run_project_audit.php`): Passed 100% across all 25 page audits and test suites (62/62 android integration assertions, 5/5 concurrency, 46/46 API module, 39/39 users section, 31/31 users view, 10/10 auth, 27/27 data workflows).
-  - Mobile app `dart analyze`: 0 errors, 0 warnings.
+  - All 9 test suites in `tests/run_project_audit.php` passed with exit code 0 (25 web audit, 25 web pages, 5 concurrency, 67 android integration, 46 api module, 39 users module, 31 users view, 10 web auth, 27 web data workflows).
+  - `dart analyze` on Flutter app passed with 0 issues.
+## Completed Feature (2026-11-12): Automatic Callback Tracking, Post-Call Prompts, and Leads Differentiation
+- **Incoming Callback Auto-Tracking & Post-Call Action Prompt**:
+  - **Backend (`api/v1/telecaller/index.php`, `submit_call.php`)**: Added `GET /telecaller/lookup-contact` endpoint to resolve contact details across `TBL_LEADS`, `TBL_MAIN`, and `TBL_TEMP` by 10-digit phone number. In `submit_call.php`, normalized phone numbers using `substr($cleanPhone, -10)` to reliably match Indian incoming numbers (`+91...` or `0...`).
+  - **Native Android (`MainActivity.kt`)**: Added `getRecentCallLogs` method channel invoking `CallLog.Calls.CONTENT_URI` to inspect recent incoming and outgoing calls with durations, timestamps, and caller types.
+  - **Mobile Service (`call_tracking_service.dart`)**: Background listener stores pending post-call metadata in `SharedPreferences` when an incoming call connects with `duration > 0`, and auto-submits call to CRM with status `Incoming Connected`. Added `getRecentCallLogs`, `getPendingPostCall`, and processed call caching.
+  - **Mobile UI (`incoming_call_action_dialog.dart`, `home_screen.dart`)**: On app resume, checks for pending connected calls/callbacks. Displays `IncomingCallActionDialog` with previous status badge (e.g. `Was: Ringing`), talk duration, and 3 quick action tabs: Quick Status Update, Convert to CRM Lead, and Schedule Follow-up.
+- **Leads Differentiation for TL & Managers (`api/v1/telecaller/index.php`, `leads_screen.dart`, `crm_lead.dart`)**:
+  - Added `GET /telecaller/team-officers` for hierarchical team and member discovery.
+  - Enhanced `GET /telecaller/leads` with `scope` (`mine`, `team`, `all`), `team_id`, and `user_id` filtering. Joined `TBL_TEAMS` and `TBL_USERS` to return `assigned_user_id`, `assigned_user_name`, `team_id`, `team_name`, and `is_own_lead`.
+  - In `leads_screen.dart`, added `_buildManagementFilterBar()` with scope toggle pills, team dropdown, and officer dropdown. Updated cards with ownership badges (`👤 My Lead` vs `👤 Officer: [Name] • [Team]`).
+- **Submit Call Result 400 Fix (`php_scripts/api_auth.php`)**:
+  - Whitelisted `loan_qualification`, `loan_details`, and `qualification` associative arrays in `apiReadJson()` validator to allow rich loan payloads.
+- **Verification**:
+  - `tests/run_project_audit.php`: All 9 test suites passed with exit code 0 (68/68 android integration assertions).
+  - `dart analyze` in Flutter app: 0 issues found (0 errors, 0 warnings).
+
 
 

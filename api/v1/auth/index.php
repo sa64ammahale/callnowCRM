@@ -219,6 +219,134 @@ if ($endpoint === '/login') {
     handleMobilePasswordChange($link, $userId, $input);
 
 // -------------------------------------------------------------
+// 6b. FORGOT PASSWORD (REQUEST OTP)
+// -------------------------------------------------------------
+} elseif ($endpoint === '/forgot-password' || $endpoint === '/send-otp' || $endpoint === '/reset-password/otp' || $endpoint === '/password/email-otp') {
+    if ($method !== 'POST') {
+        apiError(405, 'Method not allowed');
+    }
+
+    $email = trim((string)($input['email'] ?? ($input['username'] ?? '')));
+    if ($email === '') {
+        apiError(400, 'Email address or username is required');
+    }
+
+    require_once __DIR__ . '/../../../php_scripts/password_reset.php';
+    ensurePasswordResetSchema($link);
+
+    $stmt = $link->prepare("SELECT ID, LOGIN_ID, EMAIL, STATUS FROM " . tn('TBL_USERS') . " WHERE (EMAIL = ? OR LOGIN_ID = ?) AND STATUS = 'Active' LIMIT 1");
+    $stmt->bind_param('ss', $email, $email);
+    $stmt->execute();
+    $targetUser = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    $otp = sprintf('%06d', random_int(100000, 999999));
+    $tokenHash = hash('sha256', $otp);
+    $expiresAt = date('Y-m-d H:i:s', time() + 900); // 15 minutes
+
+    if ($targetUser) {
+        $uId = (int)$targetUser['ID'];
+        // Invalidate older unused reset tokens for this user
+        $inv = $link->prepare("UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL");
+        $inv->bind_param('i', $uId);
+        $inv->execute();
+        $inv->close();
+
+        // Insert new OTP token
+        $tokStmt = $link->prepare("INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)");
+        $tokStmt->bind_param('iss', $uId, $tokenHash, $expiresAt);
+        $tokStmt->execute();
+        $tokStmt->close();
+
+        $destEmail = !empty($targetUser['EMAIL']) && filter_var($targetUser['EMAIL'], FILTER_VALIDATE_EMAIL) ? $targetUser['EMAIL'] : $targetUser['LOGIN_ID'];
+        if (filter_var($destEmail, FILTER_VALIDATE_EMAIL)) {
+            @mail($destEmail, 'CallNow CRM - Password Reset Verification Code', "Your verification code to reset your CallNow CRM password is:\n\n{$otp}\n\nThis code will expire in 15 minutes.\nIf you did not request this, please ignore this email.");
+        }
+        logActivity($link, $uId, 'PASSWORD_RESET_OTP', "Password reset OTP requested for {$destEmail}", (string)$uId, 'TBL_USERS');
+    }
+
+    apiSuccess([
+        'success' => true,
+        'message' => 'If an active account exists with this email, a verification code has been sent.',
+        'debug_otp' => APP_DEBUG ? $otp : null,
+    ]);
+
+// -------------------------------------------------------------
+// 6c. RESET PASSWORD WITH OTP
+// -------------------------------------------------------------
+} elseif ($endpoint === '/reset-password' || $endpoint === '/verify-otp-reset' || $endpoint === '/password/reset') {
+    if ($method !== 'POST') {
+        apiError(405, 'Method not allowed');
+    }
+
+    $email = trim((string)($input['email'] ?? ($input['username'] ?? '')));
+    $otp   = trim((string)($input['otp'] ?? ($input['token'] ?? ($input['code'] ?? ''))));
+    $newPass = (string)($input['new_password'] ?? ($input['password'] ?? ''));
+    $confirmPass = (string)($input['password_confirmation'] ?? ($input['confirm_password'] ?? ''));
+
+    if ($email === '') apiError(400, 'Email address is required');
+    if ($otp === '') apiError(400, 'Verification code / OTP is required');
+    if (strlen($newPass) < 6) apiError(400, 'Password must be at least 6 characters long');
+    if ($confirmPass !== '' && $confirmPass !== $newPass) apiError(400, 'Password confirmation does not match');
+
+    require_once __DIR__ . '/../../../php_scripts/password_reset.php';
+    ensurePasswordResetSchema($link);
+
+    $stmt = $link->prepare("SELECT ID, LOGIN_ID, STATUS FROM " . tn('TBL_USERS') . " WHERE (EMAIL = ? OR LOGIN_ID = ?) AND STATUS = 'Active' LIMIT 1");
+    $stmt->bind_param('ss', $email, $email);
+    $stmt->execute();
+    $targetUser = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$targetUser) {
+        apiError(400, 'Invalid request or user not found');
+    }
+
+    $uId = (int)$targetUser['ID'];
+    $otpHash = hash('sha256', $otp);
+
+    $chk = $link->prepare("SELECT id FROM password_reset_tokens WHERE user_id = ? AND token_hash = ? AND used_at IS NULL AND expires_at > NOW() ORDER BY id DESC LIMIT 1");
+    $chk->bind_param('is', $uId, $otpHash);
+    $chk->execute();
+    $tokenRow = $chk->get_result()->fetch_assoc();
+    $chk->close();
+
+    if (!$tokenRow) {
+        apiError(400, 'Invalid or expired verification code');
+    }
+
+    $link->begin_transaction();
+    try {
+        $hash = password_hash($newPass, PASSWORD_DEFAULT);
+        $uStmt = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET PASSWORD = ?, UPDATED_AT = NOW() WHERE ID = ?");
+        $uStmt->bind_param('si', $hash, $uId);
+        $uStmt->execute();
+        $uStmt->close();
+
+        $tokUpd = $link->prepare("UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL");
+        $tokUpd->bind_param('i', $uId);
+        $tokUpd->execute();
+        $tokUpd->close();
+
+        $tokRevoke = $link->prepare("UPDATE " . tn('TBL_API_TOKENS') . " SET is_active = 0 WHERE user_id = ?");
+        $tokRevoke->bind_param('i', $uId);
+        $tokRevoke->execute();
+        $tokRevoke->close();
+
+        $link->commit();
+    } catch (Throwable $e) {
+        $link->rollback();
+        apiError(500, 'Failed to reset password: ' . $e->getMessage());
+    }
+
+    logActivity($link, $uId, 'PASSWORD_RESET', 'Password successfully reset via mobile app OTP', (string)$uId, 'TBL_USERS');
+
+    apiSuccess([
+        'success' => true,
+        'message' => 'Password reset successfully. You can now login with your new password.',
+    ]);
+
+// -------------------------------------------------------------
 // 7. GET PROFILE PHOTO STREAM DIRECTLY FROM MYSQL
 // -------------------------------------------------------------
 } elseif ($endpoint === '/photo' || $endpoint === '/avatar') {
