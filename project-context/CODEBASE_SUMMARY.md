@@ -73,7 +73,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `leads_dashboard.php` | Lead summary dashboard | Escaped, access scoped |
 | `lead_insert.php` | Add new lead (upserts MAIN_DATABASE) | Transaction-wrapped |
 | `lead_update.php` | POST save handler | Transaction-wrapped |
-| `lead_pipeline.php` | Kanban board (8 stages) with Drag & Drop and per-column pagination | Drag & drop RBAC gated |
+| `lead_pipeline.php` | Modern premium Kanban pipeline board (8 stages) matching SaaS design | Drag & drop RBAC gated, 8 horizontal summary KPI cards, live search & multi-facet filters, custom empty states, `assets/css/pipeline-premium.css` |
 | `lead_list.php` | Lead register (card SPA) | Filter state server-persisted |
 | `lead_view.php` | Single lead view/edit form | Access-controlled |
 | `AddEnquiry.php` | Legacy enquiry form | **DELETED** — SQLi + broken schema |

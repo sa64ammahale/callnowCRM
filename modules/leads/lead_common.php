@@ -658,23 +658,23 @@ function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStag
 
     $badgeDays = '';
     if ($daysInStage > 3) {
-        $badgeClass = $daysInStage > 7 ? 'bg-danger text-white' : 'bg-warning text-dark';
-        $badgeDays = '<span class="badge ' . $badgeClass . ' ms-auto" style="font-size:0.625rem;">' . $daysInStage . 'd in stage</span>';
+        $badgeClass = $daysInStage > 7 ? 'pl-aging-danger' : 'pl-aging-warning';
+        $badgeDays = '<span class="pl-aging-badge ' . $badgeClass . ' ms-auto">' . $daysInStage . 'd in stage</span>';
     }
 
     $reworkBadge = '';
     if (!empty($lead['rework_flag'])) {
-        $reworkBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle" title="Rework pending"><i class="bi bi-exclamation-triangle me-1"></i>Rework</span>';
+        $reworkBadge = '<span class="pl-badge-pill pl-badge-rework" title="Rework pending"><i class="bi bi-exclamation-triangle me-1"></i>Rework</span>';
     }
 
     $loanBadge = '';
     if ($loanAmount !== '') {
-        $loanBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-cash me-1"></i>' . $loanAmount . '</span>';
+        $loanBadge = '<span class="pl-badge-pill pl-badge-loan" title="Loan Amount"><i class="bi bi-wallet2 me-1"></i>' . $loanAmount . '</span>';
     }
 
     $typeBadge = '';
     if ($loanType !== '') {
-        $typeBadge = '<span class="badge bg-light text-secondary border">' . $loanType . '</span>';
+        $typeBadge = '<span class="pl-badge-pill pl-badge-type">' . $loanType . '</span>';
     }
 
     $followupBadge = '';
@@ -706,7 +706,7 @@ function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStag
 
     $drawerHtml = '';
     if (!empty($drawerItems) || !empty($lead['remarks'])) {
-        $drawerHtml .= '<div class="pl-card-detail"><div class="p-2 bg-subtle border-top small" style="font-size:0.6875rem;">';
+        $drawerHtml .= '<div class="pl-card-detail"><div class="p-2 bg-light border-top small" style="font-size:0.6875rem;">';
         if (!empty($drawerItems)) {
             $drawerHtml .= '<div class="row g-1">' . implode('', $drawerItems) . '</div>';
         }
@@ -722,19 +722,19 @@ function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStag
                 ' . $dragHandle . '
                 <div class="min-w-0 flex-grow-1">
                     <div class="d-flex align-items-center justify-content-between gap-1">
-                        <a href="' . $viewUrl . '" class="fw-semibold text-dark small text-truncate d-block text-decoration-none pl-card-title">
+                        <a href="' . $viewUrl . '" class="pl-card-title text-truncate d-block">
                             ' . $customerName . '
                         </a>
                         ' . $badgeDays . '
                     </div>
-                    <div class="text-muted small text-truncate" style="font-size:0.6875rem;">
+                    <div class="pl-card-sub text-truncate">
                         <i class="bi bi-person me-1"></i>' . $assignedName . $companyHtml . '
                     </div>
                 </div>
             </div>
 
-            <div class="d-flex flex-wrap gap-1 my-1">
-                <a href="tel:' . $mobile . '" class="badge bg-secondary text-decoration-none" title="Call customer">
+            <div class="d-flex flex-wrap gap-1 my-2">
+                <a href="tel:' . $mobile . '" class="pl-badge-pill pl-badge-phone" title="Call customer">
                     <i class="bi bi-telephone me-1"></i>' . $mobile . '
                 </a>
                 ' . $loanBadge . '
@@ -742,16 +742,16 @@ function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStag
                 ' . $reworkBadge . '
             </div>
 
-            <div class="d-flex align-items-center justify-content-between pt-1 border-top" style="font-size:0.6875rem;">
+            <div class="pl-card-footer">
                 <div class="d-flex align-items-center gap-2">
                     ' . $followupBadge . '
-                    <span class="text-muted" title="Lead created date">' . $created . '</span>
+                    <span class="pl-card-date" title="Lead created date"><i class="bi bi-calendar3 me-1"></i>' . $created . '</span>
                 </div>
-                <div class="d-flex align-items-center gap-1">
-                    <a href="' . $viewUrl . '" class="btn btn-ghost btn-sm p-1" title="Manage Record">
+                <div class="pl-card-actions">
+                    <a href="' . $viewUrl . '" class="pl-action-icon-btn" title="Manage Record">
                         <i class="bi bi-pencil-square"></i>
                     </a>
-                    <button type="button" class="btn btn-ghost btn-sm p-1 pl-expand-btn" title="Toggle Details">
+                    <button type="button" class="pl-action-icon-btn pl-expand-btn" title="Toggle Details">
                         <i class="bi bi-chevron-down"></i>
                     </button>
                 </div>

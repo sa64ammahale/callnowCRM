@@ -12,20 +12,40 @@ $pipelineOrder = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UN
 $canMoveStage = canMoveLeadStage();
 
 $stageColors = [
-    'LEAD' => ['bg' => '#6D45F9', 'soft' => '#F0ECFF', 'border' => '#C4B5FD'],
-    'FOLLOWUP' => ['bg' => '#0090DF', 'soft' => '#E8F7FF', 'border' => '#BAE6FD'],
-    'INTERNAL_UNDERWRITING' => ['bg' => '#4D72E8', 'soft' => '#EEF3FF', 'border' => '#C7D2FE'],
-    'LOGIN' => ['bg' => '#D89012', 'soft' => '#FFF6DF', 'border' => '#FDE68A'],
-    'BANK_UNDERWRITING' => ['bg' => '#8C72FF', 'soft' => '#F0ECFF', 'border' => '#DDD6FE'],
-    'SANCTIONED' => ['bg' => '#16A66A', 'soft' => '#E9F8F1', 'border' => '#A7F3D0'],
-    'DISBURSED' => ['bg' => '#087A4B', 'soft' => '#E9F8F1', 'border' => '#86EFAC'],
-    'REJECT' => ['bg' => '#E5484D', 'soft' => '#FFF0F0', 'border' => '#FECDD3'],
+    'LEAD' => ['bg' => '#713BFF', 'soft' => '#F5F3FF', 'border' => '#DDD6FE', 'accent' => '#713BFF'],
+    'FOLLOWUP' => ['bg' => '#0EA5E9', 'soft' => '#F0F9FF', 'border' => '#BAE6FD', 'accent' => '#0EA5E9'],
+    'INTERNAL_UNDERWRITING' => ['bg' => '#4F6BFF', 'soft' => '#EEF2FF', 'border' => '#C7D2FE', 'accent' => '#4F6BFF'],
+    'LOGIN' => ['bg' => '#F59E0B', 'soft' => '#FFFBEB', 'border' => '#FDE68A', 'accent' => '#F59E0B'],
+    'BANK_UNDERWRITING' => ['bg' => '#8B5CF6', 'soft' => '#F5F3FF', 'border' => '#DDD6FE', 'accent' => '#8B5CF6'],
+    'SANCTIONED' => ['bg' => '#10B981', 'soft' => '#ECFDF5', 'border' => '#A7F3D0', 'accent' => '#10B981'],
+    'DISBURSED' => ['bg' => '#059669', 'soft' => '#ECFDF5', 'border' => '#6EE7B7', 'accent' => '#059669'],
+    'REJECT' => ['bg' => '#F43F5E', 'soft' => '#FFF1F2', 'border' => '#FECDD3', 'accent' => '#F43F5E'],
+];
+
+$emptyIcons = [
+    'LEAD' => 'bi-person-badge',
+    'FOLLOWUP' => 'bi-arrow-repeat',
+    'INTERNAL_UNDERWRITING' => 'bi-building-check',
+    'LOGIN' => 'bi-box-arrow-in-right',
+    'BANK_UNDERWRITING' => 'bi-bank',
+    'SANCTIONED' => 'bi-shield-check',
+    'DISBURSED' => 'bi-cash-stack',
+    'REJECT' => 'bi-clipboard-x',
 ];
 
 $where = '';
 $accessibleUserIds = getAccessibleUserIds($link);
 if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
     $where = 'WHERE l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+}
+
+$salespeople = [];
+$spSql = "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 1 ORDER BY NAME ASC";
+$spRes = mysqli_query($link, $spSql);
+if ($spRes) {
+    while ($sp = mysqli_fetch_assoc($spRes)) {
+        $salespeople[] = $sp;
+    }
 }
 
 // 1. Fetch exact counts per stage for accurate summary and badges
@@ -86,72 +106,151 @@ foreach ($pipelineOrder as $st) {
 ?>
 <?php $pageTitle = 'Pipeline Board'; include __DIR__ . '/../../php_scripts/header.php'; ?>
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb mb-2">
-        <li class="breadcrumb-item"><a href="<?= url('dashboard.php') ?>">Home</a></li>
-        <li class="breadcrumb-item"><a href="<?= url('modules/leads/leads_dashboard.php') ?>">Leads</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Pipeline Board</li>
-    </ol>
-</nav>
+<link rel="stylesheet" href="<?= (defined('APP_BASE') && APP_BASE !== '' ? APP_BASE . '/' : '') ?>assets/css/pipeline-premium.css?v=<?= file_exists(__DIR__ . '/../../assets/css/pipeline-premium.css') ? filemtime(__DIR__ . '/../../assets/css/pipeline-premium.css') : '1.0' ?>">
 
-<div class="crm-module-header">
-    <div>
-        <div class="crm-module-header-title">
-            <i class="bi bi-kanban text-primary"></i>
-            <h1>Lead Pipeline Board</h1>
+<!-- Breadcrumb -->
+<div class="pl-breadcrumb">
+    <a href="<?= url('dashboard.php') ?>">Home</a>
+    <i class="bi bi-chevron-right pl-breadcrumb-divider"></i>
+    <a href="<?= url('modules/leads/leads_dashboard.php') ?>">Leads</a>
+    <i class="bi bi-chevron-right pl-breadcrumb-divider"></i>
+    <span class="pl-breadcrumb-active">Pipeline Board</span>
+</div>
+
+<!-- Header Hero Banner -->
+<div class="pl-hero-header">
+    <div class="pl-header-left">
+        <div class="pl-header-icon-box">
+            <i class="bi bi-kanban"></i>
         </div>
-        <p class="crm-module-header-desc"><span id="plActivePipelineCount"><?= number_format($totalPipeline) ?></span> active leads across <?= count($pipelineOrder) - 1 ?> pipeline stages</p>
+        <div>
+            <h1 class="pl-header-title">Lead Pipeline Board</h1>
+            <p class="pl-header-subtitle">
+                <span id="plActivePipelineCount"><?= number_format($totalPipeline) ?></span> active leads across <?= count($pipelineOrder) - 1 ?> pipeline stages
+            </p>
+        </div>
     </div>
-    <div class="crm-module-header-actions">
-        <a href="<?= url('modules/leads/leads_dashboard.php') ?>" class="btn btn-secondary btn-sm"><i class="bi bi-bar-chart me-1"></i> Analytics</a>
-        <a href="<?= url('modules/leads/lead_list.php') ?>" class="btn btn-secondary btn-sm"><i class="bi bi-table me-1"></i> Register</a>
+    <div class="pl-header-actions">
+        <a href="<?= url('modules/leads/leads_dashboard.php') ?>" class="pl-btn-secondary">
+            <i class="bi bi-bar-chart"></i>
+            <span>Analytics</span>
+        </a>
+        <a href="<?= url('modules/leads/lead_list.php') ?>" class="pl-btn-secondary">
+            <i class="bi bi-table"></i>
+            <span>Register</span>
+        </a>
         <?php if (can('manage_leads')): ?>
-        <a href="<?= url('modules/leads/lead_insert.php') ?>" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i> Add Lead</a>
+        <a href="<?= url('modules/leads/lead_insert.php') ?>" class="pl-btn-primary">
+            <i class="bi bi-plus-lg"></i>
+            <span>Add Lead</span>
+        </a>
         <?php endif; ?>
     </div>
 </div>
 
-<!-- Stage Summary Strip -->
-<div class="row g-2 mb-3">
+<!-- Pipeline Summary Strip (8 Horizontal KPI Cards) -->
+<div class="pl-summary-grid">
     <?php foreach ($pipelineOrder as $status): ?>
         <?php
         $cnt = $stageTotals[$status] ?? 0;
-        $c = $stageColors[$status] ?? ['bg' => '#64748b', 'soft' => '#f8fafc'];
+        $c = $stageColors[$status] ?? ['bg' => '#64748b', 'soft' => '#F8FAFC', 'border' => '#E2E8F0'];
         $meta = $statusMeta[$status] ?? ['label' => $status, 'icon' => 'bi-circle'];
         $pct = $dbTotalAll > 0 ? round(($cnt / $dbTotalAll) * 100) : 0;
         ?>
-        <div class="col-xl-3 col-md-6 col-sm-6 col-12">
-            <div class="p-2 border rounded bg-surface d-flex align-items-center gap-2 stage-summary-card" style="border-left: 4px solid <?= $c['bg'] ?> !important;">
-                <div class="stage-icon-pill" style="background-color: <?= $c['soft'] ?>; color: <?= $c['bg'] ?>;">
-                    <i class="bi <?= htmlspecialchars($meta['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
-                </div>
-                <div class="min-w-0 flex-grow-1">
-                    <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;"><?= htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8') ?></div>
-                    <div class="d-flex align-items-baseline gap-1">
-                        <span class="fs-6 fw-bold text-dark stage-summary-total" data-stage="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= number_format($cnt) ?></span>
-                        <span class="text-muted stage-summary-pct" data-stage="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>" style="font-size:0.625rem;">(<?= $pct ?>%)</span>
-                    </div>
+        <div class="pl-summary-card">
+            <div class="pl-summary-icon-pill" style="background-color: <?= $c['soft'] ?>; color: <?= $c['bg'] ?>;">
+                <i class="bi <?= htmlspecialchars($meta['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
+            </div>
+            <div class="pl-summary-content">
+                <div class="pl-summary-label"><?= htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="pl-summary-metric">
+                    <span class="pl-summary-total stage-summary-total" data-stage="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"><?= number_format($cnt) ?></span>
+                    <span class="pl-summary-pct stage-summary-pct" data-stage="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>">(<?= $pct ?>%)</span>
                 </div>
             </div>
         </div>
     <?php endforeach; ?>
 </div>
 
-<!-- Toolbar & Search Strip -->
-<div class="crm-toolbar mb-3">
-    <div class="crm-toolbar-left d-flex align-items-center gap-2 flex-wrap">
-        <div class="input-group" style="width: 320px;">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" id="plSearchInput" class="form-control" placeholder="Search by name, company, mobile...">
+<!-- Search & Controls Toolbar -->
+<div class="pl-toolbar">
+    <div class="pl-toolbar-left">
+        <div class="pl-search-wrap">
+            <i class="bi bi-search"></i>
+            <input type="text" id="plSearchInput" class="pl-search-input" placeholder="Search by name, company, mobile...">
         </div>
-        <span class="text-muted small">Showing <span id="plVisibleCount" class="fw-semibold text-dark"><?= number_format($initialLoadedTotal) ?></span> of <span id="plTotalAllCount" class="fw-semibold text-dark"><?= number_format($dbTotalAll) ?></span> leads</span>
+        <span class="pl-showing-text">
+            Showing <span id="plVisibleCount" class="pl-showing-count"><?= number_format($initialLoadedTotal) ?></span> of <span id="plTotalAllCount" class="pl-showing-count"><?= number_format($dbTotalAll) ?></span> leads
+        </span>
     </div>
-    <div class="crm-toolbar-right d-flex align-items-center gap-2">
+    <div class="pl-toolbar-right">
         <?php if ($canMoveStage): ?>
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-hand-index-thumb me-1"></i>Drag cards between columns to change stage</span>
+            <span class="badge pl-drag-instruction">
+                <i class="bi bi-hand-index-thumb"></i>
+                <span>Drag cards between columns to change stage</span>
+            </span>
         <?php else: ?>
-            <span class="badge bg-secondary"><i class="bi bi-lock me-1"></i>Stage movement view only</span>
+            <span class="badge bg-secondary-subtle text-secondary border">
+                <i class="bi bi-lock me-1"></i>Stage movement view only
+            </span>
         <?php endif; ?>
+
+        <button type="button" class="pl-tool-btn" id="plFilterToggleBtn" title="Toggle Filters">
+            <i class="bi bi-funnel"></i>
+            <span>Filter</span>
+        </button>
+
+        <div class="dropdown d-inline-block">
+            <button class="pl-tool-btn dropdown-toggle" type="button" id="plViewSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-kanban"></i>
+                <span>View</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="plViewSelectorBtn">
+                <li><a class="dropdown-item active" href="<?= url('modules/leads/lead_pipeline.php') ?>"><i class="bi bi-kanban me-2 text-primary"></i>Kanban Board</a></li>
+                <li><a class="dropdown-item" href="<?= url('modules/leads/lead_list.php') ?>"><i class="bi bi-table me-2 text-muted"></i>List View</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Collapsible Filter Panel -->
+<div class="pl-filter-drawer" id="plFilterDrawer">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-3 col-sm-6">
+            <label class="form-label small fw-semibold text-secondary mb-1">Pipeline Stage</label>
+            <select id="plStageFilter" class="form-select form-select-sm rounded-3">
+                <option value="ALL">All Stages</option>
+                <?php foreach ($pipelineOrder as $st): ?>
+                    <option value="<?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusMeta[$st]['label'] ?? $st, ENT_QUOTES, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <label class="form-label small fw-semibold text-secondary mb-1">Assigned Salesperson</label>
+            <select id="plUserFilter" class="form-select form-select-sm rounded-3">
+                <option value="ALL">All Salespersons</option>
+                <?php foreach ($salespeople as $sp): ?>
+                    <option value="<?= htmlspecialchars(strtolower($sp['NAME']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($sp['NAME'], ENT_QUOTES, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <label class="form-label small fw-semibold text-secondary mb-1">Aging / Days in Stage</label>
+            <select id="plAgingFilter" class="form-select form-select-sm rounded-3">
+                <option value="ALL">All Durations</option>
+                <option value="CRITICAL">Critical (&gt; 7 days)</option>
+                <option value="WARNING">Attention (4 - 7 days)</option>
+                <option value="FRESH">Fresh (&le; 3 days)</option>
+            </select>
+        </div>
+        <div class="col-md-3 col-sm-6 d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-primary flex-grow-1 rounded-3" id="plApplyFilterBtn">
+                <i class="bi bi-check-lg me-1"></i>Apply Filter
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" id="plResetFilterBtn" title="Reset Filters">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -160,27 +259,28 @@ foreach ($pipelineOrder as $st) {
     <div class="pl-board">
         <?php foreach ($pipelineOrder as $status): ?>
             <?php
-            $c = $stageColors[$status] ?? ['bg' => '#64748b', 'soft' => '#f8fafc', 'border' => '#e2e8f0'];
+            $c = $stageColors[$status] ?? ['bg' => '#64748b', 'soft' => '#F8FAFC', 'border' => '#E2E8F0'];
             $meta = $statusMeta[$status] ?? ['label' => $status, 'description' => '', 'icon' => 'bi-circle'];
             $leads = $columns[$status] ?? [];
             $totalInStage = $stageTotals[$status] ?? 0;
             $remaining = $stageRemaining[$status] ?? 0;
+            $emptyIcon = $emptyIcons[$status] ?? 'bi-inbox';
             ?>
             <section class="pl-col" data-status="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>">
-                <div class="pl-col-head" style="border-top: 3px solid <?= $c['bg'] ?>;">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-2 fw-semibold text-dark small">
-                            <span class="pl-head-icon" style="background-color: <?= $c['soft'] ?>; color: <?= $c['bg'] ?>;">
+                <div class="pl-col-head" style="border-top-color: <?= $c['bg'] ?>;">
+                    <div class="pl-col-head-top">
+                        <div class="pl-col-title-wrap">
+                            <span class="pl-col-icon" style="background-color: <?= $c['soft'] ?>; color: <?= $c['bg'] ?>;">
                                 <i class="bi <?= htmlspecialchars($meta['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
                             </span>
-                            <span><?= htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="pl-col-title"><?= htmlspecialchars($meta['label'], ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
-                        <span class="badge pl-stage-count" data-stage="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>" style="background-color: <?= $c['soft'] ?>; color: <?= $c['bg'] ?>; border: 1px solid <?= $c['border'] ?>;">
+                        <span class="pl-col-count-badge pl-stage-count" data-stage="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>" style="background-color: <?= $c['soft'] ?>; color: <?= $c['bg'] ?>; border: 1px solid <?= $c['border'] ?>;">
                             <?= number_format($totalInStage) ?>
                         </span>
                     </div>
                     <?php if (!empty($meta['description'])): ?>
-                        <div class="text-muted small mt-1" style="font-size:0.6875rem;"><?= htmlspecialchars($meta['description'], ENT_QUOTES, 'UTF-8') ?></div>
+                        <div class="pl-col-desc"><?= htmlspecialchars($meta['description'], ENT_QUOTES, 'UTF-8') ?></div>
                     <?php endif; ?>
                 </div>
 
@@ -194,8 +294,10 @@ foreach ($pipelineOrder as $st) {
                     </div>
 
                     <div class="pl-empty" style="<?= empty($leads) ? '' : 'display:none;' ?>">
-                        <i class="bi bi-inbox text-muted"></i>
-                        <span>No leads in this stage</span>
+                        <div class="pl-empty-bubble" style="background-color: <?= $c['soft'] ?>; color: <?= $c['bg'] ?>;">
+                            <i class="bi <?= $emptyIcon ?>"></i>
+                        </div>
+                        <div class="pl-empty-text">No leads in this stage</div>
                     </div>
 
                     <?php if ($remaining > 0): ?>
@@ -209,7 +311,7 @@ foreach ($pipelineOrder as $st) {
     </div>
 </div>
 
-<!-- Floating Toast Container -->
+<!-- Floating Toast Notification -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;">
     <div id="plToast" class="toast align-items-center border-0 text-white shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
@@ -223,212 +325,6 @@ foreach ($pipelineOrder as $st) {
 </div>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>
-
-<style>
-.stage-summary-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.stage-summary-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-sm);
-}
-.stage-icon-pill {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    flex-shrink: 0;
-}
-.pl-head-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-sm);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8125rem;
-}
-.pl-board-scroll {
-    overflow-x: auto;
-    padding-bottom: 0.75rem;
-}
-.pl-board {
-    display: flex;
-    gap: 0.75rem;
-    min-width: max-content;
-    align-items: flex-start;
-}
-.pl-col {
-    width: 295px;
-    background: #F8FAFC;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-xs);
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 240px);
-}
-.pl-col-head {
-    padding: 0.75rem 0.875rem;
-    border-bottom: 1px solid var(--border-subtle);
-    background: #FFFFFF;
-    border-top-left-radius: var(--radius-lg);
-    border-top-right-radius: var(--radius-lg);
-}
-.pl-col-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.625rem;
-    display: flex;
-    flex-direction: column;
-    min-height: 120px;
-    transition: background-color 0.15s ease, outline 0.15s ease;
-}
-.pl-col-body.is-drop-target {
-    background-color: #EEF2FF !important;
-    outline: 2px dashed #6D45F9 !important;
-    outline-offset: -3px;
-    border-radius: var(--radius-md);
-}
-.pl-cards-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.625rem;
-}
-.pl-card {
-    background: #FFFFFF;
-    border: 1px solid var(--border-default);
-    border-left: 4px solid #6D45F9;
-    border-radius: var(--radius-md);
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
-    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
-    overflow: hidden;
-    user-select: none;
-}
-.pl-card[draggable="true"] {
-    cursor: grab;
-}
-.pl-card[draggable="true"]:active {
-    cursor: grabbing;
-}
-.pl-card.is-dragging {
-    opacity: 0.35 !important;
-    transform: scale(0.97) !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
-}
-.pl-card:hover {
-    border-color: #CBD5E1;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-    transform: translateY(-2px);
-}
-.pl-drag-handle {
-    cursor: grab;
-    color: #94A3B8;
-    padding: 2px 2px;
-    display: inline-flex;
-    align-items: center;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    line-height: 1;
-}
-.pl-drag-handle:hover {
-    color: #475569;
-    background: #F1F5F9;
-}
-.pl-card.status-card-lead {
-    background: #FFFFFF;
-    border-color: #E2E8F0;
-    border-left: 4px solid #6D45F9 !important;
-}
-.pl-card.status-card-reject {
-    background: linear-gradient(180deg, #FEF2F2 0%, #FFFFFF 85%) !important;
-    border-color: #FECDD3 !important;
-    border-left: 4px solid #DC2626 !important;
-}
-.pl-card.status-card-reject:hover {
-    border-color: #F87171 !important;
-    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.14) !important;
-}
-.pl-card.status-card-disbursed {
-    background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 85%) !important;
-    border-color: #BBF7D0 !important;
-    border-left: 4px solid #16A34A !important;
-}
-.pl-card.status-card-disbursed:hover {
-    border-color: #4ADE80 !important;
-    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.14) !important;
-}
-.pl-card.status-card-rework {
-    background: linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 85%) !important;
-    border-color: #FDE68A !important;
-    border-left: 4px solid #D97706 !important;
-}
-.pl-card.status-card-rework:hover {
-    border-color: #F59E0B !important;
-    box-shadow: 0 4px 16px rgba(217, 119, 6, 0.14) !important;
-}
-.pl-card.status-card-followup {
-    background: linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 85%) !important;
-    border-color: #BAE6FD !important;
-    border-left: 4px solid #0284C7 !important;
-}
-.pl-card.status-card-internal_underwriting {
-    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 85%) !important;
-    border-color: #CBD5E1 !important;
-    border-left: 4px solid #4D72E8 !important;
-}
-.pl-card.status-card-login {
-    background: linear-gradient(180deg, #FFFDF0 0%, #FFFFFF 85%) !important;
-    border-color: #FEF08A !important;
-    border-left: 4px solid #D89012 !important;
-}
-.pl-card.status-card-bank_underwriting {
-    background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 85%) !important;
-    border-color: #E9D5FF !important;
-    border-left: 4px solid #8C72FF !important;
-}
-.pl-card.status-card-sanctioned {
-    background: linear-gradient(180deg, #ECFDF5 0%, #FFFFFF 85%) !important;
-    border-color: #99F6E4 !important;
-    border-left: 4px solid #16A66A !important;
-}
-.pl-card-main {
-    padding: 0.625rem;
-}
-.pl-card-detail {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.2s ease;
-}
-.pl-card.expanded .pl-card-detail {
-    max-height: 250px;
-}
-.pl-card.expanded .pl-expand-btn i {
-    transform: rotate(180deg);
-}
-.pl-empty {
-    text-align: center;
-    padding: 2rem 0.5rem;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-}
-.pl-empty i {
-    font-size: 1.5rem;
-    display: block;
-    margin-bottom: 0.25rem;
-}
-.pl-card.hidden {
-    display: none;
-}
-.pl-load-more-btn {
-    font-size: 0.75rem;
-    padding: 0.35rem 0.5rem;
-    border-style: dashed;
-}
-</style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -461,7 +357,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     initExpandButtons();
 
-    // Drag and Drop Logic
     var draggedCard = null;
     var sourceColBody = null;
     var sourceStage = null;
@@ -498,7 +393,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     initDraggables();
 
-    // Drop zone listeners for columns
     document.querySelectorAll('.pl-col-body').forEach(function(colBody) {
         colBody.addEventListener('dragover', function(e) {
             if (!canMoveStage || !draggedCard) return;
@@ -530,11 +424,9 @@ document.addEventListener('DOMContentLoaded', function() {
             var origContainer = sourceColBody ? sourceColBody.querySelector('.pl-cards-container') : null;
             var origEmpty = sourceColBody ? sourceColBody.querySelector('.pl-empty') : null;
 
-            // Optimistic DOM move
             cardsContainer.prepend(draggedCard);
             draggedCard.setAttribute('data-stage', targetStage);
 
-            // Update card styling classes
             draggedCard.className = draggedCard.className.replace(/status-card-[a-z_]+/g, '').trim();
             draggedCard.classList.add('status-card-' + targetStage.toLowerCase());
 
@@ -543,7 +435,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 origEmpty.style.display = '';
             }
 
-            // Send AJAX update
             var formData = new FormData();
             formData.append('action', 'move_stage');
             formData.append('lead_id', cardLeadId);
@@ -562,7 +453,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 showToast(data.message || 'Lead moved successfully', true);
 
-                // Update column badge counters
                 if (data.counts) {
                     for (var st in data.counts) {
                         var badge = document.querySelector('.pl-stage-count[data-stage="' + st + '"]');
@@ -584,7 +474,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(function(err) {
-                // Rollback DOM move
                 if (origContainer && draggedCard) {
                     origContainer.prepend(draggedCard);
                     draggedCard.setAttribute('data-stage', fromStage);
@@ -600,7 +489,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Pagination: Load More per column
     function attachLoadMore() {
         document.querySelectorAll('.pl-load-more-btn').forEach(function(btn) {
             if (btn.__bound) return;
@@ -662,10 +550,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         btnEl.style.display = 'none';
                     }
 
-                    // Update visible count in toolbar
-                    var countAll = document.querySelectorAll('.pl-card:not(.hidden)').length;
-                    var visEl = document.getElementById('plVisibleCount');
-                    if (visEl) visEl.textContent = countAll.toLocaleString();
+                    applyCombinedFilters();
                 })
                 .catch(function(err) {
                     btnEl.disabled = false;
@@ -677,27 +562,78 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     attachLoadMore();
 
-    // Client-side quick filter
-    var searchInput = document.getElementById('plSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            var q = this.value.toLowerCase().trim();
-            var visible = 0;
-            document.querySelectorAll('.pl-card').forEach(function(card) {
-                var text = card.textContent.toLowerCase();
-                var match = !q || text.indexOf(q) !== -1;
-                card.classList.toggle('hidden', !match);
-                if (match) visible++;
-            });
-            document.querySelectorAll('.pl-col').forEach(function(col) {
+    var filterToggleBtn = document.getElementById('plFilterToggleBtn');
+    var filterDrawer = document.getElementById('plFilterDrawer');
+    if (filterToggleBtn && filterDrawer) {
+        filterToggleBtn.addEventListener('click', function() {
+            filterDrawer.classList.toggle('is-open');
+        });
+    }
+
+    function applyCombinedFilters() {
+        var q = document.getElementById('plSearchInput') ? document.getElementById('plSearchInput').value.toLowerCase().trim() : '';
+        var stageFilter = document.getElementById('plStageFilter') ? document.getElementById('plStageFilter').value : 'ALL';
+        var userFilter = document.getElementById('plUserFilter') ? document.getElementById('plUserFilter').value : 'ALL';
+        var agingFilter = document.getElementById('plAgingFilter') ? document.getElementById('plAgingFilter').value : 'ALL';
+
+        var visible = 0;
+        document.querySelectorAll('.pl-card').forEach(function(card) {
+            var text = card.textContent.toLowerCase();
+            var cardStage = (card.getAttribute('data-stage') || '').toUpperCase();
+            var searchMatch = !q || text.indexOf(q) !== -1;
+            var stageMatch = (stageFilter === 'ALL') || (cardStage === stageFilter);
+            var userMatch = (userFilter === 'ALL') || (text.indexOf(userFilter) !== -1);
+
+            var agingMatch = true;
+            if (agingFilter === 'CRITICAL') {
+                agingMatch = card.querySelector('.pl-aging-danger') !== null;
+            } else if (agingFilter === 'WARNING') {
+                agingMatch = card.querySelector('.pl-aging-warning') !== null;
+            } else if (agingFilter === 'FRESH') {
+                agingMatch = (card.querySelector('.pl-aging-danger') === null && card.querySelector('.pl-aging-warning') === null);
+            }
+
+            var match = searchMatch && stageMatch && userMatch && agingMatch;
+            card.classList.toggle('hidden', !match);
+            if (match) visible++;
+        });
+
+        document.querySelectorAll('.pl-col').forEach(function(col) {
+            var colStatus = (col.getAttribute('data-status') || '').toUpperCase();
+            if (stageFilter !== 'ALL' && colStatus !== stageFilter) {
+                col.style.display = 'none';
+            } else {
+                col.style.display = '';
                 var cards = col.querySelectorAll('.pl-card:not(.hidden)');
                 var empty = col.querySelector('.pl-empty');
                 if (empty) {
                     empty.style.display = cards.length ? 'none' : '';
                 }
-            });
-            var visEl = document.getElementById('plVisibleCount');
-            if (visEl) visEl.textContent = visible.toLocaleString();
+            }
+        });
+
+        var visEl = document.getElementById('plVisibleCount');
+        if (visEl) visEl.textContent = visible.toLocaleString();
+    }
+
+    var searchInput = document.getElementById('plSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', applyCombinedFilters);
+    }
+
+    var applyFilterBtn = document.getElementById('plApplyFilterBtn');
+    if (applyFilterBtn) {
+        applyFilterBtn.addEventListener('click', applyCombinedFilters);
+    }
+
+    var resetFilterBtn = document.getElementById('plResetFilterBtn');
+    if (resetFilterBtn) {
+        resetFilterBtn.addEventListener('click', function() {
+            if (document.getElementById('plStageFilter')) document.getElementById('plStageFilter').value = 'ALL';
+            if (document.getElementById('plUserFilter')) document.getElementById('plUserFilter').value = 'ALL';
+            if (document.getElementById('plAgingFilter')) document.getElementById('plAgingFilter').value = 'ALL';
+            if (document.getElementById('plSearchInput')) document.getElementById('plSearchInput').value = '';
+            applyCombinedFilters();
         });
     }
 });
