@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../php_scripts/config.php';
 require_once __DIR__ . '/../php_scripts/tenant.php';
 require_once __DIR__ . '/../php_scripts/tenant_provisioner.php';
 

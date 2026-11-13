@@ -4,7 +4,7 @@ foreach ([8099, 8100] as $port) {
     $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.1);
     if ($socket) { fclose($socket); throw new RuntimeException('Audit port ' . $port . ' is already occupied'); }
 }
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../php_scripts/config.php';
 $sourceDb = $DB_NAME;
 $auditDb = 'callnow_audit_' . date('Ymd_His') . '_' . bin2hex(random_bytes(3));
 if (!$link->query('CREATE DATABASE `' . $auditDb . '` CHARACTER SET utf8mb4')) throw new RuntimeException($link->error);

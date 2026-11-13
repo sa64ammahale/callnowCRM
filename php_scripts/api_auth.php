@@ -3,7 +3,7 @@
  * API Authentication Middleware
  * Validates Bearer tokens for API requests
  */
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/config.php';
 foreach ($_GET as $queryKey => $queryValue) {
     if (is_array($queryValue)) apiError(400, 'Invalid query parameter: ' . $queryKey);
 }

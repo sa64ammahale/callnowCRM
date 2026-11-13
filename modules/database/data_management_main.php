@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
-require_once __DIR__ . '/../../config.php';
 requirePermission('manage_database');
 
 $total_records = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as total FROM " . tn('TBL_MAIN')))['total'] ?? 0;

@@ -1,6 +1,6 @@
 <?php
 define('API_SKIP_AUTO_AUTH', true);
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../php_scripts/config.php';
 require_once __DIR__ . '/../php_scripts/api_auth.php';
 require_once __DIR__ . '/../php_scripts/reporting_engine.php';
 

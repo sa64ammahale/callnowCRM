@@ -5,7 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params(14400);
     session_start();
 }
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/hierarchy_engine.php';
 
 function appRedirect(string $path): void {

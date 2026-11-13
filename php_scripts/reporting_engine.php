@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_BASE')) {
-    require_once __DIR__ . '/../config.php';
+    require_once __DIR__ . '/config.php';
 }
 require_once __DIR__ . '/reporting_schema.php';
 require_once __DIR__ . '/hierarchy_engine.php';

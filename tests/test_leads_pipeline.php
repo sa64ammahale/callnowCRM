@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../php_scripts/config.php';
 require_once __DIR__ . '/../modules/leads/lead_common.php';
 require_once __DIR__ . '/lib/db_helper.php';
 ensureLeadModuleSchema($link);

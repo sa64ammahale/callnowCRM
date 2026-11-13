@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/php_scripts/config.php';
 require_once __DIR__ . '/php_scripts/rate_limiter.php';
 
 // Show errors on POST so failures don't produce a blank 500

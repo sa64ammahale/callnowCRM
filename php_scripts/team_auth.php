@@ -1,7 +1,7 @@
 <?php
 
 
-require_once __DIR__ . "/../config.php";
+require_once __DIR__ . '/config.php';
 
 $user_id = $_SESSION["id"];
 $stmt = $link->prepare("SELECT u.*, t.NAME as TEAM_NAME, t.SUPERVISOR_ID 

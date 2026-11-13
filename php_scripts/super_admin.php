@@ -1,6 +1,6 @@
 <?php
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/config.php';
 
 function ensureSuperAdminSchema(mysqli $link): void {
     static $done = false;
@@ -234,8 +234,8 @@ function seedDefaultSuperAdmin(mysqli $link): void {
     static $done = false;
     if ($done) return;
 
-    $loginId = 'sangammahale02@gmail.com';
-    $plainPassword = 'Sangam@12345';
+    $loginId = getenv('SUPER_ADMIN_EMAIL') ?: 'superadmin@callnow.local';
+    $plainPassword = getenv('SUPER_ADMIN_PASSWORD') ?: 'Admin@CallNow2026!';
     $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
     $name = 'Super Admin';
 

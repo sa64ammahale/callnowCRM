@@ -10,7 +10,7 @@ define('API_SKIP_AUTO_AUTH', true);
  *         oldest dialed sorting, strict 3-month (90 days) cooldown, and activity protection.
  */
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../php_scripts/config.php';
 if (!str_starts_with($DB_NAME, 'callnow_audit_')) throw new RuntimeException('Run through tests/run_project_audit.php to protect the working database');
 require_once __DIR__ . '/../php_scripts/api_auth.php';
 

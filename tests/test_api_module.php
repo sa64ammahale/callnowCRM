@@ -3,7 +3,7 @@
  * Comprehensive API Module Test Suite
  * Tests Auth, Telecaller, Admin endpoints, DB Lease Locking, Call Submission, and Reporting
  */
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../php_scripts/config.php';
 if (!str_starts_with($DB_NAME, 'callnow_audit_')) throw new RuntimeException('Run through tests/run_project_audit.php to protect the working database');
 
 $baseUrl = getenv('TEST_API_BASE') ?: 'http://localhost/callnowCRM/api/v1';

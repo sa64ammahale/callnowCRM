@@ -19,13 +19,12 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose |
 |---|---|
 | `README.md` | Docs |
-| `config.php` | DB connection + APP_BASE constant |
-| `index.php` | Login page |
+| `index.php` | Login page (multi-tenant routing via company code) |
 | `dashboard.php` | KPI dashboard (aggregates on MAIN_DATABASE) |
 | `logout.php` | Destroys session |
 | `forgot-password.php` | Reset via Company + Email, mail() new password |
 | `profile.php` | User edits own profile/password |
-| `CallNowSignUp.php` | Self-registration (Inactive/Officer, awaits admin) |
+| `CallNowSignUp.php` | Initial administrator setup via SETUP_KEY or authenticated Admin |
 
 ### php_scripts/
 | File | Purpose |

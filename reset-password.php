@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/php_scripts/config.php';
 require_once __DIR__ . '/php_scripts/password_reset.php';
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 ensureCsrfToken();

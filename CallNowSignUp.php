@@ -1,5 +1,5 @@
 <?php
-require_once "config.php";
+require_once __DIR__ . "/php_scripts/config.php";
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); } ensureCsrfToken();
 
 // Public self-registration is disabled. This script is only for initial
