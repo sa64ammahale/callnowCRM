@@ -5,7 +5,7 @@ require_once __DIR__ . '/../../../php_scripts/api_auth.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS');
-header('Access-Control-Allow-Headers: Authorization, Content-Type, X-Requested-With');
+header('Access-Control-Allow-Headers: Authorization, Content-Type, X-Requested-With, X-Company-Code');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -80,6 +80,17 @@ if ($endpoint === '/login') {
     if (!$email || !$password) {
         apiError(400, 'Email/username and password required');
     }
+
+    $companyCode = trim($input['company_code'] ?? ($input['company'] ?? ($input['CompanyName'] ?? '')));
+    $tenant = null;
+    if ($companyCode !== '') {
+        $tenant = resolveTenant($companyCode);
+        if (!$tenant) {
+            apiError(400, 'Invalid company code or organization account is inactive');
+        }
+        $link = getTenantConnection($tenant['company_code']);
+        $GLOBALS['link'] = $link;
+    }
     
     $stmt = $link->prepare("SELECT ID, NAME, EMAIL, LOGIN_ID, PASSWORD, ROLE, TEAM_ID, STATUS FROM " . tn('TBL_USERS') . " WHERE EMAIL = ? OR LOGIN_ID = ? LIMIT 1");
     $stmt->bind_param('ss', $email, $email);
@@ -125,6 +136,8 @@ if ($endpoint === '/login') {
     apiSuccess(array_merge($fullProfile, [
         'token' => $token,
         'expires_at' => $expiresAt,
+        'company_code' => $tenant['company_code'] ?? ($user['COMPANY'] ?? 'incredit'),
+        'company_name' => $tenant['company_name'] ?? ($user['COMPANY_NAME'] ?? 'Incredit Financial Services'),
         'user' => $fullProfile,
         'profile' => $fullProfile,
         'database_access' => $dbAccess,
@@ -375,13 +388,19 @@ if ($endpoint === '/login') {
         exit;
     }
 
-    if (!empty($pRow['profile_photo']) && file_exists(__DIR__ . '/../../../uploads/profile_photos/' . $pRow['profile_photo'])) {
-        $filePath = __DIR__ . '/../../../uploads/profile_photos/' . $pRow['profile_photo'];
-        $mime = @mime_content_type($filePath) ?: 'image/jpeg';
-        header('Content-Type: ' . $mime);
-        header('Cache-Control: public, max-age=86400');
-        readfile($filePath);
-        exit;
+    if (!empty($pRow['profile_photo'])) {
+        $tenantDir = function_exists('getTenantUploadDir') ? getTenantUploadDir('profile_photos') : (__DIR__ . '/../../../uploads/profile_photos/');
+        $filePath = $tenantDir . $pRow['profile_photo'];
+        if (!file_exists($filePath)) {
+            $filePath = __DIR__ . '/../../../uploads/profile_photos/' . $pRow['profile_photo'];
+        }
+        if (file_exists($filePath)) {
+            $mime = @mime_content_type($filePath) ?: 'image/jpeg';
+            header('Content-Type: ' . $mime);
+            header('Cache-Control: public, max-age=86400');
+            readfile($filePath);
+            exit;
+        }
     }
 
     if (!empty($pRow['profile_picture']) && str_starts_with($pRow['profile_picture'], 'data:image/')) {
@@ -518,7 +537,7 @@ function handleMobileProfileUpdate(mysqli $link, int $userId, array $input): voi
         }
         $decoded = base64_decode($photoData);
         if ($decoded !== false && strlen($decoded) <= 2 * 1024 * 1024) {
-            $uploadDir = __DIR__ . '/../../../uploads/profile_photos/';
+            $uploadDir = function_exists('getTenantUploadDir') ? getTenantUploadDir('profile_photos') : (__DIR__ . '/../../../uploads/profile_photos/');
             if (!is_dir($uploadDir)) {
                 @mkdir($uploadDir, 0755, true);
             }

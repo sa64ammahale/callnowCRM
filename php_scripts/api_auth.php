@@ -25,6 +25,19 @@ function apiReadJson(): array {
 }
 
 function apiRequireAuth(): array {
+    $companyCode = $_SERVER['HTTP_X_COMPANY_CODE'] ?? '';
+    if (!$companyCode && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        $companyCode = $headers['X-Company-Code'] ?? $headers['x-company-code'] ?? '';
+    }
+    if ($companyCode) {
+        $cleanCode = sanitizeCompanyCode($companyCode);
+        if (!$cleanCode || !resolveTenant($cleanCode)) {
+            apiError(400, 'Invalid or inactive company code provided in X-Company-Code');
+        }
+        $GLOBALS['link'] = getTenantConnection($cleanCode);
+    }
+
     $authHeader = $_SERVER['HTTP_AUTHORIZATION'] 
         ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] 
         ?? getenv('HTTP_AUTHORIZATION') 
@@ -557,7 +570,7 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
     // Construct photo URL and ensure sync between MySQL and disk storage
     $photoUrl = '';
     $pictureBase64 = !empty($user['profile_picture']) ? (string)$user['profile_picture'] : '';
-    $uploadDir = __DIR__ . '/../uploads/profile_photos/';
+    $uploadDir = function_exists('getTenantUploadDir') ? getTenantUploadDir('profile_photos') : (__DIR__ . '/../uploads/profile_photos/');
     if (!is_dir($uploadDir)) {
         @mkdir($uploadDir, 0755, true);
     }
@@ -606,7 +619,7 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
             $appPath = defined('APP_PATH') ? APP_PATH : '/callnowCRM';
             $base = rtrim($scheme . '://' . $reqHost . $appPath, '/');
         }
-        $photoUrl = $base . '/uploads/profile_photos/' . $photoName;
+        $photoUrl = function_exists('getTenantUploadUrl') ? (getTenantUploadUrl('profile_photos') . $photoName) : ($base . '/uploads/profile_photos/' . $photoName);
 
         // Populate base64 if not yet generated
         if ($pictureBase64 === '' && file_exists($uploadDir . $photoName)) {
@@ -661,7 +674,7 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Authorization, Content-Type, X-Requested-With');
+    header('Access-Control-Allow-Headers: Authorization, Content-Type, X-Requested-With, X-Company-Code');
     http_response_code(204);
     exit;
 }

@@ -12,6 +12,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 ensureCsrfToken();
 
 $ErrorMessage = $NewPassword = "";
+$companyName = $_COOKIE['callnow_company_code'] ?? '';
 $success = false;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -20,6 +21,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } else {
         $username = trim((string)($_POST['username'] ?? ''));
         $companyName = trim((string)($_POST['CompanyName'] ?? ''));
+        $tenant = resolveTenant($companyName);
+        if ($tenant) {
+            $link = getTenantConnection($tenant['company_code']);
+        }
         $rateLimitError = checkWebRateLimit($link, 'forgot_password', $username, 3, 900);
         if ($rateLimitError) {
             $ErrorMessage = $rateLimitError;
@@ -27,8 +32,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             recordFailedAttemptWeb($link, 'forgot_password', $username);
             require_once __DIR__ . '/php_scripts/password_reset.php';
             ensurePasswordResetSchema($link);
-            $stmt = $link->prepare("SELECT ID, LOGIN_ID FROM " . tn('TBL_USERS') . " WHERE LOGIN_ID = ? AND COMPANY = ? AND STATUS = 'Active' LIMIT 1");
-            $stmt->bind_param('ss', $username, $companyName);
+            $stmt = $link->prepare("SELECT ID, LOGIN_ID FROM " . tn('TBL_USERS') . " WHERE LOGIN_ID = ? AND STATUS = 'Active' LIMIT 1");
+            $stmt->bind_param('s', $username);
             $stmt->execute(); $user = $stmt->get_result()->fetch_assoc(); $stmt->close();
             if ($user && filter_var($user['LOGIN_ID'], FILTER_VALIDATE_EMAIL)) {
                 $token = bin2hex(random_bytes(32));
@@ -108,7 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             <span class="input-group-text"><i class="bi bi-building"></i></span>
                             <input type="text" id="company" class="form-control" name="CompanyName" 
                                    placeholder="Registered company name" required
-                                   value="<?= isset($_POST['CompanyName']) ? htmlspecialchars($_POST['CompanyName']) : ''; ?>">
+                                   value="<?= htmlspecialchars($_POST['CompanyName'] ?? $companyName, ENT_QUOTES, 'UTF-8') ?>">
                         </div>
                     </div>
 

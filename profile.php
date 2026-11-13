@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
                     $types  .= "s";
                 }
 
-                $uploadDir = __DIR__ . '/uploads/profile_photos/';
+                $uploadDir = function_exists('getTenantUploadDir') ? getTenantUploadDir('profile_photos') : (__DIR__ . '/uploads/profile_photos/');
                 if (!is_dir($uploadDir)) {
                     @mkdir($uploadDir, 0755, true);
                 }
@@ -220,9 +220,16 @@ $avatarSrc = '';
 if (!empty($userRow['profile_picture']) && str_starts_with($userRow['profile_picture'], 'data:image/')) {
     $hasAvatar = true;
     $avatarSrc = $userRow['profile_picture'];
-} elseif (!empty($userRow['profile_photo']) && file_exists(__DIR__ . '/uploads/profile_photos/' . $userRow['profile_photo'])) {
-    $hasAvatar = true;
-    $avatarSrc = (defined('APP_BASE') ? APP_BASE : '') . '/uploads/profile_photos/' . $userRow['profile_photo'];
+} elseif (!empty($userRow['profile_photo'])) {
+    $tenantPhotoPath = (function_exists('getTenantUploadDir') ? getTenantUploadDir('profile_photos') : (__DIR__ . '/uploads/profile_photos/')) . $userRow['profile_photo'];
+    $globalPhotoPath = __DIR__ . '/uploads/profile_photos/' . $userRow['profile_photo'];
+    if (file_exists($tenantPhotoPath)) {
+        $hasAvatar = true;
+        $avatarSrc = (function_exists('getTenantUploadUrl') ? getTenantUploadUrl('profile_photos') : ((defined('APP_BASE') ? APP_BASE : '') . '/uploads/profile_photos/')) . $userRow['profile_photo'];
+    } elseif (file_exists($globalPhotoPath)) {
+        $hasAvatar = true;
+        $avatarSrc = (defined('APP_BASE') ? APP_BASE : '') . '/uploads/profile_photos/' . $userRow['profile_photo'];
+    }
 } elseif (!empty($userRow['profile_picture_blob'])) {
     $hasAvatar = true;
     $avatarSrc = 'data:image/jpeg;base64,' . base64_encode($userRow['profile_picture_blob']);

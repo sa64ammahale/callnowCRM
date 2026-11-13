@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/super_admin.php';
+require_once __DIR__ . '/../../php_scripts/tenant_provisioner.php';
 
 global $link;
 ensureSuperAdminSchema($link);
@@ -121,6 +122,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg_type = 'success';
             logActivity($link, USER_ID, 'UPDATE', 'Toggled feature access: ' . $feature . ' = ' . ($enabled ? 'enabled' : 'disabled'));
         }
+
+        if ($action === 'provision_tenant') {
+            $code = trim($_POST['company_code'] ?? '');
+            $name = trim($_POST['company_name'] ?? '');
+            $adminEmail = trim($_POST['admin_email'] ?? '');
+            $adminPassword = $_POST['admin_password'] ?? '';
+            $adminName = trim($_POST['admin_name'] ?? '');
+            $customDb = trim($_POST['custom_db'] ?? '');
+
+            $res = provisionTenantDatabase($code, $name, $customDb ?: null, $adminEmail ?: null, $adminPassword ?: null, $adminName ?: null);
+            if ($res['success']) {
+                $msg = 'Company ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ' (' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . ') provisioned successfully!';
+                $msg_type = 'success';
+                logActivity($link, USER_ID, 'CREATE', 'Provisioned tenant company: ' . $code);
+            } else {
+                $msg = 'Provisioning error: ' . ($res['error'] ?? 'Unknown error');
+                $msg_type = 'danger';
+            }
+        }
+
+        if ($action === 'set_tenant_status') {
+            $code = trim($_POST['company_code'] ?? '');
+            $status = trim($_POST['status'] ?? 'Active');
+            if (setTenantStatus($code, $status)) {
+                $msg = 'Company ' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . ' status set to ' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '.';
+                $msg_type = 'success';
+                logActivity($link, USER_ID, 'UPDATE', 'Updated company status: ' . $code . ' -> ' . $status);
+            } else {
+                $msg = 'Failed to update company status.';
+                $msg_type = 'danger';
+            }
+        }
     }
 }
 
@@ -213,6 +246,11 @@ $featureFlags = [
         <li class="nav-item">
             <a class="nav-link <?= $tab==='access'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=access">
                 <i class="bi bi-shield-check me-1"></i> Master Feature Toggles
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $tab==='tenants'?'active fw-semibold text-primary':'' ?>" href="<?= url('modules/settings/super_admin_panel.php') ?>?tab=tenants">
+                <i class="bi bi-buildings me-1"></i> Companies & Databases
             </a>
         </li>
         <li class="nav-item">
@@ -621,6 +659,122 @@ $featureFlags = [
                     </table>
                 </div>
             <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- TAB: TENANTS & COMPANIES -->
+    <?php if ($tab === 'tenants'): ?>
+    <?php $companies = listTenantCompanies(); ?>
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card border mb-3">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold text-dark"><i class="bi bi-buildings me-2 text-primary"></i>Registered Companies</span>
+                    <span class="badge bg-secondary-subtle text-secondary border"><?= count($companies) ?> Companies</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table crm-table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 130px;">Company Code</th>
+                                    <th>Company Name</th>
+                                    <th>Target Database</th>
+                                    <th style="width: 100px;">Status</th>
+                                    <th style="width: 140px;">Created</th>
+                                    <th style="width: 120px;" class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($companies as $comp): ?>
+                                    <tr>
+                                        <td><code class="fw-bold"><?= htmlspecialchars($comp['company_code']) ?></code></td>
+                                        <td class="fw-medium text-dark"><?= htmlspecialchars($comp['company_name']) ?></td>
+                                        <td><span class="font-monospace small text-muted"><?= htmlspecialchars($comp['db_name']) ?></span></td>
+                                        <td>
+                                            <span class="badge bg-<?= $comp['status']==='Active'?'success':($comp['status']==='Suspended'?'danger':'secondary') ?>-subtle text-dark border">
+                                                <?= htmlspecialchars($comp['status']) ?>
+                                            </span>
+                                        </td>
+                                        <td class="small text-muted font-monospace"><?= date('d M Y', strtotime($comp['created_at'])) ?></td>
+                                        <td class="text-end">
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Change status for <?= htmlspecialchars($comp['company_code']) ?>?');">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                                                <input type="hidden" name="sa_action" value="set_tenant_status">
+                                                <input type="hidden" name="company_code" value="<?= htmlspecialchars($comp['company_code']) ?>">
+                                                <?php if ($comp['status'] === 'Active'): ?>
+                                                    <input type="hidden" name="status" value="Suspended">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Suspend Access">
+                                                        <i class="bi bi-pause-fill"></i> Suspend
+                                                    </button>
+                                                <?php else: ?>
+                                                    <input type="hidden" name="status" value="Active">
+                                                    <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2" title="Activate Access">
+                                                        <i class="bi bi-play-fill"></i> Activate
+                                                    </button>
+                                                <?php endif; ?>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border">
+                <div class="card-header bg-white py-2">
+                    <span class="fw-semibold text-dark"><i class="bi bi-plus-circle me-2 text-primary"></i>Provision New Company</span>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                        <input type="hidden" name="sa_action" value="provision_tenant">
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-dark mb-1">Company Code <span class="text-danger">*</span></label>
+                            <input type="text" name="company_code" class="form-control form-control-sm" placeholder="e.g. acme" required pattern="^[a-zA-Z0-9_\-]+$">
+                            <div class="form-text small">Short unique slug for login and routing.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-dark mb-1">Company Name <span class="text-danger">*</span></label>
+                            <input type="text" name="company_name" class="form-control form-control-sm" placeholder="e.g. Acme Corporation" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-dark mb-1">Custom Database Name (Optional)</label>
+                            <input type="text" name="custom_db" class="form-control form-control-sm" placeholder="Default: callnow_<company_code>">
+                        </div>
+
+                        <hr class="my-3">
+                        <div class="small fw-semibold text-muted mb-2"><i class="bi bi-person-badge me-1"></i>Initial Admin User</div>
+
+                        <div class="mb-2">
+                            <label class="form-label small text-dark mb-1">Admin Full Name</label>
+                            <input type="text" name="admin_name" class="form-control form-control-sm" placeholder="e.g. Acme Admin">
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small text-dark mb-1">Admin Email (Login ID)</label>
+                            <input type="email" name="admin_email" class="form-control form-control-sm" placeholder="admin@acme.com">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small text-dark mb-1">Admin Initial Password</label>
+                            <input type="password" name="admin_password" class="form-control form-control-sm" placeholder="Initial password">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-database-add me-1"></i> Provision & Create Database
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
     <?php endif; ?>

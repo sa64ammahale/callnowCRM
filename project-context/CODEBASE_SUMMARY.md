@@ -31,6 +31,8 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose |
 |---|---|
 | `auth.php` | Core auth bootstrap: session, timeouts, role constants, `can($key)`, `requirePermission()`, `requireAnyPermission()`, `clearRbacCache()`, `logActivity()`, `getAccessibleUserIds()`, `requireRole()` (convenience only), `getTeamFilter()` |
+| `tenant.php` | Multi-tenant dynamic resolver: master DB connection, `resolveTenant()`, `getTenantConnection()`, cookie prefill setter/clearer, upload directory isolation (`getTenantUploadDir()`) |
+| `tenant_provisioner.php` | Tenant provisioning engine: `provisionTenantDatabase()`, `listTenantCompanies()`, `setTenantStatus()` for multi-database management |
 | `header.php` | Full HTML `<head>` (Bootstrap CSS, Bootstrap Icons, app-theme.css), sidebar, topbar, opens `<main>`; `url()` helper. Pages set `$pageTitle` before including. |
 | `super_admin.php` | Super admin limit helpers: `ensureSuperAdminSchema()`, `getCurrentPlan()`, `getEffectivePlan()`, `checkUserLimit()`, `checkApiTokenLimit()`, `checkStorageLimit()`, `getLimitUsageSummary()`, `logLimitViolation()` |
 | `footer.php` | Closes layout, loads Bootstrap JS bundle, theme.js, sidebar.js, APP_BASE, APP_CSRF |

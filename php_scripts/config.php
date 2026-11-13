@@ -19,26 +19,27 @@ date_default_timezone_set('Asia/Kolkata');
         }
     }
 
+    require_once __DIR__ . '/tenant.php';
+
     $DB_SERVERNAME = getenv('DB_SERVERNAME') ?: (getenv('DB_HOST') ?: "localhost");
     $DB_PORT = getenv('DB_PORT') ?: "3306";
     $DB_USERNAME = getenv('DB_USERNAME') ?: "root";
-    $DB_PASSWORD = getenv('DB_PASSWORD') ?: "";
+    $DB_PASSWORD = getenv('DB_PASSWORD') !== false ? (string)getenv('DB_PASSWORD') : "";
     $DB_NAME = getenv('DB_NAME') ?: "callnow_incredit";
 
-    $link = mysqli_connect($DB_SERVERNAME, $DB_USERNAME, $DB_PASSWORD, $DB_NAME, (int)$DB_PORT);
-    if($link === false){
-        if (defined('APP_DEBUG') && APP_DEBUG) {
-            die("ERROR: Could Not Connect to Database, Reason:- " . mysqli_connect_error());
+    if (getenv('DB_NAME') && str_starts_with(getenv('DB_NAME'), 'callnow_audit_')) {
+        $link = mysqli_connect($DB_SERVERNAME, $DB_USERNAME, $DB_PASSWORD, getenv('DB_NAME'), (int)$DB_PORT);
+        if ($link === false) {
+            if (defined('APP_DEBUG') && APP_DEBUG) {
+                die("ERROR: Could Not Connect to Database, Reason:- " . mysqli_connect_error());
+            }
+            die("ERROR: Could not connect to the database. Please contact the administrator.");
         }
-        die("ERROR: Could not connect to the database. Please contact the administrator.");
+        mysqli_set_charset($link, 'utf8mb4');
+        mysqli_report(MYSQLI_REPORT_OFF);
+    } else {
+        $link = getTenantConnection();
     }
-
-    mysqli_set_charset($link, 'utf8mb4');
-
-    // PHP 8.2 defaults to MYSQLI_REPORT_STRICT which throws exceptions
-    // on query failures → uncaught → HTTP 500. Remove STRICT so mysqli
-    // returns false on error (like PHP 7.x) instead of throwing.
-    mysqli_report(MYSQLI_REPORT_OFF);
 
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $rawHost = $_SERVER['HTTP_HOST'] ?? 'localhost';

@@ -24,7 +24,8 @@ if (isset($link) && $link) {
     }
 }
 
-$username = $password = $CompanyName = "";
+$CompanyName = $_COOKIE['callnow_company_code'] ?? '';
+$username = $password = "";
 $ErrorMessage = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -37,63 +38,75 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $password    = trim($_POST["password"] ?? '');
 
         if (!empty($username) && !empty($password) && !empty($CompanyName)) {
-            $rateLimitError = checkWebRateLimit($link, 'login', $username);
-            if ($rateLimitError) {
-                $ErrorMessage = $rateLimitError;
+            $tenant = resolveTenant($CompanyName);
+            if (!$tenant) {
+                $ErrorMessage = "Error: The Company Name is not valid OR your organization is inactive.";
             } else {
-                try {
-                    $tblUsers = tn('TBL_USERS');
-                    $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM $tblUsers WHERE LOGIN_ID = ?";
-                    $stmt = mysqli_prepare($link, $sql);
-                    if ($stmt) {
-                        mysqli_stmt_bind_param($stmt, "s", $param_username);
-                        $param_username = $username;
-                        if (mysqli_stmt_execute($stmt)) {
-                            mysqli_stmt_store_result($stmt);
-                            if (mysqli_stmt_num_rows($stmt) == 1) {
-                                mysqli_stmt_bind_result($stmt, $id, $name, $mobile, $company, $package, $status, $join_date, $role, $team, $hashed_password, $login_id, $device_id);
-                                if (mysqli_stmt_fetch($stmt)) {
-                                    if ($company == $CompanyName && $status == 'Active') {
-                                        if (password_verify($password, $hashed_password)) {
-                                            clearWebRateLimit($link, 'login', $username);
-                                            session_regenerate_id(true);
-                                            $_SESSION["loggedin"]    = true;
-                                            $_SESSION["id"]          = $id;
-                                            $_SESSION["name"]        = $name;
-                                            $_SESSION["mobile"]      = $mobile;
-                                            $_SESSION["company"]     = $company;
-                                            $_SESSION["package"]     = $package;
-                                            $_SESSION["status"]      = $status;
-                                            $_SESSION["join_date"]   = $join_date;
-                                            $_SESSION["role"]        = $role;
-                                            $_SESSION["team_id"]     = $team;
-                                            $_SESSION["login_id"]    = $login_id;
-                                            $_SESSION["device_id"]   = $device_id;
-                                            $_SESSION['LAST_ACTIVITY'] = time();
-                                            header("Location: dashboard");
-                                            exit;
+                $link = getTenantConnection($tenant['company_code']);
+                $rateLimitError = checkWebRateLimit($link, 'login', $username);
+                if ($rateLimitError) {
+                    $ErrorMessage = $rateLimitError;
+                } else {
+                    try {
+                        $tblUsers = tn('TBL_USERS');
+                        $sql = "SELECT ID, NAME, MOBILE, COMPANY, PACKAGE, STATUS, JOIN_DATE, ROLE, TEAM_ID, PASSWORD, LOGIN_ID, DEVICE_ID FROM $tblUsers WHERE LOGIN_ID = ?";
+                        $stmt = mysqli_prepare($link, $sql);
+                        if ($stmt) {
+                            mysqli_stmt_bind_param($stmt, "s", $param_username);
+                            $param_username = $username;
+                            if (mysqli_stmt_execute($stmt)) {
+                                mysqli_stmt_store_result($stmt);
+                                if (mysqli_stmt_num_rows($stmt) == 1) {
+                                    mysqli_stmt_bind_result($stmt, $id, $name, $mobile, $company, $package, $status, $join_date, $role, $team, $hashed_password, $login_id, $device_id);
+                                    if (mysqli_stmt_fetch($stmt)) {
+                                        if ($status == 'Active') {
+                                            if (password_verify($password, $hashed_password)) {
+                                                clearWebRateLimit($link, 'login', $username);
+                                                session_regenerate_id(true);
+                                                $_SESSION["loggedin"]     = true;
+                                                $_SESSION["id"]           = $id;
+                                                $_SESSION["name"]         = $name;
+                                                $_SESSION["mobile"]       = $mobile;
+                                                $_SESSION["company"]      = $company;
+                                                $_SESSION["company_code"] = $tenant['company_code'];
+                                                $_SESSION["company_name"] = $tenant['company_name'];
+                                                $_SESSION["company_db"]   = $tenant['db_name'];
+                                                $_SESSION["package"]      = $package;
+                                                $_SESSION["status"]       = $status;
+                                                $_SESSION["join_date"]    = $join_date;
+                                                $_SESSION["role"]         = $role;
+                                                $_SESSION["team_id"]      = $team;
+                                                $_SESSION["login_id"]     = $login_id;
+                                                $_SESSION["device_id"]    = $device_id;
+                                                $_SESSION['LAST_ACTIVITY'] = time();
+
+                                                setTenantCookie($tenant['company_code']);
+
+                                                header("Location: dashboard");
+                                                exit;
+                                            } else {
+                                                recordFailedAttemptWeb($link, 'login', $username);
+                                                $ErrorMessage = "Error: The password you entered is not valid.";
+                                            }
                                         } else {
                                             recordFailedAttemptWeb($link, 'login', $username);
-                                            $ErrorMessage = "Error: The password you entered is not valid.";
+                                            $ErrorMessage = "Error: Your user account is not active.";
                                         }
-                                    } else {
-                                        recordFailedAttemptWeb($link, 'login', $username);
-                                        $ErrorMessage = "Error: The Company Name is not valid OR your account is not active.";
                                     }
+                                } else {
+                                    recordFailedAttemptWeb($link, 'login', $username);
+                                    $ErrorMessage = "Error: The username you entered is not valid.";
                                 }
                             } else {
-                                recordFailedAttemptWeb($link, 'login', $username);
-                                $ErrorMessage = "Error: The username you entered is not valid.";
+                                $ErrorMessage = "Oops! Something went wrong. Please try again later.";
                             }
+                            mysqli_stmt_close($stmt);
                         } else {
-                            $ErrorMessage = "Oops! Something went wrong. Please try again later.";
+                            $ErrorMessage = "Database error: " . mysqli_error($link);
                         }
-                        mysqli_stmt_close($stmt);
-                    } else {
-                        $ErrorMessage = "Database error: " . mysqli_error($link);
+                    } catch (\Throwable $e) {
+                        $ErrorMessage = "Error: " . $e->getMessage();
                     }
-                } catch (\Throwable $e) {
-                    $ErrorMessage = "Error: " . $e->getMessage();
                 }
             }
         }
@@ -142,11 +155,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
                 
                 <div class="mb-3">
-                    <label for="company" class="form-label">Company Name <span class="req">*</span></label>
+                    <label for="company" class="form-label">Company Code or Name <span class="req">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-building"></i></span>
                         <input type="text" id="company" class="form-control" name="CompanyName"
-                               placeholder="e.g. Acme Corp" required
+                               placeholder="e.g. incredit or Acme Corp" required
                                value="<?= htmlspecialchars($CompanyName) ?>">
                     </div>
                 </div>
