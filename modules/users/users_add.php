@@ -21,10 +21,10 @@ $type = "";
 
 if (isSuperAdmin()) {
     $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
-} elseif (isAdmin()) {
-    $adminTeamIds = getAuthorizedTeamIds($link, (int)USER_ID, 'Admin');
-    if (!empty($adminTeamIds)) {
-        $tList = implode(',', array_map('intval', $adminTeamIds));
+} elseif (isAdmin() || isManager()) {
+    $authTeamIds = getAuthorizedTeamIds($link, (int)USER_ID, USER_ROLE);
+    if (!empty($authTeamIds)) {
+        $tList = implode(',', array_map('intval', $authTeamIds));
         $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList) ORDER BY NAME");
     } else {
         $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE 1=0");
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $allowedTeams = array_map('intval', array_column($allTeams, 'ID'));
         if (!canActorAssignRole(USER_ROLE, $role)) {
             $Message = 'You do not have permission to create or assign the role: ' . htmlspecialchars($role);
-        } elseif (!isAdmin() && !isSuperAdmin()) {
+        } elseif (!isAdmin() && !isSuperAdmin() && !isManager()) {
             $allowedRoles = ['Officer'];
             $team_id = (int)USER_TEAM_ID;
         }
@@ -145,10 +145,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             }
 
             if (!$Message) {
+                $teamIdInt = (int)$team_id;
+                $teamInfo = mysqli_fetch_assoc(mysqli_query($link, "SELECT SUPERVISOR_ID, MANAGER_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = $teamIdInt"));
+                $teamSupId = !empty($teamInfo['SUPERVISOR_ID']) ? (int)$teamInfo['SUPERVISOR_ID'] : (isSupervisor() ? USER_ID : null);
+                $creatorAdminId = isAdmin() ? USER_ID : null;
+
                 if ($isEdit) {
-                    $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $team_id, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
-                    $types = "ssssssisssid";
+                    $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, supervisor_id=COALESCE(?, supervisor_id), PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $teamIdInt, $teamSupId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
+                    $types = "ssssssiissisd";
 
                     if (!empty($password)) {
                         $sql .= ", PASSWORD=?";
@@ -160,10 +165,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $types .= "i";
                 } else {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
-                    $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, PACKAGE, STATUS, COMPANY, daily_calling_limit, monthly_disbursement_limit, JOIN_DATE)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $team_id, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
-                    $types = "sssssssisssid";
+                    $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, supervisor_id, admin_id, PACKAGE, STATUS, COMPANY, daily_calling_limit, monthly_disbursement_limit, JOIN_DATE)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $teamIdInt, $teamSupId, $creatorAdminId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
+                    $types = "sssssssiissssid";
                 }
 
                 $stmt = mysqli_prepare($link, $sql);
