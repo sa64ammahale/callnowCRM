@@ -26,7 +26,7 @@ if ($ts === false) {
 }
 $atSql = date('Y-m-d H:i:s', $ts);
 
-$stmt = mysqli_prepare($link, "SELECT lead_id, assigned_to, team_id FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? LIMIT 1");
+$stmt = mysqli_prepare($link, "SELECT lead_id, cust_id, assigned_to, team_id FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? LIMIT 1");
 mysqli_stmt_bind_param($stmt, 'i', $leadId);
 mysqli_stmt_execute($stmt);
 $lead = mysqli_stmt_get_result($stmt)->fetch_assoc();
@@ -38,8 +38,9 @@ if (!canEditLead($lead)) {
     api_error('This lead is not in your tray', 403);
 }
 
-$stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, user_id, followup_at, note, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())");
-mysqli_stmt_bind_param($stmt, 'iiss', $leadId, $actorId, $atSql, $note);
+$custId = !empty($lead['cust_id']) ? (int)$lead['cust_id'] : null;
+$stmt = mysqli_prepare($link, "INSERT INTO " . tn('TBL_LEAD_FOLLOWUPS') . " (lead_id, client_contact_id, contact_source, user_id, followup_at, note, status, created_at) VALUES (?, ?, 'MAIN', ?, ?, ?, 'OPEN', NOW())");
+mysqli_stmt_bind_param($stmt, 'iiiss', $leadId, $custId, $actorId, $atSql, $note);
 if (!mysqli_stmt_execute($stmt)) {
     api_error('Failed to schedule follow-up', 500);
 }

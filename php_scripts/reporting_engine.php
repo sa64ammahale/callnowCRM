@@ -841,15 +841,38 @@ function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userR
         SELECT 
             f.id, f.lead_id, f.client_contact_id, f.contact_source, f.source_call_id, f.user_id, f.followup_at, f.note, f.status, f.completed_at, f.created_at,
             u.NAME AS officer_name,
-            COALESCE(l.NAME, m.MAINDATABASE_NAME, t.CUST_NAME, '') AS customer_name,
-            COALESCE(l.MOBILE, m.MAINDATABASE_MOBILE, t.CUST_MOBILE, '') AS customer_mobile,
-            COALESCE(l.COMPANY_NAME, m.MAINDATABASE_COMPANY, t.CUST_COMPANY, '') AS company_name,
+            COALESCE(
+                NULLIF(TRIM(l.NAME), ''),
+                NULLIF(TRIM(m.MAINDATABASE_NAME), ''),
+                NULLIF(TRIM(ml.MAINDATABASE_NAME), ''),
+                NULLIF(TRIM(t.CUST_NAME), ''),
+                NULLIF(TRIM(tl.CUST_NAME), ''),
+                IF(f.lead_id IS NOT NULL AND f.lead_id > 0, CONCAT('Lead #', f.lead_id), 'Customer')
+            ) AS customer_name,
+            COALESCE(
+                NULLIF(TRIM(l.MOBILE), ''),
+                NULLIF(TRIM(m.MAINDATABASE_MOBILE), ''),
+                NULLIF(TRIM(ml.MAINDATABASE_MOBILE), ''),
+                NULLIF(TRIM(t.CUST_MOBILE), ''),
+                NULLIF(TRIM(tl.CUST_MOBILE), ''),
+                ''
+            ) AS customer_mobile,
+            COALESCE(
+                NULLIF(TRIM(l.COMPANY_NAME), ''),
+                NULLIF(TRIM(m.MAINDATABASE_COMPANY), ''),
+                NULLIF(TRIM(ml.MAINDATABASE_COMPANY), ''),
+                NULLIF(TRIM(t.CUST_COMPANY), ''),
+                NULLIF(TRIM(tl.CUST_COMPANY), ''),
+                ''
+            ) AS company_name,
             l.loan_type, l.loan_amount, l.lead_status_new AS pipeline_stage
         FROM " . tn('TBL_LEAD_FOLLOWUPS') . " f
         LEFT JOIN " . tn('TBL_USERS') . " u ON f.user_id = u.ID
         LEFT JOIN " . tn('TBL_LEADS') . " l ON f.lead_id = l.lead_id
-        LEFT JOIN " . tn('TBL_MAIN') . " m ON (f.client_contact_id = m.ID AND f.contact_source = 'MAIN')
+        LEFT JOIN " . tn('TBL_MAIN') . " m ON (f.client_contact_id = m.ID AND (f.contact_source = 'MAIN' OR f.contact_source IS NULL OR f.contact_source = ''))
+        LEFT JOIN " . tn('TBL_MAIN') . " ml ON (l.cust_id = ml.ID)
         LEFT JOIN " . tn('TBL_TEMP') . " t ON (f.client_contact_id = t.ID AND f.contact_source = 'TEMP')
+        LEFT JOIN " . tn('TBL_TEMP') . " tl ON (l.cust_id = tl.ID)
         $whereSql
         ORDER BY f.followup_at ASC
         LIMIT ?

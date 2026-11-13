@@ -1374,21 +1374,32 @@ include __DIR__ . '/../../php_scripts/header.php';
                             <tbody>
                                 <?php if (!empty($followupList)): ?>
                                     <?php foreach ($followupList as $fo): 
-                                        $isOverdue = (strtotime($fo['followup_at']) < time()) && ($fo['status'] === 'OPEN');
-                                        $isToday = (date('Y-m-d', strtotime($fo['followup_at'])) === date('Y-m-d'));
+                                        $rawAt = $fo['followup_at'] ?? '';
+                                        $ts = (!empty($rawAt) && $rawAt !== '0000-00-00 00:00:00' && !str_starts_with($rawAt, '0000-')) ? strtotime($rawAt) : false;
+                                        $isOverdue = ($ts !== false) && ($ts < time()) && (($fo['status'] ?? '') === 'OPEN');
+                                        $isToday = ($ts !== false) && (date('Y-m-d', $ts) === date('Y-m-d'));
                                     ?>
                                         <tr>
-                                            <td><strong class="text-dark fs-xs"><?= htmlspecialchars($fo['customer_name'] ?: 'Customer') ?></strong></td>
+                                            <td>
+                                                <strong class="text-dark fs-xs"><?= htmlspecialchars($fo['customer_name'] ?: ($fo['lead_id'] ? 'Lead #' . $fo['lead_id'] : 'Customer')) ?></strong>
+                                                <?php if (!empty($fo['company_name'])): ?>
+                                                    <div class="text-muted fs-xxs"><?= htmlspecialchars($fo['company_name']) ?></div>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="font-monospace fs-xs"><?= htmlspecialchars($fo['customer_mobile'] ?: '—') ?></td>
                                             <td>
-                                                <?php if ($fo['lead_id']): ?>
-                                                    <span class="badge badge-success fs-xs"><i class="bi bi-link me-1"></i> Converted Lead #<?= $fo['lead_id'] ?></span>
+                                                <?php if (!empty($fo['lead_id'])): ?>
+                                                    <a href="<?= url('modules/leads/lead_view.php?id=' . (int)$fo['lead_id']) ?>" class="badge badge-success fs-xs text-decoration-none">
+                                                        <i class="bi bi-link me-1"></i> Converted Lead #<?= (int)$fo['lead_id'] ?>
+                                                    </a>
+                                                <?php elseif (!empty($fo['client_contact_id'])): ?>
+                                                    <span class="badge badge-secondary fs-xs">Client Contact #<?= (int)$fo['client_contact_id'] ?></span>
                                                 <?php else: ?>
-                                                    <span class="badge badge-secondary fs-xs">Client Contact #<?= $fo['client_contact_id'] ?></span>
+                                                    <span class="badge badge-light text-muted fs-xs">—</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="fs-xs text-dark"><?= htmlspecialchars($fo['officer_name'] ?: 'Unknown') ?></td>
-                                            <td class="fs-xs text-dark fw-semibold"><?= date('d M Y, h:i A', strtotime($fo['followup_at'])) ?></td>
+                                            <td class="fs-xs text-dark fw-semibold"><?= $ts ? date('d M Y, h:i A', $ts) : '—' ?></td>
                                             <td>
                                                 <?php if ($fo['status'] === 'DONE'): ?>
                                                     <span class="badge badge-success fs-xs">Completed</span>
