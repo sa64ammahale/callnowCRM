@@ -1,5 +1,7 @@
 <?php
 
+mysqli_report(MYSQLI_REPORT_OFF);
+
 if (!function_exists('sanitizeCompanyCode')) {
     function sanitizeCompanyCode(?string $code): ?string {
         if ($code === null) return null;
@@ -9,7 +11,7 @@ if (!function_exists('sanitizeCompanyCode')) {
 }
 
 if (!function_exists('getMasterConnection')) {
-    function getMasterConnection(): mysqli {
+    function getMasterConnection(): ?mysqli {
         static $masterLink = null;
         if ($masterLink instanceof mysqli && @mysqli_ping($masterLink)) {
             return $masterLink;
@@ -21,16 +23,23 @@ if (!function_exists('getMasterConnection')) {
         $port = (int)(getenv('DB_PORT') ?: 3306);
         $masterDb = getenv('MASTER_DB_NAME') ?: 'callnow_master';
 
-        $masterLink = mysqli_connect($host, $user, $pass, $masterDb, $port);
+        $connectError = '';
+        try {
+            $masterLink = @mysqli_connect($host, $user, $pass, $masterDb, $port);
+        } catch (\Throwable $e) {
+            $masterLink = false;
+            $connectError = $e->getMessage();
+        }
+
         if ($masterLink === false) {
+            $errMsg = $connectError ?: mysqli_connect_error();
             if (defined('APP_DEBUG') && APP_DEBUG) {
-                die("ERROR: Master database connection failed: " . mysqli_connect_error());
+                die("ERROR: Master database connection failed: " . htmlspecialchars($errMsg, ENT_QUOTES, 'UTF-8') . " [Host: $host, User: $user, MasterDB: $masterDb, Port: $port]");
             }
-            die("ERROR: System database connection failed. Please contact administrator.");
+            return null;
         }
 
         mysqli_set_charset($masterLink, 'utf8mb4');
-        mysqli_report(MYSQLI_REPORT_OFF);
         return $masterLink;
     }
 }
@@ -46,9 +55,27 @@ if (!function_exists('resolveTenant')) {
         $cleanCode = sanitizeCompanyCode($raw);
 
         $master = getMasterConnection();
+        if (!$master) {
+            return null;
+        }
+
         $tbl = defined('TBL_MASTER_COMPANIES') ? TBL_MASTER_COMPANIES : 'callnow_telecalling_companys';
-        $stmt = mysqli_prepare($master, "SELECT id, company_code, company_name, db_name, db_host, db_port, db_user, db_pass, status FROM `{$tbl}` WHERE (company_code = ? OR company_name = ?) AND status = 'Active' LIMIT 1");
-        if (!$stmt) return null;
+        $stmt = false;
+        $prepareError = '';
+        try {
+            $stmt = @mysqli_prepare($master, "SELECT * FROM `{$tbl}` WHERE (company_code = ? OR company_name = ?) AND status = 'Active' LIMIT 1");
+        } catch (\Throwable $e) {
+            $stmt = false;
+            $prepareError = $e->getMessage();
+        }
+
+        if (!$stmt) {
+            if (defined('APP_DEBUG') && APP_DEBUG) {
+                $err = $prepareError ?: mysqli_error($master);
+                die("ERROR: Failed querying master registry table `{$tbl}`: " . htmlspecialchars($err, ENT_QUOTES, 'UTF-8'));
+            }
+            return null;
+        }
 
         $checkCode = $cleanCode ?: '';
         mysqli_stmt_bind_param($stmt, 'ss', $checkCode, $raw);
@@ -59,6 +86,10 @@ if (!function_exists('resolveTenant')) {
 
         if (!$tenant || $tenant['status'] !== 'Active') {
             return null;
+        }
+
+        if (empty($tenant['db_name']) && !empty($tenant['database_name'])) {
+            $tenant['db_name'] = $tenant['database_name'];
         }
 
         return $tenant;
@@ -99,8 +130,8 @@ if (!function_exists('getTenantConnection')) {
             $resolvedCode = sanitizeCompanyCode($_COOKIE['callnow_company_code']);
         }
 
+        $defaultCode = getenv('DEFAULT_COMPANY_CODE') ?: 'incredit';
         if (!$resolvedCode) {
-            $defaultCode = getenv('DEFAULT_COMPANY_CODE') ?: 'incredit';
             $resolvedCode = sanitizeCompanyCode($defaultCode) ?: 'incredit';
         }
 
@@ -109,37 +140,53 @@ if (!function_exists('getTenantConnection')) {
         }
 
         $tenant = resolveTenant($resolvedCode);
-        if (!$tenant) {
-            if (isset($_SESSION['company_code']) && $_SESSION['company_code'] === $resolvedCode) {
-                unset($_SESSION['company_code'], $_SESSION['company_name'], $_SESSION['company_db']);
-            }
-            if (defined('APP_DEBUG') && APP_DEBUG) {
-                die("ERROR: Invalid company or company account is inactive: " . htmlspecialchars($resolvedCode, ENT_QUOTES, 'UTF-8'));
-            }
-            die("ERROR: Invalid company or company account is inactive.");
-        }
-
         $defaultHost = getenv('DB_SERVERNAME') ?: (getenv('DB_HOST') ?: 'localhost');
         $defaultUser = getenv('DB_USERNAME') ?: 'root';
         $defaultPass = getenv('DB_PASSWORD') !== false ? (string)getenv('DB_PASSWORD') : '';
         $defaultPort = (int)(getenv('DB_PORT') ?: 3306);
 
-        $host = !empty($tenant['db_host']) ? $tenant['db_host'] : $defaultHost;
-        $user = !empty($tenant['db_user']) ? $tenant['db_user'] : $defaultUser;
-        $pass = $tenant['db_pass'] !== null ? (string)$tenant['db_pass'] : $defaultPass;
-        $port = !empty($tenant['db_port']) ? (int)$tenant['db_port'] : $defaultPort;
-        $db   = $tenant['db_name'];
+        if (!$tenant) {
+            $fallbackDb = getenv('DB_NAME');
+            if ($fallbackDb && ($resolvedCode === $defaultCode || empty($_SESSION['company_code']))) {
+                $host = $defaultHost;
+                $user = $defaultUser;
+                $pass = $defaultPass;
+                $port = $defaultPort;
+                $db   = $fallbackDb;
+            } else {
+                if (isset($_SESSION['company_code']) && $_SESSION['company_code'] === $resolvedCode) {
+                    unset($_SESSION['company_code'], $_SESSION['company_name'], $_SESSION['company_db']);
+                }
+                if (defined('APP_DEBUG') && APP_DEBUG) {
+                    die("ERROR: Invalid company or company account is inactive: " . htmlspecialchars($resolvedCode, ENT_QUOTES, 'UTF-8'));
+                }
+                die("ERROR: Invalid company or company account is inactive.");
+            }
+        } else {
+            $host = !empty($tenant['db_host']) ? $tenant['db_host'] : $defaultHost;
+            $user = !empty($tenant['db_user']) ? $tenant['db_user'] : $defaultUser;
+            $pass = $tenant['db_pass'] !== null ? (string)$tenant['db_pass'] : $defaultPass;
+            $port = !empty($tenant['db_port']) ? (int)$tenant['db_port'] : $defaultPort;
+            $db   = $tenant['db_name'];
+        }
 
-        $link = mysqli_connect($host, $user, $pass, $db, $port);
+        $connectError = '';
+        try {
+            $link = @mysqli_connect($host, $user, $pass, $db, $port);
+        } catch (\Throwable $e) {
+            $link = false;
+            $connectError = $e->getMessage();
+        }
+
         if ($link === false) {
+            $errMsg = $connectError ?: mysqli_connect_error();
             if (defined('APP_DEBUG') && APP_DEBUG) {
-                die("ERROR: Failed connecting to database for company '$resolvedCode': " . mysqli_connect_error());
+                die("ERROR: Failed connecting to database '$db' for company '$resolvedCode': " . htmlspecialchars($errMsg, ENT_QUOTES, 'UTF-8'));
             }
             die("ERROR: Failed connecting to company database. Please contact administrator.");
         }
 
         mysqli_set_charset($link, 'utf8mb4');
-        mysqli_report(MYSQLI_REPORT_OFF);
 
         $tenantLinks[$resolvedCode] = $link;
         return $link;

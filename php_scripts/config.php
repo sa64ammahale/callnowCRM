@@ -7,8 +7,9 @@ date_default_timezone_set('Asia/Kolkata');
         $lines = @file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if ($lines) {
             foreach ($lines as $line) {
-                if ($line[0] === '#' || strpos($line, '=') === false) continue;
-                [$k, $v] = explode('=', $line, 2);
+                $trimmed = trim($line);
+                if ($trimmed === '' || $trimmed[0] === '#' || strpos($trimmed, '=') === false) continue;
+                [$k, $v] = explode('=', $trimmed, 2);
                 $k = trim($k);
                 $v = trim(trim($v), '"\'');
                 if (!getenv($k)) {
@@ -16,6 +17,27 @@ date_default_timezone_set('Asia/Kolkata');
                     $_ENV[$k] = $v;
                 }
             }
+        }
+    }
+
+    if (!defined('APP_DEBUG')) {
+        if (!defined('APP_DEBUG')) {
+        define('APP_DEBUG', getenv('APP_DEBUG') === '1');
+    }
+    }
+    if (APP_DEBUG) {
+        error_reporting(E_ALL);
+        ini_set('display_errors', '1');
+        ini_set('display_startup_errors', '1');
+    } else {
+        ini_set('display_errors', '0');
+        ini_set('display_startup_errors', '0');
+    }
+    ini_set('log_errors', '1');
+
+    if (!function_exists('str_starts_with')) {
+        function str_starts_with(string $haystack, string $needle): bool {
+            return $needle === '' || strncmp($haystack, $needle, strlen($needle)) === 0;
         }
     }
 
@@ -221,7 +243,9 @@ date_default_timezone_set('Asia/Kolkata');
         }
     }
 
-    define('APP_DEBUG', getenv('APP_DEBUG') === '1');
+    if (!defined('APP_DEBUG')) {
+        define('APP_DEBUG', getenv('APP_DEBUG') === '1');
+    }
     error_reporting(E_ALL);
     ini_set('display_errors', APP_DEBUG ? '1' : '0');
     ini_set('display_startup_errors', APP_DEBUG ? '1' : '0');
