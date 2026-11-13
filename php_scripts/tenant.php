@@ -35,6 +35,10 @@ if (!function_exists('getMasterConnection')) {
     }
 }
 
+if (!defined('TBL_MASTER_COMPANIES')) {
+    define('TBL_MASTER_COMPANIES', getenv('MASTER_COMPANIES_TABLE') ?: 'callnow_telecalling_companys');
+}
+
 if (!function_exists('resolveTenant')) {
     function resolveTenant(string $companyInput): ?array {
         $raw = trim($companyInput);
@@ -42,7 +46,8 @@ if (!function_exists('resolveTenant')) {
         $cleanCode = sanitizeCompanyCode($raw);
 
         $master = getMasterConnection();
-        $stmt = mysqli_prepare($master, "SELECT id, company_code, company_name, db_name, db_host, db_port, db_user, db_pass, status FROM companies WHERE (company_code = ? OR company_name = ?) AND status = 'Active' LIMIT 1");
+        $tbl = defined('TBL_MASTER_COMPANIES') ? TBL_MASTER_COMPANIES : 'callnow_telecalling_companys';
+        $stmt = mysqli_prepare($master, "SELECT id, company_code, company_name, db_name, db_host, db_port, db_user, db_pass, status FROM `{$tbl}` WHERE (company_code = ? OR company_name = ?) AND status = 'Active' LIMIT 1");
         if (!$stmt) return null;
 
         $checkCode = $cleanCode ?: '';

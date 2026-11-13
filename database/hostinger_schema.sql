@@ -661,6 +661,67 @@ CREATE TABLE IF NOT EXISTS `enquiry` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
+-- 26. PASSWORD RESET TOKENS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `token_hash` char(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_token_hash` (`token_hash`),
+  KEY `idx_reset_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 27. CONTACT LEAD CONVERSIONS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `contact_lead_conversions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `client_contact_id` int(11) NOT NULL,
+  `contact_source` enum('MAIN','TEMP') NOT NULL DEFAULT 'MAIN',
+  `lead_id` int(11) NOT NULL,
+  `converted_by` int(11) NOT NULL,
+  `source_call_id` int(11) DEFAULT NULL,
+  `conversion_date` datetime NOT NULL,
+  `loan_type` varchar(100) DEFAULT NULL,
+  `loan_amount` varchar(50) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_conv_contact` (`client_contact_id`),
+  KEY `idx_conv_lead` (`lead_id`),
+  KEY `idx_conv_user` (`converted_by`),
+  KEY `idx_conv_date` (`conversion_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 28. REPORTING TARGETS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `reporting_targets` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `role` varchar(50) NOT NULL DEFAULT 'Officer',
+  `daily_call_target` int(11) NOT NULL DEFAULT 100,
+  `daily_connected_target` int(11) NOT NULL DEFAULT 30,
+  `daily_talk_time_minutes` int(11) NOT NULL DEFAULT 120,
+  `daily_lead_target` int(11) NOT NULL DEFAULT 3,
+  `min_connect_rate_pct` decimal(5,2) NOT NULL DEFAULT 25.00,
+  `max_overdue_followups` int(11) NOT NULL DEFAULT 5,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_target_role` (`role`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `reporting_targets` (`role`, `daily_call_target`, `daily_connected_target`, `daily_talk_time_minutes`, `daily_lead_target`, `min_connect_rate_pct`, `max_overdue_followups`)
+VALUES
+  ('Officer', 100, 30, 120, 3, 25.00, 5),
+  ('Supervisor', 400, 120, 480, 12, 25.00, 15),
+  ('Admin', 1000, 300, 1200, 30, 25.00, 30);
+
+-- ============================================================
 -- Done
 -- ============================================================
 SET FOREIGN_KEY_CHECKS=1;

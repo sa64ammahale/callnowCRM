@@ -1,22 +1,61 @@
 # CallNow CRM V5.00
 
-A telecalling CRM built with PHP 8.x and MySQL for managing call campaigns, leads, team performance, and subscription-style admin limits.
+A multi-tenant telecalling CRM built with procedural PHP 8.x and MySQL for managing multiple companies, call campaigns, leads, team performance, and subscription-style admin limits from a single unified codebase.
 
-## Features
+---
 
-- **Role-based access** — Admin, Manager, Supervisor, Officer hierarchy with granular DB-backed permissions
-- **Hidden Super Admin** — Separate Super Admin role with full access, hidden from all normal user views
-- **Lead pipeline** — 8-stage Kanban board: LEAD → FOLLOWUP → INTERNAL_UNDERWRITING → LOGIN → BANK_UNDERWRITING → SANCTIONED → DISBURSED → REJECT
-- **Team management** — Hierarchical teams with supervisor/manager assignments and member counts
-- **Call database** — Upload, import, and manage prospect numbers with full CRUD; track call statuses
-- **Reports** — Daily, monthly, and yearly performance reports with Chart.js and Excel export
-- **Activity audit** — Full audit trail of all CRUD operations
-- **DND management** — Do-Not-Disturb number tracking
-- **Dark mode** — Light/dark theme toggle persisted across sessions
-- **Responsive sidebar** — Collapsible, role-aware navigation with mobile overlay
-- **CSRF protection** — Tokens on every form and AJAX POST request
-- **API access** — Token-based mobile API with rate limiting and database assignments
-- **Super Admin limits** — Subscription-style plans with configurable user/API/storage limits
+## Key Highlights
+
+- **Multi-Company (Database-per-Tenant)** — Serve multiple companies from a single codebase with 100% database-level isolation. Each company operates in its own dedicated MySQL database.
+- **Dynamic Routing** — Automatic database switching based on company short code via Web Session, persistent 30-day cookies, and mobile API headers (`X-Company-Code`).
+- **Super Admin Tenant Manager** — Web portal to provision new company databases, execute base schema automatically, seed initial admin credentials, and toggle company access (Active / Suspended).
+- **Tenant-Scoped Asset Isolation** — User profile pictures and uploaded files are quarantined per-company (`uploads/{company_code}/...`) to prevent data leakage.
+- **Lead Pipeline** — 8-stage Kanban board: `LEAD` → `FOLLOWUP` → `INTERNAL_UNDERWRITING` → `LOGIN` → `BANK_UNDERWRITING` → `SANCTIONED` → `DISBURSED` → `REJECT`.
+- **RBAC System** — System roles (Super Admin, Admin, Manager, Supervisor, Officer) + custom roles with granular database-backed permissions matrix.
+- **Mobile App Client Ready** — Native Flutter mobile client support with `company_code` login, encrypted storage, and automatic `X-Company-Code` request injection.
+
+---
+
+## Multi-Company Architecture Overview
+
+```
+                      +---------------------------------------+
+                      |               Client                  |
+                      +---------------------------------------+
+                             /                         \
+           (Web Browser)    /                           \   (Mobile App)
+      [Session + Cookie]   /                             \  [Header: X-Company-Code]
+                          v                               v
+             +--------------------+              +--------------------+
+             |   Web Controller   |              |   Mobile API v1    |
+             |   (index/auth.php) |              |   (api_auth.php)   |
+             +--------------------+              +--------------------+
+                          \                               /
+                           \                             /
+                            v                           v
+              +-----------------------------------------------+
+              |        Tenant Database Connection Resolver    |
+              |              (php_scripts/tenant.php)         |
+              +-----------------------------------------------+
+                       |                             |
+     (1. Lookup Tenant)|                             | (2. Connect to Tenant DB)
+                       v                             v
+            +---------------------+        +-------------------------+
+            |   callnow_master    |        |   callnow_<company>     |
+            | (companies registry)|        | (users, leads, calls)   |
+            +---------------------+        +-------------------------+
+```
+
+### Context Resolution Priority
+When any request arrives, `php_scripts/tenant.php` resolves the target database in strict security order:
+1. **Explicit Parameter**: Direct `$companyCode` passed to connection factory.
+2. **Web Browser Session**: `$_SESSION['company_code']` (takes strict precedence to prevent cross-tenant session hijacking).
+3. **Mobile API Header**: `HTTP_X_COMPANY_CODE` (sent by mobile apps or API clients).
+4. **POST Form**: `$_POST['CompanyName']` on login and password reset forms.
+5. **Persistent Cookie**: `$_COOKIE['callnow_company_code']` (pre-fills the login screen for 30 days).
+6. **Default Fallback**: `DEFAULT_COMPANY_CODE` (`incredit`), connecting to `callnow_incredit`.
+
+---
 
 ## Tech Stack
 
@@ -24,80 +63,215 @@ A telecalling CRM built with PHP 8.x and MySQL for managing call campaigns, lead
 |-------|-------|
 | **Backend** | PHP 8.x procedural |
 | **Database** | MySQL / MariaDB via `mysqli` (prepared statements) |
+| **Architecture** | Database-per-tenant multi-company routing |
 | **Frontend** | Bootstrap 5.3, Bootstrap Icons, jQuery, DataTables, Chart.js |
 | **Auth** | Session-based with bcrypt password hashing, CSRF tokens |
-| **Theme** | Custom CSS with light+dark tokens |
+| **Mobile App** | Flutter 3.x (Dart), flutter_secure_storage, SharedPreferences |
+| **Theme** | Custom CSS design system with light+dark tokens |
 
-## Requirements
+---
 
-- PHP 8.0+
-- MySQL 5.7+ / MariaDB 10.3+
-- Apache / Nginx with PHP support
-- Hostinger shared hosting compatible
+## Installation & Deployment
 
-## Installation
+### 1. Requirements
+- PHP 8.0+ with `mysqli`, `json`, `mbstring`, `fileinfo` extensions
+- MySQL 5.7+ or MariaDB 10.3+
+- Apache / Nginx with `mod_rewrite` enabled
+- Hostinger Shared Hosting, cPanel, or Linux VPS compatible
 
-### 1. Upload files
+---
 
-Upload all project files to your hosting account, preferably in a subfolder like `callnowCRM/`.
+### 2. Environment Configuration (`.env`)
 
-### 2. Create database
+Create a `.env` file in the project root (or configure environment variables in your hosting control panel):
 
-1. Log in to **Hostinger hPanel** → **Databases** → **MySQL Databases**
-2. Create a new database (e.g., `callnow_incredit`)
-3. Create a MySQL user and assign it to the database
-4. Note down the database name, username, and password
+```env
+# Master Registry Database
+MASTER_DB_NAME=callnow_master
 
-### 3. Configure database connection
-
-Edit `config.php` or create a `.env` file in the project root:
-
-```
+# Default / Fallback Tenant Database
 DB_SERVERNAME=localhost
 DB_PORT=3306
-DB_USERNAME=your_db_user
-DB_PASSWORD=your_db_password
+DB_USERNAME=your_mysql_username
+DB_PASSWORD=your_mysql_password
 DB_NAME=callnow_incredit
+DEFAULT_COMPANY_CODE=incredit
+
+# Application Configuration
+APP_URL=https://crm.yourdomain.com/callnowCRM
 APP_DEBUG=0
+SETUP_KEY=callnow2026
 ```
 
-The app also reads these from PHP environment variables if set in hosting control panel.
+---
 
-### 4. Import database schema
+### 3. Database Initialization
 
-1. Go to **Hostinger hPanel** → **Databases** → **phpMyAdmin**
-2. Select your database
-3. Click **Import** → Choose file `database/hostinger_schema.sql`
-4. Click **Go**
+#### Step A: Initialize the Master Catalog Database (`callnow_master`)
+1. Create the master database in MySQL / phpMyAdmin:
+   ```sql
+   CREATE DATABASE IF NOT EXISTS `callnow_master` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+2. Import `database/master_schema.sql`:
+   ```bash
+   mysql -u your_user -p callnow_master < database/master_schema.sql
+   ```
+   *(On Hostinger shared hosting: Create the database via hPanel -> MySQL Databases, set `MASTER_DB_NAME=u123_master`, then import `database/master_schema.sql` via phpMyAdmin).*
 
-> `hostinger_schema.sql` uses `CREATE TABLE IF NOT EXISTS` and `INSERT IGNORE`, so it is safe to re-run. It includes the default Super Admin user.
+#### Step B: Initialize the Primary Tenant Database (`callnow_incredit`)
+1. Create the first company's database:
+   ```sql
+   CREATE DATABASE IF NOT EXISTS `callnow_incredit` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+2. Import the base tenant schema:
+   ```bash
+   mysql -u your_user -p callnow_incredit < database/hostinger_schema.sql
+   ```
 
-### 5. Set permissions
+---
 
-Ensure `config.php` and `.env` are not publicly accessible. On Hostinger, sensitive files are typically protected by default.
+### 4. File Permissions
+Ensure the following permissions on the server:
+- `uploads/` → `755` (writable by web server)
+- `config.php` and `.env` → `644` (protected)
+- All PHP and asset files → `644`
 
-### 7. Access the application
+---
 
-Visit: `https://yourdomain.com/callnowCRM/`
+### 5. Accessing the Application
 
-## Default Logins
+- **Web Portal**: `https://yourdomain.com/callnowCRM/`
+- Enter **Company Code or Name**: `incredit` (or `Incredit Financial Services`)
+- Enter your credentials:
+  - **Login ID**: `admin@callnow.com`
+  - **Password**: `Admin@123`
+- *(Change default passwords immediately after first login)*.
 
-| Role | Login ID | Password | Note |
-|------|----------|----------|------|
-| **Super Admin** | `admin@callnow.com` | `Admin@123` | Hidden full access — created by default in schema |
-| Admin | `admin@callnow.com` | `Admin@123` | Full access |
-| Manager | `manager@callnow.com` | `Admin@123` | Team + leads |
-| Supervisor | `supervisor@callnow.com` | `Admin@123` | Team oversight |
-| Officer | `officer@callnow.com` | `Admin@123` | Basic lead access |
+---
 
-> **Change default passwords immediately after first login.**
+## Super Admin: Provisioning New Companies
 
-## Project Structure
+Super Admins can manage companies and spin up new databases directly from the Web UI:
 
+1. Log in as Super Admin (`admin@callnow.com`).
+2. Navigate to **Super Admin Control** (sidebar) → **Companies & Databases** tab.
+3. In the **"Provision New Company"** panel:
+   - **Company Code**: e.g., `acme` (lowercase, alphanumeric, hyphens allowed)
+   - **Company Name**: e.g., `Acme Telecalling Solutions`
+   - **Custom Database Name** (optional): e.g., `callnow_acme` (defaults to `callnow_<company_code>`)
+   - **Admin Name**: Initial administrator name
+   - **Admin Email**: Login ID for the tenant administrator
+   - **Admin Password**: Initial password for the tenant administrator
+4. Click **Provision & Create Database**:
+   - Creates the database `callnow_acme`.
+   - Automatically executes the full 28-table schema from `database/hostinger_schema.sql`.
+   - Seeds the initial tenant administrator account in that company's `users` table.
+   - Registers the company in `callnow_master.callnow_telecalling_companys`.
+5. **Access Control**: Super Admins can click **Suspend** to instantly block a company's web and mobile access, or **Activate** to restore it.
+
+---
+
+## Mobile App Client Integration (Flutter)
+
+The mobile app client ([callnowMobileApp](file:///e:/Projects/FlutterProjects/callnowMobileApp)) has been updated to support multi-tenancy:
+
+### 1. Login Screen
+- The login form includes a **Company Code** field (`TextFormField`) pre-filled from local storage if previously used.
+- The user inputs their company code (`acme`), email, and password.
+- The login request passes `company_code` in the JSON body:
+  ```json
+  POST /api/v1/auth/login
+  {
+    "company_code": "acme",
+    "email": "agent@acme.com",
+    "password": "Password123"
+  }
+  ```
+
+### 2. Encrypted Local Storage
+- Upon successful login, the app stores the returned `company_code` and `token` in `FlutterSecureStorage` (backed by Android Keystore and iOS Keychain):
+  - `ConfigService.saveAuthData(token, userData, companyCode: companyCode)`
+  - Key: `callnow_company_code`
+
+### 3. Automatic Header Injection
+- Every subsequent API call through `ApiService` automatically attaches the company code header:
+  ```http
+  GET /api/v1/telecaller/calls HTTP/1.1
+  Host: crm.yourdomain.com
+  Authorization: Bearer <token>
+  X-Company-Code: acme
+  ```
+- The backend `php_scripts/api_auth.php` detects `X-Company-Code` and routes all database operations to that company's database (`callnow_acme`).
+
+---
+
+## Database Schema Inventory
+
+### Master Database (`callnow_master`)
+
+| Table | Purpose |
+|-------|---------|
+| `callnow_telecalling_companys` | Global catalog mapping company codes to database names, host, credentials, status (Active/Inactive/Suspended), and logo URL |
+
+### Tenant Database Schema (`database/hostinger_schema.sql`)
+
+All 28 tables are created per tenant:
+
+| # | Table | Purpose |
+|---|-------|---------|
+| 1 | `users` | Telecallers, officers, managers, and admins with bcrypt credentials |
+| 2 | `roles` | System roles (Admin, Manager, Supervisor, Officer, Super Admin) |
+| 3 | `permissions` | 11 system permission keys + custom access keys |
+| 4 | `role_permissions` | Role-to-permission mapping matrix |
+| 5 | `user_permissions` | Per-user permission overrides |
+| 6 | `teams` | Team hierarchy with supervisor/manager assignments |
+| 7 | `app_settings` | Per-tenant settings (logo path, theme, RBAC cache version) |
+| 8 | `main_database` | Primary prospect customer calling records |
+| 9 | `main_database_archive` | Archived prospect records |
+| 10 | `temporary_database` | Staging database for batch CSV imports |
+| 11 | `leads_table` | 8-stage sales pipeline leads (Kanban board) |
+| 12 | `lead_notes` | Lead interaction notes & comments |
+| 13 | `lead_followups` | Scheduled callback alarms & follow-ups |
+| 14 | `lead_assignments` | Audit trail of lead assignments across agents |
+| 15 | `activity_log` | Full audit trail of all CRUD operations with IP logging |
+| 16 | `call_logs` | Dialed call records, durations, audio recordings |
+| 17 | `user_page_filters` | Persisted DataTables and filter preferences per user |
+| 18 | `api_settings` | Mobile API rate limits and enabled flags |
+| 19 | `api_tokens` | Bearer tokens for mobile app authentication |
+| 20 | `api_database_assignments` | Per-user allowed database assignments (temporary, main, leads) |
+| 21 | `api_access_logs` | Mobile API request access log with execution time |
+| 22 | `super_admin_plans` | Subscription quotas & resource limits |
+| 23 | `super_admin_account` | Tenant subscription status & billing contact |
+| 24 | `super_admin_limit_logs` | Limit violation audit trail |
+| 25 | `enquiry` | Legacy customer enquiry records |
+| 26 | `password_reset_tokens` | SHA-256 hashed 30-minute password reset tokens |
+| 27 | `contact_lead_conversions` | Performance tracking for prospect-to-lead conversions |
+| 28 | `reporting_targets` | Role-based daily call, talk time, and lead targets |
+
+---
+
+## Testing & Verification
+
+### Run CRM Backend Tests
+Verify multi-tenant isolation, database switching, sanitization, and provisioning:
+```powershell
+php tests/test_multi_tenant.php
 ```
-├── config.php                      # DB connection, CSRF helpers, APP_BASE
-├── index.php                       # Login page
-├── dashboard.php                   # KPI dashboard
+*(Expected output: 26 Passed, 0 Failed)*.
+
+### Batch PHP Syntax Linting
+Verify zero syntax errors across all PHP files:
+```powershell
+Get-ChildItem -Recurse -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### Run Flutter Mobile App Tests
+Verify secure storage, company code caching, and configuration persistence:
+```powershell
+cd e:\Projects\FlutterProjects\callnowMobileApp
+flutter test test/config_service_test.dart
+flutter test test/user_profile_test.dart
+```
 ├── logout.php                      # Session destroy
 ├── profile.php                     # User profile editor
 ├── CallNowSignUp.php               # Self-registration + setup seed

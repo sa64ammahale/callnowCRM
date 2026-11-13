@@ -5,7 +5,8 @@ require_once __DIR__ . '/tenant.php';
 if (!function_exists('listTenantCompanies')) {
     function listTenantCompanies(): array {
         $master = getMasterConnection();
-        $res = mysqli_query($master, "SELECT id, company_code, company_name, db_name, db_host, db_port, status, created_at, updated_at FROM companies ORDER BY id ASC");
+        $tbl = defined('TBL_MASTER_COMPANIES') ? TBL_MASTER_COMPANIES : 'callnow_telecalling_companys';
+        $res = mysqli_query($master, "SELECT id, company_code, company_name, db_name, db_host, db_port, status, created_at, updated_at FROM `{$tbl}` ORDER BY id ASC");
         if (!$res) return [];
         $list = [];
         while ($row = mysqli_fetch_assoc($res)) {
@@ -22,7 +23,8 @@ if (!function_exists('setTenantStatus')) {
             return false;
         }
         $master = getMasterConnection();
-        $stmt = mysqli_prepare($master, "UPDATE companies SET status = ? WHERE company_code = ?");
+        $tbl = defined('TBL_MASTER_COMPANIES') ? TBL_MASTER_COMPANIES : 'callnow_telecalling_companys';
+        $stmt = mysqli_prepare($master, "UPDATE `{$tbl}` SET status = ? WHERE company_code = ?");
         if (!$stmt) return false;
         mysqli_stmt_bind_param($stmt, 'ss', $status, $clean);
         $ok = mysqli_stmt_execute($stmt);
@@ -50,7 +52,8 @@ if (!function_exists('provisionTenantDatabase')) {
         }
 
         $master = getMasterConnection();
-        $checkStmt = mysqli_prepare($master, "SELECT id FROM companies WHERE company_code = ? LIMIT 1");
+        $tbl = defined('TBL_MASTER_COMPANIES') ? TBL_MASTER_COMPANIES : 'callnow_telecalling_companys';
+        $checkStmt = mysqli_prepare($master, "SELECT id FROM `{$tbl}` WHERE company_code = ? LIMIT 1");
         mysqli_stmt_bind_param($checkStmt, 's', $cleanCode);
         mysqli_stmt_execute($checkStmt);
         $exists = mysqli_stmt_get_result($checkStmt)->fetch_assoc();
@@ -107,7 +110,7 @@ if (!function_exists('provisionTenantDatabase')) {
 
         mysqli_close($tenantLink);
 
-        $insMaster = mysqli_prepare($master, "INSERT INTO companies (company_code, company_name, db_name, db_host, db_port, db_user, db_pass, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')");
+        $insMaster = mysqli_prepare($master, "INSERT INTO `{$tbl}` (company_code, company_name, db_name, db_host, db_port, db_user, db_pass, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')");
         if (!$insMaster) {
             return ['success' => false, 'error' => "Failed preparing master insert: " . mysqli_error($master)];
         }

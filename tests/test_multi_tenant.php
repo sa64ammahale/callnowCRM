@@ -28,8 +28,9 @@ echo "=== Running CallNow Multi-Tenant Architecture Test Suite ===" . PHP_EOL . 
 $master = getMasterConnection();
 assertCheck("Master connection established", $master instanceof mysqli && @mysqli_ping($master));
 
-$res = mysqli_query($master, "SHOW TABLES LIKE 'companies'");
-assertCheck("Master table 'companies' exists", $res && mysqli_num_rows($res) > 0);
+$masterTable = defined('TBL_MASTER_COMPANIES') ? TBL_MASTER_COMPANIES : 'callnow_telecalling_companys';
+$res = mysqli_query($master, "SHOW TABLES LIKE '$masterTable'");
+assertCheck("Master table '$masterTable' exists", $res && mysqli_num_rows($res) > 0);
 
 // 2. Sanitization
 assertCheck("Sanitize valid lower code", sanitizeCompanyCode('acme') === 'acme');
@@ -102,7 +103,7 @@ if ($provResult['success'] ?? false) {
     assertCheck("Reactivated tenant is resolvable", is_array($reactivatedResolved) && ($reactivatedResolved['status'] ?? '') === 'Active');
 
     // 7. Cleanup Test Database & Master Registry
-    $cleanupMaster = mysqli_prepare($master, "DELETE FROM companies WHERE company_code = ?");
+    $cleanupMaster = mysqli_prepare($master, "DELETE FROM `{$masterTable}` WHERE company_code = ?");
     mysqli_stmt_bind_param($cleanupMaster, 's', $testCode);
     mysqli_stmt_execute($cleanupMaster);
     mysqli_stmt_close($cleanupMaster);
