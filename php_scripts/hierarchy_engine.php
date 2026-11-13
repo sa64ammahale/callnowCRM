@@ -257,7 +257,30 @@ function getAuthorizedTeamIds(mysqli $link, int $userId, string $role, ?int $use
     }
 
     if ($normRole === 'Admin') {
-        return getAdminManagedTeamIds($link, $userId);
+        $tIds = getAdminManagedTeamIds($link, $userId);
+        if (empty($tIds)) {
+            $res = $link->query("SELECT ID FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
+            if ($res) while ($r = $res->fetch_assoc()) $tIds[] = (int)$r['ID'];
+        }
+        return array_values(array_unique(array_filter($tIds)));
+    }
+
+    if ($normRole === 'Manager' || $role === 'Manager') {
+        $tIds = [];
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE MANAGER_ID = ? OR SUPERVISOR_ID = ?");
+        if ($stmt) {
+            $stmt->bind_param('ii', $userId, $userId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) $tIds[] = (int)$r['ID'];
+            $stmt->close();
+        }
+        if ($userTeamId && $userTeamId > 0) $tIds[] = $userTeamId;
+        if (empty($tIds)) {
+            $res = $link->query("SELECT ID FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
+            if ($res) while ($r = $res->fetch_assoc()) $tIds[] = (int)$r['ID'];
+        }
+        return array_values(array_unique(array_filter($tIds)));
     }
 
     if ($normRole === 'Supervisor') {
@@ -307,6 +330,29 @@ function getAuthorizedUserIds(mysqli $link, int $userId, string $role, ?int $use
         $combined = array_merge([$userId], $supIds, $offIds);
         // Exclude Super Admins
         $accessible = array_diff($combined, $superAdminIds);
+        if (empty($supIds) && empty($offIds)) {
+            $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active'");
+            $all = [];
+            if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
+            $accessible = array_diff($all, $superAdminIds);
+        }
+        return array_values(array_unique($accessible));
+    }
+
+    if ($normRole === 'Manager' || $role === 'Manager') {
+        $mTeamIds = getAuthorizedTeamIds($link, $userId, 'Manager', $userTeamId);
+        if (!empty($mTeamIds)) {
+            $tList = implode(',', array_map('intval', $mTeamIds));
+            $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IN ($tList) OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList))");
+            $uIds = [$userId];
+            if ($res) while ($r = $res->fetch_assoc()) $uIds[] = (int)$r['ID'];
+            $accessible = array_diff($uIds, $superAdminIds);
+            return array_values(array_unique($accessible));
+        }
+        $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active'");
+        $all = [];
+        if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
+        $accessible = array_diff($all, $superAdminIds);
         return array_values(array_unique($accessible));
     }
 

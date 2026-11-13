@@ -10,6 +10,10 @@ $currentUserId = (int)($_SESSION['id'] ?? 0);
 $managerTeamIds = [];
 if (isManager()) {
     $managerTeamIds = getManagerTeamIds($link, (int)$currentUserId);
+    if (empty($managerTeamIds) && (function_exists('canViewAllTBL_TEAMS') && canViewAllTBL_TEAMS())) {
+        $res = $link->query("SELECT ID FROM " . tn('TBL_TEAMS'));
+        if ($res) while ($r = $res->fetch_assoc()) $managerTeamIds[] = (int)$r['ID'];
+    }
     if (empty($managerTeamIds)) $managerTeamIds = [-1];
 }
 

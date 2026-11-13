@@ -121,8 +121,10 @@ if (($_POST['action'] ?? '') === 'delete') {
 $userRole = USER_ROLE;
 $userId   = (int)USER_ID;
 
+$canViewAll = isSuperAdmin() || isAdmin() || (function_exists('canViewAllTBL_TEAMS') && canViewAllTBL_TEAMS());
+
 $teamScopeWhere = "WHERE 1=1";
-if (!isSuperAdmin()) {
+if (!$canViewAll) {
     $authTeamIds = getAuthorizedTeamIds($link, $userId, $userRole);
     if (!empty($authTeamIds)) {
         $tList = implode(',', array_map('intval', $authTeamIds));
@@ -152,14 +154,14 @@ $total_teams  = mysqli_num_rows($teams_result);
 
 // Fetch supervisors & managers
 $all_supervisors = [];
-$supWhere = isSuperAdmin() 
+$supWhere = $canViewAll 
     ? "WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin'" 
     : "WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, $userId, $userRole, 'u', 'ID');
 $sup_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " u $supWhere ORDER BY NAME");
 if ($sup_res) while ($s = mysqli_fetch_assoc($sup_res)) $all_supervisors[] = $s;
 
 $all_managers = [];
-$mgrWhere = isSuperAdmin() ? "WHERE ROLE = 'Manager' AND ROLE != 'Super Admin'" : "WHERE ID = $userId";
+$mgrWhere = $canViewAll ? "WHERE ROLE = 'Manager' AND ROLE != 'Super Admin'" : "WHERE (ID = $userId OR ROLE = 'Manager') AND ROLE != 'Super Admin'";
 $mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " $mgrWhere ORDER BY NAME");
 if ($mgr_res) while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
 
@@ -171,7 +173,10 @@ if ($at_res) while ($r = mysqli_fetch_assoc($at_res)) $all_teams[] = $r;
 // Members grouped by team
 $team_members = [];
 $total_assigned_members = 0;
-$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM " . tn('TBL_USERS') . " u WHERE u.TEAM_ID IS NOT NULL AND u.ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, $userId, $userRole, 'u', 'ID') . " ORDER BY u.TEAM_ID, u.NAME");
+$memWhere = $canViewAll
+    ? "WHERE u.TEAM_ID IS NOT NULL AND u.ROLE != 'Super Admin'"
+    : "WHERE u.TEAM_ID IS NOT NULL AND u.ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, $userId, $userRole, 'u', 'ID');
+$members_res = mysqli_query($link, "SELECT u.ID, u.NAME, u.MOBILE, u.ROLE, u.TEAM_ID FROM " . tn('TBL_USERS') . " u $memWhere ORDER BY u.TEAM_ID, u.NAME");
 if ($members_res) {
     while ($m = mysqli_fetch_assoc($members_res)) {
         $team_members[$m['TEAM_ID']][] = $m;
