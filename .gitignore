@@ -19,9 +19,12 @@ Thumbs.db
 memory/
 
 # Uploaded user files (git-tracked via .gitkeep only)
-uploads/logo/*
+uploads/*
+!uploads/.htaccess
+!uploads/.gitkeep
+!uploads/logo/
 !uploads/logo/.gitkeep
-uploads/tenants/*
+!uploads/tenants/
 !uploads/tenants/.gitkeep
 
 # Hosting control files

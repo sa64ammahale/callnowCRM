@@ -722,6 +722,20 @@ VALUES
   ('Admin', 1000, 300, 1200, 30, 25.00, 30);
 
 -- ============================================================
+-- 29. LOGIN ATTEMPTS (BRUTE FORCE RATE LIMITING)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `login_attempts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ip_address` varchar(45) NOT NULL,
+  `action_type` varchar(32) NOT NULL,
+  `identifier` varchar(150) NOT NULL DEFAULT '',
+  `attempted_at` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_lookup` (`ip_address`, `action_type`, `attempted_at`),
+  KEY `idx_identifier` (`identifier`, `action_type`, `attempted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ============================================================
 -- Done
 -- ============================================================
 SET FOREIGN_KEY_CHECKS=1;
