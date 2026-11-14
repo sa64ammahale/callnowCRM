@@ -179,6 +179,7 @@ date_default_timezone_set('Asia/Kolkata');
         'TBL_USERS'            => 'users',
         'TBL_CONTACT_LEAD_CONVERSIONS' => 'contact_lead_conversions',
         'TBL_REPORTING_TARGETS' => 'reporting_targets',
+        'TBL_DND_REGISTRY'     => 'dnd_registry',
     ];
     foreach ($__cn_tbl as $__cn_k => $__cn_v) {
         $__cn_cur = defined($__cn_k) ? constant($__cn_k) : null;
@@ -483,6 +484,37 @@ date_default_timezone_set('Asia/Kolkata');
             if (!$hasIndex($link, tn('TBL_CALL_LOGS'), 'idx_logs_user_daily')) {
                 @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD INDEX idx_logs_user_daily (user_id, created_at, call_duration)");
             }
+
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_DND_REGISTRY') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                phone_number VARCHAR(10) NOT NULL,
+                reason VARCHAR(255) DEFAULT 'Customer Requested DND',
+                source VARCHAR(50) DEFAULT 'CALL_RESULT',
+                created_by INT DEFAULT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_dnd_phone (phone_number),
+                KEY idx_dnd_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            @mysqli_query($link, "INSERT IGNORE INTO " . tn('TBL_DND_REGISTRY') . " (phone_number, reason, source, created_at)
+                SELECT DISTINCT 
+                    RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) AS phone_number,
+                    'Historical DND Migration' AS reason,
+                    'SYSTEM_MIGRATION' AS source,
+                    COALESCE(LAST_DIALED_DATE_TIME, NOW()) AS created_at
+                FROM " . tn('TBL_MAIN') . "
+                WHERE LOWER(COALESCE(MAINDATABASE_CALL_DIALED_STATUS, '')) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+                  AND LENGTH(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', '')) >= 10");
+
+            @mysqli_query($link, "INSERT IGNORE INTO " . tn('TBL_DND_REGISTRY') . " (phone_number, reason, source, created_at)
+                SELECT DISTINCT 
+                    RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) AS phone_number,
+                    'Historical DND Migration' AS reason,
+                    'SYSTEM_MIGRATION' AS source,
+                    COALESCE(LAST_DIALED_DATE_TIME, NOW()) AS created_at
+                FROM " . tn('TBL_TEMP') . "
+                WHERE LOWER(COALESCE(CALL_DIALED_STATUS, '')) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+                  AND LENGTH(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', '')) >= 10");
 
             $done = true;
         }

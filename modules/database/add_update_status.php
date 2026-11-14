@@ -56,55 +56,80 @@ if (isset($_POST['submitDND'])) {
             $Message = "Invalid status selected.";
             $type = "danger";
         } else {
-            $sql = "INSERT INTO " . TBL_TEMP . "
-                        (CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CALL_DIALED_STATUS, TEMP_UPLOAD_DATETIME)
-                    VALUES (?, ?, ?, ?, ?, NOW())
-                    ON DUPLICATE KEY UPDATE
-                        CUST_NAME = VALUES(CUST_NAME),
-                        CUST_COMPANY = VALUES(CUST_COMPANY),
-                        CUST_PACKAGE = VALUES(CUST_PACKAGE),
-                        CALL_DIALED_STATUS = VALUES(CALL_DIALED_STATUS),
-                        TEMP_UPLOAD_DATETIME = NOW()";
+            $cleanDndNum = substr(preg_replace('/\D/', '', $dndNumber), -10);
+            $isAlreadyDnd = false;
+            $chkDnd = mysqli_prepare($link, "SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+            if ($chkDnd) {
+                mysqli_stmt_bind_param($chkDnd, "s", $cleanDndNum);
+                mysqli_stmt_execute($chkDnd);
+                mysqli_stmt_store_result($chkDnd);
+                $isAlreadyDnd = (mysqli_stmt_num_rows($chkDnd) > 0);
+                mysqli_stmt_close($chkDnd);
+            }
 
-            if ($stmt = mysqli_prepare($link, $sql)) {
-                mysqli_stmt_bind_param($stmt, "sssss", $name, $dndNumber, $company, $package, $status);
-                $ok = mysqli_stmt_execute($stmt);
-                $affected = mysqli_stmt_affected_rows($stmt);
-                mysqli_stmt_close($stmt);
+            if ($isAlreadyDnd && $status !== 'Do Not Call') {
+                $Message = "Cannot change status: Mobile number $dndNumber is permanently registered on Do-Not-Disturb (DND).";
+                $type = "danger";
+            } else {
+                $sql = "INSERT INTO " . TBL_TEMP . "
+                            (CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CALL_DIALED_STATUS, TEMP_UPLOAD_DATETIME)
+                        VALUES (?, ?, ?, ?, ?, NOW())
+                        ON DUPLICATE KEY UPDATE
+                            CUST_NAME = VALUES(CUST_NAME),
+                            CUST_COMPANY = VALUES(CUST_COMPANY),
+                            CUST_PACKAGE = VALUES(CUST_PACKAGE),
+                            CALL_DIALED_STATUS = VALUES(CALL_DIALED_STATUS),
+                            TEMP_UPLOAD_DATETIME = NOW()";
 
-                if ($ok) {
-                    $id = 0;
-                    if ($s2 = mysqli_prepare($link, "SELECT ID FROM " . TBL_TEMP . " WHERE CUST_MOBILE = ? LIMIT 1")) {
-                        mysqli_stmt_bind_param($s2, "s", $dndNumber);
-                        mysqli_stmt_execute($s2);
-                        $res2 = mysqli_stmt_get_result($s2);
-                        if ($row2 = mysqli_fetch_assoc($res2)) $id = intval($row2['ID']);
-                        mysqli_stmt_close($s2);
+                if ($stmt = mysqli_prepare($link, $sql)) {
+                    mysqli_stmt_bind_param($stmt, "sssss", $name, $dndNumber, $company, $package, $status);
+                    $ok = mysqli_stmt_execute($stmt);
+                    $affected = mysqli_stmt_affected_rows($stmt);
+                    mysqli_stmt_close($stmt);
+
+                    if ($ok) {
+                        if ($status === 'Do Not Call') {
+                            $insReg = mysqli_prepare($link, "INSERT IGNORE INTO " . tn('TBL_DND_REGISTRY') . " (phone_number, reason, source, created_by, created_at) VALUES (?, 'Admin Manual Status DND', 'MANUAL_ENTRY', ?, NOW())");
+                            if ($insReg) {
+                                mysqli_stmt_bind_param($insReg, "si", $cleanDndNum, $userId);
+                                mysqli_stmt_execute($insReg);
+                                mysqli_stmt_close($insReg);
+                            }
+                        }
+
+                        $id = 0;
+                        if ($s2 = mysqli_prepare($link, "SELECT ID FROM " . TBL_TEMP . " WHERE CUST_MOBILE = ? LIMIT 1")) {
+                            mysqli_stmt_bind_param($s2, "s", $dndNumber);
+                            mysqli_stmt_execute($s2);
+                            $res2 = mysqli_stmt_get_result($s2);
+                            if ($row2 = mysqli_fetch_assoc($res2)) $id = intval($row2['ID']);
+                            mysqli_stmt_close($s2);
+                        }
+
+                        $actionType = 'UPDATE';
+                        if ($affected === 1) $actionType = 'INSERT';
+                        elseif ($affected === 2) $actionType = 'UPDATE';
+
+                        $details = [
+                            'name' => $name,
+                            'mobile' => $dndNumber,
+                            'company' => $company,
+                            'package' => $package,
+                            'status' => $status
+                        ];
+                        $affectedIds = $id > 0 ? (string)$id : $dndNumber;
+                        log_activity($link, $userId, $actionType, $details, $affectedIds);
+
+                        $Message = "Number saved/updated successfully.";
+                        $type = "success";
+                    } else {
+                        $Message = "Database error: " . htmlspecialchars(mysqli_error($link));
+                        $type = "danger";
                     }
-
-                    $actionType = 'UPDATE';
-                    if ($affected === 1) $actionType = 'INSERT';
-                    elseif ($affected === 2) $actionType = 'UPDATE';
-
-                    $details = [
-                        'name' => $name,
-                        'mobile' => $dndNumber,
-                        'company' => $company,
-                        'package' => $package,
-                        'status' => $status
-                    ];
-                    $affectedIds = $id > 0 ? (string)$id : $dndNumber;
-                    log_activity($link, $userId, $actionType, $details, $affectedIds);
-
-                    $Message = "Number saved/updated successfully.";
-                    $type = "success";
                 } else {
-                    $Message = "Database error: " . htmlspecialchars(mysqli_error($link));
+                    $Message = "Database prepare error: " . htmlspecialchars(mysqli_error($link));
                     $type = "danger";
                 }
-            } else {
-                $Message = "Database prepare error: " . htmlspecialchars(mysqli_error($link));
-                $type = "danger";
             }
         }
     }
@@ -126,7 +151,9 @@ if (isset($_POST['minMaxIdChange'])) {
             $Message = "Invalid status selected for bulk update.";
             $type = "danger";
         } else {
-            $sql = "UPDATE " . TBL_TEMP . " SET CALL_DIALED_STATUS = ?, TEMP_UPLOAD_DATETIME = NOW() WHERE ID BETWEEN ? AND ?";
+            $sql = "UPDATE " . TBL_TEMP . " SET CALL_DIALED_STATUS = ?, TEMP_UPLOAD_DATETIME = NOW() 
+                    WHERE ID BETWEEN ? AND ? 
+                      AND NOT EXISTS (SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10))";
             if ($stmt = mysqli_prepare($link, $sql)) {
                 mysqli_stmt_bind_param($stmt, "sii", $status, $minID, $maxID);
                 $ok = mysqli_stmt_execute($stmt);

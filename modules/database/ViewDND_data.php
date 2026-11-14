@@ -136,15 +136,7 @@ while ($r = mysqli_fetch_assoc($result)) {
     $name = htmlspecialchars($r['name'] ?? '', ENT_QUOTES, 'UTF-8');
 
     $actions = '<div class="d-inline-flex align-items-center gap-1">';
-    /* Restore form */
-    $actions .= '<form method="POST" class="d-inline" onsubmit="return confirm(\'Restore this number to calling queue?\');">';
-    $actions .= $csrfField;
-    $actions .= '<input type="hidden" name="action" value="unmark">';
-    $actions .= '<input type="hidden" name="id" value="' . $id . '">';
-    $actions .= '<input type="hidden" name="source" value="' . $source . '">';
-    $actions .= '<input type="hidden" name="mobile" value="' . $mobile . '">';
-    $actions .= '<button type="submit" class="btn btn-secondary btn-sm py-1 px-2 fs-xs" title="Restore to Calling Queue"><i class="bi bi-telephone-plus me-1 text-success"></i> Restore</button>';
-    $actions .= '</form>';
+    $actions .= '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fs-xs"><i class="bi bi-shield-lock me-1"></i>Permanent DND</span>';
     /* Delete form (Admin only) */
     if ($isAdmin) {
         $actions .= '<form method="POST" class="d-inline" onsubmit="return confirm(\'Delete this DND record permanently?\');">';

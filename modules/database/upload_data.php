@@ -314,6 +314,22 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
             continue;
         }
 
+        $dndCheck = mysqli_prepare($link, "SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+        $isDndNum = false;
+        if ($dndCheck) {
+            mysqli_stmt_bind_param($dndCheck, "s", $digits);
+            mysqli_stmt_execute($dndCheck);
+            mysqli_stmt_store_result($dndCheck);
+            $isDndNum = (mysqli_stmt_num_rows($dndCheck) > 0);
+            mysqli_stmt_close($dndCheck);
+        }
+        if ($isDndNum) {
+            $stats['dnd_skipped'] = ($stats['dnd_skipped'] ?? 0) + 1;
+            $logs[] = "Row $rownum: Mobile '$digits' is registered on Do-Not-Disturb (DND). Discarded from import.";
+            $rows_processed++;
+            continue;
+        }
+
         $name_val = ($name_raw === '' ? null : $name_raw);
         $mobile_val = $digits;
         $company_val = ($company_raw === '' ? null : $company_raw);

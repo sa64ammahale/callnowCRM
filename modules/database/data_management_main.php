@@ -75,6 +75,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $mobile = substr($mobile, -10);
 
+        $dndChk = mysqli_prepare($link, "SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+        $isDndNum = false;
+        if ($dndChk) {
+            mysqli_stmt_bind_param($dndChk, "s", $mobile);
+            mysqli_stmt_execute($dndChk);
+            mysqli_stmt_store_result($dndChk);
+            $isDndNum = (mysqli_stmt_num_rows($dndChk) > 0);
+            mysqli_stmt_close($dndChk);
+        }
+        if ($isDndNum && strtolower($status) !== 'do not call') {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'This mobile number is permanently registered in Do-Not-Disturb (DND) and cannot be updated to callable status.']);
+            exit;
+        }
+        if (strtolower($status) === 'do not call') {
+            $currentAdminId = intval($_SESSION['id'] ?? 1);
+            $insDnd = mysqli_prepare($link, "INSERT IGNORE INTO " . tn('TBL_DND_REGISTRY') . " (phone_number, reason, source, created_by, created_at) VALUES (?, 'Data Management DND', 'MANUAL_ENTRY', ?, NOW())");
+            if ($insDnd) {
+                mysqli_stmt_bind_param($insDnd, "si", $mobile, $currentAdminId);
+                mysqli_stmt_execute($insDnd);
+                mysqli_stmt_close($insDnd);
+            }
+        }
+
         $sql = "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_NAME = ?, MAINDATABASE_MOBILE = ?, MAINDATABASE_COMPANY = ?, MAINDATABASE_PACKAGE = ?, MAINDATABASE_OTHER_INFO = ?, MAINDATABASE_CALL_DIALED_STATUS = ?, MAINDATABASE_CALL_DIALED_USER = ? WHERE ID = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "ssssssii", $name, $mobile, $company, $package, $other, $status, $assigned, $id);

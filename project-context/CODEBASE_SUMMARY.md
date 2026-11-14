@@ -92,8 +92,8 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose | Notes |
 |---|---|---|
 | `upload_data.php` | CSV upload + archive | Was debug-logging sensitive data; now removed. Modernized with gradient header, colored metric cards, styled drop zone, progress modal, CSRF-fixed batch processing, robust CSV preview parser (quoted fields), reset button, and empty states. |
-| `ViewDND.php` | DND numbers list (gated `manage_database`) | Dual-database listing (queries both `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC'), origin badges (Main DB vs Temp DB), search, pagination, restore to queue, permanent delete, CSRF-protected. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `ViewDND_data.php`. |
-| `ViewDND_data.php` | DataTables server-side JSON for ViewDND.php | GET-only, read-only; DND union (TEMP+MAIN) SELECT/COUNT + search; returns action HTML for restore/delete; supports `length=-1` full export. |
+| `ViewDND.php` | Permanent DND numbers list (gated `manage_database`) | Dual-database listing (queries `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC' and `dnd_registry`), origin badges (Main DB vs Temp DB), search, pagination, CSRF-protected. Immutability enforced: "Unmark DND" / restore action permanently removed. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `ViewDND_data.php`. |
+| `ViewDND_data.php` | DataTables server-side JSON for ViewDND.php | GET-only, read-only; DND union (TEMP+MAIN+dnd_registry) SELECT/COUNT + search; returns permanent DND status badge (restoration disabled); supports `length=-1` full export. |
 | `data_management_temporary.php` | AJAX CRUD on TEMPORARY_DATABASE | Was missing role guard; now Admin/Manager |
 | `data_management_main.php` | Main DB DataTables view + bulk ops | References bulk_assign.php (missing) |
 | `add_update_status.php` | Insert/Update + bulk status by ID range (Admin) | CSRF-protected |
@@ -628,6 +628,47 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
     - Test 2 (Next-Call Fallback): 20/20 HTTP 200 single lead claims, 0 collisions.
     - Test 3 (Dashboard Caching): Cold query 413ms -> warm cached query 58ms (86% latency reduction).
   - Clean batch linting across all PHP files in repository with 0 syntax errors.
+
+## Completed Goal (2026-11-14): Permanent & Irreversible DND (Do Not Disturb) Enforcement
+- **Requirement & Problem Addressed**:
+  - Guarantee that once a phone number is registered or marked as DND (Do Not Call), it can **never be called under any condition** across the entire CRM ecosystem (mobile app queues, fallback dials, direct dials, contact lookup, call submissions, CSV ingestion, manual customer entry, status updates, or lead conversions).
+  - Unmark/restore actions are permanently removed—once DND, always DND.
+- **Architectural Solution Implemented**:
+  1. **Centralized DND Registry (`dnd_registry`)**:
+     - Dedicated table `dnd_registry` (`id`, `phone_number` VARCHAR(15) UNIQUE, `reason`, `source`, `created_by`, `created_at`).
+     - Added to `database/hostinger_schema.sql` and `ensureApiSchema()` in `php_scripts/config.php` with self-healing creation and auto-backfill from legacy records in `main_database` and `temporary_database`.
+     - Standard 10-digit phone normalization (`substr(preg_replace('/\D/', '', $phone), -10)`) used across all PHP checks and SQL queries (`dr.phone_number = RIGHT(REGEXP_REPLACE(col, '[^0-9]', ''), 10)`).
+  2. **Zero-Leak API Queue Defense**:
+     - `/batch-leads` strictly excludes any number present in `dnd_registry` from both Temporary and Main database candidate pools.
+     - `/next-call` strictly excludes any number present in `dnd_registry`.
+     - Queue count calculation queries exclude `dnd_registry` records to ensure accurate pending tallies.
+  3. **Direct-Dial & Contact Lookup Blocking**:
+     - `/lookup-contact`: Pre-dial check returns `is_dnd: true, is_callable: false, dnd_reason: ...` whenever the queried phone matches `dnd_registry`.
+     - `/calls/validate-dial` and `/validate-dial`: Dedicated pre-dial validation endpoint returns HTTP 403 Forbidden with an error message if an agent attempts to initiate a call to a DND number.
+  4. **Call Submission Guard & Auto-Sync**:
+     - `api/v1/telecaller/submit_call.php`: Rejects call logging attempts on existing DND numbers with HTTP 403 Forbidden unless the submission is the initial transition into DND status.
+     - When marked DND: Phone is atomically upserted into `dnd_registry`, all customer records across `main_database` and `temporary_database` are set to `Do Not Call`, open follow-ups are cancelled, active batch leases are cleared, and lead conversion is blocked.
+  5. **Data Ingestion & Admin Guards**:
+     - `upload_data.php`: CSV pre-filter matches normalized phone numbers against `dnd_registry`. DND numbers are automatically discarded with a count reported in `$stats['dnd_skipped']`.
+     - `add_single_number.php`: Blocks insert/update if number exists in `dnd_registry`.
+     - `add_update_status.php`: Blocks changing DND numbers to callable statuses; auto-registers new 'Do Not Call' statuses into `dnd_registry`; blocks bulk ID updates from overwriting DND records.
+     - `data_management_main.php` & `data_management_temporary.php`: Blocks updating DND rows to callable status.
+     - `ViewDND.php` & `ViewDND_data.php`: "Unmark DND" / restore action permanently removed and replaced with a non-clickable "Permanent DND" badge. Any attempt to unmark returns a permanent immutability error.
+- **Verification**:
+  - `tests/test_dnd_absolute_enforcement.php`: 15/15 assertions passed (100%):
+    - Schema exists with UNIQUE constraint on `phone_number`.
+    - `/batch-leads` queue exclusion.
+    - `/next-call` single call exclusion.
+    - `/lookup-contact` `is_dnd: true`, `is_callable: false`.
+    - `/calls/validate-dial` HTTP 403 block.
+    - Submit call on existing DND rejected with HTTP 403.
+    - Mark new number DND enters `dnd_registry` and syncs both databases.
+    - CSV upload pre-filters and auto-skips DND numbers.
+    - Add single number manual addition blocks DND numbers.
+    - ViewDND unmark action rejected as permanent.
+  - `tests/test_high_concurrency_scaling.php`: Re-verified 20 concurrent requests under DND filters; 0 collisions, 100% success.
+  - Zero PHP syntax errors across repository.
+
 
 
 

@@ -140,6 +140,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
                 WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
                 AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+                WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
             )";
         $stmt = $link->prepare($sqlTemp);
         $stmt->bind_param('i', $userId);
@@ -156,6 +160,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 SELECT 1 FROM " . tn('TBL_TEMP') . " t 
                 WHERE t.CUST_MOBILE = " . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE 
                 AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+                WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_MAIN') . ".MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
             )";
         $stmt = $link->prepare($sqlMain);
         $stmt->bind_param('i', $userId);
@@ -220,6 +228,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
         AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+        WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
     )
     ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT ?";
@@ -309,6 +321,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
             AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+            WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
         )
         ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
         LIMIT ?";
@@ -436,6 +452,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
         AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
     )
+    AND NOT EXISTS (
+        SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+        WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+    )
     ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT 10");
     $stmtTemp->bind_param('i', $userId);
@@ -507,6 +527,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
             AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+            WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
         )
         ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
         LIMIT 20");
@@ -927,11 +951,25 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         apiError(400, 'Invalid phone number: must have at least 10 digits');
     }
 
+    $stmtDnd = $link->prepare("SELECT reason FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+    $isDnd = false;
+    $dndReason = '';
+    if ($stmtDnd) {
+        $stmtDnd->bind_param('s', $cleanPhone);
+        $stmtDnd->execute();
+        $dndRow = $stmtDnd->get_result()->fetch_assoc();
+        $stmtDnd->close();
+        if ($dndRow) {
+            $isDnd = true;
+            $dndReason = $dndRow['reason'] ?: 'Registered on Do-Not-Disturb (DND)';
+        }
+    }
+
     $contactData = null;
 
     $stmtLead = $link->prepare("
-        SELECT l.lead_id, l.cust_id, l.NAME, l.MOBILE, l.EMAIL, l.CITY, l.STATE, l.loan_type, l.loan_amount,
-               l.lead_status_new, l.target_bank, l.assigned_to, l.NOTES, u.NAME as officer_name
+        SELECT l.lead_id, l.cust_id, l.NAME, l.MOBILE, l.loan_type, l.loan_amount,
+               l.lead_status_new, l.assigned_to, l.NOTE, l.remarks, u.NAME as officer_name
         FROM " . tn('TBL_LEADS') . " l
         LEFT JOIN " . tn('TBL_USERS') . " u ON l.assigned_to = u.ID
         WHERE l.MOBILE LIKE ?
@@ -951,21 +989,21 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             'record_id' => (int)($leadRow['cust_id'] ?? $leadRow['lead_id']),
             'name' => $leadRow['NAME'] ?? '',
             'mobile' => $leadRow['MOBILE'] ?? '',
-            'email' => $leadRow['EMAIL'] ?? '',
-            'city' => $leadRow['CITY'] ?? '',
-            'state' => $leadRow['STATE'] ?? '',
+            'email' => '',
+            'city' => '',
+            'state' => '',
             'status' => $leadRow['lead_status_new'] ?? 'Lead',
             'loan_type' => $leadRow['loan_type'] ?? '',
             'loan_amount' => $leadRow['loan_amount'] ?? '',
-            'target_bank' => $leadRow['target_bank'] ?? '',
+            'target_bank' => '',
             'assigned_to' => (int)$leadRow['assigned_to'],
             'officer_name' => $leadRow['officer_name'] ?? '',
-            'notes' => $leadRow['NOTES'] ?? '',
+            'notes' => $leadRow['remarks'] ?: ($leadRow['NOTE'] ?? ''),
             'is_lead' => true,
         ];
     } else {
         $stmtMain = $link->prepare("
-            SELECT m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE, m.MAINDATABASE_EMAIL, m.MAINDATABASE_CITY,
+            SELECT m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE,
                    m.MAINDATABASE_CALL_DIALED_STATUS, m.MAINDATABASE_CALL_DIALED_USER, m.MAINDATABASE_OTHER_INFO,
                    m.LAST_DIALED_DATE_TIME, m.LAST_CONNECTED_PERIOD, u.NAME as officer_name
             FROM " . tn('TBL_MAIN') . " m
@@ -985,8 +1023,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 'record_id' => (int)$mainRow['ID'],
                 'name' => $mainRow['MAINDATABASE_NAME'] ?? '',
                 'mobile' => $mainRow['MAINDATABASE_MOBILE'] ?? '',
-                'email' => $mainRow['MAINDATABASE_EMAIL'] ?? '',
-                'city' => $mainRow['MAINDATABASE_CITY'] ?? '',
+                'email' => '',
+                'city' => '',
                 'status' => $mainRow['MAINDATABASE_CALL_DIALED_STATUS'] ?: 'Pending',
                 'assigned_to' => (int)($mainRow['MAINDATABASE_CALL_DIALED_USER'] ?? 0),
                 'officer_name' => $mainRow['officer_name'] ?? '',
@@ -997,7 +1035,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             ];
         } else {
             $stmtTemp = $link->prepare("
-                SELECT t.ID, t.CUST_NAME, t.CUST_MOBILE, t.CUST_EMAIL, t.CUST_CITY,
+                SELECT t.ID, t.CUST_NAME, t.CUST_MOBILE,
                        t.CALL_DIALED_STATUS, t.CALL_DIALED_TELECALLER, t.CUST_OTHER_INFO,
                        t.LAST_DIALED_DATE_TIME, t.LAST_CONNECTED_PERIOD, u.NAME as officer_name
                 FROM " . tn('TBL_TEMP') . " t
@@ -1017,8 +1055,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                     'record_id' => (int)$tempRow['ID'],
                     'name' => $tempRow['CUST_NAME'] ?? '',
                     'mobile' => $tempRow['CUST_MOBILE'] ?? '',
-                    'email' => $tempRow['CUST_EMAIL'] ?? '',
-                    'city' => $tempRow['CUST_CITY'] ?? '',
+                    'email' => '',
+                    'city' => '',
                     'status' => $tempRow['CALL_DIALED_STATUS'] ?: 'Pending',
                     'assigned_to' => (int)($tempRow['CALL_DIALED_TELECALLER'] ?? 0),
                     'officer_name' => $tempRow['officer_name'] ?? '',
@@ -1039,7 +1077,42 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         }
     }
 
+    $contactData['is_dnd'] = $isDnd;
+    $contactData['is_callable'] = !$isDnd;
+    if ($isDnd) {
+        $contactData['status'] = 'Do Not Call';
+        $contactData['dnd_reason'] = $dndReason;
+    }
+
     apiSuccess($contactData);
+
+} elseif ($relativePath === '/calls/validate-dial' || $relativePath === '/calls/validate-dial/' || $relativePath === '/validate-dial' || $relativePath === '/validate-dial/') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET' && $_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    $rawPhone = trim($_REQUEST['phone'] ?? ($_REQUEST['phone_number'] ?? ($_REQUEST['mobile'] ?? '')));
+    if ($rawPhone === '') apiError(400, 'Phone number is required');
+    $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+    if (strlen($cleanPhone) > 10) $cleanPhone = substr($cleanPhone, -10);
+    
+    $stmtDnd = $link->prepare("SELECT reason, created_at FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+    $stmtDnd->bind_param('s', $cleanPhone);
+    $stmtDnd->execute();
+    $dndRow = $stmtDnd->get_result()->fetch_assoc();
+    $stmtDnd->close();
+    
+    if ($dndRow) {
+        apiError(403, 'This number is registered on Do-Not-Disturb (DND) and cannot be dialed under any condition.', [
+            'is_dnd' => true,
+            'is_callable' => false,
+            'phone' => $cleanPhone,
+            'reason' => $dndRow['reason'] ?? 'Do Not Call'
+        ]);
+    }
+    
+    apiSuccess([
+        'is_dnd' => false,
+        'is_callable' => true,
+        'phone' => $cleanPhone
+    ]);
 
 } elseif ($relativePath === '/leads' || $relativePath === '/leads/') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {

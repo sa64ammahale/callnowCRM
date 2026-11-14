@@ -75,6 +75,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     }
                 }
 
+                $cleanDndMobile = substr(preg_replace('/\D/', '', $addMobile), -10);
+                if (strlen($cleanDndMobile) === 10) {
+                    $insDndReg = mysqli_prepare($link, "INSERT IGNORE INTO " . tn('TBL_DND_REGISTRY') . " (phone_number, reason, source, created_by, created_at) VALUES (?, 'Manual DND Entry', 'MANUAL_ENTRY', ?, NOW())");
+                    if ($insDndReg) {
+                        $adminUid = intval(USER_ID ?? 1);
+                        mysqli_stmt_bind_param($insDndReg, "si", $cleanDndMobile, $adminUid);
+                        mysqli_stmt_execute($insDndReg);
+                        mysqli_stmt_close($insDndReg);
+                    }
+                }
+
                 $alertMsg = "Mobile number $addMobile has been successfully added to Do-Not-Disturb (DND).";
                 $alertType = "success";
                 logActivity($link, USER_ID, 'DND_MANUAL_ADDED', "Added $addMobile to DND list ($addSource)", $addMobile, $addSource === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN'));
@@ -101,54 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     }
                 }
             } elseif ($action === 'unmark') {
-                $targetTable = ($source === 'TEMP') ? tn('TBL_TEMP') : tn('TBL_MAIN');
-                $mobileField = ($source === 'TEMP') ? 'CUST_MOBILE' : 'MAINDATABASE_MOBILE';
-
-                $mStmt = mysqli_prepare($link, "SELECT $mobileField FROM $targetTable WHERE ID = ? LIMIT 1");
-                if ($mStmt) {
-                    mysqli_stmt_bind_param($mStmt, "i", $delId);
-                    mysqli_stmt_execute($mStmt);
-                    $mRes = mysqli_stmt_get_result($mStmt);
-                    if ($mRow = mysqli_fetch_assoc($mRes)) {
-                        $dbMobile = preg_replace('/\D/', '', $mRow[$mobileField] ?? '');
-                        if ($dbMobile !== '') {
-                            $targetMobile = $dbMobile;
-                        }
-                    }
-                    mysqli_stmt_close($mStmt);
-                }
-
-                if ($source === 'TEMP') {
-                    $uStmt = mysqli_prepare($link, "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE ID = ?");
-                } else {
-                    $uStmt = mysqli_prepare($link, "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE ID = ?");
-                }
-                if ($uStmt) {
-                    mysqli_stmt_bind_param($uStmt, "i", $delId);
-                    mysqli_stmt_execute($uStmt);
-                    mysqli_stmt_close($uStmt);
-                }
-
-                if ($targetMobile !== '') {
-                    $dndStatusInSql = "'do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'";
-                    $uMain = mysqli_prepare($link, "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE MAINDATABASE_MOBILE = ? AND LOWER(MAINDATABASE_CALL_DIALED_STATUS) IN ($dndStatusInSql)");
-                    if ($uMain) {
-                        mysqli_stmt_bind_param($uMain, "s", $targetMobile);
-                        mysqli_stmt_execute($uMain);
-                        mysqli_stmt_close($uMain);
-                    }
-
-                    $uTemp = mysqli_prepare($link, "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Not Called', BATCH_ASSIGNED_AT = NULL WHERE CUST_MOBILE = ? AND LOWER(CALL_DIALED_STATUS) IN ($dndStatusInSql)");
-                    if ($uTemp) {
-                        mysqli_stmt_bind_param($uTemp, "s", $targetMobile);
-                        mysqli_stmt_execute($uTemp);
-                        mysqli_stmt_close($uTemp);
-                    }
-                }
-
-                $alertMsg = "Number successfully removed from DND and restored to calling queue.";
-                $alertType = "success";
-                logActivity($link, USER_ID, 'DND_UNMARKED', "Removed $targetMobile (Record #$delId) from DND", (string)$delId, $targetTable);
+                $alertMsg = "Do-Not-Disturb (DND) registrations are permanent and strictly irreversible. Numbers once marked DND cannot be restored to the calling queue.";
+                $alertType = "danger";
             }
         } else {
             $alertMsg = "Invalid record ID.";

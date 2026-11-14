@@ -191,6 +191,22 @@ if (!$record) {
 }
 
 $targetMobile = (string)($source === 'TEMP' ? ($record['CUST_MOBILE'] ?? '') : ($record['MAINDATABASE_MOBILE'] ?? ''));
+$cleanTargetMobile = preg_replace('/\D/', '', $targetMobile);
+if (strlen($cleanTargetMobile) > 10) $cleanTargetMobile = substr($cleanTargetMobile, -10);
+
+if ($cleanTargetMobile !== '') {
+    $qDndCheck = $link->prepare("SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+    if ($qDndCheck) {
+        $qDndCheck->bind_param('s', $cleanTargetMobile);
+        $qDndCheck->execute();
+        $isAlreadyDnd = ($qDndCheck->get_result()->fetch_assoc() !== null);
+        $qDndCheck->close();
+        if ($isAlreadyDnd && !$isDnd) {
+            $link->rollback();
+            apiError(403, 'This number is registered on Do-Not-Disturb (DND) and cannot be called under any condition.');
+        }
+    }
+}
 
 $recordUserId = (int)($record['CALL_DIALED_TELECALLER'] ?? $record['MAINDATABASE_CALL_DIALED_USER']);
 if ($recordUserId > 0 && $recordUserId !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) {
@@ -228,14 +244,28 @@ if ($source === 'MAIN') {
     $stmt->close();
 }
 
-// If marked as DND, strictly synchronize across ALL occurrences of this phone number in both tables
-if ($isDnd && $targetMobile !== '') {
-    foreach (["UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE = ?", "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE = ?"] as $dndSql) {
+// If marked as DND, strictly register and synchronize across ALL occurrences of this phone number in both tables
+if ($isDnd && $cleanTargetMobile !== '') {
+    $dndReason = $notes !== '' ? $notes : 'Customer Requested DND';
+    $insDnd = $link->prepare("INSERT IGNORE INTO " . tn('TBL_DND_REGISTRY') . " (phone_number, reason, source, created_by, created_at) VALUES (?, ?, 'CALL_RESULT', ?, NOW())");
+    if ($insDnd) {
+        $insDnd->bind_param('ssi', $cleanTargetMobile, $dndReason, $userId);
+        $insDnd->execute();
+        $insDnd->close();
+    }
+
+    foreach ([
+        "UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW() WHERE MAINDATABASE_MOBILE LIKE ?",
+        "UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Do Not Call', BATCH_ASSIGNED_AT = NULL, LAST_DIALED_DATE_TIME = NOW() WHERE CUST_MOBILE LIKE ?"
+    ] as $dndSql) {
         $dndStmt = $link->prepare($dndSql);
-        $dndStmt->bind_param('s', $targetMobile);
+        $likeMobile = "%" . $cleanTargetMobile;
+        $dndStmt->bind_param('s', $likeMobile);
         $dndStmt->execute();
         $dndStmt->close();
     }
+
+    $link->query("UPDATE " . tn('TBL_LEAD_FOLLOWUPS') . " SET status = 'CANCELLED', note = CONCAT(COALESCE(note,''), ' [DND Registered]') WHERE status = 'OPEN' AND (client_contact_id = $recordId OR lead_id IN (SELECT lead_id FROM " . tn('TBL_LEADS') . " WHERE MOBILE LIKE '%$cleanTargetMobile'))");
 }
 
 // 2. Insert into call logs
@@ -272,8 +302,8 @@ $logStmt->close();
 $table = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
 logActivity($link, $userId, 'CALL_SUBMITTED', "Submitted call result for $source record #$recordId", (string)$recordId, $table);
 
-// Convert to CRM Leads table (TBL_LEADS) if status is Lead or Follow-up
-$syncedLeadId = syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $callStatus, $notes, $nextFollowup, $input['loan_qualification'] ?? ($input['loan_details'] ?? null), $logId);
+// Convert to CRM Leads table (TBL_LEADS) if status is Lead or Follow-up (strictly never for DND)
+$syncedLeadId = $isDnd ? null : syncCallToLeadsAndPipeline($link, $source, $recordId, $userId, $callStatus, $notes, $nextFollowup, $input['loan_qualification'] ?? ($input['loan_details'] ?? null), $logId);
 if ($syncedLeadId && $syncedLeadId > 0) {
     $updLog = $link->prepare("UPDATE " . tn('TBL_CALL_LOGS') . " SET lead_id = ? WHERE id = ?");
     if ($updLog) {

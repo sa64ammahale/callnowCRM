@@ -741,6 +741,21 @@ CREATE TABLE IF NOT EXISTS `login_attempts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
+-- 30. DND REGISTRY (PERMANENT DO-NOT-DISTURB)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `dnd_registry` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `phone_number` varchar(10) NOT NULL,
+  `reason` varchar(255) DEFAULT 'Customer Requested DND',
+  `source` varchar(50) DEFAULT 'CALL_RESULT',
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_dnd_phone` (`phone_number`),
+  KEY `idx_dnd_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ============================================================
 -- Done
 -- ============================================================
 SET FOREIGN_KEY_CHECKS=1;

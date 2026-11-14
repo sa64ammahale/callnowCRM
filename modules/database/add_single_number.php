@@ -63,7 +63,22 @@ if (isset($_POST['submit'])) {
             $Message = "Invalid mobile number! Must be 10 digits starting with 6-9.";
             $type = "danger";
         } else {
-            $error = false;
+            $cleanMob = substr(preg_replace('/\D/', '', $mobile), -10);
+            $dndQ = mysqli_prepare($link, "SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+            $isDndContact = false;
+            if ($dndQ) {
+                mysqli_stmt_bind_param($dndQ, "s", $cleanMob);
+                mysqli_stmt_execute($dndQ);
+                mysqli_stmt_store_result($dndQ);
+                $isDndContact = (mysqli_stmt_num_rows($dndQ) > 0);
+                mysqli_stmt_close($dndQ);
+            }
+
+            if ($isDndContact) {
+                $Message = "Cannot add or update contact: Mobile number $mobile is permanently registered in Do-Not-Disturb (DND).";
+                $type = "danger";
+            } else {
+                $error = false;
 
             if ($isEdit) {
                 $sql_update = "UPDATE " . tn('TBL_MAIN') . " SET 
@@ -214,6 +229,7 @@ if (isset($_POST['submit'])) {
             }
         }
     }
+}
 }
 
 $pageTitle = ($isEdit ? 'Edit Customer' : 'Add Single Number') . ' • CallNow CRM';
