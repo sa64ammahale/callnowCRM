@@ -451,6 +451,39 @@ date_default_timezone_set('Asia/Kolkata');
             require_once __DIR__ . '/reporting_schema.php';
             ensureReportingAndConversionSchema($link);
 
+            $hasIndex = static function(mysqli $link, string $table, string $idxName): bool {
+                $r = @mysqli_query($link, "SHOW INDEX FROM " . $table . " WHERE Key_name = '" . $idxName . "'");
+                return ($r && mysqli_num_rows($r) > 0);
+            };
+
+            $mainCols = [];
+            $mRes = @mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_MAIN'));
+            if ($mRes) {
+                while ($mr = mysqli_fetch_assoc($mRes)) $mainCols[strtolower($mr['Field'])] = true;
+            }
+            if (!empty($mainCols) && !isset($mainCols['batch_assigned_at'])) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_MAIN') . " ADD COLUMN BATCH_ASSIGNED_AT datetime DEFAULT NULL AFTER MAINDATABASE_CALL_DIALED_USER");
+            }
+            if (!$hasIndex($link, tn('TBL_MAIN'), 'idx_main_concurrency_batch')) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_MAIN') . " ADD INDEX idx_main_concurrency_batch (MAINDATABASE_CALL_DIALED_STATUS, BATCH_ASSIGNED_AT, LAST_DIALED_DATE_TIME, ID)");
+            }
+
+            $tempCols = [];
+            $tRes = @mysqli_query($link, "SHOW COLUMNS FROM " . tn('TBL_TEMP'));
+            if ($tRes) {
+                while ($tr = mysqli_fetch_assoc($tRes)) $tempCols[strtolower($tr['Field'])] = true;
+            }
+            if (!empty($tempCols) && !isset($tempCols['batch_assigned_at'])) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_TEMP') . " ADD COLUMN BATCH_ASSIGNED_AT datetime DEFAULT NULL AFTER CALL_DIALED_TELECALLER");
+            }
+            if (!$hasIndex($link, tn('TBL_TEMP'), 'idx_temp_concurrency_batch')) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_TEMP') . " ADD INDEX idx_temp_concurrency_batch (CALL_DIALED_STATUS, BATCH_ASSIGNED_AT, LAST_DIALED_DATE_TIME, ID)");
+            }
+
+            if (!$hasIndex($link, tn('TBL_CALL_LOGS'), 'idx_logs_user_daily')) {
+                @mysqli_query($link, "ALTER TABLE " . tn('TBL_CALL_LOGS') . " ADD INDEX idx_logs_user_daily (user_id, created_at, call_duration)");
+            }
+
             $done = true;
         }
     }

@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS `main_database` (
   `MAINDATABASE_OTHER_INFO` text DEFAULT NULL,
   `MAINDATABASE_CALL_DIALED_STATUS` varchar(50) DEFAULT 'Not Called',
   `MAINDATABASE_CALL_DIALED_USER` int(11) DEFAULT NULL,
+  `BATCH_ASSIGNED_AT` datetime DEFAULT NULL,
   `LAST_CONNECTED_PERIOD` datetime DEFAULT NULL,
   `CALL_BY` int(11) DEFAULT NULL,
   `LAST_DIALED_DATE_TIME` datetime DEFAULT NULL,
@@ -229,6 +230,7 @@ CREATE TABLE IF NOT EXISTS `main_database` (
   KEY `idx_added_by` (`ADDED_BY`),
   KEY `idx_called_at` (`MAINDATABASE_CALL_DIAL_TIME`),
   KEY `idx_upload_dt` (`MAINDATABASE_UPLOAD_DATETIME`),
+  KEY `idx_main_concurrency_batch` (`MAINDATABASE_CALL_DIALED_STATUS`, `BATCH_ASSIGNED_AT`, `LAST_DIALED_DATE_TIME`, `ID`),
   FULLTEXT KEY `idx_search` (`MAINDATABASE_NAME`,`MAINDATABASE_MOBILE`,`MAINDATABASE_COMPANY`,`MAINDATABASE_OTHER_INFO`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -283,6 +285,7 @@ CREATE TABLE IF NOT EXISTS `temporary_database` (
   `CUST_OTHER_INFO` text DEFAULT NULL,
   `CALL_DIALED_STATUS` varchar(50) DEFAULT 'Not Called',
   `CALL_DIALED_TELECALLER` int(11) DEFAULT NULL,
+  `BATCH_ASSIGNED_AT` datetime DEFAULT NULL,
   `LAST_DIALED_DATE_TIME` datetime DEFAULT NULL,
   `LAST_CONNECTED_PERIOD` datetime DEFAULT NULL,
   `TEMP_UPLOAD_DATETIME` datetime DEFAULT current_timestamp(),
@@ -294,6 +297,7 @@ CREATE TABLE IF NOT EXISTS `temporary_database` (
   KEY `idx_last_dialed` (`LAST_DIALED_DATE_TIME`),
   KEY `idx_temp_status` (`CALL_DIALED_STATUS`),
   KEY `idx_temp_upload_dt` (`TEMP_UPLOAD_DATETIME`),
+  KEY `idx_temp_concurrency_batch` (`CALL_DIALED_STATUS`, `BATCH_ASSIGNED_AT`, `LAST_DIALED_DATE_TIME`, `ID`),
   FULLTEXT KEY `idx_search` (`CUST_NAME`,`CUST_MOBILE`,`CUST_COMPANY`,`CUST_OTHER_INFO`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -474,7 +478,8 @@ CREATE TABLE IF NOT EXISTS `call_logs` (
   UNIQUE KEY `uniq_user_client_call` (`user_id`,`client_call_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_record` (`record_id`,`source`),
-  KEY `idx_created_at` (`created_at`)
+  KEY `idx_created_at` (`created_at`),
+  KEY `idx_logs_user_daily` (`user_id`,`created_at`,`call_duration`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
