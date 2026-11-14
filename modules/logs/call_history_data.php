@@ -101,14 +101,22 @@ if ($search !== '') {
     $types .= 'sss';
 }
 
-if (USER_ROLE === 'Supervisor') {
-    $whereParts[] = 'u.TEAM_ID = ?';
-    $params[] = USER_TEAM_ID;
-    $types .= 'i';
-} elseif (USER_ROLE === 'Officer') {
+if (isOfficer()) {
     $whereParts[] = 'u.ID = ?';
     $params[] = USER_ID;
     $types .= 'i';
+} elseif (!isAdmin() && !isSuperAdmin()) {
+    $accIds = getAccessibleUserIds($link);
+    if (!empty($accIds)) {
+        $whereParts[] = 'u.ID IN (' . implode(',', array_map('intval', $accIds)) . ')';
+    } else {
+        $whereParts[] = 'u.ID = ?';
+        $params[] = USER_ID;
+        $types .= 'i';
+    }
+}
+if (!isSuperAdmin()) {
+    $whereParts[] = "u.ROLE != 'Super Admin'";
 }
 
 $whereSql = 'WHERE ' . implode(' AND ', $whereParts);

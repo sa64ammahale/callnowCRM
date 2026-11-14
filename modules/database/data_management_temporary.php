@@ -409,7 +409,24 @@ $sc = mysqli_query($link, "SELECT CALL_DIALED_STATUS, COUNT(*) as cnt FROM " . t
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
 
 $telecallers = [];
-$tu = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY NAME");
+$accessibleUserIds = getAccessibleUserIds($link);
+$userWhere = ["STATUS = 'Active'", "ROLE != 'Super Admin'"];
+if (function_exists('getSuperAdminUserIds')) {
+    $sAdminIds = getSuperAdminUserIds($link);
+    if (!empty($sAdminIds)) {
+        $userWhere[] = 'ID NOT IN (' . implode(',', array_map('intval', $sAdminIds)) . ')';
+    }
+}
+if (isOfficer()) {
+    $userWhere[] = 'ID = ' . (int)USER_ID;
+} elseif (!isAdmin() && !isSuperAdmin()) {
+    if (!empty($accessibleUserIds)) {
+        $userWhere[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+    } else {
+        $userWhere[] = 'ID = ' . (int)USER_ID;
+    }
+}
+$tu = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE " . implode(' AND ', $userWhere) . " ORDER BY NAME");
 if ($tu) while ($u = mysqli_fetch_assoc($tu)) $telecallers[$u['ID']] = $u['NAME'];
 
 $pageTitle = 'Temporary Database • CallNow CRM';

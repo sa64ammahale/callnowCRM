@@ -37,14 +37,19 @@ if ($q !== '') {
 if ($date_from !== '') { $where[] = "a.LOG_TIME >= ?"; $types .= 's'; $params[] = $date_from . " 00:00:00"; }
 if ($date_to !== '') { $where[] = "a.LOG_TIME <= ?"; $types .= 's'; $params[] = $date_to . " 23:59:59"; }
 
-if (isSupervisor()) {
-    $where[] = "a.USER_ID IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-    $types .= 'i';
-    $params[] = defined('USER_TEAM_ID') ? USER_TEAM_ID : intval($_SESSION['team_id'] ?? 0);
-} elseif (isOfficer()) {
+if (isOfficer()) {
     $where[] = "a.USER_ID = ?";
     $types .= 'i';
     $params[] = $userId;
+} elseif (!isAdmin() && !isSuperAdmin()) {
+    $accIds = getAccessibleUserIds($link);
+    if (!empty($accIds)) {
+        $where[] = "a.USER_ID IN (" . implode(',', array_map('intval', $accIds)) . ")";
+    } else {
+        $where[] = "a.USER_ID = ?";
+        $types .= 'i';
+        $params[] = $userId;
+    }
 }
 
 $where_sql = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';

@@ -104,14 +104,19 @@ if ($q !== '') {
 if ($date_from !== '') { $where[] = "a.LOG_TIME >= ?"; $types .= 's'; $params[] = $date_from . " 00:00:00"; }
 if ($date_to !== '') { $where[] = "a.LOG_TIME <= ?"; $types .= 's'; $params[] = $date_to . " 23:59:59"; }
 
-if (isSupervisor()) {
-    $where[] = "a.USER_ID IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
-    $types .= 'i';
-    $params[] = USER_TEAM_ID;
-} elseif (isOfficer()) {
+if (isOfficer()) {
     $where[] = "a.USER_ID = ?";
     $types .= 'i';
     $params[] = USER_ID;
+} elseif (!isAdmin() && !isSuperAdmin()) {
+    $accIds = getAccessibleUserIds($link);
+    if (!empty($accIds)) {
+        $where[] = "a.USER_ID IN (" . implode(',', array_map('intval', $accIds)) . ")";
+    } else {
+        $where[] = "a.USER_ID = ?";
+        $types .= 'i';
+        $params[] = USER_ID;
+    }
 }
 
 $where_sql = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -203,7 +208,24 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
 /* Filter dropdown values */
 $TBL_USERSList = [];
-$res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin' ORDER BY NAME ASC");
+$accessibleUserIds = getAccessibleUserIds($link);
+$actUserWhere = ["ROLE != 'Super Admin'"];
+if (function_exists('getSuperAdminUserIds')) {
+    $sAdminIds = getSuperAdminUserIds($link);
+    if (!empty($sAdminIds)) {
+        $actUserWhere[] = 'ID NOT IN (' . implode(',', array_map('intval', $sAdminIds)) . ')';
+    }
+}
+if (isOfficer()) {
+    $actUserWhere[] = 'ID = ' . (int)USER_ID;
+} elseif (!isAdmin() && !isSuperAdmin()) {
+    if (!empty($accessibleUserIds)) {
+        $actUserWhere[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+    } else {
+        $actUserWhere[] = 'ID = ' . (int)USER_ID;
+    }
+}
+$res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE " . implode(' AND ', $actUserWhere) . " ORDER BY NAME ASC");
 if ($res) {
     while ($r = mysqli_fetch_assoc($res)) $TBL_USERSList[$r['ID']] = $r['NAME'];
     mysqli_free_result($res);

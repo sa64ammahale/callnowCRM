@@ -35,18 +35,15 @@ $emptyIcons = [
 
 $where = '';
 $accessibleUserIds = getAccessibleUserIds($link);
-if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
-    $where = 'WHERE l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
-}
-
-$salespeople = [];
-$spSql = "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 1 ORDER BY NAME ASC";
-$spRes = mysqli_query($link, $spSql);
-if ($spRes) {
-    while ($sp = mysqli_fetch_assoc($spRes)) {
-        $salespeople[] = $sp;
+if (!isAdmin() && !isSuperAdmin()) {
+    if (!empty($accessibleUserIds)) {
+        $where = 'WHERE l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+    } else {
+        $where = 'WHERE l.assigned_to = ' . (int)USER_ID;
     }
 }
+
+$salespeople = getLeadAssignableUsers($link);
 
 // 1. Fetch exact counts per stage for accurate summary and badges
 $countSql = "SELECT UPPER(COALESCE(NULLIF(l.lead_status_new, ''), 'LEAD')) as st, COUNT(*) as cnt FROM " . tn('TBL_LEADS') . " l {$where} GROUP BY st";

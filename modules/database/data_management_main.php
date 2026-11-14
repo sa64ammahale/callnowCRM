@@ -9,7 +9,24 @@ $statusCounts = [];
 $sc = mysqli_query($link, "SELECT MAINDATABASE_CALL_DIALED_STATUS, COUNT(*) as cnt FROM " . tn('TBL_MAIN') . " GROUP BY MAINDATABASE_CALL_DIALED_STATUS ORDER BY cnt DESC");
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
 
-$TBL_USERS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY NAME");
+$accessibleUserIds = getAccessibleUserIds($link);
+$userWhere = ["STATUS = 'Active'", "ROLE != 'Super Admin'"];
+if (function_exists('getSuperAdminUserIds')) {
+    $sAdminIds = getSuperAdminUserIds($link);
+    if (!empty($sAdminIds)) {
+        $userWhere[] = 'ID NOT IN (' . implode(',', array_map('intval', $sAdminIds)) . ')';
+    }
+}
+if (isOfficer()) {
+    $userWhere[] = 'ID = ' . (int)USER_ID;
+} elseif (!isAdmin() && !isSuperAdmin()) {
+    if (!empty($accessibleUserIds)) {
+        $userWhere[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+    } else {
+        $userWhere[] = 'ID = ' . (int)USER_ID;
+    }
+}
+$TBL_USERS_result = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE " . implode(' AND ', $userWhere) . " ORDER BY NAME");
 $telecallers = [];
 while ($u = mysqli_fetch_assoc($TBL_USERS_result)) {
     $telecallers[$u['ID']] = $u['NAME'];

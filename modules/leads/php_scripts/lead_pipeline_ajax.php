@@ -57,8 +57,12 @@ if ($action === 'move_stage') {
     // Return updated stage counts
     $scopeWhere = '';
     $accessibleUserIds = getAccessibleUserIds($link);
-    if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
-        $scopeWhere = 'WHERE assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+    if (!isAdmin() && !isSuperAdmin()) {
+        if (!empty($accessibleUserIds)) {
+            $scopeWhere = 'WHERE assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+        } else {
+            $scopeWhere = 'WHERE assigned_to = ' . (int)USER_ID;
+        }
     }
     $cntRes = mysqli_query($link, "SELECT lead_status_new, COUNT(*) as cnt FROM " . tn('TBL_LEADS') . " {$scopeWhere} GROUP BY lead_status_new");
     $stageCounts = [];
@@ -102,9 +106,13 @@ if ($action === 'load_more') {
     $params = [$stage];
 
     $accessibleUserIds = getAccessibleUserIds($link);
-    if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
-        $inU = implode(',', array_map('intval', $accessibleUserIds));
-        $whereClauses[] = "l.assigned_to IN ({$inU})";
+    if (!isAdmin() && !isSuperAdmin()) {
+        if (!empty($accessibleUserIds)) {
+            $inU = implode(',', array_map('intval', $accessibleUserIds));
+            $whereClauses[] = "l.assigned_to IN ({$inU})";
+        } else {
+            $whereClauses[] = "l.assigned_to = " . (int)USER_ID;
+        }
     }
 
     if ($search !== '') {

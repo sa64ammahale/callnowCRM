@@ -59,7 +59,7 @@ $assignedResult = mysqli_query(
     "SELECT DISTINCT COALESCE(u.NAME, 'Unassigned') AS assigned_name
      FROM " . tn('TBL_LEADS') . " l
      LEFT JOIN " . tn('TBL_USERS') . " u ON u.ID = l.assigned_to
-     {$baseWhere}
+     {$baseWhere}" . ($baseWhere ? ' AND ' : ' WHERE ') . "(u.ROLE != 'Super Admin' OR u.ROLE IS NULL)
      ORDER BY assigned_name"
 );
 while ($assignedResult && ($row = mysqli_fetch_assoc($assignedResult))) {

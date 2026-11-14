@@ -761,7 +761,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         while ($t = $tRes->fetch_assoc()) {
             $teams[] = ['id' => (int)$t['ID'], 'name' => $t['TEAM_NAME']];
         }
-        $uRes = $link->query("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY NAME ASC");
+        $uRes = $link->query("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' AND ID != 1 ORDER BY NAME ASC");
         while ($u = $uRes->fetch_assoc()) {
             $officers[] = [
                 'id' => (int)$u['ID'],
@@ -779,7 +779,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         if ($tRow) {
             $teams[] = ['id' => (int)$tRow['ID'], 'name' => $tRow['TEAM_NAME']];
         }
-        $uStmt = $link->prepare("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? AND STATUS = 'Active' ORDER BY NAME ASC");
+        $uStmt = $link->prepare("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? AND STATUS = 'Active' AND ROLE != 'Super Admin' AND ID != 1 ORDER BY NAME ASC");
         $uStmt->bind_param('i', $teamId);
         $uStmt->execute();
         $uRes = $uStmt->get_result();

@@ -349,12 +349,20 @@ function normalizeFollowupDate(?string $value): ?string
 function getLeadAssignableTBL_USERS(mysqli $link): array
 {
     $accessibleUserIds = getAccessibleUserIds($link);
-    $whereParts = ["STATUS = 'Active'", "ROLE != 'Super Admin'"];
+    $superAdminIds = function_exists('getSuperAdminUserIds') ? getSuperAdminUserIds($link) : [1];
+    $whereParts = ["(STATUS = 'Active' OR STATUS = '1' OR STATUS = 1)", "ROLE != 'Super Admin'"];
+    if (!empty($superAdminIds)) {
+        $whereParts[] = 'ID NOT IN (' . implode(',', array_map('intval', $superAdminIds)) . ')';
+    }
 
     if (isOfficer()) {
         $whereParts[] = 'ID = ' . (int)USER_ID;
-    } elseif (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
-        $whereParts[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+    } elseif (!isAdmin() && !isSuperAdmin()) {
+        if (!empty($accessibleUserIds)) {
+            $whereParts[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+        } else {
+            $whereParts[] = 'ID = ' . (int)USER_ID;
+        }
     }
 
     $sql = "SELECT ID, NAME, ROLE, TEAM_ID FROM " . tn('TBL_USERS') . " WHERE " . implode(' AND ', $whereParts) . " ORDER BY NAME";
