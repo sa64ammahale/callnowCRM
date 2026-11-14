@@ -542,7 +542,19 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - **Verification**:
   - All 9 test suites in `tests/run_project_audit.php` passed with exit code 0 (25 web audit, 25 web pages, 5 concurrency, 67 android integration, 46 api module, 39 users module, 31 users view, 10 web auth, 27 web data workflows).
   - `dart analyze` on Flutter app passed with 0 issues.
-## Completed Feature (2026-11-12): Automatic Callback Tracking, Post-Call Prompts, and Leads Differentiation
+## Completed Feature (2026-11-14): Comprehensive RBAC Filter Enforcement & Super Admin Exclusion
+- **Super Admin Exclusion from User Filters & Salesperson Dropdowns**:
+  - `modules/leads/lead_pipeline.php`: Replaced raw unfiltered `SELECT ID, NAME FROM users WHERE STATUS = 1` query with `getLeadAssignableUsers($link)` and applied `getAccessibleUserIds($link)` for lead query scoping.
+  - `modules/leads/lead_common.php`: Hardened `getLeadAssignableTBL_USERS` to filter by `(STATUS = 'Active' OR STATUS = '1' OR STATUS = 1)`, explicitly exclude `ROLE != 'Super Admin'` and `ID NOT IN (getSuperAdminUserIds)`, and enforce strict team scoping for non-admin roles with fail-closed fallback.
+  - `modules/leads/lead_list.php`: Added `(u.ROLE != 'Super Admin' OR u.ROLE IS NULL)` to distinct assigned names query.
+  - `modules/database/data_management_main.php` & `data_management_temporary.php`: Scoped `$telecallers` list via `getAccessibleUserIds($link)` and excluded `ROLE != 'Super Admin'` and `getSuperAdminUserIds($link)`.
+  - `modules/logs/manage_activity.php` & `manage_activity_data.php`: Scoped user list `$TBL_USERSList` and activity query using `getAccessibleUserIds($link)` and excluded Super Admin accounts.
+  - `modules/logs/call_history.php` & `call_history_data.php`: Scoped telecallers by `getAccessibleUserIds($link)` and excluded Super Admin records for non-Super Admin callers.
+  - `api/v1/telecaller/index.php`: Added `ROLE != 'Super Admin' AND ID != 1` to `/team-officers` user discovery queries.
+- **Verification**:
+  - `tests/test_verify_filter_rbac.php`: Supervisor (ID 3), Manager (ID 2), Admin (ID 7), and Officer (ID 4) verified with 0 leaks of Super Admin accounts.
+  - Multi-tenant architecture suite passed (26/26 tests passing).
+
 - **Incoming Callback Auto-Tracking & Post-Call Action Prompt**:
   - **Backend (`api/v1/telecaller/index.php`, `submit_call.php`)**: Added `GET /telecaller/lookup-contact` endpoint to resolve contact details across `TBL_LEADS`, `TBL_MAIN`, and `TBL_TEMP` by 10-digit phone number. In `submit_call.php`, normalized phone numbers using `substr($cleanPhone, -10)` to reliably match Indian incoming numbers (`+91...` or `0...`).
   - **Native Android (`MainActivity.kt`)**: Added `getRecentCallLogs` method channel invoking `CallLog.Calls.CONTENT_URI` to inspect recent incoming and outgoing calls with durations, timestamps, and caller types.
