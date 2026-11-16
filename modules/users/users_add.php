@@ -78,7 +78,7 @@ if ($isEdit) {
         $_SESSION['error'] = 'System Administrator cannot be edited.';
         header('Location: users_view.php'); exit;
     }
-    if ($editUser['ROLE'] === 'Admin' && (int)$editUser['ID'] !== USER_ID) {
+    if (!isSuperAdmin() && $editUser['ROLE'] === 'Admin' && (int)$editUser['ID'] !== USER_ID) {
         $_SESSION['error'] = 'Other Admin accounts cannot be edited.';
         header('Location: users_view.php'); exit;
     }
@@ -186,7 +186,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 $creatorAdminId = null;
                 $assignedManagerId = null;
 
-                if (isAdmin()) {
+                if (isSuperAdmin()) {
+                    if ($role === 'Admin') {
+                        $creatorAdminId = null;
+                        $assignedManagerId = null;
+                    } else {
+                        $creatorAdminId = !empty($_POST['admin_id']) ? (int)$_POST['admin_id'] : (!empty($teamInfo['admin_id']) ? (int)$teamInfo['admin_id'] : null);
+                        $assignedManagerId = !empty($_POST['manager_id']) ? (int)$_POST['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
+                        if ($role === 'Manager') {
+                            $assignedManagerId = null;
+                        }
+                        if ($assignedManagerId && !$creatorAdminId) {
+                            $mRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = $assignedManagerId"));
+                            if (!empty($mRow['admin_id'])) $creatorAdminId = (int)$mRow['admin_id'];
+                        }
+                    }
+                } elseif (isAdmin()) {
                     $creatorAdminId = (int)USER_ID;
                     $assignedManagerId = !empty($_POST['manager_id']) ? (int)$_POST['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
                 } elseif (isManager()) {
@@ -197,16 +212,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $uRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id, manager_id FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)USER_ID));
                     $creatorAdminId = !empty($uRow['admin_id']) ? (int)$uRow['admin_id'] : null;
                     $assignedManagerId = !empty($uRow['manager_id']) ? (int)$uRow['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
-                } elseif (isSuperAdmin()) {
-                    $creatorAdminId = !empty($_POST['admin_id']) ? (int)$_POST['admin_id'] : (!empty($teamInfo['admin_id']) ? (int)$teamInfo['admin_id'] : null);
-                    $assignedManagerId = !empty($_POST['manager_id']) ? (int)$_POST['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
-                    if ($role === 'Manager') {
-                        $assignedManagerId = null;
-                    }
-                    if ($assignedManagerId && !$creatorAdminId) {
-                        $mRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = $assignedManagerId"));
-                        if (!empty($mRow['admin_id'])) $creatorAdminId = (int)$mRow['admin_id'];
-                    }
                 }
 
                 if ($isEdit) {
@@ -238,6 +243,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     if (!$isEdit) {
                         $_POST = [];
                         header("Location: users_view.php?created=1"); exit;
+                    } else {
+                        $refStmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM " . tn('TBL_USERS') . " u LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
+                        mysqli_stmt_bind_param($refStmt, "i", $userID);
+                        mysqli_stmt_execute($refStmt);
+                        $refRes = mysqli_stmt_get_result($refStmt);
+                        $editUser = mysqli_fetch_assoc($refRes);
+                        mysqli_stmt_close($refStmt);
+                        $selectedTeamId = (string)($editUser['TEAM_ID'] ?? '');
                     }
                 } else {
                     $errno = mysqli_errno($link);

@@ -688,7 +688,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                     </div>
                 <?php endif; ?>
 
-                <?php if ($isSuperAdmin || $isAdmin || $isManager || ($isSupervisor && count($TBL_TEAMS) > 1)): ?>
+                <?php if ($isSuperAdmin || $isAdmin || !empty($isManager) || ($isSupervisor && count($TBL_TEAMS) > 1)): ?>
                     <div class="col-md-2 col-sm-6">
                         <label class="form-label fs-xs mb-1">Team Filter</label>
                         <select name="team" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -702,7 +702,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                     </div>
                 <?php endif; ?>
 
-                <?php if (($isSuperAdmin || $isAdmin || $isManager) && !empty($allSupervisors)): ?>
+                <?php if (($isSuperAdmin || $isAdmin || !empty($isManager)) && !empty($allSupervisors)): ?>
                     <div class="col-md-2 col-sm-6">
                         <label class="form-label fs-xs mb-1">Supervisor</label>
                         <select name="supervisor" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -771,7 +771,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                     <span class="report-tab-badge bg-info-subtle text-info border"><?= count($empRows) ?></span>
                 </button>
             </li>
-            <?php if ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor): ?>
+            <?php if ($isSuperAdmin || $isAdmin || !empty($isManager) || $isSupervisor): ?>
             <li class="nav-item" role="presentation">
                 <button class="report-tab-btn <?= $active_tab === 'supervisors' ? 'active' : '' ?>" id="supervisors-tab" data-bs-toggle="tab" data-bs-target="#tab-supervisors" type="button" role="tab" data-theme="amber">
                     <span class="report-tab-icon"><i class="bi bi-people-fill"></i></span>
@@ -1253,7 +1253,7 @@ include __DIR__ . '/../../php_scripts/header.php';
             </div>
         </div>
 
-        <?php if ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor): ?>
+        <?php if ($isSuperAdmin || $isAdmin || !empty($isManager) || $isSupervisor): ?>
         <!-- TAB 5: SUPERVISOR & TEAM PERFORMANCE ROLLUP -->
         <div class="tab-pane fade <?= $active_tab === 'supervisors' ? 'show active' : '' ?>" id="tab-supervisors" role="tabpanel">
             <div class="crm-card mb-3">
