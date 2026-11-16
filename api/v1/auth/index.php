@@ -136,8 +136,8 @@ if ($endpoint === '/login') {
     apiSuccess(array_merge($fullProfile, [
         'token' => $token,
         'expires_at' => $expiresAt,
-        'company_code' => $tenant['company_code'] ?? ($user['COMPANY'] ?? 'incredit'),
-        'company_name' => $tenant['company_name'] ?? ($user['COMPANY_NAME'] ?? 'Incredit Financial Services'),
+        'company_code' => $tenant['company_code'] ?? ($user['COMPANY'] ?? ''),
+        'company_name' => $tenant['company_name'] ?? ($user['COMPANY_NAME'] ?? ($user['COMPANY'] ?? '')),
         'user' => $fullProfile,
         'profile' => $fullProfile,
         'database_access' => $dbAccess,

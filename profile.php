@@ -301,7 +301,7 @@ include __DIR__ . '/php_scripts/header.php';
                 </div>
 
                 <div class="text-muted small mb-1">
-                    <i class="bi bi-building me-1 text-secondary"></i><?= htmlspecialchars($userRow['COMPANY_NAME'] ?: ($userRow['COMPANY'] ?: 'CallNow CRM')) ?>
+                    <i class="bi bi-building me-1 text-secondary"></i><?= htmlspecialchars($userRow['COMPANY_NAME'] ?: ($userRow['COMPANY'] ?: ($_SESSION['company_name'] ?? ''))) ?>
                 </div>
                 <div class="text-muted small">
                     <i class="bi bi-calendar3 me-1 text-secondary"></i>Member since <?= htmlspecialchars(!empty($userRow['JOIN_DATE']) ? date('d M Y', strtotime($userRow['JOIN_DATE'])) : (!empty($userRow['CREATED_AT']) ? date('d M Y', strtotime($userRow['CREATED_AT'])) : 'Active')) ?>

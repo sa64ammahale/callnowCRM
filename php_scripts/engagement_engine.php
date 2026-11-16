@@ -139,14 +139,7 @@ function recordCallEngagement(
         $callNote = 'Call attempted';
     }
 
-    // 2. Fetch or resolve user's daily connected target
-    $targetRes = $link->query("SELECT `daily_calling_limit` FROM " . tn('TBL_USERS') . " WHERE `ID` = {$userId} LIMIT 1");
-    $targetRow = $targetRes ? $targetRes->fetch_assoc() : [];
-    // If daily_calling_limit is 100+, connected target is typically ~30% of calls, or default to 30
-    $dailyCallingLimit = isset($targetRow['daily_calling_limit']) ? (int)$targetRow['daily_calling_limit'] : 100;
-    $dailyConnectedTarget = ($dailyCallingLimit > 0 && $dailyCallingLimit <= 50) ? $dailyCallingLimit : 30;
-
-    // 3. Fetch today's daily record
+    // 2. Fetch today's daily record
     $qDaily = $link->prepare("
         SELECT `id`, `calls_dialed`, `connected_calls`, `talk_time_seconds`, `daily_target`, `xp_earned` 
         FROM `{$table}` 
@@ -162,6 +155,17 @@ function recordCallEngagement(
     $prevDials = $dailyRow ? (int)$dailyRow['calls_dialed'] : 0;
     $prevTalk = $dailyRow ? (int)$dailyRow['talk_time_seconds'] : 0;
     $prevXp = $dailyRow ? (int)$dailyRow['xp_earned'] : 0;
+    $dailyId = $dailyRow ? (int)$dailyRow['id'] : null;
+
+    // Resolve daily connected target (preserve existing today's target or resolve default 30)
+    if ($dailyRow && (int)$dailyRow['daily_target'] > 0) {
+        $dailyConnectedTarget = (int)$dailyRow['daily_target'];
+    } else {
+        $targetRes = $link->query("SELECT `daily_calling_limit` FROM " . tn('TBL_USERS') . " WHERE `ID` = {$userId} LIMIT 1");
+        $targetRow = $targetRes ? $targetRes->fetch_assoc() : [];
+        $uLimit = isset($targetRow['daily_calling_limit']) ? (int)$targetRow['daily_calling_limit'] : 0;
+        $dailyConnectedTarget = ($uLimit > 0 && $uLimit <= 50) ? $uLimit : 30;
+    }
     $dailyId = $dailyRow ? (int)$dailyRow['id'] : null;
 
     $newDials = $prevDials + 1;
@@ -283,7 +287,12 @@ function getTelecallerEngagementSummary(mysqli $link, int $userId): array {
 
     $connectedToday = $dRow ? (int)$dRow['connected_calls'] : 0;
     $dialsToday = $dRow ? (int)$dRow['calls_dialed'] : 0;
-    $dailyTarget = $dRow ? (int)$dRow['daily_target'] : 30;
+
+    $targetRes = $link->query("SELECT `daily_calling_limit` FROM " . tn('TBL_USERS') . " WHERE `ID` = {$userId} LIMIT 1");
+    $targetRow = $targetRes ? $targetRes->fetch_assoc() : [];
+    $dailyTarget = (isset($targetRow['daily_calling_limit']) && (int)$targetRow['daily_calling_limit'] > 0)
+        ? (int)$targetRow['daily_calling_limit']
+        : ($dRow && (int)$dRow['daily_target'] > 0 ? (int)$dRow['daily_target'] : 250);
     $pastStreak = getTelecallerStreak($link, $userId, $today);
     $isTargetMet = ($connectedToday >= $dailyTarget && $connectedToday > 0);
     $streak = $isTargetMet ? ($pastStreak + 1) : $pastStreak;

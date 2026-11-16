@@ -96,13 +96,28 @@ if (!function_exists('provisionTenantDatabase')) {
             }
         }
 
+        // Set company_name in tenant database settings
+        $upSettings = @mysqli_prepare($tenantLink, "UPDATE app_settings SET setting_value = ? WHERE setting_key = 'company_name'");
+        if ($upSettings) {
+            mysqli_stmt_bind_param($upSettings, 's', $companyName);
+            mysqli_stmt_execute($upSettings);
+            mysqli_stmt_close($upSettings);
+        }
+
+        $upSuper = @mysqli_prepare($tenantLink, "UPDATE super_admin_account SET company_name = ? WHERE id = 1");
+        if ($upSuper) {
+            mysqli_stmt_bind_param($upSuper, 's', $companyName);
+            mysqli_stmt_execute($upSuper);
+            mysqli_stmt_close($upSuper);
+        }
+
         if ($adminEmail && $adminPassword) {
             $email = trim($adminEmail);
             $hash = password_hash($adminPassword, PASSWORD_DEFAULT);
             $name = $adminName ? trim($adminName) : 'Administrator';
-            $insStmt = mysqli_prepare($tenantLink, "INSERT INTO users (NAME, MOBILE, EMAIL, COMPANY, ROLE, PASSWORD, LOGIN_ID, STATUS) VALUES (?, '9999999999', ?, ?, 'Admin', ?, ?, 'Active') ON DUPLICATE KEY UPDATE PASSWORD = VALUES(PASSWORD), STATUS = 'Active'");
+            $insStmt = mysqli_prepare($tenantLink, "INSERT INTO users (NAME, MOBILE, EMAIL, COMPANY, COMPANY_NAME, ROLE, PASSWORD, LOGIN_ID, STATUS) VALUES (?, '9999999999', ?, ?, ?, 'Admin', ?, ?, 'Active') ON DUPLICATE KEY UPDATE PASSWORD = VALUES(PASSWORD), STATUS = 'Active'");
             if ($insStmt) {
-                mysqli_stmt_bind_param($insStmt, 'sssss', $name, $email, $companyName, $hash, $email);
+                mysqli_stmt_bind_param($insStmt, 'ssssss', $name, $email, $companyName, $companyName, $hash, $email);
                 mysqli_stmt_execute($insStmt);
                 mysqli_stmt_close($insStmt);
             }

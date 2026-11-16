@@ -503,7 +503,8 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
             u.profile_photo,
             u.profile_picture,
             u.profile_picture_blob,
-            u.current_calling_db
+            u.current_calling_db,
+            u.daily_calling_limit
         FROM " . tn('TBL_USERS') . " u
         LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
         WHERE u.ID = ? LIMIT 1
@@ -543,6 +544,7 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
                     'last_login' => $raw['LAST_LOGIN'] ?? $raw['last_login'] ?? '',
                     'profile_photo' => $raw['profile_photo'] ?? '',
                     'profile_picture' => $raw['profile_picture'] ?? '',
+                    'daily_calling_limit' => (int)($raw['daily_calling_limit'] ?? 250),
                     'profile_picture_blob' => $raw['profile_picture_blob'] ?? null,
                     'current_calling_db' => $raw['current_calling_db'] ?? 'temporary',
                     'daily_calling_limit' => isset($raw['daily_calling_limit']) ? (int)$raw['daily_calling_limit'] : 250,

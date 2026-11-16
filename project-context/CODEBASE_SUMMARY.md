@@ -237,6 +237,12 @@ Column mapping applied:
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
 ## Completed Feature (2026-11-16): Telecaller Engagement & Motivation Engine (Lean MVP)
+- **Tenant Company Name & Software Project Name Distinction**:
+  - Maintained clear separation between software project branding (`CallNow CRM`) and the tenant company name (`Incredit Solutions`).
+  - Fixed `$_SESSION["CompanyName"]` casing bug in `modules/users/users_add.php` so user additions correctly resolve `$_SESSION["company_name"]` / `$_SESSION["company"]` instead of defaulting to the project name `'CallNow'`.
+  - Created migration `database/migrations/2026_11_16_fix_company_name_incredit_solutions.sql` and updated `hostinger_schema.sql` and `master_schema.sql`.
+  - Backfilled all 22 existing user accounts in `callnow_incredit.users` so `COMPANY` and `COMPANY_NAME` accurately reflect `Incredit Solutions`.
+  - Updated `callnow_master.callnow_telecalling_companys` so tenant `incredit` points to `Incredit Solutions`.
 - **Gamified Caller Mastery Progression**:
   - Implemented 5-tier Caller Mastery progression: Level 1 *Bronze Caller 🥉* (0–999 XP), Level 2 *Silver Caller 🥈* (1,000–4,999 XP), Level 3 *Gold Caller 🥇* (5,000–14,999 XP), Level 4 *Platinum Caller 💎* (15,000–29,999 XP), Level 5 *Diamond Champion 👑* (30,000+ XP).
   - Scaled across ~1 month of steady telecalling activity.

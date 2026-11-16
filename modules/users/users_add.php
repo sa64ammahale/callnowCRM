@@ -94,8 +94,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $login_id     = trim($_POST['username'] ?? '');
         $email_input  = trim($_POST['email'] ?? '');
         $email_addr   = ($email_input !== '') ? $email_input : null;
+        $tenantCompany = $_SESSION['company_name'] ?? $_SESSION['company'] ?? null;
+        if (!$tenantCompany && isset($link)) {
+            $qSet = @$link->query("SELECT setting_value FROM " . tn('TBL_APP_SETTINGS') . " WHERE setting_key = 'company_name' LIMIT 1");
+            if ($qSet && ($sRow = $qSet->fetch_assoc()) && !empty($sRow['setting_value'])) {
+                $tenantCompany = $sRow['setting_value'];
+            }
+        }
         $company_name = trim($_POST['company_name'] ?? '');
-        $company_name_db = ($company_name !== '') ? $company_name : null;
+        $company_name_db = ($company_name !== '') ? $company_name : ($tenantCompany ?: null);
         $password     = $_POST['password'] ?? '';
         $role         = $_POST['role'] ?? '';
         $team_id      = $_POST['team_id'] ?? '';
@@ -103,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $status       = $_POST['status'] ?? 'Active';
         $daily_calling_limit = isset($_POST['daily_calling_limit']) && $_POST['daily_calling_limit'] !== '' ? max(0, (int)$_POST['daily_calling_limit']) : 250;
         $monthly_disbursement_limit = isset($_POST['monthly_disbursement_limit']) && $_POST['monthly_disbursement_limit'] !== '' ? max(0.0, (float)$_POST['monthly_disbursement_limit']) : 1500000.00;
-        $company      = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
+        $company      = (!empty($editUser['COMPANY']) && $editUser['COMPANY'] !== 'CallNow') ? $editUser['COMPANY'] : ($tenantCompany ?: 'CallNow');
         $allowedRoles = array_column($allRoles, 'role_name');
         $allowedTeams = array_map('intval', array_column($allTeams, 'ID'));
 
@@ -387,7 +394,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small text-muted mb-1">Company / Branch Name <span class="text-muted">(Optional)</span></label>
-                            <input type="text" name="company_name" class="form-control form-control-sm" placeholder="e.g. North Region Office" value="<?= htmlspecialchars($editUser['COMPANY_NAME'] ?? '') ?>">
+                            <input type="text" name="company_name" class="form-control form-control-sm" placeholder="<?= htmlspecialchars($_SESSION['company_name'] ?? 'Company or Branch Name') ?>" value="<?= htmlspecialchars($editUser['COMPANY_NAME'] ?? ($isEdit ? '' : ($_SESSION['company_name'] ?? ''))) ?>">
                         </div>
                     </div>
                 </div>

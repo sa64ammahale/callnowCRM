@@ -34,6 +34,6 @@ CREATE TABLE IF NOT EXISTS `callnow_telecalling_companys` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `callnow_telecalling_companys` (`company_code`, `company_name`, `db_name`, `status`)
-VALUES ('incredit', 'Incredit Financial Services', 'callnow_incredit', 'Active')
+VALUES ('incredit', 'Incredit Solutions', 'callnow_incredit', 'Active')
 ON DUPLICATE KEY UPDATE `company_name` = VALUES(`company_name`), `db_name` = VALUES(`db_name`), `status` = VALUES(`status`);
 

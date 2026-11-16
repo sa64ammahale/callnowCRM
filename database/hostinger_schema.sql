@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `MOBILE` varchar(15) NOT NULL,
   `EMAIL` varchar(255) DEFAULT NULL,
   `COMPANY_NAME` varchar(255) DEFAULT NULL,
-  `COMPANY` varchar(100) NOT NULL DEFAULT 'CallNow',
+  `COMPANY` varchar(100) DEFAULT NULL,
   `PACKAGE` varchar(100) DEFAULT '',
   `STATUS` enum('Active','Inactive','Suspended') DEFAULT 'Active',
   `JOIN_DATE` datetime DEFAULT current_timestamp(),
@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS `app_settings` (
 
 INSERT IGNORE INTO `app_settings` (`setting_key`, `setting_value`, `description`, `updated_at`) VALUES
 ('app_name',           'CallNow CRM',       'Application display name', NOW()),
-('company_name',       'CallNow',           'Default company name', NOW()),
+('company_name',       '',                  'Default company name', NOW()),
 ('default_lead_status','LEAD',              'Default status for new leads', NOW()),
 ('default_lead_stage', 'Cold',              'Default stage for new leads', NOW()),
 ('pagination_size',    '50',                'Default records per page', NOW()),
@@ -644,7 +644,7 @@ CREATE TABLE IF NOT EXISTS `super_admin_account` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT IGNORE INTO `super_admin_account` (`id`, `current_plan_id`, `company_name`, `payment_status`, `trial_ends_at`) VALUES
-(1, 1, 'CallNow', 'trial', DATE_ADD(NOW(), INTERVAL 30 DAY));
+(1, 1, '', 'trial', DATE_ADD(NOW(), INTERVAL 30 DAY));
 
 -- ============================================================
 -- 24. SUPER_ADMIN_LIMIT_LOGS
