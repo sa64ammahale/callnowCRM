@@ -482,10 +482,10 @@ include __DIR__ . '/../../php_scripts/header.php';
                                         </code>
                                     </td>
                                     <td>
-                                        <div class="fw-medium text-dark small"><?= htmlspecialchars($t['user_name']) ?></div>
-                                        <div class="text-muted font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($t['user_email']) ?></div>
+                                        <div class="fw-medium text-dark small"><?= htmlspecialchars($t['user_name'] ?? '') ?></div>
+                                        <div class="text-muted font-monospace" style="font-size: 0.7rem;"><?= htmlspecialchars($t['user_email'] ?? '') ?></div>
                                     </td>
-                                    <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($t['name']) ?></span></td>
+                                    <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($t['name'] ?? '') ?></span></td>
                                     <td class="small text-muted"><?= date('d M Y H:i', strtotime($t['created_at'])) ?></td>
                                     <td class="small text-muted"><?= $t['expires_at'] ? date('d M Y', strtotime($t['expires_at'])) : 'Never' ?></td>
                                     <td class="small text-muted"><?= $t['last_used_at'] ? date('d M Y H:i', strtotime($t['last_used_at'])) : 'Never' ?></td>
@@ -556,9 +556,9 @@ include __DIR__ . '/../../php_scripts/header.php';
                             <?php foreach ($assignments as $a): ?>
                                 <tr>
                                     <td>
-                                        <div class="fw-medium text-dark small"><?= htmlspecialchars($a['user_name']) ?></div>
+                                        <div class="fw-medium text-dark small"><?= htmlspecialchars($a['user_name'] ?? '') ?></div>
                                     </td>
-                                    <td><span class="badge bg-info-subtle text-primary border"><?= htmlspecialchars($a['user_role']) ?></span></td>
+                                    <td><span class="badge bg-info-subtle text-primary border"><?= htmlspecialchars($a['user_role'] ?? '') ?></span></td>
                                     <td>
                                         <span class="badge <?= $a['database_type'] === 'temporary' ? 'bg-warning-subtle text-warning border-warning' : ($a['database_type'] === 'main' ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success') ?> border">
                                             <?= ucfirst($a['database_type']) ?>
