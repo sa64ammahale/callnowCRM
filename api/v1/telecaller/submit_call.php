@@ -46,10 +46,7 @@ if ($rawRecordId !== null) {
 }
 
 if ((empty($input['record_id']) || (int)$input['record_id'] <= 0) && !empty($rawPhone)) {
-    $cleanPhone = preg_replace('/[^0-9]/', '', (string)$rawPhone);
-    if (strlen($cleanPhone) > 10) {
-        $cleanPhone = substr($cleanPhone, -10);
-    }
+    $cleanPhone = normalize_indian_phone((string)$rawPhone, false) ?: substr(preg_replace('/\D/', '', (string)$rawPhone), -10);
     if (strlen($cleanPhone) >= 10) {
         $qM = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_MOBILE = ? LIMIT 1");
         $qM->bind_param('s', $cleanPhone);

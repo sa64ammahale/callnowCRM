@@ -93,8 +93,8 @@ CREATE TABLE IF NOT EXISTS `permissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT IGNORE INTO `permissions` (`permission_key`, `label`, `category`, `description`, `is_system`, `created_at`) VALUES
-('manage_TBL_USERS',    'Manage TBL_USERS',     'Administration', 'Create, edit and delete user accounts', 1, NOW()),
-('manage_TBL_TEAMS',    'Manage TBL_TEAMS',      'Administration', 'Create TBL_TEAMS and assign members', 1, NOW()),
+('manage_users',    'Manage Users',     'Administration', 'Create, edit and delete user accounts', 1, NOW()),
+('manage_teams',    'Manage Teams',      'Administration', 'Create teams and assign members', 1, NOW()),
 ('manage_settings',     'Manage Settings',   'Administration', 'Access the Settings hub and permission manager', 1, NOW()),
 ('view_activity',       'View Activity Log', 'Administration', 'Access the audit / activity log', 1, NOW()),
 ('manage_database',     'Manage Database',   'Data', 'Edit, delete and transfer records in temporary & main databases', 1, NOW()),
@@ -120,24 +120,24 @@ CREATE TABLE IF NOT EXISTS `role_permissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT IGNORE INTO `role_permissions` (`role`, `permission_key`, `permission_value`) VALUES
-('Super Admin','manage_TBL_USERS',1),('Super Admin','manage_TBL_TEAMS',1),('Super Admin','manage_settings',1),
+('Super Admin','manage_users',1),('Super Admin','manage_teams',1),('Super Admin','manage_settings',1),
 ('Super Admin','view_activity',1),('Super Admin','manage_database',1),('Super Admin','upload_data',1),
 ('Super Admin','export_data',1),('Super Admin','assign_leads',1),('Super Admin','manage_leads',1),
 ('Super Admin','delete_leads',1),('Super Admin','view_reports',1),('Super Admin','manage_api',1),
 ('Super Admin','manage_super_admin',1),
-('Admin','manage_TBL_USERS',1),('Admin','manage_TBL_TEAMS',1),('Admin','manage_settings',1),
+('Admin','manage_users',1),('Admin','manage_teams',1),('Admin','manage_settings',1),
 ('Admin','view_activity',1),('Admin','manage_database',1),('Admin','upload_data',1),
 ('Admin','export_data',1),('Admin','assign_leads',1),('Admin','manage_leads',1),
 ('Admin','delete_leads',1),('Admin','view_reports',1),('Admin','manage_api',1),
-('Manager','manage_TBL_USERS',1),('Manager','manage_TBL_TEAMS',1),('Manager','manage_settings',1),
+('Manager','manage_users',1),('Manager','manage_teams',1),('Manager','manage_settings',1),
 ('Manager','view_activity',1),('Manager','manage_database',1),('Manager','upload_data',1),
 ('Manager','export_data',1),('Manager','assign_leads',1),('Manager','manage_leads',1),
 ('Manager','delete_leads',1),('Manager','view_reports',1),('Manager','manage_api',1),
-('Supervisor','manage_TBL_USERS',0),('Supervisor','manage_TBL_TEAMS',1),('Supervisor','manage_settings',0),
+('Supervisor','manage_users',1),('Supervisor','manage_teams',1),('Supervisor','manage_settings',0),
 ('Supervisor','view_activity',1),('Supervisor','manage_database',0),('Supervisor','upload_data',0),
 ('Supervisor','export_data',1),('Supervisor','assign_leads',1),('Supervisor','manage_leads',1),
 ('Supervisor','delete_leads',0),('Supervisor','view_reports',1),
-('Officer','manage_TBL_USERS',0),('Officer','manage_TBL_TEAMS',0),('Officer','manage_settings',0),
+('Officer','manage_users',0),('Officer','manage_teams',0),('Officer','manage_settings',0),
 ('Officer','view_activity',0),('Officer','manage_database',0),('Officer','upload_data',0),
 ('Officer','export_data',0),('Officer','assign_leads',0),('Officer','manage_leads',1),
 ('Officer','delete_leads',0),('Officer','view_reports',1);

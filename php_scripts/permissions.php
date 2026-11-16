@@ -37,7 +37,7 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
             'Admin' => ['*' => 1],
             'Manager' => ['*' => 1],
             'Supervisor' => [
-                'manage_teams' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
+                'manage_users' => 1, 'manage_teams' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
                 'export_data' => 1, 'view_reports' => 1, 'view_activity' => 1,
             ],
             'Officer' => [

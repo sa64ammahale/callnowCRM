@@ -268,12 +268,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $fetchTemp->close();
         
         foreach ($claimedTempRows as $row) {
+            $mob = $row['CUST_MOBILE'] ?? '';
             $leads[] = [
                 'id' => (int)$row['ID'],
                 'record_id' => (int)$row['ID'],
                 'source' => 'TEMP',
                 'name' => $row['CUST_NAME'] ?? '',
-                'mobile' => $row['CUST_MOBILE'] ?? '',
+                'mobile' => $mob,
+                'dial_phone' => format_indian_phone($mob, 'e164'),
+                'dial_uri' => format_indian_phone($mob, 'dial_uri'),
+                'formatted_mobile' => format_indian_phone($mob, 'display'),
                 'company' => $row['CUST_COMPANY'] ?? '',
                 'package' => $row['CUST_PACKAGE'] ?? '',
                 'other_info' => $row['CUST_OTHER_INFO'] ?? '',
@@ -394,12 +398,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             }
             
             foreach ($mainRows as $row) {
+                $mob = $row['MAINDATABASE_MOBILE'] ?? '';
                 $leads[] = [
                     'id' => (int)$row['ID'],
                     'record_id' => (int)$row['ID'],
                     'source' => 'MAIN',
                     'name' => $row['MAINDATABASE_NAME'] ?? '',
-                    'mobile' => $row['MAINDATABASE_MOBILE'] ?? '',
+                    'mobile' => $mob,
+                    'dial_phone' => format_indian_phone($mob, 'e164'),
+                    'dial_uri' => format_indian_phone($mob, 'dial_uri'),
+                    'formatted_mobile' => format_indian_phone($mob, 'display'),
                     'company' => $row['MAINDATABASE_COMPANY'] ?? '',
                     'package' => $row['MAINDATABASE_PACKAGE'] ?? '',
                     'other_info' => $row['MAINDATABASE_OTHER_INFO'] ?? '',
@@ -568,12 +576,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     if ($claimedRow && $claimedSource === 'TEMP') {
+        $mob = $claimedRow['CUST_MOBILE'] ?? '';
         apiSuccess([
             'source' => 'TEMP',
             'record_id' => (int)$claimedRow['ID'],
             'customer' => [
                 'name' => $claimedRow['CUST_NAME'] ?? '',
-                'mobile' => $claimedRow['CUST_MOBILE'] ?? '',
+                'mobile' => $mob,
+                'dial_phone' => format_indian_phone($mob, 'e164'),
+                'dial_uri' => format_indian_phone($mob, 'dial_uri'),
+                'formatted_mobile' => format_indian_phone($mob, 'display'),
                 'company' => $claimedRow['CUST_COMPANY'] ?? '',
                 'package' => $claimedRow['CUST_PACKAGE'] ?? '',
                 'other_info' => $claimedRow['CUST_OTHER_INFO'] ?? '',
@@ -585,12 +597,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     if ($claimedRow && $claimedSource === 'MAIN') {
+        $mob = $claimedRow['MAINDATABASE_MOBILE'] ?? '';
         apiSuccess([
             'source' => 'MAIN',
             'record_id' => (int)$claimedRow['ID'],
             'customer' => [
                 'name' => $claimedRow['MAINDATABASE_NAME'] ?? '',
-                'mobile' => $claimedRow['MAINDATABASE_MOBILE'] ?? '',
+                'mobile' => $mob,
+                'dial_phone' => format_indian_phone($mob, 'e164'),
+                'dial_uri' => format_indian_phone($mob, 'dial_uri'),
+                'formatted_mobile' => format_indian_phone($mob, 'display'),
                 'company' => $claimedRow['MAINDATABASE_COMPANY'] ?? '',
                 'package' => $claimedRow['MAINDATABASE_PACKAGE'] ?? '',
                 'other_info' => $claimedRow['MAINDATABASE_OTHER_INFO'] ?? '',
@@ -943,10 +959,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     $rawPhone = trim($_GET['phone'] ?? ($_GET['mobile'] ?? ''));
     if ($rawPhone === '') apiError(400, 'Phone number is required');
-    $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
-    if (strlen($cleanPhone) > 10) {
-        $cleanPhone = substr($cleanPhone, -10);
-    }
+    $cleanPhone = normalize_indian_phone($rawPhone, false) ?: substr(preg_replace('/\D/', '', $rawPhone), -10);
     if (strlen($cleanPhone) < 10) {
         apiError(400, 'Invalid phone number: must have at least 10 digits');
     }
@@ -1090,8 +1103,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET' && $_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
     $rawPhone = trim($_REQUEST['phone'] ?? ($_REQUEST['phone_number'] ?? ($_REQUEST['mobile'] ?? '')));
     if ($rawPhone === '') apiError(400, 'Phone number is required');
-    $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
-    if (strlen($cleanPhone) > 10) $cleanPhone = substr($cleanPhone, -10);
+    $cleanPhone = normalize_indian_phone($rawPhone, false) ?: substr(preg_replace('/\D/', '', $rawPhone), -10);
     
     $stmtDnd = $link->prepare("SELECT reason, created_at FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
     $stmtDnd->bind_param('s', $cleanPhone);

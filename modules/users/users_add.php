@@ -21,24 +21,30 @@ $type = "";
 
 if (isSuperAdmin()) {
     $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
-} elseif (isAdmin() || isManager()) {
-    $authTeamIds = getAuthorizedTeamIds($link, (int)USER_ID, USER_ROLE);
+} else {
+    $authTeamIds = getAuthorizedTeamIds($link, (int)USER_ID, USER_ROLE, defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
     if (!empty($authTeamIds)) {
         $tList = implode(',', array_map('intval', $authTeamIds));
         $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList) ORDER BY NAME");
+    } elseif (isAdmin()) {
+        $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
     } else {
         $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE 1=0");
     }
-} elseif (USER_TEAM_ID) {
-    $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID = " . (int)USER_TEAM_ID);
-} else {
-    $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE 1=0");
 }
 $allTeams = mysqli_fetch_all($teamsResult, MYSQLI_ASSOC);
 
-// Fetch dynamic roles from DB
+// Fetch dynamic roles from DB based on actor hierarchy
 $allRoles = [];
-$ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " WHERE role_name != 'Super Admin' ORDER BY is_system DESC, id");
+if (isSuperAdmin()) {
+    $ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " ORDER BY is_system DESC, id");
+} elseif (isAdmin()) {
+    $ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " WHERE role_name NOT IN ('Super Admin', 'Admin') ORDER BY is_system DESC, id");
+} elseif (isManager()) {
+    $ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " WHERE role_name IN ('Supervisor', 'Officer') ORDER BY is_system DESC, id");
+} else {
+    $ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " WHERE role_name = 'Officer' ORDER BY is_system DESC, id");
+}
 if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allRoles[] = $a;
 
 $editUser = null;
@@ -49,7 +55,7 @@ if ($isEdit) {
     $result = mysqli_stmt_get_result($stmt);
     $editUser = mysqli_fetch_assoc($result);
     if (!$editUser) { header("Location: users_view.php"); exit; }
-    if (!isAdmin() && !isSuperAdmin() && !in_array($userID, getAccessibleUserIds($link), true)) {
+    if (!isAdmin() && !isSuperAdmin() && !canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, $userID)) {
         http_response_code(403);
         exit('Access denied');
     }
@@ -86,11 +92,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $company      = $editUser['COMPANY'] ?? $_SESSION["CompanyName"] ?? 'CallNow';
         $allowedRoles = array_column($allRoles, 'role_name');
         $allowedTeams = array_map('intval', array_column($allTeams, 'ID'));
-        if (!canActorAssignRole(USER_ROLE, $role)) {
-            $Message = 'You do not have permission to create or assign the role: ' . htmlspecialchars($role);
-        } elseif (!isAdmin() && !isSuperAdmin() && !isManager()) {
+
+        if ($isEdit && (int)$userID === (int)USER_ID) {
+            $role = $editUser['ROLE'];
+            $team_id = $editUser['TEAM_ID'];
+        } elseif ($isEdit && isSupervisor() && (int)$userID !== (int)USER_ID) {
+            $role = 'Officer';
+            if (!empty($editUser['TEAM_ID'])) $team_id = $editUser['TEAM_ID'];
+        } elseif (isSupervisor()) {
+            $role = 'Officer';
             $allowedRoles = ['Officer'];
-            $team_id = (int)USER_TEAM_ID;
+            if (!empty($allowedTeams) && (empty($team_id) || !in_array((int)$team_id, $allowedTeams, true))) {
+                $team_id = (int)$allowedTeams[0];
+            }
+        } elseif (isManager()) {
+            $allowedRoles = ['Supervisor', 'Officer'];
+        }
+
+        if (!canActorAssignRole(USER_ROLE, $role) && !($isEdit && (int)$userID === (int)USER_ID)) {
+            $Message = 'You do not have permission to create or assign the role: ' . htmlspecialchars($role);
         }
 
         if (!preg_match("/^[a-zA-Z ]+$/", $name)) {
@@ -147,8 +167,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             if (!$Message) {
                 $teamIdInt = (int)$team_id;
                 $teamInfo = mysqli_fetch_assoc(mysqli_query($link, "SELECT SUPERVISOR_ID, MANAGER_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = $teamIdInt"));
-                $teamSupId = !empty($teamInfo['SUPERVISOR_ID']) ? (int)$teamInfo['SUPERVISOR_ID'] : (isSupervisor() ? USER_ID : null);
-                $creatorAdminId = isAdmin() ? USER_ID : null;
+                $teamSupId = isSupervisor() ? (int)USER_ID : (!empty($teamInfo['SUPERVISOR_ID']) ? (int)$teamInfo['SUPERVISOR_ID'] : null);
+                $creatorAdminId = (isAdmin() || isSuperAdmin()) ? (int)USER_ID : (isManager() ? (int)USER_ID : null);
 
                 if ($isEdit) {
                     $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, supervisor_id=COALESCE(?, supervisor_id), PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
@@ -316,7 +336,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label small text-muted mb-1">System Role <span class="text-danger">*</span></label>
-                            <?php if (isAdmin() || isSuperAdmin()): ?>
+                            <?php if ($isEdit && (int)$userID === (int)USER_ID): ?>
+                                <input type="hidden" name="role" value="<?= htmlspecialchars($editUser['ROLE']) ?>">
+                                <div class="form-control form-control-sm bg-light text-muted">
+                                    <i class="bi bi-shield-check me-1 text-primary"></i><?= htmlspecialchars($editUser['ROLE']) ?> (Self - Locked)
+                                </div>
+                            <?php elseif ($isEdit && isSupervisor() && (int)$userID !== (int)USER_ID): ?>
+                                <input type="hidden" name="role" value="Officer">
+                                <div class="form-control form-control-sm bg-light text-muted">
+                                    <i class="bi bi-person-badge me-1 text-primary"></i>Officer (Telecalling Staff)
+                                </div>
+                            <?php elseif (count($allRoles) > 1): ?>
                                 <select name="role" class="form-select form-select-sm" required>
                                     <option value="">-- Select Role --</option>
                                     <?php foreach ($allRoles as $r): ?>
@@ -328,25 +358,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                                     <?php endforeach; ?>
                                 </select>
                             <?php else: ?>
-                                <input type="hidden" name="role" value="<?= htmlspecialchars($editUser['ROLE'] ?? 'Officer') ?>">
+                                <?php $onlyRole = !empty($allRoles) ? $allRoles[0]['role_name'] : ($editUser['ROLE'] ?? 'Officer'); ?>
+                                <input type="hidden" name="role" value="<?= htmlspecialchars($onlyRole) ?>">
                                 <div class="form-control form-control-sm bg-light text-muted">
-                                    <?= htmlspecialchars($editUser['ROLE'] ?? 'Officer') ?> (Telecalling Member)
+                                    <i class="bi bi-person-badge me-1 text-primary"></i><?= htmlspecialchars($onlyRole) ?> (Telecalling Staff)
                                 </div>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small text-muted mb-1">Operational Team <span class="text-danger">*</span></label>
-                            <select name="team_id" class="form-select form-select-sm" <?= USER_ROLE==='Supervisor'?'disabled':'' ?> required>
-                                <option value="">-- Select Team --</option>
-                                <?php foreach($allTeams as $t): ?>
-                                    <option value="<?= (int)$t['ID'] ?>" <?= ($editUser['TEAM_ID'] ?? USER_TEAM_ID) == $t['ID'] ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($t['NAME']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <?php if (USER_ROLE==='Supervisor'): ?>
-                                <input type="hidden" name="team_id" value="<?= USER_TEAM_ID ?>">
+                            <?php 
+                            $selectedTeamId = $editUser['TEAM_ID'] ?? (!empty($allTeams) ? $allTeams[0]['ID'] : (defined('USER_TEAM_ID') ? USER_TEAM_ID : ''));
+                            $isSupervisorSingleTeam = (isSupervisor() && count($allTeams) <= 1);
+                            ?>
+                            <?php if ($isEdit && (int)$userID === (int)USER_ID): ?>
+                                <input type="hidden" name="team_id" value="<?= (int)$selectedTeamId ?>">
+                                <div class="form-control form-control-sm bg-light text-muted">
+                                    <i class="bi bi-diagram-3 me-1 text-primary"></i><?= htmlspecialchars($editUser['TEAM_NAME'] ?? 'Current Team') ?> (Self - Locked)
+                                </div>
+                            <?php elseif ($isSupervisorSingleTeam && !empty($allTeams)): ?>
+                                <input type="hidden" name="team_id" value="<?= (int)$allTeams[0]['ID'] ?>">
+                                <div class="form-control form-control-sm bg-light text-muted">
+                                    <i class="bi bi-diagram-3 me-1 text-primary"></i><?= htmlspecialchars($allTeams[0]['NAME']) ?>
+                                </div>
                                 <div class="text-muted small mt-1">Assigned directly to your supervisor team</div>
+                            <?php else: ?>
+                                <select name="team_id" class="form-select form-select-sm" required>
+                                    <option value="">-- Select Team --</option>
+                                    <?php foreach($allTeams as $t): ?>
+                                        <option value="<?= (int)$t['ID'] ?>" <?= ((string)$selectedTeamId === (string)$t['ID']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($t['NAME']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             <?php endif; ?>
                         </div>
                     </div>

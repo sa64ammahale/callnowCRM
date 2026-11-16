@@ -89,11 +89,23 @@ foreach ($usersList as $u) {
     }
 }
 
-$allRoles = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IS NOT NULL AND ROLE != 'Super Admin' ORDER BY ROLE"), MYSQLI_ASSOC);
-$authTeamIds = getAuthorizedTeamIds($link, $userId, $userRole);
+$accessibleUserIds = getAccessibleUserIds($link);
+$accessibleUserList = !empty($accessibleUserIds) ? implode(',', array_map('intval', $accessibleUserIds)) : (string)$userId;
+
+if ($userRole === 'Supervisor') {
+    $allRoles = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ID IN ($accessibleUserList) AND ROLE IS NOT NULL ORDER BY ROLE"), MYSQLI_ASSOC);
+} elseif ($userRole === 'Manager') {
+    $allRoles = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ID IN ($accessibleUserList) AND ROLE IS NOT NULL AND ROLE NOT IN ('Super Admin', 'Admin') ORDER BY ROLE"), MYSQLI_ASSOC);
+} else {
+    $allRoles = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IS NOT NULL AND ROLE != 'Super Admin' ORDER BY ROLE"), MYSQLI_ASSOC);
+}
+
+$authTeamIds = getAuthorizedTeamIds($link, $userId, $userRole, $userTeamId);
 if (!empty($authTeamIds)) {
     $authTeamList = implode(',', array_map('intval', $authTeamIds));
     $allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($authTeamList) ORDER BY NAME"), MYSQLI_ASSOC);
+} elseif (isSupervisor() || isManager()) {
+    $allTeams = [];
 } else {
     $allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC);
 }

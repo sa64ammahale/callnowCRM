@@ -36,6 +36,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `super_admin.php` | Super admin limit helpers: `ensureSuperAdminSchema()`, `getCurrentPlan()`, `getEffectivePlan()`, `checkUserLimit()`, `checkApiTokenLimit()`, `checkStorageLimit()`, `getLimitUsageSummary()`, `logLimitViolation()` |
 | `footer.php` | Closes layout, loads Bootstrap JS bundle, theme.js, sidebar.js, APP_BASE, APP_CSRF |
 | `team_auth.php` | Team-scoped helpers: `canViewAllTeams()`, `getTeamFilterSQL()`, `requireTeamAccess()` |
+| `phone_helper.php` | Centralized Indian phone normalization & formatting (`normalize_indian_phone()`, `format_indian_phone()`, `is_valid_indian_mobile()`) |
 | `reporting_schema.php` | Self-healing schema migrations for Call Reporting: `call_logs.lead_id`, `call_logs.client_contact_id`, `lead_followups.client_contact_id`, `contact_lead_conversions`, `reporting_targets` |
 | `reporting_engine.php` | Performance engine: Client Contact metrics, Calling analytics, Lead metrics, Hourly breakdown (9:30-18:30), Employee targets & achievements, Supervisor rollups, Follow-up hub, Alerts, Rankings |
 | `lead_ajax_check.php` | Stale duplicate (superseded by modules/leads/php_scripts/) |
@@ -668,6 +669,57 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
     - ViewDND unmark action rejected as permanent.
   - `tests/test_high_concurrency_scaling.php`: Re-verified 20 concurrent requests under DND filters; 0 collisions, 100% success.
   - Zero PHP syntax errors across repository.
+
+## Completed Goal (2026-11-14): Centralized Phone Normalization & Country Code (+91) Engine
+- **Requirement**:
+  - Automatically detect country codes (`+91`, `91`, leading `0`, punctuation/spaces) across all upload and entry channels, store clean 10-digit Indian mobile numbers uniformly, and format them for dialers and UI display.
+- **Architectural Solution Implemented**:
+  1. **Centralized Helper (`php_scripts/phone_helper.php`)**:
+     - `normalize_indian_phone($raw, $requireMobileSeries = true)`: Strips non-digits, strips `91` (if 12 digits), strips `0` (if 11 digits), or extracts last 10 digits; validates `/^[6-9]\d{9}$/`.
+     - `format_indian_phone($digits, $format)`: Produces `e164` (`+919876543210`), `display` (`+91 98765 43210`), `dial_uri` (`tel:+919876543210`), and `national` (`09876543210`).
+     - Required automatically in `php_scripts/config.php`.
+
+## Completed Goal (2026-11-16): Controllable Users CRUD for Manager & Supervisor Roles
+- **Requirement & Problem Addressed**:
+  - Managers and Supervisors were unable to view the Users section in the CRM sidebar (`users_view.php` and `users_add.php`) and received access denied errors.
+  - Root cause: `hostinger_schema.sql` had a typo seeding `manage_TBL_USERS` and `manage_TBL_TEAMS` into `role_permissions` instead of `manage_users` and `manage_teams`, and `Supervisor` had `manage_users = 0`.
+  - Required full CRUD capability for both roles strictly scoped to their **controllable personnel**.
+- **Architectural Solution Implemented**:
+  1. **RBAC & Schema Fixes**:
+     - Corrected `manage_TBL_USERS` and `manage_TBL_TEAMS` in `database/hostinger_schema.sql`.
+     - Enabled `'manage_users' => 1` for `Supervisor` in `php_scripts/permissions.php` and `database/hostinger_schema.sql`.
+     - Created idempotent server DB migration: `database/migrations/2026_11_16_manager_supervisor_users_access.sql`.
+     - Integrated self-healing in `ensureHierarchySchema()` in `php_scripts/hierarchy_engine.php` to heal live tenant databases on connection.
+  2. **Hierarchy-Scoped Role Assignment (`canActorAssignRole`)**:
+     - `Supervisor`: Can create or assign `Officer` role only.
+     - `Manager`: Can create or assign `Supervisor` and `Officer` roles only (cannot create Admins or Super Admins).
+  3. **User Directory Scoping (`modules/users/users_view.php`)**:
+     - Role & Team dropdown filters dynamically scoped so Supervisors/Managers only see their authorized options.
+     - User tables strictly limited via `getHierarchyUserFilterSQL` to controllable subordinates (and self). Admins and other teams' personnel are hidden.
+  4. **Form Scoping & Edit Guard (`modules/users/users_add.php`)**:
+     - Edit access enforced via `canUserAccessTargetUser`: attempts to edit personnel outside controllable hierarchy return HTTP 403 Forbidden.
+     - Role field: locked to `Officer` for Supervisors; choice between `Supervisor` and `Officer` for Managers; locked on self-edit to prevent self-elevation.
+     - Team field: locked to assigned team(s) for Supervisors; choice of managed teams for Managers; locked on self-edit to prevent team detachment.
+     - Creation automatically links hierarchy relations (`supervisor_id = USER_ID` for Supervisor-created Officers).
+- **Verification**:
+  - `tests/test_manager_supervisor_users_crud.php`: 40/40 assertions passed (100%):
+    - RBAC permissions for Manager & Supervisor.
+    - Role assignment boundaries (`canActorAssignRole`).
+    - Directory visibility and hierarchy scoping.
+    - Target access guards (`canUserAccessTargetUser`).
+    - Team resolution for single and multiple teams.
+  - Zero PHP syntax errors across all files.
+  2. **Channel Integration**:
+     - CSV Bulk Upload (`modules/database/upload_data.php`): Ingestion and client preview normalize numbers with `+91`, `91`, or `0`.
+     - Single Customer Form (`modules/database/add_single_number.php`): Accepts input with `+91`, spaces, or trunk `0`, normalizes before checking DND, duplicates, and saving.
+     - Status Updates (`modules/database/add_update_status.php`): Normalizes phone before update/insert.
+     - Leads Pipeline (`modules/leads/lead_insert.php`, `lead_update.php`): Normalizes customer mobile on lead creation and updates.
+     - Telecaller API (`api/v1/telecaller/index.php`, `submit_call.php`): Delivers `dial_phone`, `dial_uri`, and `formatted_mobile` on `/batch-leads` and `/next-call`; normalizes phones on `/lookup-contact` and `/validate-dial`.
+- **Verification**:
+  - `tests/test_phone_normalization.php`: 21/21 assertions passed (100%).
+  - `tests/test_dnd_absolute_enforcement.php`: 15/15 assertions passed (100%).
+  - Zero PHP syntax errors across repository.
+
 
 
 

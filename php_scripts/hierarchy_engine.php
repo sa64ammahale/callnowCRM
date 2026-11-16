@@ -43,6 +43,14 @@ function ensureHierarchySchema(mysqli $link): void {
         if (!isset($tCols['MANAGER_ID']) && !isset($tCols['manager_id'])) {
             @$link->query("ALTER TABLE " . tn('TBL_TEAMS') . " ADD COLUMN MANAGER_ID INT NULL DEFAULT NULL AFTER SUPERVISOR_ID, ADD INDEX idx_team_manager (MANAGER_ID)");
         }
+
+        // Self-healing: ensure permission key typos are healed and Manager & Supervisor have manage_users
+        @$link->query("UPDATE " . tn('TBL_ROLE_PERMISSIONS') . " SET permission_key = 'manage_users' WHERE permission_key = 'manage_TBL_USERS'");
+        @$link->query("UPDATE " . tn('TBL_ROLE_PERMISSIONS') . " SET permission_key = 'manage_teams' WHERE permission_key = 'manage_TBL_TEAMS'");
+        @$link->query("UPDATE " . tn('TBL_PERMISSIONS') . " SET permission_key = 'manage_users' WHERE permission_key = 'manage_TBL_USERS'");
+        @$link->query("UPDATE " . tn('TBL_PERMISSIONS') . " SET permission_key = 'manage_teams' WHERE permission_key = 'manage_TBL_TEAMS'");
+        @$link->query("INSERT INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES ('Manager', 'manage_users', 1) ON DUPLICATE KEY UPDATE permission_value = 1");
+        @$link->query("INSERT INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES ('Supervisor', 'manage_users', 1) ON DUPLICATE KEY UPDATE permission_value = 1");
     } catch (\Throwable $e) {}
 
     $done = true;
@@ -349,8 +357,8 @@ function getAuthorizedUserIds(mysqli $link, int $userId, string $role, ?int $use
             $accessible = array_diff($uIds, $superAdminIds);
             return array_values(array_unique($accessible));
         }
-        $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active'");
-        $all = [];
+        $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE NOT IN ('Super Admin', 'Admin')");
+        $all = [$userId];
         if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
         $accessible = array_diff($all, $superAdminIds);
         return array_values(array_unique($accessible));
@@ -489,8 +497,13 @@ function canActorAssignRole(string $actorRole, string $targetRole): bool {
 
     if ($actorNorm === 'Super Admin') return true;
     if ($actorNorm === 'Admin') {
-        // Admin can only assign Supervisor or Officer
-        return in_array($targetNorm, ['Supervisor', 'Officer'], true);
+        if (strcasecmp(trim($actorRole), 'Manager') === 0) {
+            return in_array($targetNorm, ['Supervisor', 'Officer'], true);
+        }
+        return in_array($targetNorm, ['Manager', 'Supervisor', 'Officer'], true) || in_array($targetRole, ['Manager', 'Supervisor', 'Officer'], true);
+    }
+    if ($actorNorm === 'Supervisor') {
+        return $targetNorm === 'Officer';
     }
     return false;
 }

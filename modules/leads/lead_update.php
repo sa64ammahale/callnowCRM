@@ -113,9 +113,11 @@ try {
     if ($payload['customer_name'] === '' || $payload['mobile'] === '') {
         throw new RuntimeException('Customer name and mobile number are required.');
     }
-    if (!preg_match('/^[0-9]{10,15}$/', $payload['mobile'])) {
-        throw new RuntimeException('Enter a valid mobile number.');
+    $cleanMobile = normalize_indian_phone($payload['mobile']);
+    if ($cleanMobile === null) {
+        throw new RuntimeException('Enter a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 98765 43210).');
     }
+    $payload['mobile'] = $cleanMobile;
     if ($payload['assigned_to'] <= 0) {
         throw new RuntimeException('Please select an assigned employee.');
     }

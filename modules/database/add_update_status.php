@@ -49,13 +49,14 @@ if (isset($_POST['submitDND'])) {
         if ($dndNumber === '' || $status === '') {
             $Message = "Please fill required fields (mobile and status).";
             $type = "warning";
-        } elseif (!preg_match('/^[6-9][0-9]{9}$/', $dndNumber)) {
-            $Message = "Invalid mobile number. Must be 10 digits starting with 6-9.";
+        } elseif (($cleanMob = normalize_indian_phone($dndNumber)) === null) {
+            $Message = "Invalid mobile number. Must be a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 98765 43210).";
             $type = "danger";
         } elseif (!in_array($status, $allowedStatuses, true)) {
             $Message = "Invalid status selected.";
             $type = "danger";
         } else {
+            $dndNumber = $cleanMob;
             $cleanDndNum = substr(preg_replace('/\D/', '', $dndNumber), -10);
             $isAlreadyDnd = false;
             $chkDnd = mysqli_prepare($link, "SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
@@ -273,7 +274,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                 <label class="form-label" for="dndNumber">Mobile Number <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-telephone"></i></span>
-                                    <input name="dndNumber" id="dndNumber" type="tel" class="form-control" placeholder="10-digit mobile" pattern="[6-9][0-9]{9}" required>
+                                    <input name="dndNumber" id="dndNumber" type="tel" class="form-control" placeholder="e.g. 9876543210 or +91 98765 43210" required>
                                 </div>
                             </div>
 

@@ -304,12 +304,11 @@ if (isset($_POST['process_upload_batch']) && !empty($_POST['task_id'])) {
         $package_raw = trim($package_raw);
         $other_raw = trim($other_raw);
 
-        $digits = preg_replace('/\D/', '', $mobile_raw);
-        if (strlen($digits) > 10) $digits = substr($digits, -10);
+        $digits = normalize_indian_phone($mobile_raw);
 
-        if (!preg_match('/^[6-9]\d{9}$/', $digits)) {
+        if ($digits === null) {
             $stats['invalid']++;
-            $logs[] = "Row $rownum: Invalid mobile '$mobile_raw' -> normalized '$digits'. Skipped.";
+            $logs[] = "Row $rownum: Invalid mobile '$mobile_raw'. Must be a valid 10-digit Indian mobile number (e.g., 9876543210, +91 98765 43210). Skipped.";
             $rows_processed++;
             continue;
         }
@@ -1055,8 +1054,15 @@ function handlePreview(file) {
       const r = dataRows[i];
       const name = r[0]||'';
       const raw = r[1]||'';
-      const digits = (raw.match(/\d/g)||[]).join('');
-      const norm = digits.length>10 ? digits.slice(-10) : digits;
+      let digits = (raw.match(/\d/g)||[]).join('');
+      if (digits.length === 12 && digits.startsWith('91')) {
+        digits = digits.slice(2);
+      } else if (digits.length === 11 && digits.startsWith('0')) {
+        digits = digits.slice(1);
+      } else if (digits.length > 10) {
+        digits = digits.slice(-10);
+      }
+      const norm = digits;
       const valid = /^[6-9]\d{9}$/.test(norm);
       if (!valid) invalidCount++;
       const tr = document.createElement('tr');

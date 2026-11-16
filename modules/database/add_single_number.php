@@ -59,11 +59,13 @@ if (isset($_POST['submit'])) {
         $other_info = trim($_POST['other_info'] ?? '');
         $upload_to  = $_POST['upload_to'] ?? 'main';
 
-        if (!preg_match('/^[6-9][0-9]{9}$/', $mobile)) {
-            $Message = "Invalid mobile number! Must be 10 digits starting with 6-9.";
+        $cleanMob = normalize_indian_phone($mobile);
+
+        if ($cleanMob === null) {
+            $Message = "Invalid mobile number! Please enter a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 98765 43210).";
             $type = "danger";
         } else {
-            $cleanMob = substr(preg_replace('/\D/', '', $mobile), -10);
+            $mobile = $cleanMob;
             $dndQ = mysqli_prepare($link, "SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
             $isDndContact = false;
             if ($dndQ) {
@@ -294,8 +296,8 @@ include __DIR__ . '/../../php_scripts/header.php';
                                 <label class="form-label" for="mobile">Mobile Number <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-telephone"></i></span>
-                                    <input type="text" name="mobile" id="mobile" class="form-control" placeholder="10-digit mobile"
-                                           pattern="[6-9][0-9]{9}" title="10-digit mobile starting with 6-9" required
+                                    <input type="text" name="mobile" id="mobile" class="form-control" placeholder="e.g. 9876543210 or +91 98765 43210"
+                                           required
                                            value="<?php echo htmlspecialchars($rowData['MAINDATABASE_MOBILE'] ?? ''); ?>">
                                 </div>
                             </div>

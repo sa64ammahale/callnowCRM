@@ -42,6 +42,7 @@ date_default_timezone_set('Asia/Kolkata');
     }
 
     require_once __DIR__ . '/tenant.php';
+    require_once __DIR__ . '/phone_helper.php';
 
     $DB_SERVERNAME = getenv('DB_SERVERNAME') ?: (getenv('DB_HOST') ?: "localhost");
     $DB_PORT = getenv('DB_PORT') ?: "3306";

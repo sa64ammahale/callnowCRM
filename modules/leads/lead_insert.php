@@ -66,13 +66,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
         if ($form['name'] === '' || $form['mobile'] === '') {
             $error = 'Customer name and mobile number are required.';
-        } elseif (!preg_match('/^[0-9]{10,15}$/', $form['mobile'])) {
-            $error = 'Enter a valid mobile number.';
+        } elseif (($cleanMobile = normalize_indian_phone($form['mobile'])) === null) {
+            $error = 'Enter a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 98765 43210).';
         } elseif ($assignedTo <= 0) {
             $error = 'Please choose an employee for assignment.';
         } elseif (!canAssignLeadToUserId($link, $assignedTo)) {
             $error = 'You do not have permission to assign this lead to the selected employee.';
         } else {
+            $form['mobile'] = $cleanMobile;
             mysqli_begin_transaction($link);
 
             try {
