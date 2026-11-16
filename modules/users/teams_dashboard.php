@@ -5,6 +5,49 @@ requirePermission('manage_teams');
 
 $msg = $msg_type = "";
 
+function getTeamHierarchyAssignment(mysqli $link, int $teamId): ?array {
+    $stmt = $link->prepare("SELECT ID, SUPERVISOR_ID, MANAGER_ID, admin_id FROM " . tn('TBL_TEAMS') . " WHERE ID = ? LIMIT 1");
+    if (!$stmt) return null;
+    $stmt->bind_param('i', $teamId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+function canManageTeamId(mysqli $link, int $teamId): bool {
+    if (isSuperAdmin()) return true;
+    $allowed = getAuthorizedTeamIds($link, (int)USER_ID, USER_ROLE, defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
+    return in_array($teamId, $allowed, true);
+}
+
+function isValidTeamHierarchy(mysqli $link, ?int $adminId, ?int $managerId, ?int $supervisorId): bool {
+    if (!$adminId) return false;
+    $adminStmt = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ID = ? AND ROLE = 'Admin' AND STATUS = 'Active' LIMIT 1");
+    $adminStmt->bind_param('i', $adminId);
+    $adminStmt->execute();
+    $validAdmin = (bool)$adminStmt->get_result()->fetch_assoc();
+    $adminStmt->close();
+    if (!$validAdmin) return false;
+    if ($managerId) {
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ID = ? AND ROLE = 'Manager' AND admin_id = ? AND STATUS = 'Active' LIMIT 1");
+        $stmt->bind_param('ii', $managerId, $adminId);
+        $stmt->execute();
+        $validManager = (bool)$stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$validManager) return false;
+    }
+    if ($supervisorId) {
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ID = ? AND ROLE = 'Supervisor' AND admin_id = ? AND STATUS = 'Active' AND (? IS NULL OR manager_id = ?) LIMIT 1");
+        $stmt->bind_param('iiii', $supervisorId, $adminId, $managerId, $managerId);
+        $stmt->execute();
+        $validSupervisor = (bool)$stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$validSupervisor) return false;
+    }
+    return true;
+}
+
 // ==================== REASSIGN MEMBERS ====================
 if (($_POST['action'] ?? '') === 'reassign_members') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -17,16 +60,17 @@ if (($_POST['action'] ?? '') === 'reassign_members') {
             $msg = "Please select a valid target team for reassignment.";
             $msg_type = "warning";
         } else {
-            $check = $link->prepare("SELECT COUNT(*) FROM " . tn('TBL_TEAMS') . " WHERE ID IN (?, ?)");
-            $check->bind_param("ii", $from_team_id, $to_team_id);
-            $check->execute();
-            $count = $check->get_result()->fetch_row()[0] ?? 0;
-            if ($count < 2) {
+            $fromTeam = getTeamHierarchyAssignment($link, $from_team_id);
+            $toTeam = getTeamHierarchyAssignment($link, $to_team_id);
+            if (!$fromTeam || !$toTeam || !canManageTeamId($link, $from_team_id) || !canManageTeamId($link, $to_team_id) || (int)($fromTeam['admin_id'] ?? 0) !== (int)($toTeam['admin_id'] ?? 0)) {
                 $msg = "Invalid team selection.";
                 $msg_type = "danger";
             } else {
-                $stmt = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = ? WHERE TEAM_ID = ?");
-                $stmt->bind_param("ii", $to_team_id, $from_team_id);
+                $destinationManager = !empty($toTeam['MANAGER_ID']) ? (int)$toTeam['MANAGER_ID'] : null;
+                $destinationAdmin = (int)$toTeam['admin_id'];
+                $destinationSupervisor = !empty($toTeam['SUPERVISOR_ID']) ? (int)$toTeam['SUPERVISOR_ID'] : null;
+                $stmt = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = ?, manager_id = ?, admin_id = ?, supervisor_id = CASE WHEN ROLE = 'Officer' THEN ? ELSE supervisor_id END WHERE TEAM_ID = ? AND ROLE NOT IN ('Admin', 'Super Admin', 'Manager')");
+                $stmt->bind_param("iiiii", $to_team_id, $destinationManager, $destinationAdmin, $destinationSupervisor, $from_team_id);
                 $stmt->execute();
                 $affected = $stmt->affected_rows;
                 if ($affected > 0) {
@@ -50,6 +94,20 @@ if (($_POST['action'] ?? '') === 'add') {
         $team_name     = trim($_POST['team_name']);
         $supervisor_id = !empty($_POST['supervisor_id']) ? (int)$_POST['supervisor_id'] : null;
         $manager_id    = !empty($_POST['manager_id']) ? (int)$_POST['manager_id'] : null;
+        $admin_id_post = !empty($_POST['admin_id']) ? (int)$_POST['admin_id'] : null;
+        $targetAdminId = null;
+        $currentActorId = (int)USER_ID;
+        if (isSuperAdmin()) {
+            $targetAdminId = $admin_id_post;
+        } elseif (isAdmin()) {
+            $targetAdminId = $currentActorId;
+        } elseif (isManager() || isSupervisor()) {
+            $uStmt = $link->prepare("SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = ?");
+            $uStmt->bind_param("i", $currentActorId);
+            $uStmt->execute();
+            $targetAdminId = $uStmt->get_result()->fetch_assoc()['admin_id'] ?? null;
+            $uStmt->close();
+        }
         if (empty($team_name)) {
             $msg = "Team name is required!";
             $msg_type = "danger";
@@ -60,24 +118,13 @@ if (($_POST['action'] ?? '') === 'add') {
             if ($check->get_result()->num_rows > 0) {
                 $msg = "Team name already exists!";
                 $msg_type = "warning";
+            } elseif (!isValidTeamHierarchy($link, $targetAdminId, $manager_id, $supervisor_id)) {
+                $msg = "Admin, manager, and supervisor must belong to the same active hierarchy branch.";
+                $msg_type = "danger";
+            } elseif (!isSuperAdmin() && $targetAdminId !== (isAdmin() ? $currentActorId : (int)($targetAdminId ?? 0))) {
+                $msg = "You cannot assign a team to another Admin branch.";
+                $msg_type = "danger";
             } else {
-                $targetAdminId = null;
-                $currentActorId = (int)USER_ID;
-                if (isAdmin()) {
-                    $targetAdminId = $currentActorId;
-                } elseif (isManager() || isSupervisor()) {
-                    $uStmt = $link->prepare("SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = ?");
-                    $uStmt->bind_param("i", $currentActorId);
-                    $uStmt->execute();
-                    $targetAdminId = $uStmt->get_result()->fetch_assoc()['admin_id'] ?? null;
-                    $uStmt->close();
-                } elseif ($manager_id) {
-                    $uStmt = $link->prepare("SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = ?");
-                    $uStmt->bind_param("i", $manager_id);
-                    $uStmt->execute();
-                    $targetAdminId = $uStmt->get_result()->fetch_assoc()['admin_id'] ?? null;
-                    $uStmt->close();
-                }
                 $stmt = $link->prepare("INSERT INTO " . tn('TBL_TEAMS') . " (NAME, SUPERVISOR_ID, MANAGER_ID, admin_id) VALUES (?, ?, ?, ?)");
                 $stmt->bind_param("siii", $team_name, $supervisor_id, $manager_id, $targetAdminId);
                 if ($stmt->execute()) {
@@ -102,14 +149,75 @@ if (($_POST['action'] ?? '') === 'edit') {
         $team_name     = trim($_POST['team_name']);
         $supervisor_id = !empty($_POST['supervisor_id']) ? (int)$_POST['supervisor_id'] : null;
         $manager_id    = !empty($_POST['manager_id']) ? (int)$_POST['manager_id'] : null;
-        $stmt = $link->prepare("UPDATE " . tn('TBL_TEAMS') . " SET NAME = ?, SUPERVISOR_ID = ?, MANAGER_ID = ? WHERE ID = ?");
-        $stmt->bind_param("siii", $team_name, $supervisor_id, $manager_id, $id);
+        $admin_id_post = !empty($_POST['admin_id']) ? (int)$_POST['admin_id'] : null;
+        if (!canManageTeamId($link, $id)) {
+            $msg = "You are not authorized to update this team.";
+            $msg_type = "danger";
+        } else {
+        $targetAdminId = null;
+        $currentActorId = (int)USER_ID;
+        if (isSuperAdmin()) {
+            $targetAdminId = $admin_id_post;
+        } elseif (isAdmin()) {
+            $targetAdminId = $currentActorId;
+        } elseif (isManager() || isSupervisor()) {
+            $uStmt = $link->prepare("SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = ?");
+            $uStmt->bind_param("i", $currentActorId);
+            $uStmt->execute();
+            $targetAdminId = $uStmt->get_result()->fetch_assoc()['admin_id'] ?? null;
+            $uStmt->close();
+        }
+        if (!isValidTeamHierarchy($link, $targetAdminId, $manager_id, $supervisor_id)) {
+            $msg = "Admin, manager, and supervisor must belong to the same active hierarchy branch.";
+            $msg_type = "danger";
+        } else {
+        // Build UPDATE dynamically to safely handle NULL values
+        $setParts   = ["NAME = ?"];
+        $updateParams = [$team_name];
+        $updateTypes  = "s";
+
+        if ($supervisor_id !== null) {
+            $setParts[] = "SUPERVISOR_ID = ?";
+            $updateParams[] = $supervisor_id;
+            $updateTypes  .= "i";
+        } else {
+            $setParts[] = "SUPERVISOR_ID = NULL";
+        }
+
+        if ($manager_id !== null) {
+            $setParts[] = "MANAGER_ID = ?";
+            $updateParams[] = $manager_id;
+            $updateTypes  .= "i";
+        } else {
+            $setParts[] = "MANAGER_ID = NULL";
+        }
+
+        if ($targetAdminId !== null) {
+            $setParts[] = "admin_id = ?";
+            $updateParams[] = $targetAdminId;
+            $updateTypes  .= "i";
+        } else {
+            $setParts[] = "admin_id = NULL";
+        }
+
+        $updateParams[] = $id;
+        $updateTypes   .= "i";
+
+        $sql = "UPDATE " . tn('TBL_TEAMS') . " SET " . implode(', ', $setParts) . " WHERE ID = ?";
+        $stmt = $link->prepare($sql);
+        $stmt->bind_param($updateTypes, ...$updateParams);
         if ($stmt->execute()) {
+            $syncStmt = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET manager_id = ?, admin_id = ?, supervisor_id = CASE WHEN ROLE = 'Officer' THEN ? ELSE supervisor_id END WHERE TEAM_ID = ? AND ROLE NOT IN ('Admin', 'Super Admin', 'Manager')");
+            $syncStmt->bind_param('iiii', $manager_id, $targetAdminId, $supervisor_id, $id);
+            $syncStmt->execute();
+            $syncStmt->close();
             $msg = "Team updated successfully!";
             $msg_type = "success";
         } else {
             $msg = "Update failed!";
             $msg_type = "danger";
+        }
+        }
         }
     }
 }
@@ -121,7 +229,7 @@ if (($_POST['action'] ?? '') === 'delete') {
         $msg_type = "danger";
     } else {
         $id = (int)($_POST['team_id'] ?? 0);
-        if ($id > 0) {
+        if ($id > 0 && canManageTeamId($link, $id)) {
             $link->query("UPDATE " . tn('TBL_USERS') . " SET TEAM_ID = NULL WHERE TEAM_ID = " . $id);
             if ($link->query("DELETE FROM " . tn('TBL_TEAMS') . " WHERE ID = " . $id)) {
                 $msg = "Team deleted successfully!";
@@ -189,6 +297,22 @@ if ($canViewAll) {
 }
 $mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " u $mgrWhere ORDER BY NAME");
 if ($mgr_res) while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
+
+// All admins for admin dropdown
+$all_admins = [];
+if ($canViewAll) {
+    $admWhere = "WHERE ROLE IN ('Admin','Super Admin') AND STATUS = 'Active'";
+} elseif (isAdmin()) {
+    $admWhere = "WHERE ID = $userId AND STATUS = 'Active'";
+} elseif (isManager() || isSupervisor()) {
+    $ua = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = $userId"));
+    $admId = $ua['admin_id'] ?? null;
+    $admWhere = $admId ? "WHERE ID = $admId AND STATUS = 'Active'" : "WHERE 1=0";
+} else {
+    $admWhere = "WHERE 1=0";
+}
+$adm_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " u $admWhere ORDER BY NAME");
+if ($adm_res) while ($a = mysqli_fetch_assoc($adm_res)) $all_admins[] = $a;
 
 // All teams for reassign dropdown
 $all_teams = [];
@@ -338,6 +462,18 @@ if ($members_res) {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted mb-1">Admin Owner</label>
+                            <select name="admin_id" class="form-select form-select-sm">
+                                <option value="">— Inherit Default —</option>
+                                <?php foreach ($all_admins as $a): ?>
+                                    <option value="<?= (int)$a['ID'] ?>" <?= ($edit_team['admin_id'] ?? '') == $a['ID'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($a['NAME']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="text-muted small mt-1">Admin who owns this team and its data</div>
                         </div>
 
                         <div class="d-flex gap-2 pt-2 border-top">

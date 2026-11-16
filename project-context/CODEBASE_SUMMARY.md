@@ -753,6 +753,11 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - `modules/logs/Reports.php` now validates `?manager=` against the active Admin or Super Admin hierarchy and applies it to report KPIs, charts, performance tables, drilldowns, follow-ups, exports, and persisted report URLs.
 - `php_scripts/reporting_engine.php` accepts an optional manager scope for reporting functions. It limits staff-level data to active users with the selected `manager_id` and supervisor rollups to teams managed by that manager.
 - `tests/test_team_filter_reports.php` verifies that a manager filter includes only the selected manager's staff; 20/20 assertions pass.
+
+## Completed Goal (2026-11-16): Hierarchy-Safe Admin and Team Assignment
+- `modules/users/teams_dashboard.php` validates the Admin, Manager, and Supervisor selected for a team as one active hierarchy branch and rejects forged or cross-branch assignments.
+- Team edits and member reassignment now synchronize each affected eligible user’s `TEAM_ID`, `admin_id`, `manager_id`, and officer `supervisor_id` fields.
+- Team mutation operations are restricted to the actor’s authorized teams. `modules/users/users_add.php` rejects profile/status changes to same-level or higher-level users by subusers and rejects user-to-team assignments whose hierarchy does not match the selected team.
   2. **Channel Integration**:
      - CSV Bulk Upload (`modules/database/upload_data.php`): Ingestion and client preview normalize numbers with `+91`, `91`, or `0`.
      - Single Customer Form (`modules/database/add_single_number.php`): Accepts input with `+91`, spaces, or trunk `0`, normalizes before checking DND, duplicates, and saving.

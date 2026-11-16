@@ -9,6 +9,7 @@ $status     = $_GET['status'] ?? '';
 $role       = $_GET['role'] ?? '';
 $team_id    = $_GET['team'] ?? '';
 $manager_id = $_GET['manager'] ?? '';
+$admin_id   = $_GET['admin'] ?? '';
 $package    = $_GET['package'] ?? '';
 
 $userRole = USER_ROLE;
@@ -45,6 +46,11 @@ if ($team_id !== '' && is_numeric($team_id)) {
 if ($manager_id !== '' && is_numeric($manager_id)) {
     $where .= " AND u.manager_id = ?";
     $params[] = (int)$manager_id;
+    $types   .= "i";
+}
+if ($admin_id !== '' && is_numeric($admin_id)) {
+    $where .= " AND u.admin_id = ?";
+    $params[] = (int)$admin_id;
     $types   .= "i";
 }
 if ($package) {
@@ -126,6 +132,23 @@ if (isSuperAdmin()) {
 } elseif (isAdmin()) {
     $mgrRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND admin_id = $userId AND STATUS = 'Active' ORDER BY NAME");
     if ($mgrRes) $allManagers = mysqli_fetch_all($mgrRes, MYSQLI_ASSOC);
+}
+
+// All admins for admin filter dropdown
+$allAdmins = [];
+if (isSuperAdmin()) {
+    $admRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Admin','Super Admin') AND STATUS = 'Active' ORDER BY NAME");
+    if ($admRes) $allAdmins = mysqli_fetch_all($admRes, MYSQLI_ASSOC);
+} elseif (isAdmin()) {
+    $admRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ID = $userId AND STATUS = 'Active'");
+    if ($admRes) $allAdmins = mysqli_fetch_all($admRes, MYSQLI_ASSOC);
+} elseif (isManager() || isSupervisor()) {
+    $ua = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = $userId"));
+    $admId = $ua['admin_id'] ?? null;
+    if ($admId) {
+        $admRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ID = $admId AND STATUS = 'Active'");
+        if ($admRes) $allAdmins = mysqli_fetch_all($admRes, MYSQLI_ASSOC);
+    }
 }
 
 // Role description lookup
@@ -260,6 +283,19 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                 </select>
             </div>
             <?php endif; ?>
+            <?php if (!empty($allAdmins)): ?>
+            <div class="col-6 col-sm-3 col-md-2 col-xl-2">
+                <label class="form-label small text-muted mb-1">Admin</label>
+                <select name="admin" class="form-select form-select-sm">
+                    <option value="">All Admins</option>
+                    <?php foreach($allAdmins as $a): ?>
+                        <option value="<?= (int)$a['ID'] ?>" <?= (string)$admin_id===(string)$a['ID']?'selected':'' ?>>
+                            <?= htmlspecialchars($a['NAME']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
             <div class="col-6 col-sm-3 col-md-2 col-xl-2">
                 <label class="form-label small text-muted mb-1">Package</label>
                 <select name="package" class="form-select form-select-sm">
@@ -335,7 +371,7 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                                     <span class="badge <?= $u['current_calling_db'] === 'TEMPORARY' ? 'bg-warning-subtle text-warning border-warning' : 'bg-success-subtle text-success border-success' ?> border mt-0.5" style="font-size: 0.65rem;" title="<?= !empty($u['last_batch_at']) ? 'Last batch: ' . date('d M H:i', strtotime($u['last_batch_at'])) : '' ?>">
                                                         <i class="bi bi-database me-1"></i><?= htmlspecialchars($u['current_calling_db']) ?>
                                                     </span>
-                                                <?php endif; ?>
+            <?php endif; ?>
                                             </div>
                                         </div>
                                     </td>

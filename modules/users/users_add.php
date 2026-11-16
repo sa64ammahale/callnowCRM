@@ -139,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         elseif (!in_array($role, $allowedRoles, true)) $Message = 'Invalid or unauthorized role';
         elseif (!in_array((int)$team_id, $allowedTeams, true)) $Message = 'Invalid or unauthorized team';
         elseif (!in_array($status, ['Active', 'Inactive', 'Suspended'], true)) $Message = 'Invalid account status';
+        elseif ($isEdit && !isSuperAdmin() && getRoleHierarchyLevel((string)$editUser['ROLE']) >= getRoleHierarchyLevel(USER_ROLE) && (int)$userID !== (int)USER_ID) $Message = 'You cannot change the status or profile of a user at your own or a higher hierarchy level.';
         elseif ($isEdit && $password !== '' && strlen($password) < 6) $Message = 'Password must be at least 6 characters';
         else {
             // Check 1: Mobile uniqueness
@@ -214,7 +215,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $assignedManagerId = !empty($uRow['manager_id']) ? (int)$uRow['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
                 }
 
-                if ($isEdit) {
+                if (!$teamInfo) {
+                    $Message = 'Selected team no longer exists.';
+                } elseif ($role !== 'Admin' && empty($teamInfo['admin_id'])) {
+                    $Message = 'Selected team does not have a valid Admin owner.';
+                } elseif ($role !== 'Admin' && $creatorAdminId !== (int)$teamInfo['admin_id']) {
+                    $Message = 'Selected team belongs to a different Admin hierarchy.';
+                } elseif ($role !== 'Manager' && $assignedManagerId !== (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null)) {
+                    $Message = 'Selected manager does not own the selected team.';
+                }
+
+                if (!$Message && $isEdit) {
                     $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, supervisor_id=COALESCE(?, supervisor_id), manager_id=?, admin_id=?, PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
                     $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $teamIdInt, $teamSupId, $assignedManagerId, $creatorAdminId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
                     $types = "ssssssiiiisssid";
@@ -227,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $sql .= " WHERE ID=?";
                     $params[] = $userID;
                     $types .= "i";
-                } else {
+                } elseif (!$Message) {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
                     $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, supervisor_id, manager_id, admin_id, PACKAGE, STATUS, COMPANY, daily_calling_limit, monthly_disbursement_limit, JOIN_DATE)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
