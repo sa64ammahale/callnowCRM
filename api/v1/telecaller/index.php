@@ -72,6 +72,14 @@ function buildDateCondition(string $period, ?string $dateFrom, ?string $dateTo, 
     }
 }
 
+function updateCurrentCallingDatabase(mysqli $link, int $userId, string $database): void {
+    $stmt = $link->prepare('UPDATE ' . tn('TBL_USERS') . ' SET current_calling_db = ? WHERE ID = ?');
+    if (!$stmt) return;
+    $stmt->bind_param('si', $database, $userId);
+    $stmt->execute();
+    $stmt->close();
+}
+
 // -----------------------------------------------------------------------------
 // 0. TELECALLER PROFILE FALLBACK (/profile and /me)
 // -----------------------------------------------------------------------------
@@ -212,6 +220,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $tempPoolLimit = max(30, $limit * 2);
     $sqlTemp = "SELECT ID FROM " . tn('TBL_TEMP') . " 
     WHERE (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    AND (LAST_DIALED_DATE_TIME IS NULL OR LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY))
     AND (
         CALL_DIALED_TELECALLER = ? 
         OR CALL_DIALED_TELECALLER IS NULL 
@@ -222,12 +231,18 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_MAIN') . " m 
         WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        AND (
+            LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            OR m.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
+        )
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        AND (
+            LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            OR (t2.ID <> " . tn('TBL_TEMP') . ".ID AND t2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY))
+        )
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -289,7 +304,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     $remaining = $limit - count($leads);
-    if ($remaining > 0) {
+    if ($remaining > 0 && count($leads) === 0) {
         $mainPoolLimit = max(150, $remaining * 10);
         $sqlMain = "SELECT m.ID
         FROM " . tn('TBL_MAIN') . " m
@@ -302,8 +317,13 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         )
         AND (
             m.LAST_DIALED_DATE_TIME IS NULL 
-            OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY) 
-            OR m.MAINDATABASE_CALL_DIALED_USER = ?
+            OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_MAIN') . " m2
+            WHERE m2.MAINDATABASE_MOBILE = m.MAINDATABASE_MOBILE
+              AND m2.ID <> m.ID
+              AND m2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_LEADS') . " l 
@@ -324,7 +344,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
-            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            AND (
+                LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+                OR t.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
+            )
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -334,7 +357,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         LIMIT ?";
         
         $stmt = $link->prepare($sqlMain);
-        $stmt->bind_param('iiiii', $userId, $userId, $userId, $userId, $mainPoolLimit);
+        $stmt->bind_param('iiii', $userId, $userId, $userId, $mainPoolLimit);
         $stmt->execute();
         $poolRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -427,6 +450,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         if ($l['source'] === 'MAIN') $hasMain = true;
     }
     $currentDb = ($hasTemp && $hasMain) ? 'MIXED' : ($hasTemp ? 'TEMPORARY' : 'MAIN');
+    if ($hasTemp) updateCurrentCallingDatabase($link, $userId, 'temporary');
+    elseif ($hasMain) updateCurrentCallingDatabase($link, $userId, 'main');
     apiSuccess([
         'current_database' => $currentDb,
         'lease_duration_minutes' => 15,
@@ -443,6 +468,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     
     $stmtTemp = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " 
     WHERE (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
+    AND (LAST_DIALED_DATE_TIME IS NULL OR LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY))
     AND (
         CALL_DIALED_TELECALLER = ? 
         OR CALL_DIALED_TELECALLER IS NULL 
@@ -453,12 +479,18 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_MAIN') . " m 
         WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        AND (
+            LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            OR m.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
+        )
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
         WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+        AND (
+            LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            OR (t2.ID <> " . tn('TBL_TEMP') . ".ID AND t2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY))
+        )
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -512,8 +544,13 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         )
         AND (
             m.LAST_DIALED_DATE_TIME IS NULL 
-            OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY) 
-            OR m.MAINDATABASE_CALL_DIALED_USER = ?
+            OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM " . tn('TBL_MAIN') . " m2
+            WHERE m2.MAINDATABASE_MOBILE = m.MAINDATABASE_MOBILE
+              AND m2.ID <> m.ID
+              AND m2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_LEADS') . " l 
@@ -534,7 +571,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_TEMP') . " t 
             WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
-            AND LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+            AND (
+                LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
+                OR t.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
+            )
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -542,7 +582,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         )
         ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
         LIMIT 20");
-        $stmtMain->bind_param('iiii', $userId, $userId, $userId, $userId);
+        $stmtMain->bind_param('iii', $userId, $userId, $userId);
         $stmtMain->execute();
         $mainCandidates = array_column($stmtMain->get_result()->fetch_all(MYSQLI_ASSOC), 'ID');
         $stmtMain->close();
@@ -576,6 +616,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     if ($claimedRow && $claimedSource === 'TEMP') {
+        updateCurrentCallingDatabase($link, $userId, 'temporary');
         $mob = $claimedRow['CUST_MOBILE'] ?? '';
         apiSuccess([
             'source' => 'TEMP',
@@ -597,6 +638,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     
     if ($claimedRow && $claimedSource === 'MAIN') {
+        updateCurrentCallingDatabase($link, $userId, 'main');
         $mob = $claimedRow['MAINDATABASE_MOBILE'] ?? '';
         apiSuccess([
             'source' => 'MAIN',

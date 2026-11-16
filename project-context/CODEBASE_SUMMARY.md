@@ -481,9 +481,9 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - **Goal 4 (Concurrency, 15-Minute Leases, Sorting & 3-Month Protection)**:
     - **Concurrency**: Wrapped batch allocation and single-call fallback in MySQL transactions with `FOR UPDATE` row-locking, guaranteeing one number to one telecaller at a time with 0 collisions.
     - **15-Minute Lease**: Configured 15-minute lease duration (`BATCH_ASSIGNED_AT < NOW() - INTERVAL 15 MINUTE`) auto-releasing uncalled records.
-    - **Queue Auto-Fallback**: Automatically depletes Temporary DB first; when temporary data ends, seamlessly falls back to Main DB.
+    - **Queue Auto-Fallback**: `GET /batch-leads` and `GET /next-call` deplete eligible Temporary DB records first; Main DB is used only after no eligible Temporary record remains.
     - **Oldest Dialed Sorting**: Main DB records are prioritized by fresh uncalled first (`LAST_DIALED_DATE_TIME IS NULL`), followed by oldest dialed (`LAST_DIALED_DATE_TIME ASC`).
-    - **Strict 3-Month (90-Day) Cooldown**: Numbers dialed by another user within 90 days are strictly blocked from being shared with other users (`LAST_DIALED_DATE_TIME < NOW() - INTERVAL 90 DAY OR m.MAINDATABASE_CALL_DIALED_USER = ?`).
+    - **Strict 3-Month (90-Day) Cooldown**: Every dialed phone number is blocked for all telecallers for 90 days, including duplicate records in either database. The queue does not exempt the officer who made the earlier call.
     - **Activity Protection**: A number dialed > 90 days ago can only be re-allocated to another telecaller if NO activity exists in the system (blocked if an active lead in `TBL_LEADS`, scheduled future follow-up, or recent call in `TBL_CALL_LOGS` within 90 days exists).
   - **Verification Suite**: Created `tests/test_telecaller_crm_goals.php` (20/20 assertions passing 100%) and verified `tests/test_api_module.php` (43/43 assertions passing 100%). Total 63/63 automated test assertions passing.
 - **Sidebar Collapsible Accordion & Dashboard Shortcut Directory (2026-11-03)**:
