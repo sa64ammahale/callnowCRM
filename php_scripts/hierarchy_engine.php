@@ -24,8 +24,11 @@ function ensureHierarchySchema(mysqli $link): void {
         if (!isset($uCols['supervisor_id'])) {
             @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN supervisor_id INT NULL DEFAULT NULL AFTER TEAM_ID, ADD INDEX idx_user_supervisor (supervisor_id)");
         }
+        if (!isset($uCols['manager_id'])) {
+            @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN manager_id INT NULL DEFAULT NULL AFTER supervisor_id, ADD INDEX idx_user_manager (manager_id)");
+        }
         if (!isset($uCols['admin_id'])) {
-            @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN admin_id INT NULL DEFAULT NULL AFTER supervisor_id, ADD INDEX idx_user_admin (admin_id)");
+            @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN admin_id INT NULL DEFAULT NULL AFTER manager_id, ADD INDEX idx_user_admin (admin_id)");
         }
         if (!isset($uCols['daily_calling_limit'])) {
             @$link->query("ALTER TABLE " . tn('TBL_USERS') . " ADD COLUMN daily_calling_limit INT NOT NULL DEFAULT 250 AFTER admin_id");
@@ -134,6 +137,36 @@ function getAdminManagedTeamIds(mysqli $link, int $adminId): array {
         $stmt->close();
     }
     return array_values(array_unique($teamIds));
+}
+
+/**
+ * Get Manager IDs assigned to an Admin
+ */
+function getAdminAssignedManagerIds(mysqli $link, int $adminId): array {
+    $superAdminIds = getSuperAdminUserIds($link);
+    $mgrIds = [];
+
+    $stmt = $link->prepare("
+        SELECT DISTINCT u.ID 
+        FROM " . tn('TBL_USERS') . " u
+        LEFT JOIN " . tn('TBL_TEAMS') . " t ON (t.MANAGER_ID = u.ID)
+        WHERE u.ROLE = 'Manager'
+          AND (u.admin_id = ? OR t.admin_id = ?)
+    ");
+    if ($stmt) {
+        $stmt->bind_param('ii', $adminId, $adminId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($r = $res->fetch_assoc()) {
+            $id = (int)$r['ID'];
+            if (!in_array($id, $superAdminIds, true)) {
+                $mgrIds[] = $id;
+            }
+        }
+        $stmt->close();
+    }
+
+    return array_values(array_unique($mgrIds));
 }
 
 /**
@@ -338,11 +371,15 @@ function getAuthorizedUserIds(mysqli $link, int $userId, string $role, ?int $use
         $stmt = $link->prepare("
             SELECT DISTINCT u.ID FROM " . tn('TBL_USERS') . " u
             WHERE u.ID = ?
-               OR (u.ROLE != 'Super Admin' AND u.ROLE != 'Admin' AND (u.admin_id = ? $teamClause))
+               OR (u.ROLE != 'Super Admin' AND u.ROLE != 'Admin' AND (
+                   u.admin_id = ?
+                   OR u.manager_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE admin_id = ? AND ROLE = 'Manager')
+                   $teamClause
+               ))
         ");
         $all = [$userId];
         if ($stmt) {
-            $stmt->bind_param('ii', $userId, $userId);
+            $stmt->bind_param('iii', $userId, $userId, $userId);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
@@ -355,15 +392,13 @@ function getAuthorizedUserIds(mysqli $link, int $userId, string $role, ?int $use
     if ($normRole === 'Manager' || $role === 'Manager') {
         $mTeamIds = getAuthorizedTeamIds($link, $userId, 'Manager', $userTeamId);
         $all = [$userId];
-        if (!empty($mTeamIds)) {
-            $tList = implode(',', array_map('intval', $mTeamIds));
-            $res = $link->query("
-                SELECT DISTINCT u.ID FROM " . tn('TBL_USERS') . " u 
-                WHERE (u.TEAM_ID IN ($tList) AND u.ROLE IN ('Supervisor', 'Officer'))
-                   OR (u.ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList)))
-            ");
-            if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
-        }
+        $tClause = !empty($mTeamIds) ? "OR u.TEAM_ID IN (" . implode(',', array_map('intval', $mTeamIds)) . ")" : "";
+        $res = $link->query("
+            SELECT DISTINCT u.ID FROM " . tn('TBL_USERS') . " u 
+            WHERE u.ROLE NOT IN ('Super Admin', 'Admin', 'Manager')
+              AND (u.manager_id = $userId $tClause)
+        ");
+        if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
         $accessible = array_diff($all, $superAdminIds);
         return array_values(array_unique($accessible));
     }

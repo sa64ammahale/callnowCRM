@@ -35,7 +35,7 @@ $emptyIcons = [
 
 $where = '';
 $accessibleUserIds = getAccessibleUserIds($link);
-if (!isAdmin() && !isSuperAdmin()) {
+if (!isSuperAdmin()) {
     if (!empty($accessibleUserIds)) {
         $where = 'WHERE l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     } else {

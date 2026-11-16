@@ -47,6 +47,20 @@ if (isSuperAdmin()) {
 }
 if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allRoles[] = $a;
 
+// Fetch available Admins and Managers for assignment
+$allAdmins = [];
+$allManagers = [];
+if (isSuperAdmin()) {
+    $admRes = mysqli_query($link, "SELECT ID, NAME, LOGIN_ID FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Admin' AND STATUS = 'Active' ORDER BY NAME");
+    if ($admRes) $allAdmins = mysqli_fetch_all($admRes, MYSQLI_ASSOC);
+
+    $mgrRes = mysqli_query($link, "SELECT ID, NAME, LOGIN_ID, admin_id FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND STATUS = 'Active' ORDER BY NAME");
+    if ($mgrRes) $allManagers = mysqli_fetch_all($mgrRes, MYSQLI_ASSOC);
+} elseif (isAdmin()) {
+    $mgrRes = mysqli_query($link, "SELECT ID, NAME, LOGIN_ID FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND admin_id = " . (int)USER_ID . " AND STATUS = 'Active' ORDER BY NAME");
+    if ($mgrRes) $allManagers = mysqli_fetch_all($mgrRes, MYSQLI_ASSOC);
+}
+
 $editUser = null;
 if ($isEdit) {
     $stmt = mysqli_prepare($link, "SELECT u.*, t.NAME as TEAM_NAME FROM " . tn('TBL_USERS') . " u LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID WHERE u.ID = ?");
@@ -170,21 +184,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 $teamSupId = isSupervisor() ? (int)USER_ID : (!empty($teamInfo['SUPERVISOR_ID']) ? (int)$teamInfo['SUPERVISOR_ID'] : null);
 
                 $creatorAdminId = null;
+                $assignedManagerId = null;
+
                 if (isAdmin()) {
                     $creatorAdminId = (int)USER_ID;
-                } elseif (isManager() || isSupervisor()) {
+                    $assignedManagerId = !empty($_POST['manager_id']) ? (int)$_POST['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
+                } elseif (isManager()) {
                     $uRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)USER_ID));
                     $creatorAdminId = !empty($uRow['admin_id']) ? (int)$uRow['admin_id'] : null;
+                    $assignedManagerId = (int)USER_ID;
+                } elseif (isSupervisor()) {
+                    $uRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id, manager_id FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)USER_ID));
+                    $creatorAdminId = !empty($uRow['admin_id']) ? (int)$uRow['admin_id'] : null;
+                    $assignedManagerId = !empty($uRow['manager_id']) ? (int)$uRow['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
                 } elseif (isSuperAdmin()) {
-                    if (!empty($teamInfo['admin_id'])) {
-                        $creatorAdminId = (int)$teamInfo['admin_id'];
+                    $creatorAdminId = !empty($_POST['admin_id']) ? (int)$_POST['admin_id'] : (!empty($teamInfo['admin_id']) ? (int)$teamInfo['admin_id'] : null);
+                    $assignedManagerId = !empty($_POST['manager_id']) ? (int)$_POST['manager_id'] : (!empty($teamInfo['MANAGER_ID']) ? (int)$teamInfo['MANAGER_ID'] : null);
+                    if ($role === 'Manager') {
+                        $assignedManagerId = null;
+                    }
+                    if ($assignedManagerId && !$creatorAdminId) {
+                        $mRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = $assignedManagerId"));
+                        if (!empty($mRow['admin_id'])) $creatorAdminId = (int)$mRow['admin_id'];
                     }
                 }
 
                 if ($isEdit) {
-                    $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, supervisor_id=COALESCE(?, supervisor_id), PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $teamIdInt, $teamSupId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
-                    $types = "ssssssiissisd";
+                    $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, supervisor_id=COALESCE(?, supervisor_id), manager_id=?, admin_id=?, PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $teamIdInt, $teamSupId, $assignedManagerId, $creatorAdminId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
+                    $types = "ssssssiiiissssid";
 
                     if (!empty($password)) {
                         $sql .= ", PASSWORD=?";
@@ -196,10 +224,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $types .= "i";
                 } else {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
-                    $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, supervisor_id, admin_id, PACKAGE, STATUS, COMPANY, daily_calling_limit, monthly_disbursement_limit, JOIN_DATE)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $teamIdInt, $teamSupId, $creatorAdminId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
-                    $types = "sssssssiissssid";
+                    $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, supervisor_id, manager_id, admin_id, PACKAGE, STATUS, COMPANY, daily_calling_limit, monthly_disbursement_limit, JOIN_DATE)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                    $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $teamIdInt, $teamSupId, $assignedManagerId, $creatorAdminId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
+                    $types = "sssssssiiiissssid";
                 }
 
                 $stmt = mysqli_prepare($link, $sql);
@@ -404,6 +432,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                                 </select>
                             <?php endif; ?>
                         </div>
+
+                        <?php if (isSuperAdmin() && !empty($allAdmins)): ?>
+                            <div class="col-md-6" id="adminAssignWrap">
+                                <label class="form-label small text-muted mb-1">Assigned Admin <span class="text-muted">(Branch Owner)</span></label>
+                                <select name="admin_id" id="adminSelect" class="form-select form-select-sm">
+                                    <option value="">-- Direct Super Admin / Unassigned --</option>
+                                    <?php foreach ($allAdmins as $adm): ?>
+                                        <option value="<?= (int)$adm['ID'] ?>" <?= ((int)($editUser['admin_id'] ?? 0) === (int)$adm['ID']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($adm['NAME']) ?> (<?= htmlspecialchars($adm['LOGIN_ID']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ((isSuperAdmin() || isAdmin()) && !empty($allManagers)): ?>
+                            <div class="col-md-6" id="managerAssignWrap">
+                                <label class="form-label small text-muted mb-1">Assigned Manager</label>
+                                <select name="manager_id" id="managerSelect" class="form-select form-select-sm">
+                                    <option value="">-- No Direct Manager / Team Default --</option>
+                                    <?php foreach ($allManagers as $mgr): ?>
+                                        <option value="<?= (int)$mgr['ID'] ?>" <?= ((int)($editUser['manager_id'] ?? 0) === (int)$mgr['ID']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($mgr['NAME']) ?> (<?= htmlspecialchars($mgr['LOGIN_ID']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 

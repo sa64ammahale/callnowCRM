@@ -41,6 +41,7 @@ $range            = $_GET['range'] ?? 'today';
 $from             = $_GET['from'] ?? '';
 $to               = $_GET['to']   ?? '';
 $team_filter      = $_GET['team'] ?? '';
+$manager_filter   = $_GET['manager'] ?? '';
 $supervisor_filter= $_GET['supervisor'] ?? '';
 $loan_type_filter = $_GET['loan_type'] ?? '';
 $active_tab       = $_GET['tab'] ?? ($selected_user_id ? 'drilldown' : 'overview');
@@ -121,12 +122,16 @@ $bucket        = $spanDays > 31 ? 'month' : 'day';
 // Teams & Supervisors dropdown list based on role
 $TBL_TEAMS = [];
 $allSupervisors = [];
+$allManagers = [];
 if ($isSuperAdmin) {
     $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
     if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
 
     $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor', 'Manager', 'Admin') AND STATUS = 'Active' AND ROLE != 'Super Admin' AND ID != 1 ORDER BY NAME");
     if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
+
+    $mRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND STATUS = 'Active' ORDER BY NAME");
+    if ($mRes) $allManagers = mysqli_fetch_all($mRes, MYSQLI_ASSOC);
 } elseif ($isAdmin) {
     $adminTeamIds = getAdminManagedTeamIds($link, (int)USER_ID);
     if (!empty($adminTeamIds)) {
@@ -139,6 +144,12 @@ if ($isSuperAdmin) {
         $sIn = implode(',', array_map('intval', $adminSupIds));
         $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ID IN ($sIn) AND STATUS = 'Active' ORDER BY NAME");
         if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
+    }
+    $adminMgrIds = getAdminAssignedManagerIds($link, (int)USER_ID);
+    if (!empty($adminMgrIds)) {
+        $mIn = implode(',', array_map('intval', $adminMgrIds));
+        $mRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ID IN ($mIn) AND STATUS = 'Active' ORDER BY NAME");
+        if ($mRes) $allManagers = mysqli_fetch_all($mRes, MYSQLI_ASSOC);
     }
 } elseif ($isManager) {
     $mgrTeamIds = getAuthorizedTeamIds($link, (int)USER_ID, 'Manager');
@@ -651,6 +662,20 @@ include __DIR__ . '/../../php_scripts/header.php';
                         <input type="date" name="to" class="form-control form-control-sm" value="<?= htmlspecialchars($to) ?>">
                     </div>
                 </div>
+
+                <?php if (($isSuperAdmin || $isAdmin) && !empty($allManagers)): ?>
+                    <div class="col-md-2 col-sm-6">
+                        <label class="form-label fs-xs mb-1">Manager</label>
+                        <select name="manager" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Managers</option>
+                            <?php foreach($allManagers as $m): ?>
+                                <option value="<?= $m['ID'] ?>" <?= $manager_filter == $m['ID'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($m['NAME']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
 
                 <?php if ($isSuperAdmin || $isAdmin || $isManager || ($isSupervisor && count($TBL_TEAMS) > 1)): ?>
                     <div class="col-md-2 col-sm-6">

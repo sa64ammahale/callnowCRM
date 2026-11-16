@@ -114,10 +114,9 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
     }
 
     if ($normRole === 'Admin') {
-        $assignedSups = getAdminAssignedSupervisorIds($link, $actorId);
-        $assignedOfficers = getAdminAssignedOfficerIds($link, $actorId);
-        $allowedUserIds = array_merge([$actorId], $assignedSups, $assignedOfficers);
-        $allowedTeamIds = getAdminManagedTeamIds($link, $actorId);
+        $allowedUserIds = getAuthorizedUserIds($link, $actorId, 'Admin');
+        $allowedTeamIds = getAuthorizedTeamIds($link, $actorId, 'Admin');
+        $assignedSups   = getAdminAssignedSupervisorIds($link, $actorId);
 
         $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
         $filteredTeamIds = ($teamId && in_array($teamId, $allowedTeamIds, true)) ? [$teamId] : $allowedTeamIds;

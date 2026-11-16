@@ -4,11 +4,12 @@ require_once __DIR__ . '/../../php_scripts/team_auth.php';
 
 requirePermission('manage_users');
 
-$search  = trim($_GET['search'] ?? '');
-$status  = $_GET['status'] ?? '';
-$role    = $_GET['role'] ?? '';
-$team_id = $_GET['team'] ?? '';
-$package = $_GET['package'] ?? '';
+$search     = trim($_GET['search'] ?? '');
+$status     = $_GET['status'] ?? '';
+$role       = $_GET['role'] ?? '';
+$team_id    = $_GET['team'] ?? '';
+$manager_id = $_GET['manager'] ?? '';
+$package    = $_GET['package'] ?? '';
 
 $userRole = USER_ROLE;
 $userId   = (int)USER_ID;
@@ -41,6 +42,11 @@ if ($team_id !== '' && is_numeric($team_id)) {
     $params[] = $team_id;
     $types   .= "i";
 }
+if ($manager_id !== '' && is_numeric($manager_id)) {
+    $where .= " AND u.manager_id = ?";
+    $params[] = (int)$manager_id;
+    $types   .= "i";
+}
 if ($package) {
     $where .= " AND u.PACKAGE = ?";
     $params[] = $package;
@@ -56,9 +62,11 @@ $totalRecords = mysqli_stmt_get_result($stmt)->fetch_row()[0];
 $sql = "
     SELECT
         u.*,
-        t.NAME as TEAM_NAME
+        t.NAME as TEAM_NAME,
+        mgr.NAME as MANAGER_NAME
     FROM " . tn('TBL_USERS') . " u
     LEFT JOIN " . tn('TBL_TEAMS') . " t ON u.TEAM_ID = t.ID
+    LEFT JOIN " . tn('TBL_USERS') . " mgr ON u.manager_id = mgr.ID
     $where
     ORDER BY
         CASE WHEN u.STATUS = 'Active' THEN 0 ELSE 1 END,
@@ -110,6 +118,15 @@ if (isSuperAdmin()) {
     $allTeams = [];
 }
 $packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM " . tn('TBL_USERS') . " WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
+
+$allManagers = [];
+if (isSuperAdmin()) {
+    $mgrRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND STATUS = 'Active' ORDER BY NAME");
+    if ($mgrRes) $allManagers = mysqli_fetch_all($mgrRes, MYSQLI_ASSOC);
+} elseif (isAdmin()) {
+    $mgrRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Manager' AND admin_id = $userId AND STATUS = 'Active' ORDER BY NAME");
+    if ($mgrRes) $allManagers = mysqli_fetch_all($mgrRes, MYSQLI_ASSOC);
+}
 
 // Role description lookup
 $roleDesc = [];
@@ -230,6 +247,19 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                     <?php endforeach; ?>
                 </select>
             </div>
+            <?php if (!empty($allManagers)): ?>
+            <div class="col-6 col-sm-3 col-md-2 col-xl-2">
+                <label class="form-label small text-muted mb-1">Manager</label>
+                <select name="manager" class="form-select form-select-sm">
+                    <option value="">All Managers</option>
+                    <?php foreach($allManagers as $m): ?>
+                        <option value="<?= (int)$m['ID'] ?>" <?= (string)$manager_id===(string)$m['ID']?'selected':'' ?>>
+                            <?= htmlspecialchars($m['NAME']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
             <div class="col-6 col-sm-3 col-md-2 col-xl-2">
                 <label class="form-label small text-muted mb-1">Package</label>
                 <select name="package" class="form-select form-select-sm">
@@ -319,6 +349,9 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                             <span class="badge bg-primary-subtle text-primary border"><?= htmlspecialchars($u['TEAM_NAME']) ?></span>
                                         <?php else: ?>
                                             <span class="text-muted small">—</span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($u['MANAGER_NAME'])): ?>
+                                            <div class="small text-muted mt-0.5" title="Reporting Manager"><i class="bi bi-briefcase me-1"></i><?= htmlspecialchars($u['MANAGER_NAME']) ?></div>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -426,6 +459,9 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                                 <span class="badge bg-light text-dark border"><?= htmlspecialchars($u['TEAM_NAME']) ?></span>
                                             <?php else: ?>
                                                 <span class="text-muted small">—</span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($u['MANAGER_NAME'])): ?>
+                                                <div class="small text-muted mt-0.5" title="Reporting Manager"><i class="bi bi-briefcase me-1"></i><?= htmlspecialchars($u['MANAGER_NAME']) ?></div>
                                             <?php endif; ?>
                                         </td>
                                         <td>

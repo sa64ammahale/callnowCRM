@@ -357,7 +357,7 @@ function getLeadAssignableTBL_USERS(mysqli $link): array
 
     if (isOfficer()) {
         $whereParts[] = 'ID = ' . (int)USER_ID;
-    } elseif (!isAdmin() && !isSuperAdmin()) {
+    } elseif (!isSuperAdmin()) {
         if (!empty($accessibleUserIds)) {
             $whereParts[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
         } else {
@@ -406,7 +406,7 @@ function canMoveLeadStage(?string $role = null): bool
 
 function getLeadAccessCondition(mysqli $link, string $alias = 'l'): ?string
 {
-    if (isAdmin() || isSuperAdmin()) {
+    if (isSuperAdmin()) {
         return null;
     }
 
@@ -435,7 +435,7 @@ function getLeadTrayOwner(array $lead): array
 
 function canEditLead(array $lead): bool
 {
-    if (isAdmin() || isManager() || isSuperAdmin()) {
+    if (isSuperAdmin()) {
         return true;
     }
 
@@ -445,8 +445,14 @@ function canEditLead(array $lead): bool
     }
 
     global $link;
-    if ($link && inLeadManagerChain($link, $assignedTo)) {
-        return true;
+    if ($link) {
+        $accessibleUserIds = getAccessibleUserIds($link);
+        if (in_array($assignedTo, $accessibleUserIds, true)) {
+            return true;
+        }
+        if (inLeadManagerChain($link, $assignedTo)) {
+            return true;
+        }
     }
 
     if (can('manage_leads')) {
@@ -461,12 +467,17 @@ function canEditLead(array $lead): bool
 
 function canViewLead(mysqli $link, array $lead): bool
 {
-    if (isAdmin() || isSuperAdmin()) {
+    if (isSuperAdmin()) {
         return true;
     }
 
     $assignedTo = (int)($lead['assigned_to'] ?? 0);
     if ($assignedTo === (int)USER_ID) {
+        return true;
+    }
+
+    $accessibleUserIds = getAccessibleUserIds($link);
+    if (in_array($assignedTo, $accessibleUserIds, true)) {
         return true;
     }
 

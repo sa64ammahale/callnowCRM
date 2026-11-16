@@ -204,6 +204,42 @@ assertCondition(trim($admOutput) === 'FALSE', "canViewAllTBL_TEAMS() returns FAL
 $saOutput = shell_exec('C:\xampp\php\php.exe -r "session_start(); $_SESSION[\'loggedin\']=true; $_SESSION[\'id\']=1; require \'php_scripts/config.php\'; require \'php_scripts/team_auth.php\'; echo canViewAllTBL_TEAMS() ? \'TRUE\' : \'FALSE\';"');
 assertCondition(trim($saOutput) === 'TRUE', "canViewAllTBL_TEAMS() returns TRUE for Super Admin");
 
+// Test 10: Direct Manager Linkage (manager_id) & Admin Full-Branch Rollup
+echo "\n--- TEST SUITE 10: DIRECT MANAGER LINKAGE & ADMIN ROLLUP ---\n";
+// Create unassigned telecaller 9040 directly linked to Manager Alpha (9012)
+$link->query("INSERT INTO " . tn('TBL_USERS') . " (ID, NAME, MOBILE, LOGIN_ID, ROLE, STATUS, manager_id, admin_id, TEAM_ID) VALUES (9040, 'Direct Officer Alpha', '9999999040', 'off_alpha_direct', 'Officer', 'Active', 9012, 9011, NULL) ON DUPLICATE KEY UPDATE manager_id=9012, admin_id=9011, TEAM_ID=NULL");
+
+$admin9011Staff = getAuthorizedUserIds($link, 9011, 'Admin');
+assertCondition(in_array(9040, $admin9011Staff, true), "Admin 9011 sees unassigned Officer 9040 under Manager Alpha via manager_id");
+
+$mgrAlphaStaff = getAuthorizedUserIds($link, 9012, 'Manager');
+assertCondition(in_array(9040, $mgrAlphaStaff, true), "Manager Alpha sees unassigned Officer 9040 via manager_id");
+
+$admin7Staff = getAuthorizedUserIds($link, 7, 'Admin');
+assertCondition(!in_array(9040, $admin7Staff, true), "Admin 7 CANNOT see Officer 9040 under Admin 9011 branch");
+
+$mgrBetaStaff = getAuthorizedUserIds($link, 9022, 'Manager');
+assertCondition(!in_array(9040, $mgrBetaStaff, true), "Manager Beta CANNOT see Officer 9040 under Manager Alpha");
+
+// Admin 9011 reporting scope includes 9040
+$adminScopeRaw = shell_exec('C:\xampp\php\php.exe -r "session_start(); $_SESSION[\'loggedin\']=true; $_SESSION[\'id\']=9011; require \'php_scripts/config.php\'; require \'php_scripts/team_auth.php\'; require \'php_scripts/reporting_engine.php\'; echo json_encode(getEffectiveReportingScope($link, null, null, null, \'Admin\'));"');
+$admin9011Scope = json_decode($adminScopeRaw, true);
+assertCondition(in_array(9040, $admin9011Scope['user_ids'], true), "Admin 9011 reporting scope includes Officer 9040 under Manager Alpha");
+
+// Admin 7 reporting scope excludes 9040
+$admin7ScopeRaw = shell_exec('C:\xampp\php\php.exe -r "session_start(); $_SESSION[\'loggedin\']=true; $_SESSION[\'id\']=7; require \'php_scripts/config.php\'; require \'php_scripts/team_auth.php\'; require \'php_scripts/reporting_engine.php\'; echo json_encode(getEffectiveReportingScope($link, null, null, null, \'Admin\'));"');
+$admin7Scope = json_decode($admin7ScopeRaw, true);
+assertCondition(!in_array(9040, $admin7Scope['user_ids'], true), "Admin 7 reporting scope strictly excludes Officer 9040");
+
+// Lead Access Scoping: Admin 9011 sees lead assigned to 9040, Admin 7 cannot
+require_once __DIR__ . '/../modules/leads/lead_common.php';
+$testLead = ['assigned_to' => 9040, 'team_id' => 0];
+$canAdmin9011ViewLead = shell_exec('C:\xampp\php\php.exe -r "session_start(); $_SESSION[\'loggedin\']=true; $_SESSION[\'id\']=9011; require \'php_scripts/config.php\'; require \'php_scripts/auth.php\'; require \'php_scripts/team_auth.php\'; require \'modules/leads/lead_common.php\'; echo canViewLead($link, [\'assigned_to\' => 9040]) ? \'TRUE\' : \'FALSE\';"');
+assertCondition(trim($canAdmin9011ViewLead) === 'TRUE', "Admin 9011 can view lead assigned to Officer 9040 under their Manager");
+
+$canAdmin7ViewLead = shell_exec('C:\xampp\php\php.exe -r "session_start(); $_SESSION[\'loggedin\']=true; $_SESSION[\'id\']=7; require \'php_scripts/config.php\'; require \'php_scripts/auth.php\'; require \'php_scripts/team_auth.php\'; require \'modules/leads/lead_common.php\'; echo canViewLead($link, [\'assigned_to\' => 9040]) ? \'TRUE\' : \'FALSE\';"');
+assertCondition(trim($canAdmin7ViewLead) === 'FALSE', "Admin 7 CANNOT view lead assigned to Officer 9040");
+
 echo "\n======================================================\n";
 echo "TEST RESULTS: Passed: $passCount | Failed: $failCount\n";
 echo "======================================================\n";

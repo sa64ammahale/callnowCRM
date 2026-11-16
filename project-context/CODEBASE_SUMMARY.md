@@ -126,26 +126,35 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
   5. **Sales Officer (Tier 5)**: Strictly self-only data access.
 - **Database Schema Changes**:
   - Added `admin_id INT NULL` and `KEY idx_team_admin (admin_id)` to `teams` table to partition team ownership across multiple Admins.
-  - Backfilled `teams.admin_id` from existing managers/supervisors and backfilled `users.admin_id`.
+  - Added `manager_id INT NULL` and `KEY idx_user_manager (manager_id)` to `users` table for explicit direct Manager-to-Staff binding regardless of operational team assignment.
+  - Backfilled `teams.admin_id`, `users.manager_id`, and `users.admin_id` linkages across all tenant databases.
 - **Core Engine Updates**:
   - `php_scripts/hierarchy_engine.php`:
     - Fixed `getNormalizedRole('Manager')` to return `'Manager'` instead of `'Admin'`.
-    - Added `teams.admin_id` to self-healing schema validator `ensureHierarchySchema()`.
-    - Updated `getAuthorizedTeamIds()` and `getAuthorizedUserIds()`: removed global fallbacks (`SELECT ID FROM teams` / `SELECT ID FROM users`) that leaked all company data when a manager was unassigned.
+    - Added `teams.admin_id` and `users.manager_id` to self-healing schema validator `ensureHierarchySchema()`.
+    - Added `getAdminAssignedManagerIds($link, $adminId)` helper.
+    - Updated `getAuthorizedUserIds()`: Admin now gets full branch rollup (self + direct users + all staff with `manager_id` under this Admin's managers + team members). Manager gets self + all staff with `manager_id = $managerId` + team members.
+    - Removed global fallbacks (`SELECT ID FROM teams` / `SELECT ID FROM users`) that leaked all company data when a manager was unassigned.
     - Updated `getSupervisorAssignedOfficerIds()`: explicitly excludes `'Manager'` to prevent supervisors from having managers listed as subordinates.
   - `php_scripts/reporting_engine.php`:
-    - Updated `getEffectiveReportingScope()`: added dedicated `manager` scope mode returning only manager's authorized team members.
+    - Updated `getEffectiveReportingScope()`: Admin scope includes all Managers + all staff under those Managers via `getAuthorizedUserIds()`. Added dedicated `manager` scope mode returning only manager's authorized team members.
     - Updated `getSupervisorPerformanceRows()`: manager sees only squads under managed teams.
     - Updated `getAdminPerformanceRows()`: restricted to Super Admin and Admin only; returns `[]` for Managers.
   - `modules/logs/Reports.php`:
     - Fixed undefined variable `$isManager` on filter controls.
-    - Added Manager scoping to Teams and Supervisors dropdowns, contact filters, lead filters, and call log drilldowns.
+    - Added Manager filter dropdown for Admin and Super Admin.
+    - Scoped Teams and Supervisors dropdowns, contact filters, lead filters, and call log drilldowns to full branch rollup.
+  - `modules/leads/lead_common.php`, `lead_pipeline.php`, `leads_dashboard.php`:
+    - `getLeadAccessCondition()`: Scoped Admin to `assigned_to IN (getAuthorizedUserIds(...))` for full branch rollup across all managers while strictly isolating other Admins.
+    - Updated `canViewLead()`, `canEditLead()`, and `getLeadAssignableTBL_USERS()`.
+  - `modules/users/users_add.php` & `modules/users/users_view.php`:
+    - Added dynamic role-aware assignment controls: Super Admin sees "Assign Admin" and "Assign Manager" dropdowns; Admin sees "Assign Manager" dropdown; Manager automatically assigns self as `manager_id`.
+    - INSERT and UPDATE statements persist `manager_id` and `admin_id`.
+    - `users_view.php` displays Manager name in tables and includes Manager filter dropdown.
   - `modules/users/teams_dashboard.php` & `modules/users/team_members.php`:
     - Gated `canViewAll` strictly to `isSuperAdmin()`.
     - Removed `u.TEAM_ID IS NULL` unassigned leak for Managers.
     - Populates `teams.admin_id` on team creation.
-  - `modules/users/users_add.php`:
-    - Populates `admin_id` on user creation (Admin sets own ID; Manager sets manager's `admin_id`).
 
 ### 1. Deleted legacy files
 - `modules/users/DeleteRow.php` — SQL injection + destructive schema ops
