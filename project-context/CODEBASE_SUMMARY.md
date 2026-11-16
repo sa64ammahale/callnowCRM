@@ -39,7 +39,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `phone_helper.php` | Centralized Indian phone normalization & formatting (`normalize_indian_phone()`, `format_indian_phone()`, `is_valid_indian_mobile()`) |
 | `reporting_schema.php` | Self-healing schema migrations for Call Reporting: `call_logs.lead_id`, `call_logs.client_contact_id`, `lead_followups.client_contact_id`, `contact_lead_conversions`, `reporting_targets` |
 | `reporting_engine.php` | Performance engine: Client Contact metrics, Calling analytics, Lead metrics, Hourly breakdown (9:30-18:30), Employee targets & achievements, Supervisor rollups, Follow-up hub, Alerts, Rankings |
-| `lead_ajax_check.php` | Stale duplicate (superseded by modules/leads/php_scripts/) |
+| `hierarchy_engine.php` | 5-tier organizational hierarchy isolation engine (`Super Admin` -> `Admin` -> `Manager` -> `Supervisor` -> `Officer`), self-healing schema, scoping and rollup helpers |
 
 ### modules/settings/
 | File | Purpose | Notes |

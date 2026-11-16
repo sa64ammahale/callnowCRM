@@ -536,10 +536,10 @@ function canActorAssignRole(string $actorRole, string $targetRole): bool {
 
     if ($actorNorm === 'Super Admin') return true;
     if ($actorNorm === 'Admin') {
-        if (strcasecmp(trim($actorRole), 'Manager') === 0) {
-            return in_array($targetNorm, ['Supervisor', 'Officer'], true);
-        }
         return in_array($targetNorm, ['Manager', 'Supervisor', 'Officer'], true) || in_array($targetRole, ['Manager', 'Supervisor', 'Officer'], true);
+    }
+    if ($actorNorm === 'Manager') {
+        return in_array($targetNorm, ['Supervisor', 'Officer'], true);
     }
     if ($actorNorm === 'Supervisor') {
         return $targetNorm === 'Officer';

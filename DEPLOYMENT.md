@@ -82,7 +82,7 @@ This guide covers deploying CallNow CRM to production environments, including Ho
    ```bash
    mysql -u your_db_user -p callnow_incredit < database/hostinger_schema.sql
    ```
-3. Verify all 29 tables are created.
+3. Verify all 30 tables are created.
 
 ---
 

@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `supervisor_id` int(11) DEFAULT NULL,
   `manager_id` int(11) DEFAULT NULL,
   `admin_id` int(11) DEFAULT NULL,
+  `daily_calling_limit` int(11) NOT NULL DEFAULT 250,
+  `monthly_disbursement_limit` decimal(15,2) NOT NULL DEFAULT 1500000.00,
   `PASSWORD` varchar(255) NOT NULL,
   `LOGIN_ID` varchar(100) NOT NULL,
   `DEVICE_ID` varchar(255) DEFAULT NULL,
@@ -54,7 +56,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   KEY `idx_login_id` (`LOGIN_ID`),
   KEY `idx_mobile` (`MOBILE`),
   KEY `idx_team_role` (`TEAM_ID`,`ROLE`),
-  KEY `fk_user_role` (`role_id`)
+  KEY `fk_user_role` (`role_id`),
+  KEY `idx_supervisor` (`supervisor_id`),
+  KEY `idx_user_manager` (`manager_id`),
+  KEY `idx_user_admin` (`admin_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT IGNORE INTO `users` (`NAME`, `MOBILE`, `EMAIL`, `COMPANY`, `STATUS`, `ROLE`, `role_id`, `PASSWORD`, `LOGIN_ID`)
@@ -403,14 +408,21 @@ CREATE TABLE IF NOT EXISTS `lead_notes` (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `lead_followups` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `lead_id` int(11) NOT NULL,
+  `lead_id` int(11) DEFAULT NULL,
+  `client_contact_id` int(11) DEFAULT NULL,
+  `contact_source` varchar(10) NOT NULL DEFAULT 'MAIN',
+  `source_call_id` int(11) DEFAULT NULL,
   `user_id` int(11) DEFAULT NULL,
   `followup_at` datetime NOT NULL,
   `note` text DEFAULT NULL,
   `status` enum('OPEN','DONE','CANCELLED') NOT NULL DEFAULT 'OPEN',
+  `completed_at` datetime DEFAULT NULL,
+  `completed_by` int(11) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_lead_id` (`lead_id`),
+  KEY `idx_followup_contact` (`client_contact_id`),
+  KEY `idx_followup_source_call` (`source_call_id`),
   KEY `idx_followup_at` (`followup_at`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -461,6 +473,8 @@ CREATE TABLE IF NOT EXISTS `activity_log` (
 CREATE TABLE IF NOT EXISTS `call_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `record_id` int(11) NOT NULL,
+  `lead_id` int(11) DEFAULT NULL,
+  `client_contact_id` int(11) DEFAULT NULL,
   `source` enum('TEMP','MAIN','LEADS') NOT NULL DEFAULT 'MAIN',
   `user_id` int(11) NOT NULL,
   `call_status` varchar(50) NOT NULL DEFAULT 'Connected',
@@ -483,6 +497,8 @@ CREATE TABLE IF NOT EXISTS `call_logs` (
   UNIQUE KEY `uniq_user_client_call` (`user_id`,`client_call_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_record` (`record_id`,`source`),
+  KEY `idx_call_lead` (`lead_id`),
+  KEY `idx_call_contact` (`client_contact_id`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_logs_user_daily` (`user_id`,`created_at`,`call_duration`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -729,6 +745,7 @@ INSERT IGNORE INTO `reporting_targets` (`role`, `daily_call_target`, `daily_conn
 VALUES
   ('Officer', 100, 30, 120, 3, 25.00, 5),
   ('Supervisor', 400, 120, 480, 12, 25.00, 15),
+  ('Manager', 600, 180, 720, 18, 25.00, 20),
   ('Admin', 1000, 300, 1200, 30, 25.00, 30);
 
 -- ============================================================

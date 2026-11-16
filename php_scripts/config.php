@@ -21,9 +21,7 @@ date_default_timezone_set('Asia/Kolkata');
     }
 
     if (!defined('APP_DEBUG')) {
-        if (!defined('APP_DEBUG')) {
         define('APP_DEBUG', getenv('APP_DEBUG') === '1');
-    }
     }
     if (APP_DEBUG) {
         error_reporting(E_ALL);

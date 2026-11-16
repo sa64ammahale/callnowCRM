@@ -87,14 +87,19 @@ assertTest(!in_array(1, $supScopedIds, true), "Supervisor Alpha CANNOT see Super
 
 // --- 4. Manager User Directory Scoping ---
 echo "\n--- 4. Manager User Directory Scoping ---\n";
-// Manager (ID 9012, manages Team 9001 & 9002)
+// Ensure Manager Alpha manages Team 9001 and an additional team Team 9003
+$link->query("INSERT INTO teams (ID, NAME, SUPERVISOR_ID, MANAGER_ID, admin_id) VALUES (9003, 'Test Team Alpha 2', NULL, 9012, 9011) ON DUPLICATE KEY UPDATE MANAGER_ID = 9012, admin_id = 9011");
+$link->query("INSERT INTO users (ID, NAME, MOBILE, LOGIN_ID, ROLE, TEAM_ID, manager_id, admin_id, STATUS) VALUES (9017, 'Officer Alpha 2', '9899009017', 'officer_a2@test.com', 'Officer', 9003, 9012, 9011, 'Active') ON DUPLICATE KEY UPDATE TEAM_ID = 9003, manager_id = 9012, admin_id = 9011");
+
+// Manager Alpha (ID 9012, manages Team 9001 & 9003)
 $mgrScopedIds = getAuthorizedUserIds($link, 9012, 'Manager', 9001);
 
 assertTest(in_array(9012, $mgrScopedIds, true), "Manager sees self (ID 9012)");
 assertTest(in_array(9013, $mgrScopedIds, true), "Manager sees Supervisor Alpha (ID 9013)");
-assertTest(in_array(9014, $mgrScopedIds, true), "Manager sees Supervisor Beta (ID 9014)");
 assertTest(in_array(9015, $mgrScopedIds, true), "Manager sees Officer Alpha (ID 9015)");
-assertTest(in_array(9016, $mgrScopedIds, true), "Manager sees Officer Beta (ID 9016)");
+assertTest(in_array(9017, $mgrScopedIds, true), "Manager sees Officer Alpha 2 under managed Team 9003 (ID 9017)");
+assertTest(!in_array(9014, $mgrScopedIds, true), "Manager Alpha CANNOT see Supervisor Beta (ID 9014)");
+assertTest(!in_array(9016, $mgrScopedIds, true), "Manager Alpha CANNOT see Officer Beta (ID 9016)");
 assertTest(!in_array(9011, $mgrScopedIds, true), "Manager CANNOT see Admin (ID 9011)");
 assertTest(!in_array(1, $mgrScopedIds, true), "Manager CANNOT see Super Admin ID 1");
 
@@ -118,7 +123,8 @@ assertTest(!in_array(9002, $supAuthTeams, true), "Supervisor Alpha does NOT reso
 
 $mgrAuthTeams = getAuthorizedTeamIds($link, 9012, 'Manager', 9001);
 assertTest(in_array(9001, $mgrAuthTeams, true), "Manager resolves managed Team Alpha (9001)");
-assertTest(in_array(9002, $mgrAuthTeams, true), "Manager resolves managed Team Beta (9002)");
+assertTest(in_array(9003, $mgrAuthTeams, true), "Manager resolves managed Team Alpha 2 (9003)");
+assertTest(!in_array(9002, $mgrAuthTeams, true), "Manager CANNOT resolve Team Beta (9002)");
 
 echo "\n======================================================\n";
 echo "  TEST SUMMARY: $passCount PASSED, $failCount FAILED\n";

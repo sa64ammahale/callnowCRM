@@ -24,6 +24,8 @@ uploads/*
 !uploads/.gitkeep
 !uploads/logo/
 !uploads/logo/.gitkeep
+!uploads/profile_photos/
+!uploads/profile_photos/.gitkeep
 !uploads/tenants/
 !uploads/tenants/.gitkeep
 
