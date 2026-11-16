@@ -524,8 +524,17 @@ function handleMobileProfileUpdate(mysqli $link, int $userId, array $input): voi
         $types .= 'd';
     }
 
-    // Optional profile photo via base64
-    if (!empty($input['profile_photo_base64'])) {
+    // Optional profile photo via base64 or removal
+    if (!empty($input['remove_photo'])) {
+        $oldPhoto = $currentUser['profile_photo'] ?? '';
+        $uploadDir = function_exists('getTenantUploadDir') ? getTenantUploadDir('profile_photos') : (__DIR__ . '/../../../uploads/profile_photos/');
+        if ($oldPhoto && file_exists($uploadDir . $oldPhoto)) {
+            @unlink($uploadDir . $oldPhoto);
+        }
+        $updates[] = "profile_photo = NULL";
+        $updates[] = "profile_picture = NULL";
+        $updates[] = "profile_picture_blob = NULL";
+    } elseif (!empty($input['profile_photo_base64'])) {
         $photoData = $input['profile_photo_base64'];
         $mime = 'image/jpeg';
         if (preg_match('/^data:image\/(jpeg|png|webp|gif);base64,/', $photoData, $m)) {
