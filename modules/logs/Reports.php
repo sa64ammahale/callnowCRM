@@ -19,6 +19,13 @@ if ($isOfficer) {
     $selected_user_id = (int)USER_ID;
 } elseif ($requested_user) {
     $selected_user_id = canUserAccessTargetUser($link, (int)USER_ID, $userRole, $requested_user) ? $requested_user : null;
+    if ($selected_user_id && !empty($_GET['team']) && is_numeric($_GET['team'])) {
+        $tCand = (int)$_GET['team'];
+        $uTeamRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)$selected_user_id));
+        if ($uTeamRow && (int)($uTeamRow['TEAM_ID'] ?? 0) !== $tCand) {
+            $selected_user_id = null;
+        }
+    }
 } else {
     $selected_user_id = null;
 }
@@ -221,9 +228,10 @@ if ($userRole === 'Officer') {
     $cParams[] = $selected_user_id;
     $cTypes .= 'i';
 } elseif ($teamIdParam) {
-    $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+    $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?))";
     $cParams[] = $teamIdParam;
-    $cTypes .= 'i';
+    $cParams[] = $teamIdParam;
+    $cTypes .= 'ii';
 } elseif ($isAdmin) {
     $cWhere[] = getHierarchyContactFilterSQL($link, (int)USER_ID, 'Admin', 'm');
 } elseif ($isManager) {
@@ -268,9 +276,11 @@ if ($userRole === 'Officer') {
     $lParams[] = $selected_user_id;
     $lTypes .= 'i';
 } elseif ($teamIdParam) {
-    $lWhere[] = "l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+    $lWhere[] = "(l.team_id = ? OR l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?)))";
     $lParams[] = $teamIdParam;
-    $lTypes .= 'i';
+    $lParams[] = $teamIdParam;
+    $lParams[] = $teamIdParam;
+    $lTypes .= 'iii';
 } elseif ($isAdmin) {
     $lWhere[] = getHierarchyLeadFilterSQL($link, (int)USER_ID, 'Admin', 'l');
 } elseif ($isManager) {
@@ -323,9 +333,10 @@ if ($userRole === 'Officer') {
     $dParams[] = $selected_user_id;
     $dTypes .= 'i';
 } elseif ($teamIdParam) {
-    $dWhere[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?)";
+    $dWhere[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?))";
     $dParams[] = $teamIdParam;
-    $dTypes .= 'i';
+    $dParams[] = $teamIdParam;
+    $dTypes .= 'ii';
 } elseif ($isAdmin) {
     $dWhere[] = getHierarchyUserFilterSQL($link, (int)USER_ID, 'Admin', 'cl', 'user_id');
 } elseif ($isManager) {

@@ -126,9 +126,10 @@ function getAdminManagedTeamIds(mysqli $link, int $adminId): array {
         WHERE admin_id = ? 
            OR MANAGER_ID IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE admin_id = ?)
            OR SUPERVISOR_ID IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE admin_id = ?)
+           OR ID IN (SELECT DISTINCT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE admin_id = ? AND TEAM_ID IS NOT NULL)
     ");
     if ($stmt) {
-        $stmt->bind_param('iii', $adminId, $adminId, $adminId);
+        $stmt->bind_param('iiii', $adminId, $adminId, $adminId, $adminId);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($r = $res->fetch_assoc()) {
@@ -310,9 +311,13 @@ function getAuthorizedTeamIds(mysqli $link, int $userId, string $role, ?int $use
 
     if ($normRole === 'Manager' || $role === 'Manager') {
         $tIds = [];
-        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE MANAGER_ID = ?");
+        $stmt = $link->prepare("
+            SELECT ID FROM " . tn('TBL_TEAMS') . " 
+            WHERE MANAGER_ID = ? 
+               OR ID IN (SELECT DISTINCT TEAM_ID FROM " . tn('TBL_USERS') . " WHERE manager_id = ? AND TEAM_ID IS NOT NULL)
+        ");
         if ($stmt) {
-            $stmt->bind_param('i', $userId);
+            $stmt->bind_param('ii', $userId, $userId);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) $tIds[] = (int)$r['ID'];

@@ -67,10 +67,28 @@ function saveReportingTargets(mysqli $link, array $targets, string $role = 'Offi
 /**
  * Determine effective authorized scope for any actor
  */
-function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
+function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole, ?int $actorUserId = null): array {
     $normRole = getNormalizedRole($userRole);
-    $actorId = ($userId !== null && $userId > 0) ? $userId : (defined('USER_ID') ? (int)USER_ID : 0);
+    $actorId = $actorUserId ?: (defined('USER_ID') ? (int)USER_ID : ($userId ?: 0));
     $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
+
+    $getTeamUserIds = static function(mysqli $link, int $tid): array {
+        $uids = [];
+        $stmt = $link->prepare("
+            SELECT ID FROM " . tn('TBL_USERS') . " 
+            WHERE (TEAM_ID = ? OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?))
+              AND STATUS = 'Active' 
+              AND ROLE NOT IN ('Super Admin')
+        ");
+        if ($stmt) {
+            $stmt->bind_param('ii', $tid, $tid);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) $uids[] = (int)$r['ID'];
+            $stmt->close();
+        }
+        return array_values(array_unique($uids));
+    };
 
     if ($normRole === 'Officer') {
         return [
@@ -86,8 +104,15 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
         $allowedUserIds = array_merge([$actorId], $assignedOfficers);
         $allowedTeamIds = getAuthorizedTeamIds($link, $actorId, 'Supervisor', $uTeam);
 
-        $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
-        $filteredTeamIds = ($teamId && in_array($teamId, $allowedTeamIds, true)) ? [$teamId] : $allowedTeamIds;
+        if ($teamId && in_array($teamId, $allowedTeamIds, true)) {
+            $teamUsers = $getTeamUserIds($link, $teamId);
+            $scopedUsers = array_values(array_intersect($teamUsers, $allowedUserIds));
+            $filteredUserIds = ($userId && in_array($userId, $scopedUsers, true)) ? [$userId] : (!empty($scopedUsers) ? $scopedUsers : [-1]);
+            $filteredTeamIds = [$teamId];
+        } else {
+            $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
+            $filteredTeamIds = $allowedTeamIds;
+        }
 
         return [
             'mode' => 'supervisor',
@@ -101,8 +126,16 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
         $allowedTeamIds = getAuthorizedTeamIds($link, $actorId, 'Manager', $uTeam);
         $allowedUserIds = getAuthorizedUserIds($link, $actorId, 'Manager', $uTeam);
 
-        $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
-        $filteredTeamIds = ($teamId && in_array($teamId, $allowedTeamIds, true)) ? [$teamId] : $allowedTeamIds;
+        if ($teamId && in_array($teamId, $allowedTeamIds, true)) {
+            $teamUsers = $getTeamUserIds($link, $teamId);
+            $scopedUsers = array_values(array_intersect($teamUsers, $allowedUserIds));
+            $filteredUserIds = ($userId && in_array($userId, $scopedUsers, true)) ? [$userId] : (!empty($scopedUsers) ? $scopedUsers : [-1]);
+            $filteredTeamIds = [$teamId];
+        } else {
+            $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
+            $filteredTeamIds = $allowedTeamIds;
+        }
+
         $filteredSupIds  = ($supervisorId && in_array($supervisorId, $allowedUserIds, true)) ? [$supervisorId] : [];
 
         return [
@@ -118,8 +151,16 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
         $allowedTeamIds = getAuthorizedTeamIds($link, $actorId, 'Admin');
         $assignedSups   = getAdminAssignedSupervisorIds($link, $actorId);
 
-        $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
-        $filteredTeamIds = ($teamId && in_array($teamId, $allowedTeamIds, true)) ? [$teamId] : $allowedTeamIds;
+        if ($teamId && in_array($teamId, $allowedTeamIds, true)) {
+            $teamUsers = $getTeamUserIds($link, $teamId);
+            $scopedUsers = array_values(array_intersect($teamUsers, $allowedUserIds));
+            $filteredUserIds = ($userId && in_array($userId, $scopedUsers, true)) ? [$userId] : (!empty($scopedUsers) ? $scopedUsers : [-1]);
+            $filteredTeamIds = [$teamId];
+        } else {
+            $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
+            $filteredTeamIds = $allowedTeamIds;
+        }
+
         $filteredSupIds  = ($supervisorId && in_array($supervisorId, $assignedSups, true)) ? [$supervisorId] : $assignedSups;
 
         return [
@@ -131,8 +172,14 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
     }
 
     // Super Admin: global access
-    $filteredUserIds = $userId ? [$userId] : [];
-    $filteredTeamIds = $teamId ? [$teamId] : [];
+    if ($teamId && $teamId > 0) {
+        $teamUsers = $getTeamUserIds($link, $teamId);
+        $filteredUserIds = ($userId && in_array($userId, $teamUsers, true)) ? [$userId] : (!empty($teamUsers) ? $teamUsers : [-1]);
+        $filteredTeamIds = [$teamId];
+    } else {
+        $filteredUserIds = $userId ? [$userId] : [];
+        $filteredTeamIds = [];
+    }
     $filteredSupIds  = $supervisorId ? [$supervisorId] : [];
 
     return [
@@ -475,6 +522,10 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
         $where[] = "u.TEAM_ID = " . (int)$teamId;
     }
 
+    if ($teamId) {
+        $where[] = "(u.TEAM_ID = " . (int)$teamId . " OR u.ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = " . (int)$teamId . "))";
+    }
+
     $whereSql = "WHERE " . implode(' AND ', $where);
 
     $sql = "
@@ -558,6 +609,9 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
     $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
 
     foreach ($rows as &$r) {
+        $r['user_id'] = (int)$r['user_id'];
+        $r['team_id'] = $r['team_id'] !== null ? (int)$r['team_id'] : null;
+        $r['supervisor_id'] = $r['supervisor_id'] !== null ? (int)$r['supervisor_id'] : null;
         $tot = (int)$r['total_dials'];
         $conn = (int)$r['connected'];
         $r['connect_rate'] = $tot > 0 ? round(($conn / $tot) * 100, 1) : 0.0;
@@ -684,6 +738,9 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
     $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
 
     foreach ($rows as &$r) {
+        $r['user_id'] = (int)$r['user_id'];
+        $r['team_id'] = $r['team_id'] !== null ? (int)$r['team_id'] : null;
+        $r['supervisor_id'] = $r['supervisor_id'] !== null ? (int)$r['supervisor_id'] : null;
         $tot = (int)$r['total_dials'];
         $conn = (int)$r['connected'];
         $officers = max(1, (int)$r['total_officers']);
