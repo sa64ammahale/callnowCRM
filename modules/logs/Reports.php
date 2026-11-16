@@ -838,14 +838,12 @@ include __DIR__ . '/../../php_scripts/header.php';
                     <?php endif; ?>
                 </button>
             </li>
-            <?php if (!$isOfficer): ?>
             <li class="nav-item" role="presentation">
                 <button class="report-tab-btn <?= $active_tab === 'rankings' ? 'active' : '' ?>" id="rankings-tab" data-bs-toggle="tab" data-bs-target="#tab-rankings" type="button" role="tab" data-theme="gold">
                     <span class="report-tab-icon"><i class="bi bi-trophy-fill"></i></span>
                     <span>Rankings &amp; Scores</span>
                 </button>
             </li>
-            <?php endif; ?>
             <li class="nav-item" role="presentation">
                 <button class="report-tab-btn <?= $active_tab === 'drilldown' ? 'active' : '' ?>" id="drilldown-tab" data-bs-toggle="tab" data-bs-target="#tab-drilldown" type="button" role="tab" data-theme="slate">
                     <span class="report-tab-icon"><i class="bi bi-journal-text"></i></span>
@@ -1553,13 +1551,12 @@ include __DIR__ . '/../../php_scripts/header.php';
             </div>
         </div>
 
-        <?php if (!$isOfficer): ?>
         <!-- TAB 9: RANKINGS & PRODUCTIVITY LEADERBOARD -->
         <div class="tab-pane fade <?= $active_tab === 'rankings' ? 'show active' : '' ?>" id="tab-rankings" role="tabpanel">
             <div class="crm-card mb-3">
                 <div class="crm-card-header d-flex align-items-center justify-content-between">
-                    <div class="crm-card-title mb-0"><i class="bi bi-trophy text-warning me-2"></i>Telecalling Productivity & Sales Score Leaderboard</div>
-                    <span class="text-muted fs-xs">Ranked by 6-Factor Weighted Scoring Model</span>
+                    <div class="crm-card-title mb-0"><i class="bi bi-trophy text-warning me-2"></i>Telecalling Productivity &amp; Sales Score Leaderboard</div>
+                    <span class="text-muted fs-xs">Ranked by 6-Factor Weighted Scoring Model with Caller Mastery XP</span>
                 </div>
                 <div class="crm-card-body p-0">
                     <div class="table-responsive">
@@ -1569,6 +1566,8 @@ include __DIR__ . '/../../php_scripts/header.php';
                                     <th class="text-center" style="width: 60px;">Rank</th>
                                     <th>Sales Officer</th>
                                     <th>Team</th>
+                                    <th>Mastery Level</th>
+                                    <th class="text-center">Streak</th>
                                     <th class="text-center">Total Dials</th>
                                     <th class="text-center">Connected</th>
                                     <th class="text-center">Connect %</th>
@@ -1585,15 +1584,33 @@ include __DIR__ . '/../../php_scripts/header.php';
                                         if ($rankIdx === 1) $medal = '🥇';
                                         elseif ($rankIdx === 2) $medal = '🥈';
                                         elseif ($rankIdx === 3) $medal = '🥉';
+                                        $isMe = ((int)($rk['employee_id'] ?? 0) === (int)USER_ID);
                                     ?>
-                                        <tr>
+                                        <tr class="<?= $isMe ? 'table-primary bg-primary-subtle' : '' ?>">
                                             <td class="text-center fs-sm fw-bold">
                                                 <?= $medal ?: ('#' . $rankIdx) ?>
                                             </td>
                                             <td>
                                                 <strong class="text-dark fs-xs"><?= htmlspecialchars($rk['employee_name']) ?></strong>
+                                                <?php if ($isMe): ?>
+                                                    <span class="badge bg-primary text-white ms-1 fs-xxs">YOU</span>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="fs-xs text-muted"><?= htmlspecialchars($rk['team_name'] ?: 'No Team') ?></td>
+                                            <td>
+                                                <span class="badge badge-purple fs-xs"><?= htmlspecialchars($rk['level_title'] ?? 'Bronze Caller 🥉') ?></span>
+                                                <div class="fs-xxs text-muted mt-0.5"><?= number_format($rk['total_xp'] ?? 0) ?> XP</div>
+                                            </td>
+                                            <td class="text-center">
+                                                <?php $streak = (int)($rk['streak_days'] ?? 0); ?>
+                                                <?php if ($streak > 0): ?>
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-xs">
+                                                        <i class="bi bi-fire text-danger me-1"></i><?= $streak ?>d
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="text-muted fs-xxs">—</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="text-center fs-xs fw-bold"><?= number_format($rk['total_dials']) ?></td>
                                             <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($rk['connected']) ?></span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-success"><?= $rk['connect_rate'] ?>%</span></td>
@@ -1628,7 +1645,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                         </tr>
                                     <?php $rankIdx++; endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="10" class="text-center py-4 text-muted fs-xs">No ranking data available for this window.</td></tr>
+                                    <tr><td colspan="12" class="text-center py-4 text-muted fs-xs">No ranking data available for this window.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -1636,7 +1653,6 @@ include __DIR__ . '/../../php_scripts/header.php';
                 </div>
             </div>
         </div>
-        <?php endif; ?>
 
         <!-- TAB 10: DETAILED CALL LOGS DRILLDOWN -->
         <div class="tab-pane fade <?= $active_tab === 'drilldown' ? 'show active' : '' ?>" id="tab-drilldown" role="tabpanel">

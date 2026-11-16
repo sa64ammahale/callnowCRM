@@ -40,6 +40,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `reporting_schema.php` | Self-healing schema migrations for Call Reporting: `call_logs.lead_id`, `call_logs.client_contact_id`, `lead_followups.client_contact_id`, `contact_lead_conversions`, `reporting_targets` |
 | `reporting_engine.php` | Performance engine: Client Contact metrics, Calling analytics, Lead metrics, Hourly breakdown (9:30-18:30), Employee targets & achievements, Supervisor rollups, Follow-up hub, Alerts, Rankings |
 | `hierarchy_engine.php` | 5-tier organizational hierarchy isolation engine (`Super Admin` -> `Admin` -> `Manager` -> `Supervisor` -> `Officer`), self-healing schema, scoping and rollup helpers |
+| `engagement_engine.php` | Telecaller Engagement & Motivation Engine: real-time XP (+5 attempt, +20 connect, +50 conversation, +100 target bonus), 5-tier Caller Mastery ranks (Bronze 🥉 to Diamond 👑), consecutive target streaks, daily rollups, and API telemetry |
 
 ### modules/settings/
 | File | Purpose | Notes |
@@ -234,6 +235,28 @@ Column mapping applied:
 - `app_settings` holds `rbac_cache_version` (bumped by `clearRbacCache()` on any change) and `rbac_initialized` flag.
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
+
+## Completed Feature (2026-11-16): Telecaller Engagement & Motivation Engine (Lean MVP)
+- **Gamified Caller Mastery Progression**:
+  - Implemented 5-tier Caller Mastery progression: Level 1 *Bronze Caller 🥉* (0–999 XP), Level 2 *Silver Caller 🥈* (1,000–4,999 XP), Level 3 *Gold Caller 🥇* (5,000–14,999 XP), Level 4 *Platinum Caller 💎* (15,000–29,999 XP), Level 5 *Diamond Champion 👑* (30,000+ XP).
+  - Scaled across ~1 month of steady telecalling activity.
+- **Server-Authoritative Real-Time Call XP Engine (`php_scripts/engagement_engine.php`)**:
+  - Automatically awards XP on every dialed call (+5 for attempt, +20 for connected, +50 for conversation > 20s).
+  - Hitting the daily connected target awards a +100 XP milestone bonus (deduplicated; awarded once per day).
+  - Tracks consecutive-day target streaks (`getTelecallerStreak()`).
+  - Self-healing schema: auto-creates `telecaller_engagement` table (`record_type` ENUM `'daily'`, `'xp'`).
+- **Real-Time API Enrichment (`api/v1/telecaller/submit_call.php`, `index.php`)**:
+  - `submit_call.php` returns an `engagement` payload containing `xp_earned`, `call_xp`, `target_bonus_xp`, `total_xp`, `level`, `level_title`, `streak_days`, `connected_today`, `target_today`, `target_met` alongside all existing call completion fields.
+  - Idempotent replay protection preserves engagement state without double-awarding XP on network retries.
+  - `/dashboard` and `/reports/summary` endpoints now deliver live engagement telemetry.
+- **Reports Page Rankings & Scores Overhaul (`modules/logs/Reports.php`, `php_scripts/reporting_engine.php`)**:
+  - Removed officer gating on Tab 9 (*Rankings & Scores*) so Sales Officers can view the leaderboard to track their performance.
+  - Highlighting logged-in telecaller's own row (`YOU` badge).
+  - Added **Mastery Level & XP** badge column (`Bronze Caller 🥉` to `Diamond Champion 👑`) and **Active Streak** fire badge column (`🔥 N days`).
+  - Integrated into `calculateProductivityRankings()` with batch querying for optimal performance.
+- **Automated Verification**:
+  - Created `tests/test_lean_engagement.php` verifying schema, XP rules, mastery ranks, target bonus deduplication, streak math, and reporting integration (16/16 assertions passing 100%).
+  - Whole-repository PHP lint passed with 0 syntax errors.
 
 ## Completed Goal (2026-11-06): Comprehensive Leads Section Testing & Bug Resolution
 - **Supervisor & Hierarchy Permissions in `lead_common.php`**:

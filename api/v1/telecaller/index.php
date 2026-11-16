@@ -15,6 +15,7 @@ http_response_code(200);
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../../php_scripts/api_auth.php';
+require_once __DIR__ . '/../../../php_scripts/engagement_engine.php';
 
 // Ensure call_logs schema has required columns
 try {
@@ -39,6 +40,18 @@ $path = parse_url($requestUri, PHP_URL_PATH);
 $pos = strpos($path, '/api/v1/telecaller');
 $relativePath = ($pos !== false) ? substr($path, $pos + strlen('/api/v1/telecaller')) : $path;
 $relativePath = '/' . trim($relativePath, '/');
+
+// Role check helpers supporting any admin / manager / supervisor variant
+function isManagerOrAdminRole(string $role, int $uid = 0): bool {
+    if ($uid === 1) return true;
+    $r = strtoupper(trim($role));
+    return str_contains($r, 'ADMIN') || str_contains($r, 'SUPER') || str_contains($r, 'MANAGER');
+}
+
+function isSupervisorRole(string $role): bool {
+    $r = strtoupper(trim($role));
+    return str_contains($r, 'SUPERVISOR');
+}
 
 // Helper to build date condition for reports & calls
 function buildDateCondition(string $period, ?string $dateFrom, ?string $dateTo, string $col = 'created_at'): string {
@@ -195,6 +208,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $dailyCallingLimit = isset($uLimitRow['daily_calling_limit']) ? (int)$uLimitRow['daily_calling_limit'] : 250;
     $monthlyDisbLimit = isset($uLimitRow['monthly_disbursement_limit']) ? (float)$uLimitRow['monthly_disbursement_limit'] : 1500000.00;
 
+    $engSummary = function_exists('getTelecallerEngagementSummary') ? getTelecallerEngagementSummary($link, $userId) : null;
+
     apiSuccess([
         'today_calls' => $todayCalls,
         'today_connected' => $todayConnected,
@@ -206,6 +221,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         'daily_calls_target' => $dailyCallingLimit,
         'monthly_disbursement_target' => $monthlyDisbLimit,
         'calling_limit_progress_pct' => $dailyCallingLimit > 0 ? round(($todayConnected / $dailyCallingLimit) * 100, 1) : 0,
+        'engagement' => $engSummary,
     ]);
 
 // -----------------------------------------------------------------------------
@@ -746,6 +762,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             'connected_conversation' => (int)($agg['connected_conversation_calls'] ?? 0),
         ],
         'status_breakdown' => $statusMap,
+        'engagement' => function_exists('getTelecallerEngagementSummary') ? getTelecallerEngagementSummary($link, $userId) : null,
     ]);
 
 // -----------------------------------------------------------------------------
@@ -905,9 +922,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
 
     $scopeSql = '';
-    if (in_array($userRole, ['Admin', 'Manager'], true)) {
+    if (isManagerOrAdminRole($userRole, $userId)) {
         $scopeSql = '';
-    } elseif ($userRole === 'Supervisor' && $teamId) {
+    } elseif (isSupervisorRole($userRole) && $teamId) {
         $scopeSql = ' AND EXISTS (SELECT 1 FROM ' . tn('TBL_USERS') . ' owner_u WHERE owner_u.ID = cl.user_id AND owner_u.TEAM_ID = ?)';
         $scopeTypes .= 'i';
         $scopeParams[] = $teamId;
@@ -945,8 +962,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 } elseif ($relativePath === '/team-officers' || $relativePath === '/team-officers/' || $relativePath === '/teams-and-officers') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
 
-    $isManagerOrAdmin = in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) || $userId === 1;
-    $isSupervisor = ($userRole === 'Supervisor');
+    $isManagerOrAdmin = isManagerOrAdminRole($userRole, $userId);
+    $isSupervisor = isSupervisorRole($userRole);
 
     $teams = [];
     $officers = [];
@@ -956,7 +973,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         while ($t = $tRes->fetch_assoc()) {
             $teams[] = ['id' => (int)$t['ID'], 'name' => $t['TEAM_NAME']];
         }
-        $uRes = $link->query("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE != 'Super Admin' AND ID != 1 ORDER BY NAME ASC");
+        $uRes = $link->query("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' ORDER BY NAME ASC");
         while ($u = $uRes->fetch_assoc()) {
             $officers[] = [
                 'id' => (int)$u['ID'],
@@ -974,7 +991,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         if ($tRow) {
             $teams[] = ['id' => (int)$tRow['ID'], 'name' => $tRow['TEAM_NAME']];
         }
-        $uStmt = $link->prepare("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? AND STATUS = 'Active' AND ROLE != 'Super Admin' AND ID != 1 ORDER BY NAME ASC");
+        $uStmt = $link->prepare("SELECT ID, NAME, TEAM_ID, ROLE FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? AND STATUS = 'Active' ORDER BY NAME ASC");
         $uStmt->bind_param('i', $teamId);
         $uStmt->execute();
         $uRes = $uStmt->get_result();
@@ -1192,7 +1209,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $filterUserId = !empty($_GET['user_id']) ? (int)$_GET['user_id'] : null;
         $filterTeamId = !empty($_GET['team_id']) ? (int)$_GET['team_id'] : null;
 
-        if ($userRole === 'Admin' || $userRole === 'Manager' || $userRole === 'Super Admin' || $userId === 1) {
+        if (isManagerOrAdminRole($userRole, $userId)) {
             if ($scope === 'mine') {
                 $whereParts[] = "(l.assigned_to = ? OR l.created_by = ?)";
                 $params[] = $userId;
@@ -1210,7 +1227,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             } else {
                 $whereParts[] = "1=1";
             }
-        } elseif ($userRole === 'Supervisor' && $teamId) {
+        } elseif (isSupervisorRole($userRole) && $teamId) {
             if ($scope === 'mine') {
                 $whereParts[] = "(l.assigned_to = ? OR l.created_by = ?)";
                 $params[] = $userId;
@@ -1257,12 +1274,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         }
 
         if ($search !== '') {
-            $whereParts[] = "(m.MAINDATABASE_NAME LIKE ? OR m.MAINDATABASE_MOBILE LIKE ? OR m.MAINDATABASE_COMPANY LIKE ? OR l.NAME LIKE ? OR l.MOBILE LIKE ? OR l.COMPANY_NAME LIKE ? OR l.remarks LIKE ?)";
+            $whereParts[] = "(m.MAINDATABASE_NAME LIKE ? OR m.MAINDATABASE_MOBILE LIKE ? OR m.MAINDATABASE_COMPANY LIKE ? OR l.NAME LIKE ? OR l.MOBILE LIKE ? OR l.COMPANY_NAME LIKE ? OR l.remarks LIKE ? OR u.NAME LIKE ?)";
             $like = "%$search%";
-            for ($i = 0; $i < 7; $i++) {
+            for ($i = 0; $i < 8; $i++) {
                 $params[] = $like;
             }
-            $types .= 'sssssss';
+            $types .= 'ssssssss';
         }
 
         $whereSql = "WHERE " . implode(" AND ", $whereParts);
@@ -1427,7 +1444,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 
             if ($exist) {
                 $createdId = (int)$exist['ID'];
-                if ((int)($exist['MAINDATABASE_CALL_DIALED_USER'] ?? 0) > 0 && (int)$exist['MAINDATABASE_CALL_DIALED_USER'] !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) apiError(403, 'Record belongs to another user');
+                if ((int)($exist['MAINDATABASE_CALL_DIALED_USER'] ?? 0) > 0 && (int)$exist['MAINDATABASE_CALL_DIALED_USER'] !== $userId && !isManagerOrAdminRole($userRole, $userId)) apiError(403, 'Record belongs to another user');
                 $isNew = false;
                 $uStmt = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET 
                     MAINDATABASE_NAME = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_NAME END,
@@ -1470,7 +1487,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             if ($exist) {
                 $createdId = (int)$exist['ID'];
                 $isNew = false;
-                if ((int)($exist['CALL_DIALED_TELECALLER'] ?? 0) > 0 && (int)$exist['CALL_DIALED_TELECALLER'] !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) apiError(403, 'Record belongs to another user');
+                if ((int)($exist['CALL_DIALED_TELECALLER'] ?? 0) > 0 && (int)$exist['CALL_DIALED_TELECALLER'] !== $userId && !isManagerOrAdminRole($userRole, $userId)) apiError(403, 'Record belongs to another user');
                 $uStmt = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET 
                     CUST_NAME = CASE WHEN ? != '' THEN ? ELSE CUST_NAME END,
                     CUST_COMPANY = CASE WHEN ? != '' THEN ? ELSE CUST_COMPANY END,
@@ -1715,7 +1732,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $crmLead = $resolve->get_result()->fetch_assoc();
         $resolve->close();
         if (!$crmLead) apiError(404, 'Lead not found');
-        if ((int)$crmLead['assigned_to'] !== $userId && (int)$crmLead['created_by'] !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) apiError(403, 'Not authorized to access this lead');
+        if ((int)$crmLead['assigned_to'] !== $userId && (int)$crmLead['created_by'] !== $userId && !isManagerOrAdminRole($userRole, $userId)) apiError(403, 'Not authorized to access this lead');
         $leadId = (int)$crmLead['cust_id'];
     }
     $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
@@ -1727,7 +1744,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $owner = $guard->get_result()->fetch_assoc();
     $guard->close();
     if (!$owner) apiError(404, 'Lead not found');
-    if ((int)($owner['owner_id'] ?? 0) !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) {
+    if ((int)($owner['owner_id'] ?? 0) !== $userId && !isManagerOrAdminRole($userRole, $userId)) {
         apiError(403, 'Not authorized to access this record');
     }
 
@@ -1844,7 +1861,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $scope = strtolower(trim($_GET['scope'] ?? 'mine'));
         if (!empty($_GET['user_id'])) {
             $targetUserId = (int)$_GET['user_id'];
-            if ($targetUserId === $userId || in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) || ($userRole === 'Supervisor' && $teamId)) {
+            if ($targetUserId === $userId || isManagerOrAdminRole($userRole, $userId) || (isSupervisorRole($userRole) && $teamId)) {
                 $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
                 $params[] = $targetUserId;
                 $params[] = $targetUserId;
@@ -1855,9 +1872,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 $params[] = $userId;
                 $types .= 'ii';
             }
-        } elseif ($scope === 'all' && (in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) || $userId === 1)) {
+        } elseif ($scope === 'all' && isManagerOrAdminRole($userRole, $userId)) {
             // Admin/Manager viewing all follow-ups company-wide - no user filter
-        } elseif ($scope === 'all' && $userRole === 'Supervisor' && $teamId) {
+        } elseif ($scope === 'all' && isSupervisorRole($userRole) && $teamId) {
             // Supervisor viewing team-wide follow-ups
             $where[] = "(f.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ?) OR l.team_id = ?)";
             $params[] = $teamId;

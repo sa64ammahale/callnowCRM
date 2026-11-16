@@ -68,11 +68,11 @@ ensureHierarchySchema($GLOBALS['link']);
  * Normalize role to one of the 4 primary hierarchy roles
  */
 function getNormalizedRole(string $role): string {
-    $r = trim($role);
-    if (strcasecmp($r, 'Super Admin') === 0 || strcasecmp($r, 'superadmin') === 0) return 'Super Admin';
-    if (strcasecmp($r, 'Admin') === 0) return 'Admin';
-    if (strcasecmp($r, 'Manager') === 0) return 'Manager';
-    if (strcasecmp($r, 'Supervisor') === 0) return 'Supervisor';
+    $r = strtoupper(trim($role));
+    if (str_contains($r, 'SUPER')) return 'Super Admin';
+    if (str_contains($r, 'ADMIN')) return 'Admin';
+    if (str_contains($r, 'MANAGER')) return 'Manager';
+    if (str_contains($r, 'SUPERVISOR')) return 'Supervisor';
     return 'Officer';
 }
 

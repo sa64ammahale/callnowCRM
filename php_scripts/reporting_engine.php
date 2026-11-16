@@ -4,6 +4,7 @@ if (!defined('APP_BASE')) {
 }
 require_once __DIR__ . '/reporting_schema.php';
 require_once __DIR__ . '/hierarchy_engine.php';
+require_once __DIR__ . '/engagement_engine.php';
 
 ensureReportingAndConversionSchema($GLOBALS['link']);
 
@@ -1076,15 +1077,44 @@ function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int
 }
 
 /**
- * Calculate Weighted Calling Productivity Score and Loan Sales Score
+ * Calculate Weighted Calling Productivity Score and Loan Sales Score with Telecaller Engagement
  */
-function calculateProductivityRankings(array $empRows, array $targets): array {
+function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $link = null): array {
+    if ($link === null && isset($GLOBALS['link'])) {
+        $link = $GLOBALS['link'];
+    }
+
     $dailyTarget = max(1, (int)($targets['daily_call_target'] ?? 100));
     $dailyConn = max(1, (int)($targets['daily_connected_target'] ?? 30));
     $dailyTalk = max(1, (int)($targets['daily_talk_time_minutes'] ?? 120));
     $dailyLead = max(1, (int)($targets['daily_lead_target'] ?? 3));
 
     $ranked = $empRows;
+
+    // Batch load engagement metrics (total XP, mastery level, streak)
+    $xpMap = [];
+    $streakMap = [];
+    $userIds = array_filter(array_column($ranked, 'employee_id'));
+    if (!empty($userIds) && $link instanceof mysqli) {
+        ensureEngagementSchema($link);
+        $table = tn('TBL_TELECALLER_ENGAGEMENT');
+        $idList = implode(',', array_map('intval', $userIds));
+
+        $resXp = @$link->query("SELECT `user_id`, SUM(`xp_earned`) as tot FROM `{$table}` WHERE `user_id` IN ({$idList}) AND `record_type` = 'xp' GROUP BY `user_id`");
+        if ($resXp) {
+            while ($xRow = $resXp->fetch_assoc()) {
+                $xpMap[(int)$xRow['user_id']] = (int)$xRow['tot'];
+            }
+        }
+
+        $today = date('Y-m-d');
+        $resD = @$link->query("SELECT `user_id`, `streak_count` FROM `{$table}` WHERE `user_id` IN ({$idList}) AND `record_type` = 'daily' AND `event_date` = '{$today}'");
+        if ($resD) {
+            while ($dRow = $resD->fetch_assoc()) {
+                $streakMap[(int)$dRow['user_id']] = (int)$dRow['streak_count'];
+            }
+        }
+    }
 
     foreach ($ranked as &$r) {
         $dials = (int)$r['total_dials'];
@@ -1114,6 +1144,17 @@ function calculateProductivityRankings(array $empRows, array $targets): array {
         $sDisbA = min(1.0, $disbAmt / 500000.0) * 30.0;
 
         $r['sales_score'] = round($sLeads + $sDisbC + $sDisbA, 1);
+
+        $uid = (int)($r['employee_id'] ?? 0);
+        $totXp = $xpMap[$uid] ?? 0;
+        $rankData = function_exists('getCallerMasteryRank') ? getCallerMasteryRank($totXp) : ['level' => 1, 'title' => 'Bronze Caller 🥉', 'badge_theme' => 'dark'];
+        $streak = $streakMap[$uid] ?? (function_exists('getTelecallerStreak') && $link ? getTelecallerStreak($link, $uid) : 0);
+
+        $r['total_xp'] = $totXp;
+        $r['level'] = $rankData['level'];
+        $r['level_title'] = $rankData['title'];
+        $r['badge_theme'] = $rankData['badge_theme'];
+        $r['streak_days'] = $streak;
     }
     unset($r);
 

@@ -145,6 +145,7 @@ date_default_timezone_set('Asia/Kolkata');
         define('TBL_USERS',              'users');
         define('TBL_CONTACT_LEAD_CONVERSIONS', 'contact_lead_conversions');
         define('TBL_REPORTING_TARGETS',  'reporting_targets');
+        define('TBL_TELECALLER_ENGAGEMENT', 'telecaller_engagement');
     }
 
     // ── Self-heal guard (defense against a stale/deployed config or
@@ -179,6 +180,7 @@ date_default_timezone_set('Asia/Kolkata');
         'TBL_CONTACT_LEAD_CONVERSIONS' => 'contact_lead_conversions',
         'TBL_REPORTING_TARGETS' => 'reporting_targets',
         'TBL_DND_REGISTRY'     => 'dnd_registry',
+        'TBL_TELECALLER_ENGAGEMENT' => 'telecaller_engagement',
     ];
     foreach ($__cn_tbl as $__cn_k => $__cn_v) {
         $__cn_cur = defined($__cn_k) ? constant($__cn_k) : null;

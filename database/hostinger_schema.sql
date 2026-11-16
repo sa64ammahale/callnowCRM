@@ -778,6 +778,30 @@ CREATE TABLE IF NOT EXISTS `dnd_registry` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================
+-- 31. TELECALLER ENGAGEMENT (XP, LEVELS, STREAKS & DAILY ROLLUPS)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `telecaller_engagement` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `record_type` enum('daily','xp') NOT NULL,
+  `event_date` date NOT NULL,
+  `calls_dialed` int(11) DEFAULT 0,
+  `connected_calls` int(11) DEFAULT 0,
+  `talk_time_seconds` int(11) DEFAULT 0,
+  `daily_target` int(11) DEFAULT 0,
+  `xp_earned` int(11) DEFAULT 0,
+  `total_xp` int(11) DEFAULT 0,
+  `level` int(11) DEFAULT 1,
+  `streak_count` int(11) DEFAULT 0,
+  `notes` varchar(255) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_user_date` (`user_id`, `event_date`),
+  KEY `idx_user_type_date` (`user_id`, `record_type`, `event_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- Done
 -- ============================================================
 SET FOREIGN_KEY_CHECKS=1;

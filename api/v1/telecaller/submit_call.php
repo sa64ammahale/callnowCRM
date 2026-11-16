@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/api_auth.php';
+require_once __DIR__ . '/../../../php_scripts/engagement_engine.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -164,7 +165,11 @@ $replay = static function () use ($link, $userId, $clientCallId, $requestHash): 
     $query->close();
     if (!$saved) return null;
     if (!hash_equals((string)$saved['request_hash'], $requestHash)) apiError(409, 'client_call_id already used for a different call payload');
-    return ['message' => 'Call result already submitted', 'log_id' => (int)$saved['id'], 'record_id' => (int)$saved['record_id'], 'source' => $saved['source'], 'duration' => (int)$saved['call_duration'], 'total_duration' => (int)$saved['total_duration'], 'timing_classification' => $saved['timing_classification'], 'replayed' => true];
+    $ret = ['message' => 'Call result already submitted', 'log_id' => (int)$saved['id'], 'record_id' => (int)$saved['record_id'], 'source' => $saved['source'], 'duration' => (int)$saved['call_duration'], 'total_duration' => (int)$saved['total_duration'], 'timing_classification' => $saved['timing_classification'], 'replayed' => true];
+    if (function_exists('getTelecallerEngagementSummary')) {
+        $ret['engagement'] = getTelecallerEngagementSummary($link, $userId);
+    }
+    return $ret;
 };
 if ($saved = $replay()) apiSuccess($saved);
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -317,7 +322,17 @@ $link->commit();
     apiError(500, 'Unable to save call result');
 }
 
-apiSuccess([
+// Calculate real-time telecaller engagement & XP awards
+$engagementData = null;
+try {
+    if (function_exists('recordCallEngagement')) {
+        $engagementData = recordCallEngagement($link, $userId, $callDuration, $timingTier, $isDnd);
+    }
+} catch (Throwable $engEx) {
+    error_log('Engagement tracking error: ' . $engEx->getMessage());
+}
+
+$respPayload = [
     'message' => 'Call result submitted successfully',
     'log_id' => $logId,
     'record_id' => $recordId,
@@ -327,4 +342,9 @@ apiSuccess([
     'timing_classification' => $timingTier,
     'duration' => $callDuration,
     'total_duration' => $totalDuration,
-]);
+];
+if ($engagementData !== null) {
+    $respPayload['engagement'] = $engagementData;
+}
+
+apiSuccess($respPayload);
