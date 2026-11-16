@@ -212,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 if ($isEdit) {
                     $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, supervisor_id=COALESCE(?, supervisor_id), manager_id=?, admin_id=?, PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";
                     $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $role, $teamIdInt, $teamSupId, $assignedManagerId, $creatorAdminId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
-                    $types = "ssssssiiiissssid";
+                    $types = "ssssssiiiisssid";
 
                     if (!empty($password)) {
                         $sql .= ", PASSWORD=?";
@@ -227,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $sql = "INSERT INTO " . tn('TBL_USERS') . " (NAME, MOBILE, LOGIN_ID, EMAIL, COMPANY_NAME, PASSWORD, ROLE, TEAM_ID, supervisor_id, manager_id, admin_id, PACKAGE, STATUS, COMPANY, daily_calling_limit, monthly_disbursement_limit, JOIN_DATE)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                     $params = [$name, $mobile, $login_id, $email_addr, $company_name_db, $hashed, $role, $teamIdInt, $teamSupId, $assignedManagerId, $creatorAdminId, $package, $status, $company, $daily_calling_limit, $monthly_disbursement_limit];
-                    $types = "sssssssiiiissssid";
+                    $types = "sssssssiiiisssid";
                 }
 
                 $stmt = mysqli_prepare($link, $sql);
