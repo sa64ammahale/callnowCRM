@@ -61,8 +61,25 @@ if (($_POST['action'] ?? '') === 'add') {
                 $msg = "Team name already exists!";
                 $msg_type = "warning";
             } else {
-                $stmt = $link->prepare("INSERT INTO " . tn('TBL_TEAMS') . " (NAME, SUPERVISOR_ID, MANAGER_ID) VALUES (?, ?, ?)");
-                $stmt->bind_param("sii", $team_name, $supervisor_id, $manager_id);
+                $targetAdminId = null;
+                $currentActorId = (int)USER_ID;
+                if (isAdmin()) {
+                    $targetAdminId = $currentActorId;
+                } elseif (isManager() || isSupervisor()) {
+                    $uStmt = $link->prepare("SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = ?");
+                    $uStmt->bind_param("i", $currentActorId);
+                    $uStmt->execute();
+                    $targetAdminId = $uStmt->get_result()->fetch_assoc()['admin_id'] ?? null;
+                    $uStmt->close();
+                } elseif ($manager_id) {
+                    $uStmt = $link->prepare("SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = ?");
+                    $uStmt->bind_param("i", $manager_id);
+                    $uStmt->execute();
+                    $targetAdminId = $uStmt->get_result()->fetch_assoc()['admin_id'] ?? null;
+                    $uStmt->close();
+                }
+                $stmt = $link->prepare("INSERT INTO " . tn('TBL_TEAMS') . " (NAME, SUPERVISOR_ID, MANAGER_ID, admin_id) VALUES (?, ?, ?, ?)");
+                $stmt->bind_param("siii", $team_name, $supervisor_id, $manager_id, $targetAdminId);
                 if ($stmt->execute()) {
                     $msg = "Team created successfully!";
                     $msg_type = "success";
@@ -121,7 +138,7 @@ if (($_POST['action'] ?? '') === 'delete') {
 $userRole = USER_ROLE;
 $userId   = (int)USER_ID;
 
-$canViewAll = isSuperAdmin() || isAdmin() || (function_exists('canViewAllTBL_TEAMS') && canViewAllTBL_TEAMS());
+$canViewAll = isSuperAdmin();
 
 $teamScopeWhere = "WHERE 1=1";
 if (!$canViewAll) {
@@ -161,8 +178,16 @@ $sup_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " u $
 if ($sup_res) while ($s = mysqli_fetch_assoc($sup_res)) $all_supervisors[] = $s;
 
 $all_managers = [];
-$mgrWhere = $canViewAll ? "WHERE ROLE = 'Manager' AND ROLE != 'Super Admin'" : "WHERE (ID = $userId OR ROLE = 'Manager') AND ROLE != 'Super Admin'";
-$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " $mgrWhere ORDER BY NAME");
+if ($canViewAll) {
+    $mgrWhere = "WHERE ROLE = 'Manager' AND ROLE != 'Super Admin'";
+} elseif (isAdmin()) {
+    $mgrWhere = "WHERE ROLE = 'Manager' AND ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, $userId, $userRole, 'u', 'ID');
+} elseif (isManager()) {
+    $mgrWhere = "WHERE ID = $userId";
+} else {
+    $mgrWhere = "WHERE 1=0";
+}
+$mgr_res = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " u $mgrWhere ORDER BY NAME");
 if ($mgr_res) while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
 
 // All teams for reassign dropdown

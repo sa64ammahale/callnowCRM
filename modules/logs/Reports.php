@@ -8,10 +8,10 @@ requirePermission('view_reports');
 // Determine roles and scope
 $userRole     = USER_ROLE;
 $isSuperAdmin = isUserSuperAdmin((int)USER_ID, $userRole);
-$isAdmin      = ($userRole === 'Admin' || $userRole === 'Manager') && !$isSuperAdmin;
+$isAdmin      = ($userRole === 'Admin') && !$isSuperAdmin;
 $isManager    = ($userRole === 'Manager') && !$isSuperAdmin;
-$isSupervisor = ($userRole === 'Supervisor') && !$isSuperAdmin && !$isAdmin;
-$isOfficer    = ($userRole === 'Officer') && !$isAdmin && !$isSuperAdmin && !$isSupervisor;
+$isSupervisor = ($userRole === 'Supervisor') && !$isSuperAdmin && !$isAdmin && !$isManager;
+$isOfficer    = ($userRole === 'Officer') && !$isAdmin && !$isSuperAdmin && !$isSupervisor && !$isManager;
 
 // Prevent parameter tampering: check if requested user is authorized
 $requested_user = isset($_GET['user']) && is_numeric($_GET['user']) ? (int)$_GET['user'] : null;
@@ -140,6 +140,16 @@ if ($isSuperAdmin) {
         $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ID IN ($sIn) AND STATUS = 'Active' ORDER BY NAME");
         if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
     }
+} elseif ($isManager) {
+    $mgrTeamIds = getAuthorizedTeamIds($link, (int)USER_ID, 'Manager');
+    if (!empty($mgrTeamIds)) {
+        $tIn = implode(',', array_map('intval', $mgrTeamIds));
+        $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tIn) ORDER BY NAME");
+        if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
+
+        $sRes = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tIn) AND SUPERVISOR_ID IS NOT NULL) AND STATUS = 'Active' ORDER BY NAME");
+        if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
+    }
 } elseif ($isSupervisor) {
     $supId = (int)USER_ID;
     $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = $supId ORDER BY NAME");
@@ -164,6 +174,9 @@ if ($supervisor_filter !== '' && is_numeric($supervisor_filter)) {
     } elseif ($isAdmin) {
         $adminSups = getAdminAssignedSupervisorIds($link, (int)USER_ID);
         if (in_array($candS, $adminSups, true)) $supIdParam = $candS;
+    } elseif ($isManager) {
+        $authUsers = getAuthorizedUserIds($link, (int)USER_ID, 'Manager');
+        if (in_array($candS, $authUsers, true)) $supIdParam = $candS;
     }
 }
 
@@ -176,7 +189,7 @@ $callMetrics      = getCallingMetrics($link, $from, $to, $selected_user_id, $tea
 $leadMetrics      = getLeadConversionMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
 $hourlyAnalytics  = getHourlyCallingAnalytics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
 $empRows          = getEmployeePerformanceRows($link, $from, $to, $teamIdParam, $supIdParam, $selected_user_id, $userRole, $targets);
-$supRows          = ($isSuperAdmin || $isAdmin) ? getSupervisorPerformanceRows($link, $from, $to, $teamIdParam, $targets, (int)USER_ID, $userRole) : [];
+$supRows          = ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor) ? getSupervisorPerformanceRows($link, $from, $to, $teamIdParam, $targets, (int)USER_ID, $userRole) : [];
 $adminRows        = ($isSuperAdmin || $isAdmin) ? getAdminPerformanceRows($link, $from, $to, $isAdmin ? (int)USER_ID : null, $targets, $userRole) : [];
 $followupList     = getFollowupList($link, $selected_user_id, $teamIdParam, $userRole, 'all', 100);
 $alerts           = getPerformanceAlerts($link, $empRows, $targets, $selected_user_id, $userRole);
@@ -202,6 +215,8 @@ if ($userRole === 'Officer') {
     $cTypes .= 'i';
 } elseif ($isAdmin) {
     $cWhere[] = getHierarchyContactFilterSQL($link, (int)USER_ID, 'Admin', 'm');
+} elseif ($isManager) {
+    $cWhere[] = getHierarchyContactFilterSQL($link, (int)USER_ID, 'Manager', 'm');
 } elseif ($isSupervisor) {
     $cWhere[] = getHierarchyContactFilterSQL($link, (int)USER_ID, 'Supervisor', 'm', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
 }
@@ -247,6 +262,8 @@ if ($userRole === 'Officer') {
     $lTypes .= 'i';
 } elseif ($isAdmin) {
     $lWhere[] = getHierarchyLeadFilterSQL($link, (int)USER_ID, 'Admin', 'l');
+} elseif ($isManager) {
+    $lWhere[] = getHierarchyLeadFilterSQL($link, (int)USER_ID, 'Manager', 'l');
 } elseif ($isSupervisor) {
     $lWhere[] = getHierarchyLeadFilterSQL($link, (int)USER_ID, 'Supervisor', 'l', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
 }
@@ -300,6 +317,8 @@ if ($userRole === 'Officer') {
     $dTypes .= 'i';
 } elseif ($isAdmin) {
     $dWhere[] = getHierarchyUserFilterSQL($link, (int)USER_ID, 'Admin', 'cl', 'user_id');
+} elseif ($isManager) {
+    $dWhere[] = getHierarchyUserFilterSQL($link, (int)USER_ID, 'Manager', 'cl', 'user_id');
 } elseif ($isSupervisor) {
     $dWhere[] = getHierarchyUserFilterSQL($link, (int)USER_ID, 'Supervisor', 'cl', 'user_id', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
 }
@@ -463,7 +482,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
     }
 
     // 2c. Supervisor Rollup
-    if (($isSuperAdmin || $isAdmin || $isSupervisor) && !empty($supRows)) {
+    if (($isSuperAdmin || $isAdmin || $isManager || $isSupervisor) && !empty($supRows)) {
         fputcsv($out, ['=== 2c. SUPERVISOR & SQUAD PERFORMANCE ROLLUP ===']);
         fputcsv($out, ['Supervisor Name', 'Squad Team', 'Officers Count', 'Total Dials', 'Connected', 'Connect Rate', 'Interested', 'Converted Leads', 'Squad Target', 'Squad Achievement %']);
         foreach ($supRows as $sup) {
@@ -565,7 +584,9 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <?php if ($isSuperAdmin): ?>
                     <span class="badge badge-purple px-2 py-1"><i class="bi bi-shield-check me-1"></i> Super Admin Scope (All Organization)</span>
                 <?php elseif ($isAdmin): ?>
-                    <span class="badge badge-primary px-2 py-1"><i class="bi bi-building me-1"></i> Admin Scope (All Teams)</span>
+                    <span class="badge badge-primary px-2 py-1"><i class="bi bi-building me-1"></i> Admin Scope (My Branch)</span>
+                <?php elseif ($isManager): ?>
+                    <span class="badge badge-primary px-2 py-1"><i class="bi bi-briefcase me-1"></i> Manager Scope (My Teams)</span>
                 <?php elseif ($isSupervisor): ?>
                     <span class="badge badge-info px-2 py-1"><i class="bi bi-people-fill me-1"></i> Supervisor Scope (My Teams)</span>
                 <?php else: ?>
@@ -714,7 +735,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                     <span class="report-tab-badge bg-info-subtle text-info border"><?= count($empRows) ?></span>
                 </button>
             </li>
-            <?php if ($isSuperAdmin || $isAdmin || $isSupervisor): ?>
+            <?php if ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor): ?>
             <li class="nav-item" role="presentation">
                 <button class="report-tab-btn <?= $active_tab === 'supervisors' ? 'active' : '' ?>" id="supervisors-tab" data-bs-toggle="tab" data-bs-target="#tab-supervisors" type="button" role="tab" data-theme="amber">
                     <span class="report-tab-icon"><i class="bi bi-people-fill"></i></span>
@@ -1196,7 +1217,7 @@ include __DIR__ . '/../../php_scripts/header.php';
             </div>
         </div>
 
-        <?php if ($isSuperAdmin || $isAdmin || $isSupervisor): ?>
+        <?php if ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor): ?>
         <!-- TAB 5: SUPERVISOR & TEAM PERFORMANCE ROLLUP -->
         <div class="tab-pane fade <?= $active_tab === 'supervisors' ? 'show active' : '' ?>" id="tab-supervisors" role="tabpanel">
             <div class="crm-card mb-3">

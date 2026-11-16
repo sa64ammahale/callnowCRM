@@ -101,13 +101,13 @@ if ($userRole === 'Supervisor') {
 }
 
 $authTeamIds = getAuthorizedTeamIds($link, $userId, $userRole, $userTeamId);
-if (!empty($authTeamIds)) {
+if (isSuperAdmin()) {
+    $allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC);
+} elseif (!empty($authTeamIds)) {
     $authTeamList = implode(',', array_map('intval', $authTeamIds));
     $allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($authTeamList) ORDER BY NAME"), MYSQLI_ASSOC);
-} elseif (isSupervisor() || isManager()) {
-    $allTeams = [];
 } else {
-    $allTeams = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME"), MYSQLI_ASSOC);
+    $allTeams = [];
 }
 $packages = mysqli_fetch_all(mysqli_query($link, "SELECT DISTINCT PACKAGE FROM " . tn('TBL_USERS') . " WHERE PACKAGE IS NOT NULL AND PACKAGE != '' ORDER BY PACKAGE"), MYSQLI_ASSOC);
 

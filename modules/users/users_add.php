@@ -165,10 +165,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             }
 
             if (!$Message) {
-                $teamIdInt = (int)$team_id;
-                $teamInfo = mysqli_fetch_assoc(mysqli_query($link, "SELECT SUPERVISOR_ID, MANAGER_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = $teamIdInt"));
+                $teamIdInt = !empty($team_id) ? (int)$team_id : null;
+                $teamInfo = $teamIdInt ? mysqli_fetch_assoc(mysqli_query($link, "SELECT SUPERVISOR_ID, MANAGER_ID, admin_id FROM " . tn('TBL_TEAMS') . " WHERE ID = $teamIdInt")) : null;
                 $teamSupId = isSupervisor() ? (int)USER_ID : (!empty($teamInfo['SUPERVISOR_ID']) ? (int)$teamInfo['SUPERVISOR_ID'] : null);
-                $creatorAdminId = (isAdmin() || isSuperAdmin()) ? (int)USER_ID : (isManager() ? (int)USER_ID : null);
+
+                $creatorAdminId = null;
+                if (isAdmin()) {
+                    $creatorAdminId = (int)USER_ID;
+                } elseif (isManager() || isSupervisor()) {
+                    $uRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT admin_id FROM " . tn('TBL_USERS') . " WHERE ID = " . (int)USER_ID));
+                    $creatorAdminId = !empty($uRow['admin_id']) ? (int)$uRow['admin_id'] : null;
+                } elseif (isSuperAdmin()) {
+                    if (!empty($teamInfo['admin_id'])) {
+                        $creatorAdminId = (int)$teamInfo['admin_id'];
+                    }
+                }
 
                 if ($isEdit) {
                     $sql = "UPDATE " . tn('TBL_USERS') . " SET NAME=?, MOBILE=?, LOGIN_ID=?, EMAIL=?, COMPANY_NAME=?, ROLE=?, TEAM_ID=?, supervisor_id=COALESCE(?, supervisor_id), PACKAGE=?, STATUS=?, COMPANY=?, daily_calling_limit=?, monthly_disbursement_limit=?";

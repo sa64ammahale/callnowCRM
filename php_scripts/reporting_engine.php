@@ -69,7 +69,7 @@ function saveReportingTargets(mysqli $link, array $targets, string $role = 'Offi
  */
 function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
     $normRole = getNormalizedRole($userRole);
-    $actorId = defined('USER_ID') ? (int)USER_ID : ($userId ?? 0);
+    $actorId = ($userId !== null && $userId > 0) ? $userId : (defined('USER_ID') ? (int)USER_ID : 0);
     $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
 
     if ($normRole === 'Officer') {
@@ -94,6 +94,22 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
             'user_ids' => $filteredUserIds,
             'team_ids' => $filteredTeamIds,
             'supervisor_ids' => [$actorId],
+        ];
+    }
+
+    if ($normRole === 'Manager' || $userRole === 'Manager') {
+        $allowedTeamIds = getAuthorizedTeamIds($link, $actorId, 'Manager', $uTeam);
+        $allowedUserIds = getAuthorizedUserIds($link, $actorId, 'Manager', $uTeam);
+
+        $filteredUserIds = ($userId && in_array($userId, $allowedUserIds, true)) ? [$userId] : $allowedUserIds;
+        $filteredTeamIds = ($teamId && in_array($teamId, $allowedTeamIds, true)) ? [$teamId] : $allowedTeamIds;
+        $filteredSupIds  = ($supervisorId && in_array($supervisorId, $allowedUserIds, true)) ? [$supervisorId] : [];
+
+        return [
+            'mode' => 'manager',
+            'user_ids' => $filteredUserIds,
+            'team_ids' => $filteredTeamIds,
+            'supervisor_ids' => $filteredSupIds,
         ];
     }
 
@@ -577,6 +593,15 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
     if ($normRole === 'Supervisor') {
         $supActor = $actorUserId ?: (defined('USER_ID') ? (int)USER_ID : 0);
         $where[] = "s.ID = $supActor";
+    } elseif ($normRole === 'Manager' || $actorRole === 'Manager') {
+        $mgrActor = $actorUserId ?: (defined('USER_ID') ? (int)USER_ID : 0);
+        $mgrTeams = getAuthorizedTeamIds($link, $mgrActor, 'Manager');
+        if (!empty($mgrTeams)) {
+            $tIn = implode(',', array_map('intval', $mgrTeams));
+            $where[] = "t.ID IN ($tIn)";
+        } else {
+            $where[] = "1=0";
+        }
     } elseif ($normRole === 'Admin') {
         $adminActor = $actorUserId ?: (defined('USER_ID') ? (int)USER_ID : 0);
         $adminSups = getAdminAssignedSupervisorIds($link, $adminActor);
@@ -682,8 +707,8 @@ function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $s
     $normRole = getNormalizedRole($actorRole);
     $superAdminIds = getSuperAdminUserIds($link);
 
-    // Officers and Supervisors cannot view Admin-level reports
-    if ($normRole === 'Officer' || $normRole === 'Supervisor') {
+    // Officers, Supervisors, and Managers cannot view Admin-level reports
+    if ($normRole === 'Officer' || $normRole === 'Supervisor' || $normRole === 'Manager' || $actorRole === 'Manager') {
         return [];
     }
 

@@ -186,7 +186,7 @@ function getSupervisorAssignedOfficerIds(mysqli $link, int $supervisorId, ?int $
     }
     $teamIds = array_values(array_unique(array_filter($teamIds)));
 
-    $whereParts = ["u.ROLE NOT IN ('Super Admin', 'Admin')"];
+    $whereParts = ["u.ROLE NOT IN ('Super Admin', 'Admin', 'Manager')"];
     $params = [];
     $types = '';
 
@@ -272,28 +272,20 @@ function getAuthorizedTeamIds(mysqli $link, int $userId, string $role, ?int $use
 
     if ($normRole === 'Admin') {
         $tIds = getAdminManagedTeamIds($link, $userId);
-        if (empty($tIds)) {
-            $res = $link->query("SELECT ID FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
-            if ($res) while ($r = $res->fetch_assoc()) $tIds[] = (int)$r['ID'];
-        }
         return array_values(array_unique(array_filter($tIds)));
     }
 
     if ($normRole === 'Manager' || $role === 'Manager') {
         $tIds = [];
-        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE MANAGER_ID = ? OR SUPERVISOR_ID = ?");
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_TEAMS') . " WHERE MANAGER_ID = ?");
         if ($stmt) {
-            $stmt->bind_param('ii', $userId, $userId);
+            $stmt->bind_param('i', $userId);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) $tIds[] = (int)$r['ID'];
             $stmt->close();
         }
         if ($userTeamId && $userTeamId > 0) $tIds[] = $userTeamId;
-        if (empty($tIds)) {
-            $res = $link->query("SELECT ID FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
-            if ($res) while ($r = $res->fetch_assoc()) $tIds[] = (int)$r['ID'];
-        }
         return array_values(array_unique(array_filter($tIds)));
     }
 
@@ -319,7 +311,8 @@ function getAuthorizedTeamIds(mysqli $link, int $userId, string $role, ?int $use
  * Authoritative list of user IDs accessible to the actor.
  * Strict rules:
  * - Super Admin: has global access, but Super Admin accounts are excluded when querying subordinate staff.
- * - Admin: sees self + assigned Supervisors + Sales Officers under those Supervisors. (NO other Admins, NO Super Admin).
+ * - Admin: sees self + staff in their admin branch (admin_id = currentAdminId) + staff in their teams. (NO other Admins, NO Super Admin).
+ * - Manager: sees self + supervisors of managed teams + officers in managed teams. (NO other Managers, NO Admins, NO Super Admin).
  * - Supervisor: sees self + assigned Sales Officers. (NO other Supervisors, NO Admins, NO Super Admin).
  * - Sales Officer: sees strictly self-only.
  */
@@ -339,33 +332,38 @@ function getAuthorizedUserIds(mysqli $link, int $userId, string $role, ?int $use
     }
 
     if ($normRole === 'Admin') {
-        $supIds = getAdminAssignedSupervisorIds($link, $adminId = $userId);
-        $offIds = getAdminAssignedOfficerIds($link, $userId);
-        $combined = array_merge([$userId], $supIds, $offIds);
-        // Exclude Super Admins
-        $accessible = array_diff($combined, $superAdminIds);
-        if (empty($supIds) && empty($offIds)) {
-            $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active'");
-            $all = [];
-            if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
-            $accessible = array_diff($all, $superAdminIds);
+        $adminTeams = getAdminManagedTeamIds($link, $userId);
+        $teamClause = !empty($adminTeams) ? "OR u.TEAM_ID IN (" . implode(',', array_map('intval', $adminTeams)) . ")" : "";
+
+        $stmt = $link->prepare("
+            SELECT DISTINCT u.ID FROM " . tn('TBL_USERS') . " u
+            WHERE u.ID = ?
+               OR (u.ROLE != 'Super Admin' AND u.ROLE != 'Admin' AND (u.admin_id = ? $teamClause))
+        ");
+        $all = [$userId];
+        if ($stmt) {
+            $stmt->bind_param('ii', $userId, $userId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
+            $stmt->close();
         }
+        $accessible = array_diff($all, $superAdminIds);
         return array_values(array_unique($accessible));
     }
 
     if ($normRole === 'Manager' || $role === 'Manager') {
         $mTeamIds = getAuthorizedTeamIds($link, $userId, 'Manager', $userTeamId);
+        $all = [$userId];
         if (!empty($mTeamIds)) {
             $tList = implode(',', array_map('intval', $mTeamIds));
-            $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IN ($tList) OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList))");
-            $uIds = [$userId];
-            if ($res) while ($r = $res->fetch_assoc()) $uIds[] = (int)$r['ID'];
-            $accessible = array_diff($uIds, $superAdminIds);
-            return array_values(array_unique($accessible));
+            $res = $link->query("
+                SELECT DISTINCT u.ID FROM " . tn('TBL_USERS') . " u 
+                WHERE (u.TEAM_ID IN ($tList) AND u.ROLE IN ('Supervisor', 'Officer'))
+                   OR (u.ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList)))
+            ");
+            if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
         }
-        $res = $link->query("SELECT ID FROM " . tn('TBL_USERS') . " WHERE STATUS = 'Active' AND ROLE NOT IN ('Super Admin', 'Admin')");
-        $all = [$userId];
-        if ($res) while ($r = $res->fetch_assoc()) $all[] = (int)$r['ID'];
         $accessible = array_diff($all, $superAdminIds);
         return array_values(array_unique($accessible));
     }

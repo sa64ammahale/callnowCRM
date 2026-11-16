@@ -9,11 +9,7 @@ $currentUserId = (int)($_SESSION['id'] ?? 0);
 
 $managerTeamIds = [];
 if (isManager()) {
-    $managerTeamIds = getManagerTeamIds($link, (int)$currentUserId);
-    if (empty($managerTeamIds) && (function_exists('canViewAllTBL_TEAMS') && canViewAllTBL_TEAMS())) {
-        $res = $link->query("SELECT ID FROM " . tn('TBL_TEAMS'));
-        if ($res) while ($r = $res->fetch_assoc()) $managerTeamIds[] = (int)$r['ID'];
-    }
+    $managerTeamIds = getAuthorizedTeamIds($link, (int)$currentUserId, 'Manager');
     if (empty($managerTeamIds)) $managerTeamIds = [-1];
 }
 
@@ -102,37 +98,40 @@ if (($_POST['action'] ?? '') === 'change_supervisor') {
 }
 
 // Fetch teams
-if (isAdmin()) {
+if (isSuperAdmin()) {
     $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
         FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID ORDER BY t.NAME";
+} elseif (isAdmin()) {
+    $adminTeamIds = getAuthorizedTeamIds($link, (int)$currentUserId, 'Admin');
+    $ids_str = !empty($adminTeamIds) ? implode(',', array_map('intval', $adminTeamIds)) : '0';
+    $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
+        FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
+        WHERE t.ID IN ($ids_str) ORDER BY t.NAME";
 } elseif (isManager()) {
-    $ids_str = implode(',', array_map('intval', $managerTeamIds));
+    $ids_str = !empty($managerTeamIds) ? implode(',', array_map('intval', $managerTeamIds)) : '0';
     $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
         FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
         WHERE t.ID IN ($ids_str) ORDER BY t.NAME";
 } else { // Supervisor
+    $supTeams = getAuthorizedTeamIds($link, (int)$currentUserId, 'Supervisor', (int)USER_TEAM_ID);
+    $ids_str = !empty($supTeams) ? implode(',', array_map('intval', $supTeams)) : '0';
     $teams_sql = "SELECT t.ID, t.NAME, t.SUPERVISOR_ID, sup.NAME AS SUP_NAME, mgr.NAME AS MANAGER_NAME
         FROM " . tn('TBL_TEAMS') . " t LEFT JOIN " . tn('TBL_USERS') . " sup ON t.SUPERVISOR_ID = sup.ID LEFT JOIN " . tn('TBL_USERS') . " mgr ON t.MANAGER_ID = mgr.ID
-        WHERE t.ID = " . (int)USER_TEAM_ID . " ORDER BY t.NAME";
+        WHERE t.ID IN ($ids_str) ORDER BY t.NAME";
 }
 $teamsList = mysqli_fetch_all(mysqli_query($link, $teams_sql), MYSQLI_ASSOC);
 
-$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Supervisor','Manager') AND STATUS = 'Active' AND ROLE != 'Super Admin' ORDER BY NAME"), MYSQLI_ASSOC);
+$supWhere = isSuperAdmin() 
+    ? "WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin'" 
+    : "WHERE ROLE IN ('Supervisor','Manager') AND ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, (int)$currentUserId, USER_ROLE, 'u', 'ID');
+$supervisors = mysqli_fetch_all(mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " u $supWhere ORDER BY NAME"), MYSQLI_ASSOC);
 
 // Member count per team
 $memberCounts = [];
 $mc = mysqli_query($link, "SELECT TEAM_ID, COUNT(*) as cnt FROM " . tn('TBL_USERS') . " WHERE TEAM_ID IS NOT NULL AND ROLE != 'Super Admin' GROUP BY TEAM_ID");
 if ($mc) while ($m = mysqli_fetch_assoc($mc)) $memberCounts[(int)$m['TEAM_ID']] = (int)$m['cnt'];
 
-$where = '';
-if (isAdmin() || isSuperAdmin()) {
-    $where = "1=1";
-} elseif (isManager()) {
-    $ids_str = implode(',', array_map('intval', $managerTeamIds));
-    $where = "(u.TEAM_ID IS NULL OR u.TEAM_ID IN ($ids_str))";
-} else { // Supervisor
-    $where = "(u.TEAM_ID IS NULL OR u.TEAM_ID = " . (int)USER_TEAM_ID . ")";
-}
+$where = isSuperAdmin() ? "1=1" : getHierarchyUserFilterSQL($link, (int)$currentUserId, USER_ROLE, 'u', 'ID');
 $types = ''; $params = [];
 if ($filter_team_id > 0) { $where .= " AND u.TEAM_ID = ?"; $types .= 'i'; $params[] = $filter_team_id; }
 if ($search_name !== '') { $where .= " AND u.NAME LIKE ?"; $types .= 's'; $params[] = "%$search_name%"; }

@@ -21,11 +21,11 @@ if (!defined('IS_SUPERVISOR_OF_TEAM'))  define('IS_SUPERVISOR_OF_TEAM', ($user['
 
 // Helper Functions
 function canViewAllTBL_TEAMS() {
-    return in_array(USER_ROLE, ['Admin', 'Manager']) || USER_ROLE === 'Super Admin';
+    return (defined('USER_ROLE') && USER_ROLE === 'Super Admin') || (function_exists('isSuperAdmin') && isSuperAdmin());
 }
 
 function canManageTBL_TEAMS() {
-    return in_array(USER_ROLE, ['Admin', 'Manager']) || USER_ROLE === 'Super Admin';
+    return in_array(USER_ROLE, ['Super Admin', 'Admin', 'Manager']);
 }
 
 function getTeamFilterSQL($table_alias = 'm') {

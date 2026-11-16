@@ -117,6 +117,36 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 
 ## Security Fixes Applied (Priority Actions)
 
+### 12. Strict 5-Tier Multi-Admin & Multi-Manager Hierarchy Isolation (November 2026)
+- **Hierarchy Structure**:
+  1. **Super Admin (Tier 1)**: Global system visibility across all Admins, Managers, Supervisors, Teams, and Telecallers.
+  2. **Admin (Tier 2)**: Multiple Admins supported. Each Admin sees **strictly** their own branch (`admin_id = currentAdminId` or teams under them). Zero cross-admin visibility.
+  3. **Manager (Tier 3)**: Belongs to an Admin. Manages assigned teams (`MANAGER_ID = currentUserId`). Sees **strictly** their own team members (self, assigned supervisors, assigned officers). Zero visibility into other Managers, other Managers' staff, or staff under other Admins.
+  4. **Supervisor (Tier 4)**: Oversees assigned team (`SUPERVISOR_ID = currentUserId`). Sees **strictly** self and assigned officers.
+  5. **Sales Officer (Tier 5)**: Strictly self-only data access.
+- **Database Schema Changes**:
+  - Added `admin_id INT NULL` and `KEY idx_team_admin (admin_id)` to `teams` table to partition team ownership across multiple Admins.
+  - Backfilled `teams.admin_id` from existing managers/supervisors and backfilled `users.admin_id`.
+- **Core Engine Updates**:
+  - `php_scripts/hierarchy_engine.php`:
+    - Fixed `getNormalizedRole('Manager')` to return `'Manager'` instead of `'Admin'`.
+    - Added `teams.admin_id` to self-healing schema validator `ensureHierarchySchema()`.
+    - Updated `getAuthorizedTeamIds()` and `getAuthorizedUserIds()`: removed global fallbacks (`SELECT ID FROM teams` / `SELECT ID FROM users`) that leaked all company data when a manager was unassigned.
+    - Updated `getSupervisorAssignedOfficerIds()`: explicitly excludes `'Manager'` to prevent supervisors from having managers listed as subordinates.
+  - `php_scripts/reporting_engine.php`:
+    - Updated `getEffectiveReportingScope()`: added dedicated `manager` scope mode returning only manager's authorized team members.
+    - Updated `getSupervisorPerformanceRows()`: manager sees only squads under managed teams.
+    - Updated `getAdminPerformanceRows()`: restricted to Super Admin and Admin only; returns `[]` for Managers.
+  - `modules/logs/Reports.php`:
+    - Fixed undefined variable `$isManager` on filter controls.
+    - Added Manager scoping to Teams and Supervisors dropdowns, contact filters, lead filters, and call log drilldowns.
+  - `modules/users/teams_dashboard.php` & `modules/users/team_members.php`:
+    - Gated `canViewAll` strictly to `isSuperAdmin()`.
+    - Removed `u.TEAM_ID IS NULL` unassigned leak for Managers.
+    - Populates `teams.admin_id` on team creation.
+  - `modules/users/users_add.php`:
+    - Populates `admin_id` on user creation (Admin sets own ID; Manager sets manager's `admin_id`).
+
 ### 1. Deleted legacy files
 - `modules/users/DeleteRow.php` — SQL injection + destructive schema ops
 - `modules/leads/AddEnquiry.php` — SQLi via $mobile + broken schema
