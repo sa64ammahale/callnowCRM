@@ -748,6 +748,11 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
     - Target access guards (`canUserAccessTargetUser`).
     - Team resolution for single and multiple teams.
   - Zero PHP syntax errors across all files.
+
+## Completed Goal (2026-11-16): Reports Manager Filter
+- `modules/logs/Reports.php` now validates `?manager=` against the active Admin or Super Admin hierarchy and applies it to report KPIs, charts, performance tables, drilldowns, follow-ups, exports, and persisted report URLs.
+- `php_scripts/reporting_engine.php` accepts an optional manager scope for reporting functions. It limits staff-level data to active users with the selected `manager_id` and supervisor rollups to teams managed by that manager.
+- `tests/test_team_filter_reports.php` verifies that a manager filter includes only the selected manager's staff; 20/20 assertions pass.
   2. **Channel Integration**:
      - CSV Bulk Upload (`modules/database/upload_data.php`): Ingestion and client preview normalize numbers with `+91`, `91`, or `0`.
      - Single Customer Form (`modules/database/add_single_number.php`): Accepts input with `+91`, spaces, or trunk `0`, normalizes before checking DND, duplicates, and saving.

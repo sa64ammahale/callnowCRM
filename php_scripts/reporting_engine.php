@@ -67,7 +67,7 @@ function saveReportingTargets(mysqli $link, array $targets, string $role = 'Offi
 /**
  * Determine effective authorized scope for any actor
  */
-function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole, ?int $actorUserId = null): array {
+function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole, ?int $actorUserId = null, ?int $managerId = null): array {
     $normRole = getNormalizedRole($userRole);
     $actorId = $actorUserId ?: (defined('USER_ID') ? (int)USER_ID : ($userId ?: 0));
     $uTeam = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
@@ -89,6 +89,24 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
         }
         return array_values(array_unique($uids));
     };
+
+    if ($managerId && !$userId) {
+        $managerUserIds = [];
+        $stmt = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE manager_id = ? AND STATUS = 'Active' AND ROLE != 'Super Admin'");
+        if ($stmt) {
+            $stmt->bind_param('i', $managerId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) $managerUserIds[] = (int)$row['ID'];
+            $stmt->close();
+        }
+        return [
+            'mode' => 'manager_scope',
+            'user_ids' => !empty($managerUserIds) ? $managerUserIds : [-1],
+            'team_ids' => [],
+            'supervisor_ids' => [],
+        ];
+    }
 
     if ($normRole === 'Officer') {
         return [
@@ -193,8 +211,8 @@ function getEffectiveReportingScope(mysqli $link, ?int $userId, ?int $teamId, ?i
 /**
  * Get Client Contact metrics according to role and team scoping
  */
-function getClientContactMetrics(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
-    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+function getClientContactMetrics(mysqli $link, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole, ?int $managerId = null): array {
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole, null, $managerId);
     $superAdminIds = getSuperAdminUserIds($link);
     $where = [];
 
@@ -255,8 +273,8 @@ function getClientContactMetrics(mysqli $link, ?int $userId, ?int $teamId, ?int 
 /**
  * Get Calling Activity metrics (dials, durations, connect rates) in date range
  */
-function getCallingMetrics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
-    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+function getCallingMetrics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole, ?int $managerId = null): array {
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole, null, $managerId);
     $superAdminIds = getSuperAdminUserIds($link);
 
     $where = [
@@ -363,8 +381,8 @@ function getCallingMetrics(mysqli $link, string $from, string $to, ?int $userId,
 /**
  * Get Converted Leads & Loan Pipeline metrics in date range
  */
-function getLeadConversionMetrics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
-    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+function getLeadConversionMetrics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole, ?int $managerId = null): array {
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole, null, $managerId);
     $superAdminIds = getSuperAdminUserIds($link);
 
     $where = [
@@ -424,8 +442,8 @@ function getLeadConversionMetrics(mysqli $link, string $from, string $to, ?int $
 /**
  * Get Hourly Calling Analytics (09:00 to 18:00) with volume, connect ratios and talk time
  */
-function getHourlyCallingAnalytics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole): array {
-    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+function getHourlyCallingAnalytics(mysqli $link, string $from, string $to, ?int $userId, ?int $teamId, ?int $supervisorId, string $userRole, ?int $managerId = null): array {
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole, null, $managerId);
     $superAdminIds = getSuperAdminUserIds($link);
 
     $where = [
@@ -503,8 +521,8 @@ function getHourlyCallingAnalytics(mysqli $link, string $from, string $to, ?int 
 /**
  * Get Employee-wise calling performance, targets and conversion metrics
  */
-function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int $teamId, ?int $supervisorId, ?int $userId, string $userRole, array $targets): array {
-    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole);
+function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int $teamId, ?int $supervisorId, ?int $userId, string $userRole, array $targets, ?int $managerId = null): array {
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, $supervisorId, $userRole, null, $managerId);
     $superAdminIds = getSuperAdminUserIds($link);
 
     $where = [
@@ -629,7 +647,7 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
 /**
  * Get Supervisor-wise performance rollup
  */
-function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?int $teamId, array $targets, ?int $actorUserId = null, string $actorRole = 'Super Admin'): array {
+function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?int $teamId, array $targets, ?int $actorUserId = null, string $actorRole = 'Super Admin', ?int $managerId = null): array {
     $normRole = getNormalizedRole($actorRole);
     $superAdminIds = getSuperAdminUserIds($link);
 
@@ -670,6 +688,9 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
 
     if ($teamId) {
         $where[] = "t.ID = " . (int)$teamId;
+    }
+    if ($managerId) {
+        $where[] = "t.MANAGER_ID = " . (int)$managerId;
     }
 
     $whereSql = "WHERE " . implode(' AND ', $where);
@@ -759,7 +780,7 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
 /**
  * Get Admin-wise performance rollup across authorized organizational structure
  */
-function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $scopedAdminId, array $targets, string $actorRole = 'Super Admin'): array {
+function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $scopedAdminId, array $targets, string $actorRole = 'Super Admin', ?int $managerId = null): array {
     $normRole = getNormalizedRole($actorRole);
     $superAdminIds = getSuperAdminUserIds($link);
 
@@ -779,6 +800,9 @@ function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $s
         $whereAdmin[] = "u.ID = $actorAdminId";
     } elseif ($scopedAdminId && !in_array($scopedAdminId, $superAdminIds, true)) {
         $whereAdmin[] = "u.ID = " . (int)$scopedAdminId;
+    }
+    if ($managerId) {
+        $whereAdmin[] = "u.ID = " . (int)$managerId;
     }
 
     $whereSql = "WHERE " . implode(' AND ', $whereAdmin);
@@ -891,8 +915,8 @@ function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $s
 /**
  * Get follow-up list with customer and officer details, strictly scoped by role
  */
-function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userRole, string $filter = 'all', int $limit = 100): array {
-    $scope = getEffectiveReportingScope($link, $userId, $teamId, null, $userRole);
+function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userRole, string $filter = 'all', int $limit = 100, ?int $managerId = null): array {
+    $scope = getEffectiveReportingScope($link, $userId, $teamId, null, $userRole, null, $managerId);
     $superAdminIds = getSuperAdminUserIds($link);
 
     $where = [

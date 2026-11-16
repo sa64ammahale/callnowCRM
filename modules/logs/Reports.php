@@ -198,18 +198,32 @@ if ($supervisor_filter !== '' && is_numeric($supervisor_filter)) {
     }
 }
 
+$managerIdParam = null;
+if ($manager_filter !== '' && is_numeric($manager_filter)) {
+    $candM = (int)$manager_filter;
+    if ($isSuperAdmin) {
+        $allManagerIds = array_map('intval', array_column($allManagers, 'ID'));
+        if (in_array($candM, $allManagerIds, true)) $managerIdParam = $candM;
+    } elseif ($isAdmin) {
+        $adminManagers = getAdminAssignedManagerIds($link, (int)USER_ID);
+        if (in_array($candM, $adminManagers, true)) $managerIdParam = $candM;
+    } elseif ($isManager && $candM === (int)USER_ID) {
+        $managerIdParam = $candM;
+    }
+}
+
 // Fetch configured targets & performance thresholds
 $targets = getReportingTargets($link, 'Officer');
 
 // Fetch Metrics via Reporting Engine
-$contactMetrics   = getClientContactMetrics($link, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
-$callMetrics      = getCallingMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
-$leadMetrics      = getLeadConversionMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
-$hourlyAnalytics  = getHourlyCallingAnalytics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole);
-$empRows          = getEmployeePerformanceRows($link, $from, $to, $teamIdParam, $supIdParam, $selected_user_id, $userRole, $targets);
-$supRows          = ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor) ? getSupervisorPerformanceRows($link, $from, $to, $teamIdParam, $targets, (int)USER_ID, $userRole) : [];
-$adminRows        = ($isSuperAdmin || $isAdmin) ? getAdminPerformanceRows($link, $from, $to, $isAdmin ? (int)USER_ID : null, $targets, $userRole) : [];
-$followupList     = getFollowupList($link, $selected_user_id, $teamIdParam, $userRole, 'all', 100);
+$contactMetrics   = getClientContactMetrics($link, $selected_user_id, $teamIdParam, $supIdParam, $userRole, $managerIdParam);
+$callMetrics      = getCallingMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole, $managerIdParam);
+$leadMetrics      = getLeadConversionMetrics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole, $managerIdParam);
+$hourlyAnalytics  = getHourlyCallingAnalytics($link, $from, $to, $selected_user_id, $teamIdParam, $supIdParam, $userRole, $managerIdParam);
+$empRows          = getEmployeePerformanceRows($link, $from, $to, $teamIdParam, $supIdParam, $selected_user_id, $userRole, $targets, $managerIdParam);
+$supRows          = ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor) ? getSupervisorPerformanceRows($link, $from, $to, $teamIdParam, $targets, (int)USER_ID, $userRole, $managerIdParam) : [];
+$adminRows        = ($isSuperAdmin || $isAdmin) ? getAdminPerformanceRows($link, $from, $to, $isAdmin ? (int)USER_ID : null, $targets, $userRole, $managerIdParam) : [];
+$followupList     = getFollowupList($link, $selected_user_id, $teamIdParam, $userRole, 'all', 100, $managerIdParam);
 $alerts           = getPerformanceAlerts($link, $empRows, $targets, $selected_user_id, $userRole);
 $rankings         = calculateProductivityRankings($empRows, $targets);
 
@@ -226,6 +240,10 @@ if ($userRole === 'Officer') {
 } elseif ($selected_user_id) {
     $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER = ?";
     $cParams[] = $selected_user_id;
+    $cTypes .= 'i';
+} elseif ($managerIdParam) {
+    $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE manager_id = ?)";
+    $cParams[] = $managerIdParam;
     $cTypes .= 'i';
 } elseif ($teamIdParam) {
     $cWhere[] = "m.MAINDATABASE_CALL_DIALED_USER IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?))";
@@ -274,6 +292,10 @@ if ($userRole === 'Officer') {
 } elseif ($selected_user_id) {
     $lWhere[] = "l.assigned_to = ?";
     $lParams[] = $selected_user_id;
+    $lTypes .= 'i';
+} elseif ($managerIdParam) {
+    $lWhere[] = "l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE manager_id = ?)";
+    $lParams[] = $managerIdParam;
     $lTypes .= 'i';
 } elseif ($teamIdParam) {
     $lWhere[] = "(l.team_id = ? OR l.assigned_to IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?)))";
@@ -332,6 +354,10 @@ if ($userRole === 'Officer') {
     $dWhere[] = "cl.user_id = ?";
     $dParams[] = $selected_user_id;
     $dTypes .= 'i';
+} elseif ($managerIdParam) {
+    $dWhere[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE manager_id = ?)";
+    $dParams[] = $managerIdParam;
+    $dTypes .= 'i';
 } elseif ($teamIdParam) {
     $dWhere[] = "cl.user_id IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = ? OR ID IN (SELECT SUPERVISOR_ID FROM " . tn('TBL_TEAMS') . " WHERE ID = ?))";
     $dParams[] = $teamIdParam;
@@ -381,12 +407,13 @@ if ($selected_user_id) {
 // Helper for querystrings
 if (!function_exists('reportQs')) {
 function reportQs(array $extra = []): string {
-    global $range, $from, $to, $team_filter, $supervisor_filter, $loan_type_filter, $selected_user_id, $active_tab;
+    global $range, $from, $to, $team_filter, $manager_filter, $supervisor_filter, $loan_type_filter, $selected_user_id, $active_tab;
     $qs = [
         'range'      => $range,
         'from'       => $from,
         'to'         => $to,
         'team'       => $team_filter,
+        'manager'    => $manager_filter,
         'supervisor' => $supervisor_filter,
         'loan_type'  => $loan_type_filter,
         'tab'        => $active_tab,

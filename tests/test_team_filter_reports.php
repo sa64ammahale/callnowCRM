@@ -40,6 +40,10 @@ $mgrTeam1 = getEffectiveReportingScope($link, null, 9001, null, 'Manager', 9012)
 assertT(in_array(9015, $mgrTeam1['user_ids'], true), "Manager Alpha with Team 9001 includes Officer Alpha (9015)");
 assertT(!in_array(9016, $mgrTeam1['user_ids'], true), "Manager Alpha with Team 9001 EXCLUDES Officer Beta (9016)");
 
+$managerScope = getEffectiveReportingScope($link, null, null, null, 'Super Admin', 1, 9012);
+assertT(in_array(9015, $managerScope['user_ids'], true), "Manager filter includes Manager Alpha staff (9015)");
+assertT(!in_array(9016, $managerScope['user_ids'], true), "Manager filter excludes other manager staff (9016)");
+
 // --- 4. EMPLOYEE PERFORMANCE ROWS UNDER TEAM FILTER ---
 echo "\n--- 4. Employee Performance Rows Under Team Filter ---\n";
 $targets = getReportingTargets($link, 'Officer');
@@ -52,6 +56,11 @@ $empRowsTeam2 = getEmployeePerformanceRows($link, '2026-01-01', '2026-12-31', 90
 $empUserIds2 = array_map('intval', array_column($empRowsTeam2, 'user_id'));
 assertT(in_array(9016, $empUserIds2, true), "empRows for Team 9002 contains Officer Beta (9016)");
 assertT(!in_array(9015, $empUserIds2, true), "empRows for Team 9002 strictly excludes Officer Alpha (9015)");
+
+$empRowsManager = getEmployeePerformanceRows($link, '2026-01-01', '2026-12-31', null, null, null, 'Super Admin', $targets, 9012);
+$empManagerUserIds = array_map('intval', array_column($empRowsManager, 'user_id'));
+assertT(in_array(9015, $empManagerUserIds, true), "manager-filtered employee rows contain Manager Alpha staff (9015)");
+assertT(!in_array(9016, $empManagerUserIds, true), "manager-filtered employee rows exclude other manager staff (9016)");
 
 // --- 5. SUPERVISOR PERFORMANCE ROWS UNDER TEAM FILTER ---
 echo "\n--- 5. Supervisor Performance Rows Under Team Filter ---\n";
