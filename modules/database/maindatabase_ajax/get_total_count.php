@@ -1,16 +1,11 @@
 <?php
 header('Content-Type: application/json');
 
+require_once __DIR__ . '/../../../php_scripts/auth.php';
+
+requirePermission('manage_database');
+
 try {
-    require_once __DIR__ . '/../../../php_scripts/auth.php';
-    
-    if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-        echo json_encode(['error' => 'Not logged in', 'count' => 0]);
-        exit;
-    }
-    
-    requirePermission('manage_database');
-    
     if (!isset($link) || !$link) {
         echo json_encode(['error' => 'No database connection', 'count' => 0]);
         exit;

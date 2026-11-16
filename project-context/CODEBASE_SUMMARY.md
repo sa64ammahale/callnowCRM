@@ -47,7 +47,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `settings.php` | Settings page (gated by `manage_settings`): General + Users tabs only | Roles/Permissions moved to `permissions_manager.php` |
 | `permissions_manager.php` | **Access Control** hub (gated by `manage_settings`): 4 tabs — Features (permission keys CRUD), Roles (CRUD), Role Permissions (per-role matrix), User Access (role assignment + per-user override matrix) | Uses `permissions`, `roles`, `role_permissions`, `user_permissions` tables |
 | `setup_permissions.php` | Run once (CLI or Admin) to create `permissions`/`user_permissions` tables, seed 11 system keys + system-role defaults | Idempotent; guarded by `rbac_initialized` flag |
-| `super_admin_panel.php` | **Super Admin Panel** (gated by `manage_super_admin`): 5 tabs — Overview (usage dashboard), Plans (CRUD plans for payment integration), Limits (configure user/API/storage limits), Access Control (toggle features on/off), Limit Logs | Uses `super_admin_plans`, `super_admin_account`, `super_admin_limit_logs` tables. Enforces limits in `users_add.php`, `upload_data.php`, `api_settings.php`. |
+| `super_admin_panel.php` | **Super Admin Panel** (gated by `isSuperAdmin()`): 5 tabs — Overview (usage dashboard), Plans (CRUD plans for payment integration), Limits (configure user/API/storage limits), Access Control (toggle features on/off), Limit Logs | Uses `super_admin_plans`, `super_admin_account`, `super_admin_limit_logs` tables. Enforces limits in `users_add.php`, `upload_data.php`, `api_settings.php`. |
 
 ### modules/users/
 | File | Purpose | Notes |
@@ -535,7 +535,7 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - **Activity logging**: `logActivity($link, $type, $description)` from auth.php
 - **URLs**: use `url('path')` helper from header.php or `APP_BASE . 'path'`
 - **Charset**: utf8mb4 is set globally in config.php — no need to set per-page
-- **Super admin limits**: call `ensureSuperAdminSchema($link)` before any limit check; use `checkUserLimit()`, `checkApiTokenLimit()`, `checkStorageLimit()` before destructive actions; use `getLimitUsageSummary()` for dashboard stats; log violations via `logLimitViolation()`. Gate the panel with `requirePermission('manage_super_admin')`.
+- **Super admin limits**: call `ensureSuperAdminSchema($link)` before any limit check; use `checkUserLimit()`, `checkApiTokenLimit()`, `checkStorageLimit()` before destructive actions; use `getLimitUsageSummary()` for dashboard stats; log violations via `logLimitViolation()`. Gate the panel with `isSuperAdmin()`.
 - **Debug**: `display_errors` only on when `APP_DEBUG=1` env var set
 - **CSS architecture**: `header.php` includes Bootstrap CSS, Bootstrap Icons, and `app-theme.css` centrally. Module pages should NOT include their own `<link>` tags for these. Only add minimal page-specific `<style>` blocks when needed. Standalone pages (index.php, forgot-password.php, CallNowSignUp.php) keep their own `<head>` but should use theme classes.
 - **Page pattern**: Protected pages set `$pageTitle` then `include header.php` at top, `include footer.php` at bottom. No `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags in module pages.
