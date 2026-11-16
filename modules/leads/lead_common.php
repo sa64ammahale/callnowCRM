@@ -779,3 +779,110 @@ function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStag
         ' . $drawerHtml . '
     </article>';
 }
+
+/**
+ * Resolves standard date-wise filtering for Leads section (Pipeline, Register, Dashboard).
+ * Defaults to 'this_month' using COALESCE(updated_at, created_at) per business requirements.
+ */
+function getLeadDateFilterConfig(?string $range = null, ?string $from = null, ?string $to = null, string $tableAlias = 'l'): array
+{
+    $range = $range ?: ($_GET['range'] ?? 'this_month');
+    $from = $from !== null ? trim($from) : trim((string)($_GET['from'] ?? ''));
+    $to = $to !== null ? trim($to) : trim((string)($_GET['to'] ?? ''));
+
+    $validRanges = ['this_month', 'today', 'yesterday', 'last7', 'last30', 'last_month', 'all', 'custom'];
+    if (!in_array($range, $validRanges, true)) {
+        $range = 'this_month';
+    }
+
+    $col = "COALESCE({$tableAlias}.updated_at, {$tableAlias}.created_at)";
+    $sql = "1=1";
+    $label = "This Month";
+    $startDate = null;
+    $endDate = null;
+
+    switch ($range) {
+        case 'today':
+            $startDate = date('Y-m-d 00:00:00');
+            $endDate = date('Y-m-d 23:59:59');
+            $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+            $label = "Today";
+            break;
+
+        case 'yesterday':
+            $startDate = date('Y-m-d 00:00:00', strtotime('-1 day'));
+            $endDate = date('Y-m-d 23:59:59', strtotime('-1 day'));
+            $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+            $label = "Yesterday";
+            break;
+
+        case 'last7':
+            $startDate = date('Y-m-d 00:00:00', strtotime('-6 days'));
+            $endDate = date('Y-m-d 23:59:59');
+            $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+            $label = "Last 7 Days";
+            break;
+
+        case 'last30':
+            $startDate = date('Y-m-d 00:00:00', strtotime('-29 days'));
+            $endDate = date('Y-m-d 23:59:59');
+            $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+            $label = "Last 30 Days";
+            break;
+
+        case 'last_month':
+            $startDate = date('Y-m-01 00:00:00', strtotime('first day of last month'));
+            $endDate = date('Y-m-t 23:59:59', strtotime('last day of last month'));
+            $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+            $label = date('F Y', strtotime('first day of last month'));
+            break;
+
+        case 'all':
+            $sql = "1=1";
+            $label = "All Time";
+            break;
+
+        case 'custom':
+            if ($from && $to) {
+                $startDate = date('Y-m-d 00:00:00', strtotime($from));
+                $endDate = date('Y-m-d 23:59:59', strtotime($to));
+                $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+                $label = date('d M Y', strtotime($from)) . ' - ' . date('d M Y', strtotime($to));
+            } elseif ($from) {
+                $startDate = date('Y-m-d 00:00:00', strtotime($from));
+                $sql = "{$col} >= '{$startDate}'";
+                $label = 'From ' . date('d M Y', strtotime($from));
+            } elseif ($to) {
+                $endDate = date('Y-m-d 23:59:59', strtotime($to));
+                $sql = "{$col} <= '{$endDate}'";
+                $label = 'Until ' . date('d M Y', strtotime($to));
+            } else {
+                $range = 'this_month';
+                $startDate = date('Y-m-01 00:00:00');
+                $endDate = date('Y-m-t 23:59:59');
+                $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+                $label = "This Month (" . date('M Y') . ")";
+            }
+            break;
+
+        case 'this_month':
+        default:
+            $range = 'this_month';
+            $startDate = date('Y-m-01 00:00:00');
+            $endDate = date('Y-m-t 23:59:59');
+            $sql = "{$col} >= '{$startDate}' AND {$col} <= '{$endDate}'";
+            $label = "This Month (" . date('M Y') . ")";
+            break;
+    }
+
+    return [
+        'range' => $range,
+        'from' => $from,
+        'to' => $to,
+        'startDate' => $startDate,
+        'endDate' => $endDate,
+        'sql' => $sql,
+        'label' => $label,
+        'column' => $col,
+    ];
+}

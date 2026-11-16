@@ -33,15 +33,30 @@ $emptyIcons = [
     'REJECT' => 'bi-clipboard-x',
 ];
 
-$where = '';
+$leadDateFilter = getLeadDateFilterConfig();
+$whereClauses = [];
 $accessibleUserIds = getAccessibleUserIds($link);
 if (!isSuperAdmin()) {
     if (!empty($accessibleUserIds)) {
-        $where = 'WHERE l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+        $whereClauses[] = 'l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     } else {
-        $where = 'WHERE l.assigned_to = ' . (int)USER_ID;
+        $whereClauses[] = 'l.assigned_to = ' . (int)USER_ID;
     }
 }
+if (!empty($leadDateFilter['sql']) && $leadDateFilter['sql'] !== '1=1') {
+    $whereClauses[] = $leadDateFilter['sql'];
+}
+$where = !empty($whereClauses) ? ('WHERE ' . implode(' AND ', $whereClauses)) : '';
+
+$viewParams = array_filter([
+    'range' => $leadDateFilter['range'] !== 'this_month' ? $leadDateFilter['range'] : null,
+    'from' => $leadDateFilter['from'] ?: null,
+    'to' => $leadDateFilter['to'] ?: null,
+]);
+$viewQs = !empty($viewParams) ? ('?' . http_build_query($viewParams)) : '';
+$listUrl = url('modules/leads/lead_list.php') . $viewQs;
+$dashUrl = url('modules/leads/leads_dashboard.php') . $viewQs;
+$pipelineUrl = url('modules/leads/lead_pipeline.php') . $viewQs;
 
 $salespeople = getLeadAssignableUsers($link);
 
@@ -128,11 +143,11 @@ foreach ($pipelineOrder as $st) {
         </div>
     </div>
     <div class="pl-header-actions">
-        <a href="<?= url('modules/leads/leads_dashboard.php') ?>" class="pl-btn-secondary">
+        <a href="<?= htmlspecialchars($dashUrl) ?>" class="pl-btn-secondary">
             <i class="bi bi-bar-chart"></i>
             <span>Analytics</span>
         </a>
-        <a href="<?= url('modules/leads/lead_list.php') ?>" class="pl-btn-secondary">
+        <a href="<?= htmlspecialchars($listUrl) ?>" class="pl-btn-secondary">
             <i class="bi bi-table"></i>
             <span>Register</span>
         </a>
@@ -142,6 +157,42 @@ foreach ($pipelineOrder as $st) {
             <span>Add Lead</span>
         </a>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- Date-wise Filter Toolbar (Defaults to Current Month) -->
+<div class="pl-date-toolbar mb-3 p-2 bg-white rounded-3 shadow-sm border d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <form method="GET" class="d-flex align-items-center flex-wrap gap-2 m-0" id="plDateFilterForm">
+        <div class="d-flex align-items-center gap-1 text-secondary small fw-bold">
+            <i class="bi bi-calendar3 text-primary"></i>
+            <span>Time Window:</span>
+        </div>
+        <select name="range" id="plDateRangeSelect" class="form-select form-select-sm" style="width: auto; min-width: 170px;">
+            <option value="this_month" <?= $leadDateFilter['range'] === 'this_month' ? 'selected' : '' ?>>This Month (<?= date('M Y') ?>)</option>
+            <option value="today" <?= $leadDateFilter['range'] === 'today' ? 'selected' : '' ?>>Today</option>
+            <option value="yesterday" <?= $leadDateFilter['range'] === 'yesterday' ? 'selected' : '' ?>>Yesterday</option>
+            <option value="last7" <?= $leadDateFilter['range'] === 'last7' ? 'selected' : '' ?>>Last 7 Days</option>
+            <option value="last30" <?= $leadDateFilter['range'] === 'last30' ? 'selected' : '' ?>>Last 30 Days</option>
+            <option value="last_month" <?= $leadDateFilter['range'] === 'last_month' ? 'selected' : '' ?>>Last Month (<?= date('M Y', strtotime('first day of last month')) ?>)</option>
+            <option value="all" <?= $leadDateFilter['range'] === 'all' ? 'selected' : '' ?>>All Time</option>
+            <option value="custom" <?= $leadDateFilter['range'] === 'custom' ? 'selected' : '' ?>>Custom Range...</option>
+        </select>
+        <div id="plCustomDateWrap" class="<?= $leadDateFilter['range'] === 'custom' ? 'd-flex' : 'd-none' ?> align-items-center gap-1">
+            <input type="date" name="from" id="plDateFrom" class="form-control form-control-sm" value="<?= htmlspecialchars($leadDateFilter['from']) ?>" placeholder="From">
+            <span class="text-muted small">to</span>
+            <input type="date" name="to" id="plDateTo" class="form-control form-control-sm" value="<?= htmlspecialchars($leadDateFilter['to']) ?>" placeholder="To">
+            <button type="submit" class="btn btn-primary btn-sm px-2"><i class="bi bi-funnel-fill me-1"></i>Apply</button>
+        </div>
+        <?php if ($leadDateFilter['range'] !== 'this_month'): ?>
+            <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="btn btn-outline-secondary btn-sm" title="Reset to This Month">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to This Month
+            </a>
+        <?php endif; ?>
+    </form>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-purple-subtle text-primary border px-2 py-1 fs-xs">
+            <i class="bi bi-clock-history me-1"></i>Activity Window: <strong><?= htmlspecialchars($dateFilter['label'] ?? $leadDateFilter['label']) ?></strong>
+        </span>
     </div>
 </div>
 
@@ -203,8 +254,8 @@ foreach ($pipelineOrder as $st) {
                 <span>View</span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="plViewSelectorBtn">
-                <li><a class="dropdown-item active" href="<?= url('modules/leads/lead_pipeline.php') ?>"><i class="bi bi-kanban me-2 text-primary"></i>Kanban Board</a></li>
-                <li><a class="dropdown-item" href="<?= url('modules/leads/lead_list.php') ?>"><i class="bi bi-table me-2 text-muted"></i>List View</a></li>
+                <li><a class="dropdown-item active" href="<?= htmlspecialchars($pipelineUrl) ?>"><i class="bi bi-kanban me-2 text-primary"></i>Kanban Board</a></li>
+                <li><a class="dropdown-item" href="<?= htmlspecialchars($listUrl) ?>"><i class="bi bi-table me-2 text-muted"></i>List View</a></li>
             </ul>
         </div>
     </div>
@@ -432,10 +483,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 origEmpty.style.display = '';
             }
 
+            var activeRange = '<?= htmlspecialchars($leadDateFilter['range'], ENT_QUOTES, 'UTF-8') ?>';
+            var activeFrom = '<?= htmlspecialchars($leadDateFilter['from'], ENT_QUOTES, 'UTF-8') ?>';
+            var activeTo = '<?= htmlspecialchars($leadDateFilter['to'], ENT_QUOTES, 'UTF-8') ?>';
+
             var formData = new FormData();
             formData.append('action', 'move_stage');
             formData.append('lead_id', cardLeadId);
             formData.append('new_stage', targetStage);
+            formData.append('range', activeRange);
+            formData.append('from', activeFrom);
+            formData.append('to', activeTo);
             formData.append('csrf_token', csrfToken);
 
             fetch(ajaxUrl, {
@@ -502,12 +560,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 btnEl.disabled = true;
                 btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading...';
 
+                var activeRange = '<?= htmlspecialchars($leadDateFilter['range'], ENT_QUOTES, 'UTF-8') ?>';
+                var activeFrom = '<?= htmlspecialchars($leadDateFilter['from'], ENT_QUOTES, 'UTF-8') ?>';
+                var activeTo = '<?= htmlspecialchars($leadDateFilter['to'], ENT_QUOTES, 'UTF-8') ?>';
+
                 var formData = new FormData();
                 formData.append('action', 'load_more');
                 formData.append('stage', stage);
                 formData.append('offset', offset);
                 formData.append('limit', limit);
                 formData.append('search', search);
+                formData.append('range', activeRange);
+                formData.append('from', activeFrom);
+                formData.append('to', activeTo);
                 formData.append('csrf_token', csrfToken);
 
                 fetch(ajaxUrl, {
@@ -564,6 +629,25 @@ document.addEventListener('DOMContentLoaded', function() {
     if (filterToggleBtn && filterDrawer) {
         filterToggleBtn.addEventListener('click', function() {
             filterDrawer.classList.toggle('is-open');
+        });
+    }
+
+    var dateRangeSelect = document.getElementById('plDateRangeSelect');
+    var customDateWrap = document.getElementById('plCustomDateWrap');
+    if (dateRangeSelect) {
+        dateRangeSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                if (customDateWrap) {
+                    customDateWrap.classList.remove('d-none');
+                    customDateWrap.classList.add('d-flex');
+                }
+            } else {
+                if (customDateWrap) {
+                    customDateWrap.classList.add('d-none');
+                    customDateWrap.classList.remove('d-flex');
+                }
+                this.form.submit();
+            }
         });
     }
 

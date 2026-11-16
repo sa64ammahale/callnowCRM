@@ -54,17 +54,27 @@ if ($action === 'move_stage') {
         logActivity($link, USER_ID, 'UPDATE', "Moved lead #{$leadId} from {$prevStage} to {$newStage} via Pipeline Board", (string)$leadId, tn('TBL_LEADS'));
     }
 
-    // Return updated stage counts
-    $scopeWhere = '';
+    // Return updated stage counts with active date filter applied
+    $scopeWhereClauses = [];
     $accessibleUserIds = getAccessibleUserIds($link);
     if (!isAdmin() && !isSuperAdmin()) {
         if (!empty($accessibleUserIds)) {
-            $scopeWhere = 'WHERE assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
+            $scopeWhereClauses[] = 'assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
         } else {
-            $scopeWhere = 'WHERE assigned_to = ' . (int)USER_ID;
+            $scopeWhereClauses[] = 'assigned_to = ' . (int)USER_ID;
         }
     }
-    $cntRes = mysqli_query($link, "SELECT lead_status_new, COUNT(*) as cnt FROM " . tn('TBL_LEADS') . " {$scopeWhere} GROUP BY lead_status_new");
+
+    $range = trim((string)($_POST['range'] ?? $_GET['range'] ?? 'this_month'));
+    $from = trim((string)($_POST['from'] ?? $_GET['from'] ?? ''));
+    $to = trim((string)($_POST['to'] ?? $_GET['to'] ?? ''));
+    $dateCfg = getLeadDateFilterConfig($range, $from, $to, 'l');
+    if (!empty($dateCfg['sql']) && $dateCfg['sql'] !== '1=1') {
+        $scopeWhereClauses[] = $dateCfg['sql'];
+    }
+
+    $scopeWhere = !empty($scopeWhereClauses) ? ('WHERE ' . implode(' AND ', $scopeWhereClauses)) : '';
+    $cntRes = mysqli_query($link, "SELECT lead_status_new, COUNT(*) as cnt FROM " . tn('TBL_LEADS') . " l {$scopeWhere} GROUP BY lead_status_new");
     $stageCounts = [];
     $totalActive = 0;
     $totalAll = 0;
@@ -113,6 +123,14 @@ if ($action === 'load_more') {
         } else {
             $whereClauses[] = "l.assigned_to = " . (int)USER_ID;
         }
+    }
+
+    $range = trim((string)($_POST['range'] ?? $_GET['range'] ?? 'this_month'));
+    $from = trim((string)($_POST['from'] ?? $_GET['from'] ?? ''));
+    $to = trim((string)($_POST['to'] ?? $_GET['to'] ?? ''));
+    $dateCfg = getLeadDateFilterConfig($range, $from, $to, 'l');
+    if (!empty($dateCfg['sql']) && $dateCfg['sql'] !== '1=1') {
+        $whereClauses[] = $dateCfg['sql'];
     }
 
     if ($search !== '') {

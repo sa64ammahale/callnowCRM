@@ -7,16 +7,31 @@ requirePermission('manage_leads');
 ensureLeadModuleSchema($link);
 mysqli_set_charset($link, 'utf8mb4');
 
-$where = '';
+$leadDateFilter = getLeadDateFilterConfig();
+$whereClauses = [];
 $accessibleUserIds = getAccessibleUserIds($link);
 if (!isSuperAdmin()) {
     if (!empty($accessibleUserIds)) {
         $inIds = implode(',', array_map('intval', $accessibleUserIds));
-        $where = "WHERE l.assigned_to IN ($inIds)";
+        $whereClauses[] = "l.assigned_to IN ($inIds)";
     } else {
-        $where = "WHERE l.assigned_to = " . (int)USER_ID;
+        $whereClauses[] = "l.assigned_to = " . (int)USER_ID;
     }
 }
+if (!empty($leadDateFilter['sql']) && $leadDateFilter['sql'] !== '1=1') {
+    $whereClauses[] = $leadDateFilter['sql'];
+}
+$where = !empty($whereClauses) ? ("WHERE " . implode(' AND ', $whereClauses)) : "";
+
+$viewParams = array_filter([
+    'range' => $leadDateFilter['range'] !== 'this_month' ? $leadDateFilter['range'] : null,
+    'from' => $leadDateFilter['from'] ?: null,
+    'to' => $leadDateFilter['to'] ?: null,
+]);
+$viewQs = !empty($viewParams) ? ('?' . http_build_query($viewParams)) : '';
+$listUrl = url('modules/leads/lead_list.php') . $viewQs;
+$pipelineUrl = url('modules/leads/lead_pipeline.php') . $viewQs;
+$dashUrl = url('modules/leads/leads_dashboard.php') . $viewQs;
 
 $statusMeta = leadStatusMeta();
 $statusCounts = array_fill_keys(array_keys($statusMeta), 0);
@@ -99,10 +114,10 @@ $userName = $_SESSION['name'] ?? 'User';
         <p class="crm-module-header-desc">Pipeline velocity, conversion funnel, bank login performance and daily follow-up tracking</p>
     </div>
     <div class="crm-module-header-actions">
-        <a href="<?= url('modules/leads/lead_pipeline.php') ?>" class="btn btn-secondary btn-sm">
+        <a href="<?= htmlspecialchars($pipelineUrl) ?>" class="btn btn-secondary btn-sm">
             <i class="bi bi-kanban me-1"></i> Pipeline Board
         </a>
-        <a href="<?= url('modules/leads/lead_list.php') ?>" class="btn btn-secondary btn-sm">
+        <a href="<?= htmlspecialchars($listUrl) ?>" class="btn btn-secondary btn-sm">
             <i class="bi bi-person-lines-fill me-1"></i> View Leads Register
         </a>
         <?php if (can('manage_leads')): ?>
@@ -110,6 +125,44 @@ $userName = $_SESSION['name'] ?? 'User';
             <i class="bi bi-plus-lg me-1"></i> Add Lead
         </a>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- Date-wise Filter Toolbar (Defaults to Current Month) -->
+<div class="card mb-3 shadow-sm border-0">
+    <div class="card-body p-2 bg-white rounded-3 d-flex flex-wrap align-items-center justify-content-between gap-2 border">
+        <form method="GET" class="d-flex align-items-center flex-wrap gap-2 m-0" id="ldDateFilterForm">
+            <div class="d-flex align-items-center gap-1 text-secondary small fw-bold">
+                <i class="bi bi-calendar3 text-primary"></i>
+                <span>Time Window:</span>
+            </div>
+            <select name="range" id="ldDateRangeSelect" class="form-select form-select-sm" style="width: auto; min-width: 170px;">
+                <option value="this_month" <?= $leadDateFilter['range'] === 'this_month' ? 'selected' : '' ?>>This Month (<?= date('M Y') ?>)</option>
+                <option value="today" <?= $leadDateFilter['range'] === 'today' ? 'selected' : '' ?>>Today</option>
+                <option value="yesterday" <?= $leadDateFilter['range'] === 'yesterday' ? 'selected' : '' ?>>Yesterday</option>
+                <option value="last7" <?= $leadDateFilter['range'] === 'last7' ? 'selected' : '' ?>>Last 7 Days</option>
+                <option value="last30" <?= $leadDateFilter['range'] === 'last30' ? 'selected' : '' ?>>Last 30 Days</option>
+                <option value="last_month" <?= $leadDateFilter['range'] === 'last_month' ? 'selected' : '' ?>>Last Month (<?= date('M Y', strtotime('first day of last month')) ?>)</option>
+                <option value="all" <?= $leadDateFilter['range'] === 'all' ? 'selected' : '' ?>>All Time</option>
+                <option value="custom" <?= $leadDateFilter['range'] === 'custom' ? 'selected' : '' ?>>Custom Range...</option>
+            </select>
+            <div id="ldCustomDateWrap" class="<?= $leadDateFilter['range'] === 'custom' ? 'd-flex' : 'd-none' ?> align-items-center gap-1">
+                <input type="date" name="from" id="ldDateFrom" class="form-control form-control-sm" value="<?= htmlspecialchars($leadDateFilter['from']) ?>" placeholder="From">
+                <span class="text-muted small">to</span>
+                <input type="date" name="to" id="ldDateTo" class="form-control form-control-sm" value="<?= htmlspecialchars($leadDateFilter['to']) ?>" placeholder="To">
+                <button type="submit" class="btn btn-primary btn-sm px-2"><i class="bi bi-funnel-fill me-1"></i>Apply</button>
+            </div>
+            <?php if ($leadDateFilter['range'] !== 'this_month'): ?>
+                <a href="<?= url('modules/leads/leads_dashboard.php') ?>" class="btn btn-outline-secondary btn-sm" title="Reset to This Month">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to This Month
+                </a>
+            <?php endif; ?>
+        </form>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-purple-subtle text-primary border px-2 py-1 fs-xs">
+                <i class="bi bi-clock-history me-1"></i>Activity Window: <strong><?= htmlspecialchars($leadDateFilter['label']) ?></strong>
+            </span>
+        </div>
     </div>
 </div>
 
@@ -383,7 +436,28 @@ async function loadDashboardLists() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', loadDashboardLists);
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardLists();
+
+    var dateRangeSelect = document.getElementById('ldDateRangeSelect');
+    var customDateWrap = document.getElementById('ldCustomDateWrap');
+    if (dateRangeSelect) {
+        dateRangeSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                if (customDateWrap) {
+                    customDateWrap.classList.remove('d-none');
+                    customDateWrap.classList.add('d-flex');
+                }
+            } else {
+                if (customDateWrap) {
+                    customDateWrap.classList.add('d-none');
+                    customDateWrap.classList.remove('d-flex');
+                }
+                this.form.submit();
+            }
+        });
+    }
+});
 </script>
 
 <?php include __DIR__ . '/../../php_scripts/footer.php'; ?>

@@ -53,6 +53,14 @@ if ($accessCondition !== null) {
     $conditions[] = $accessCondition;
 }
 
+$range = trim((string)($_POST['range'] ?? $_GET['range'] ?? 'this_month'));
+$from = trim((string)($_POST['from'] ?? $_GET['from'] ?? ''));
+$to = trim((string)($_POST['to'] ?? $_GET['to'] ?? ''));
+$dateCfg = getLeadDateFilterConfig($range, $from, $to, 'l');
+if (!empty($dateCfg['sql']) && $dateCfg['sql'] !== '1=1') {
+    $conditions[] = $dateCfg['sql'];
+}
+
 $effectiveLoginMonthExpr = "COALESCE(DATE_FORMAT(l.login_date, '%Y-%m'), DATE_FORMAT(l.next_followup_at, '%Y-%m'), DATE_FORMAT(l.created_at, '%Y-%m'))";
 $followupMonthExpr = "DATE_FORMAT(l.next_followup_at, '%Y-%m')";
 
