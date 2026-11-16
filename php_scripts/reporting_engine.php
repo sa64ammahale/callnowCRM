@@ -609,7 +609,7 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
     $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
 
     foreach ($rows as &$r) {
-        $r['user_id'] = (int)$r['user_id'];
+        $r['user_id'] = (int)($r['user_id'] ?? $r['supervisor_id'] ?? 0);
         $r['team_id'] = $r['team_id'] !== null ? (int)$r['team_id'] : null;
         $r['supervisor_id'] = $r['supervisor_id'] !== null ? (int)$r['supervisor_id'] : null;
         $tot = (int)$r['total_dials'];
@@ -738,7 +738,7 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
     $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
 
     foreach ($rows as &$r) {
-        $r['user_id'] = (int)$r['user_id'];
+        $r['user_id'] = (int)($r['user_id'] ?? $r['supervisor_id'] ?? 0);
         $r['team_id'] = $r['team_id'] !== null ? (int)$r['team_id'] : null;
         $r['supervisor_id'] = $r['supervisor_id'] !== null ? (int)$r['supervisor_id'] : null;
         $tot = (int)$r['total_dials'];
