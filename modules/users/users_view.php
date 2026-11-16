@@ -137,7 +137,7 @@ if (isSuperAdmin()) {
 // All admins for admin filter dropdown
 $allAdmins = [];
 if (isSuperAdmin()) {
-    $admRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE IN ('Admin','Super Admin') AND STATUS = 'Active' ORDER BY NAME");
+    $admRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ROLE = 'Admin' AND STATUS = 'Active' ORDER BY NAME");
     if ($admRes) $allAdmins = mysqli_fetch_all($admRes, MYSQLI_ASSOC);
 } elseif (isAdmin()) {
     $admRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_USERS') . " WHERE ID = $userId AND STATUS = 'Active'");

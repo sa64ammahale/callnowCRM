@@ -301,7 +301,7 @@ if ($mgr_res) while ($m = mysqli_fetch_assoc($mgr_res)) $all_managers[] = $m;
 // All admins for admin dropdown
 $all_admins = [];
 if ($canViewAll) {
-    $admWhere = "WHERE ROLE IN ('Admin','Super Admin') AND STATUS = 'Active'";
+    $admWhere = "WHERE ROLE = 'Admin' AND STATUS = 'Active'";
 } elseif (isAdmin()) {
     $admWhere = "WHERE ID = $userId AND STATUS = 'Active'";
 } elseif (isManager() || isSupervisor()) {

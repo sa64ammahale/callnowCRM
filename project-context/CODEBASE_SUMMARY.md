@@ -758,6 +758,11 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - `modules/users/teams_dashboard.php` validates the Admin, Manager, and Supervisor selected for a team as one active hierarchy branch and rejects forged or cross-branch assignments.
 - Team edits and member reassignment now synchronize each affected eligible user’s `TEAM_ID`, `admin_id`, `manager_id`, and officer `supervisor_id` fields.
 - Team mutation operations are restricted to the actor’s authorized teams. `modules/users/users_add.php` rejects profile/status changes to same-level or higher-level users by subusers and rejects user-to-team assignments whose hierarchy does not match the selected team.
+
+## Completed Goal (2026-11-16): Single Super Admin Enforcement
+- Removed surplus Super Admin accounts from the active tenant, preserving only active user ID 1 (`admin@callnow.com`).
+- `modules/users/users_add.php` excludes the Super Admin role from creation options and rejects crafted attempts to create another such account.
+- Admin ownership selectors list only standard Admin accounts, preventing a Super Admin from being assigned as a branch owner.
   2. **Channel Integration**:
      - CSV Bulk Upload (`modules/database/upload_data.php`): Ingestion and client preview normalize numbers with `+91`, `91`, or `0`.
      - Single Customer Form (`modules/database/add_single_number.php`): Accepts input with `+91`, spaces, or trunk `0`, normalizes before checking DND, duplicates, and saving.

@@ -37,7 +37,7 @@ $allTeams = mysqli_fetch_all($teamsResult, MYSQLI_ASSOC);
 // Fetch dynamic roles from DB based on actor hierarchy
 $allRoles = [];
 if (isSuperAdmin()) {
-    $ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " ORDER BY is_system DESC, id");
+    $ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " WHERE role_name != 'Super Admin' ORDER BY is_system DESC, id");
 } elseif (isAdmin()) {
     $ar = mysqli_query($link, "SELECT role_name, description FROM " . tn('TBL_ROLES') . " WHERE role_name NOT IN ('Super Admin', 'Admin') ORDER BY is_system DESC, id");
 } elseif (isManager()) {
@@ -123,7 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             $allowedRoles = ['Supervisor', 'Officer'];
         }
 
-        if (!canActorAssignRole(USER_ROLE, $role) && !($isEdit && (int)$userID === (int)USER_ID)) {
+        if ($role === 'Super Admin') {
+            $Message = 'The system supports one Super Admin account only.';
+        } elseif (!canActorAssignRole(USER_ROLE, $role) && !($isEdit && (int)$userID === (int)USER_ID)) {
             $Message = 'You do not have permission to create or assign the role: ' . htmlspecialchars($role);
         }
 
