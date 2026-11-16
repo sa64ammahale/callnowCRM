@@ -18,25 +18,51 @@ $userId = (int)USER_ID;
 $userTeamId = defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null;
 
 $dashContactScope = getHierarchyContactFilterSQL($link, $userId, $userRole, 'm', $userTeamId);
-$dashUserScope = getHierarchyUserFilterSQL($link, $userId, $userRole, 'm', 'MAINDATABASE_CALL_DIALED_USER', $userTeamId);
+$dashUserScope    = getHierarchyUserFilterSQL($link, $userId, $userRole, 'm', 'MAINDATABASE_CALL_DIALED_USER', $userTeamId);
+$dashCallLogScope = getHierarchyUserFilterSQL($link, $userId, $userRole, 'cl', 'user_id', $userTeamId);
 
-$today_calls = $today_connected = $connect_rate = 0;
+$todayStart = date('Y-m-d 00:00:00');
+$todayEnd   = date('Y-m-d 23:59:59');
+
+$today_calls = $today_connected = $connect_rate = $active_callers_today = 0;
 try {
     $res = mysqli_query($link, "
-        SELECT COUNT(*) as total_calls, 
-               SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected 
-        FROM $tblMain m
-        WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() 
-          AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY
-          AND $dashContactScope
+        SELECT 
+            COUNT(cl.id) as total_calls, 
+            SUM(CASE WHEN cl.call_duration > 0 OR LOWER(cl.call_status) IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up') THEN 1 ELSE 0 END) as connected,
+            COUNT(DISTINCT cl.user_id) as active_callers
+        FROM $tblCallLogs cl
+        WHERE COALESCE(cl.call_time, cl.created_at) >= '$todayStart' 
+          AND COALESCE(cl.call_time, cl.created_at) <= '$todayEnd'
+          AND $dashCallLogScope
     ");
-    $row = $res ? mysqli_fetch_assoc($res) : ['total_calls' => 0, 'connected' => 0];
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    if ($row && (int)($row['total_calls'] ?? 0) > 0) {
+        $today_calls          = (int)$row['total_calls'];
+        $today_connected      = (int)($row['connected'] ?? 0);
+        $active_callers_today = (int)($row['active_callers'] ?? 0);
+        $connect_rate         = $today_calls > 0 ? round(($today_connected / $today_calls) * 100, 1) : 0;
+    } else {
+        $legacyRes = mysqli_query($link, "
+            SELECT COUNT(*) as total_calls, 
+                   SUM(CASE WHEN MAINDATABASE_CALL_DIALED_STATUS = 'Connected' THEN 1 ELSE 0 END) as connected,
+                   COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as active_callers
+            FROM $tblMain m
+            WHERE MAINDATABASE_CALL_DIAL_TIME >= '$todayStart' 
+              AND MAINDATABASE_CALL_DIAL_TIME <= '$todayEnd'
+              AND $dashContactScope
+        ");
+        $lRow = $legacyRes ? mysqli_fetch_assoc($legacyRes) : null;
+        if ($lRow) {
+            $today_calls          = (int)($lRow['total_calls'] ?? 0);
+            $today_connected      = (int)($lRow['connected'] ?? 0);
+            $active_callers_today = (int)($lRow['active_callers'] ?? 0);
+            $connect_rate         = $today_calls > 0 ? round(($today_connected / $today_calls) * 100, 1) : 0;
+        }
+    }
 } catch (\Throwable $e) { 
-    $row = ['total_calls' => 0, 'connected' => 0]; 
+    $today_calls = $today_connected = $connect_rate = $active_callers_today = 0; 
 }
-$today_calls     = (int)($row['total_calls'] ?? 0);
-$today_connected = (int)($row['connected'] ?? 0);
-$connect_rate    = $today_calls > 0 ? round(($today_connected / $today_calls) * 100, 1) : 0;
 
 $total_leads = 0;
 try {
@@ -51,22 +77,6 @@ try {
     $row2 = ['leads' => 0]; 
 }
 $total_leads = (int)($row2['leads'] ?? 0);
-
-$active_callers_today = 0;
-try {
-    $res3 = mysqli_query($link, "
-        SELECT COUNT(DISTINCT MAINDATABASE_CALL_DIALED_USER) as cnt 
-        FROM $tblMain m
-        WHERE MAINDATABASE_CALL_DIAL_TIME >= CURDATE() 
-          AND MAINDATABASE_CALL_DIAL_TIME < CURDATE() + INTERVAL 1 DAY 
-          AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL
-          AND $dashUserScope
-    ");
-    $row3 = $res3 ? mysqli_fetch_assoc($res3) : ['cnt' => 0];
-} catch (\Throwable $e) { 
-    $row3 = ['cnt' => 0]; 
-}
-$active_callers_today = (int)($row3['cnt'] ?? 0);
 
 $total_numbers = 0;
 try {
@@ -117,14 +127,15 @@ for ($i = 6; $i >= 0; $i--) {
         'connected' => 0,
     ];
 }
-$fromTrend = date('Y-m-d', strtotime('-6 days'));
+$fromTrend = date('Y-m-d 00:00:00', strtotime('-6 days'));
 try {
     $tRes = mysqli_query($link, "
-        SELECT DATE(COALESCE(call_time, created_at)) as call_date,
+        SELECT DATE(COALESCE(cl.call_time, cl.created_at)) as call_date,
                COUNT(*) as total_dials,
-               SUM(CASE WHEN call_duration > 0 OR LOWER(call_status) IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up') THEN 1 ELSE 0 END) as connected_calls
-        FROM $tblCallLogs
-        WHERE COALESCE(call_time, created_at) >= '$fromTrend'
+               SUM(CASE WHEN cl.call_duration > 0 OR LOWER(cl.call_status) IN ('connected', 'interested', 'lead', 'enquiry', 'callback / busy', 'follow-up') THEN 1 ELSE 0 END) as connected_calls
+        FROM $tblCallLogs cl
+        WHERE COALESCE(cl.call_time, cl.created_at) >= '$fromTrend'
+          AND $dashCallLogScope
         GROUP BY call_date
         ORDER BY call_date ASC
     ");
@@ -171,9 +182,11 @@ try {
 $hourlyCalls = array_fill(9, 10, 0); // 09:00 to 18:00
 try {
     $hRes = mysqli_query($link, "
-        SELECT HOUR(COALESCE(call_time, created_at)) as call_hour, COUNT(*) as cnt
-        FROM $tblCallLogs
-        WHERE DATE(COALESCE(call_time, created_at)) = CURDATE()
+        SELECT HOUR(COALESCE(cl.call_time, cl.created_at)) as call_hour, COUNT(*) as cnt
+        FROM $tblCallLogs cl
+        WHERE COALESCE(cl.call_time, cl.created_at) >= '$todayStart'
+          AND COALESCE(cl.call_time, cl.created_at) <= '$todayEnd'
+          AND $dashCallLogScope
         GROUP BY call_hour
     ");
     if ($hRes) {
