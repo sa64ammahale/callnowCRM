@@ -14,7 +14,7 @@ ensureReportingAndConversionSchema($GLOBALS['link']);
 function getReportingTargets(mysqli $link, string $role = 'Officer'): array {
     $defaults = [
         'role' => $role,
-        'daily_call_target' => 100,
+        'daily_call_target' => 250,
         'daily_connected_target' => 30,
         'daily_talk_time_minutes' => 120,
         'daily_lead_target' => 3,
@@ -552,6 +552,7 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
             u.ID AS user_id,
             u.NAME AS employee_name,
             u.ROLE AS user_role,
+            COALESCE(NULLIF(u.daily_calling_limit, 0), 250) AS daily_calling_limit,
             t.ID AS team_id,
             t.NAME AS team_name,
             s.ID AS supervisor_id,
@@ -625,7 +626,7 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
 
     $rows = $link->query($sql)->fetch_all(MYSQLI_ASSOC);
 
-    $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
+    $daysCount = max(1, (int)(new DateTime($from))->diff(new DateTime($to))->days + 1);
 
     foreach ($rows as &$r) {
         $r['user_id'] = (int)($r['user_id'] ?? $r['supervisor_id'] ?? 0);
@@ -634,8 +635,16 @@ function getEmployeePerformanceRows(mysqli $link, string $from, string $to, ?int
         $tot = (int)$r['total_dials'];
         $conn = (int)$r['connected'];
         $r['connect_rate'] = $tot > 0 ? round(($conn / $tot) * 100, 1) : 0.0;
-        $r['target'] = $dailyTarget;
-        $r['achievement_pct'] = $dailyTarget > 0 ? min(200, round(($tot / $dailyTarget) * 100, 1)) : 0.0;
+
+        $userLimit = (isset($r['daily_calling_limit']) && (int)$r['daily_calling_limit'] > 0)
+            ? (int)$r['daily_calling_limit']
+            : (int)($targets['daily_call_target'] ?? 250);
+        $periodTarget = $userLimit * $daysCount;
+        $r['daily_calling_limit'] = $userLimit;
+        $r['daily_target'] = $userLimit;
+        $r['target'] = $periodTarget;
+        $r['days_in_period'] = $daysCount;
+        $r['achievement_pct'] = $periodTarget > 0 ? round(($tot / $periodTarget) * 100, 1) : 0.0;
         $durSec = (int)$r['total_duration'];
         $r['talk_time_formatted'] = sprintf('%02dh %02dm', floor($durSec / 3600), floor(($durSec % 3600) / 60));
         $r['avg_call_duration_seconds'] = $conn > 0 ? round($durSec / $conn) : 0;
@@ -703,6 +712,7 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
             t.ID AS team_id,
             t.NAME AS team_name,
             COUNT(DISTINCT u.ID) AS total_officers,
+            COALESCE(SUM(COALESCE(NULLIF(u.daily_calling_limit, 0), 250)), 0) AS team_daily_calling_limit,
             COALESCE(SUM(c.assigned_contacts), 0) AS assigned_contacts,
             COALESCE(SUM(cl.total_dials), 0) AS total_dials,
             COALESCE(SUM(cl.unique_called), 0) AS unique_called,
@@ -757,7 +767,7 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
 
     $rows = $link->query($sql)->fetch_all(MYSQLI_ASSOC);
 
-    $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
+    $daysCount = max(1, (int)(new DateTime($from))->diff(new DateTime($to))->days + 1);
 
     foreach ($rows as &$r) {
         $r['user_id'] = (int)($r['user_id'] ?? $r['supervisor_id'] ?? 0);
@@ -767,9 +777,15 @@ function getSupervisorPerformanceRows(mysqli $link, string $from, string $to, ?i
         $conn = (int)$r['connected'];
         $officers = max(1, (int)$r['total_officers']);
         $r['connect_rate'] = $tot > 0 ? round(($conn / $tot) * 100, 1) : 0.0;
-        $teamTarget = $dailyTarget * $officers;
+        $teamDailyLimit = (int)($r['team_daily_calling_limit'] ?? 0);
+        if ($teamDailyLimit <= 0) {
+            $teamDailyLimit = $officers * (int)($targets['daily_call_target'] ?? 250);
+        }
+        $teamTarget = $teamDailyLimit * $daysCount;
+        $r['team_daily_calling_limit'] = $teamDailyLimit;
         $r['team_target'] = $teamTarget;
-        $r['achievement_pct'] = $teamTarget > 0 ? min(200, round(($tot / $teamTarget) * 100, 1)) : 0.0;
+        $r['days_in_period'] = $daysCount;
+        $r['achievement_pct'] = $teamTarget > 0 ? round(($tot / $teamTarget) * 100, 1) : 0.0;
         $foCreated = (int)$r['fo_created'];
         $r['fo_completion_rate'] = $foCreated > 0 ? round(((int)$r['fo_completed'] / $foCreated) * 100, 1) : 100.0;
     }
@@ -884,7 +900,21 @@ function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $s
         $durSec = (int)($cl['total_duration'] ?? 0);
         $leads = (int)($ld['converted_leads'] ?? 0);
         $officersCount = max(1, count($offIds));
-        $adminTarget = $dailyTarget * $officersCount;
+        $daysCount = max(1, (int)(new DateTime($from))->diff(new DateTime($to))->days + 1);
+
+        $adminDailyLimit = 0;
+        if (!empty($offIds)) {
+            $inOfficers = implode(',', array_map('intval', $offIds));
+            $limRes = $link->query("SELECT SUM(COALESCE(NULLIF(daily_calling_limit, 0), 250)) AS admin_limit FROM " . tn('TBL_USERS') . " WHERE ID IN ($inOfficers)");
+            if ($limRes) {
+                $limRow = $limRes->fetch_assoc();
+                $adminDailyLimit = (int)($limRow['admin_limit'] ?? 0);
+            }
+        }
+        if ($adminDailyLimit <= 0) {
+            $adminDailyLimit = $officersCount * (int)($targets['daily_call_target'] ?? 250);
+        }
+        $adminTarget = $adminDailyLimit * $daysCount;
 
         $rows[] = [
             'admin_id' => $aId,
@@ -906,7 +936,7 @@ function getAdminPerformanceRows(mysqli $link, string $from, string $to, ?int $s
             'conversion_rate' => $totDials > 0 ? round(($leads / $totDials) * 100, 2) : 0.0,
             'disbursed_loans' => (int)($ld['disbursed_loans'] ?? 0),
             'disbursed_amount' => (float)($ld['disbursed_amount'] ?? 0),
-            'achievement_pct' => $adminTarget > 0 ? min(200, round(($totDials / $adminTarget) * 100, 1)) : 0.0,
+            'achievement_pct' => $adminTarget > 0 ? round(($totDials / $adminTarget) * 100, 1) : 0.0,
         ];
     }
 
@@ -998,7 +1028,7 @@ function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userR
  */
 function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int $userId, string $userRole): array {
     $alerts = [];
-    $dailyTarget = (int)($targets['daily_call_target'] ?? 100);
+    $dailyTarget = (int)($targets['daily_call_target'] ?? 250);
     $minRate = (float)($targets['min_connect_rate_pct'] ?? 25.00);
     $maxOverdue = (int)($targets['max_overdue_followups'] ?? 5);
 
@@ -1008,6 +1038,7 @@ function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int
         $rate = $tot > 0 ? ($conn / $tot) * 100 : 0.0;
         $overdue = (int)$emp['fo_overdue'];
         $name = htmlspecialchars($emp['employee_name'] ?? 'Officer', ENT_QUOTES, 'UTF-8');
+        $userLimit = max(1, (int)($emp['target'] ?? $emp['daily_calling_limit'] ?? $dailyTarget));
 
         if ($tot > 0 && $rate < $minRate && $tot >= 15) {
             $alerts[] = [
@@ -1031,23 +1062,23 @@ function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int
             ];
         }
 
-        if ($tot > 0 && $tot < ($dailyTarget * 0.40) && (int)date('H') >= 15) {
+        if ($tot > 0 && $tot < ($userLimit * 0.40) && (int)date('H') >= 15) {
             $alerts[] = [
                 'severity' => 'warning',
                 'badge' => 'BEHIND TARGET',
                 'title' => 'Daily Calling Quota Lagging',
-                'message' => "$name has logged only $tot calls against the daily target of $dailyTarget.",
+                'message' => "$name has logged only $tot calls against the target quota of $userLimit.",
                 'user_id' => $emp['user_id'],
                 'officer' => $name,
             ];
         }
 
-        if ($tot >= $dailyTarget) {
+        if ($tot >= $userLimit) {
             $alerts[] = [
                 'severity' => 'success',
                 'badge' => 'TARGET ACHIEVED',
                 'title' => 'Daily Target Achieved',
-                'message' => "$name completed $tot calls reaching " . round(($tot / $dailyTarget) * 100) . "% of daily quota.",
+                'message' => "$name completed $tot calls reaching " . round(($tot / $userLimit) * 100) . "% of target quota.",
                 'user_id' => $emp['user_id'],
                 'officer' => $name,
             ];
@@ -1084,7 +1115,7 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
         $link = $GLOBALS['link'];
     }
 
-    $dailyTarget = max(1, (int)($targets['daily_call_target'] ?? 100));
+    $dailyTarget = max(1, (int)($targets['daily_call_target'] ?? 250));
     $dailyConn = max(1, (int)($targets['daily_connected_target'] ?? 30));
     $dailyTalk = max(1, (int)($targets['daily_talk_time_minutes'] ?? 120));
     $dailyLead = max(1, (int)($targets['daily_lead_target'] ?? 3));
@@ -1126,9 +1157,10 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
         $foComp = (int)$r['fo_completed'];
         $foRate = $foCreated > 0 ? ($foComp / $foCreated) : 1.0;
 
-        $sTarget = min(1.0, $dials / $dailyTarget) * 30.0;
+        $empTarget = max(1, (int)($r['target'] ?? $r['daily_calling_limit'] ?? $dailyTarget));
+        $sTarget = min(1.0, $dials / $empTarget) * 30.0;
         $sConn   = min(1.0, $conn / $dailyConn) * 20.0;
-        $sUniq   = min(1.0, $uniq / ($dailyTarget * 0.8)) * 15.0;
+        $sUniq   = min(1.0, $uniq / ($empTarget * 0.8)) * 15.0;
         $sInter  = min(1.0, $inter / $dailyLead) * 15.0;
         $sFo     = min(1.0, $foRate) * 10.0;
         $sTalk   = min(1.0, $talkMin / $dailyTalk) * 10.0;

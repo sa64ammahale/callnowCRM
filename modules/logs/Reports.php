@@ -1252,7 +1252,12 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             <td class="text-center fs-xs"><span class="badge badge-success"><?= number_format($emp['interested']) ?></span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($emp['converted_leads']) ?></span></td>
                                             <td class="fs-xs text-muted"><?= $emp['talk_time_formatted'] ?></td>
-                                            <td class="fs-xs text-muted"><?= $emp['target'] ?> dials</td>
+                                            <td class="fs-xs text-muted">
+                                                <?= number_format($emp['target']) ?> dials
+                                                <?php if (!empty($emp['days_in_period']) && $emp['days_in_period'] > 1): ?>
+                                                    <div class="fs-xxs text-muted">(<?= number_format($emp['daily_calling_limit'] ?? $emp['daily_target'] ?? 250) ?>/day &times; <?= $emp['days_in_period'] ?>d)</div>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>
                                                 <div class="d-flex align-items-center gap-2" style="min-width: 110px;">
                                                     <div class="progress flex-grow-1" style="height: 6px;">
@@ -1315,7 +1320,12 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             <td class="text-center fs-xs"><span class="badge badge-success"><?= $sup['connect_rate'] ?>%</span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-info"><?= number_format($sup['interested']) ?></span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($sup['converted_leads']) ?></span></td>
-                                            <td class="fs-xs text-muted"><?= number_format($sup['team_target']) ?> dials</td>
+                                            <td class="fs-xs text-muted">
+                                                <?= number_format($sup['team_target']) ?> dials
+                                                <?php if (!empty($sup['days_in_period']) && $sup['days_in_period'] > 1): ?>
+                                                    <div class="fs-xxs text-muted">(<?= number_format($sup['team_daily_calling_limit'] ?? 0) ?>/day &times; <?= $sup['days_in_period'] ?>d)</div>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>
                                                 <div class="d-flex align-items-center gap-2" style="min-width: 100px;">
                                                     <div class="progress flex-grow-1" style="height: 6px;">

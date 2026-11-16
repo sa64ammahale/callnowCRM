@@ -38,7 +38,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `team_auth.php` | Team-scoped helpers: `canViewAllTeams()`, `getTeamFilterSQL()`, `requireTeamAccess()` |
 | `phone_helper.php` | Centralized Indian phone normalization & formatting (`normalize_indian_phone()`, `format_indian_phone()`, `is_valid_indian_mobile()`) |
 | `reporting_schema.php` | Self-healing schema migrations for Call Reporting: `call_logs.lead_id`, `call_logs.client_contact_id`, `lead_followups.client_contact_id`, `contact_lead_conversions`, `reporting_targets` |
-| `reporting_engine.php` | Performance engine: Client Contact metrics, Calling analytics, Lead metrics, Hourly breakdown (9:30-18:30), Employee targets & achievements, Supervisor rollups, Follow-up hub, Alerts, Rankings |
+| `reporting_engine.php` | Performance engine: Client Contact metrics, Calling analytics, Lead metrics, Hourly breakdown (9:30-18:30), Dynamic user `daily_calling_limit` period targets & uncapped achievement percentages, Supervisor rollups, Admin rollups, Follow-up hub, Alerts, Rankings |
 | `hierarchy_engine.php` | 5-tier organizational hierarchy isolation engine (`Super Admin` -> `Admin` -> `Manager` -> `Supervisor` -> `Officer`), self-healing schema, scoping and rollup helpers |
 | `engagement_engine.php` | Telecaller Engagement & Motivation Engine: real-time XP (+5 attempt, +20 connect, +50 conversation, +100 target bonus), 5-tier Caller Mastery ranks (Bronze 🥉 to Diamond 👑), consecutive target streaks, daily rollups, and API telemetry |
 

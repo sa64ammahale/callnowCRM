@@ -1259,7 +1259,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             $whereParts[] = buildDateCondition($period, $dateFrom, $dateTo, 'COALESCE(l.created_at, l.updated_at)');
         }
 
-        $scope = strtolower(trim($_GET['scope'] ?? 'all'));
+        $scope = strtolower(trim($_GET['scope'] ?? 'mine'));
         $filterUserId = !empty($_GET['user_id']) ? (int)$_GET['user_id'] : null;
         $filterTeamId = !empty($_GET['team_id']) ? (int)$_GET['team_id'] : null;
 
