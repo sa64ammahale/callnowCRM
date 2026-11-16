@@ -164,13 +164,15 @@ CREATE TABLE IF NOT EXISTS `teams` (
   `NAME` varchar(100) NOT NULL,
   `SUPERVISOR_ID` int(11) DEFAULT NULL,
   `MANAGER_ID` int(11) DEFAULT NULL,
+  `admin_id` int(11) DEFAULT NULL,
   `DESCRIPTION` text DEFAULT NULL,
   `CREATED_AT` datetime DEFAULT current_timestamp(),
   `UPDATED_AT` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`ID`),
   UNIQUE KEY `NAME` (`NAME`),
   KEY `idx_supervisor` (`SUPERVISOR_ID`),
-  KEY `idx_manager` (`MANAGER_ID`)
+  KEY `idx_manager` (`MANAGER_ID`),
+  KEY `idx_team_admin` (`admin_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ============================================================

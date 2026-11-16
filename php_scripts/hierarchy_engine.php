@@ -43,6 +43,9 @@ function ensureHierarchySchema(mysqli $link): void {
         if (!isset($tCols['MANAGER_ID']) && !isset($tCols['manager_id'])) {
             @$link->query("ALTER TABLE " . tn('TBL_TEAMS') . " ADD COLUMN MANAGER_ID INT NULL DEFAULT NULL AFTER SUPERVISOR_ID, ADD INDEX idx_team_manager (MANAGER_ID)");
         }
+        if (!isset($tCols['admin_id'])) {
+            @$link->query("ALTER TABLE " . tn('TBL_TEAMS') . " ADD COLUMN admin_id INT NULL DEFAULT NULL AFTER MANAGER_ID, ADD INDEX idx_team_admin (admin_id)");
+        }
 
         // Self-healing: ensure permission key typos are healed and Manager & Supervisor have manage_users
         @$link->query("UPDATE " . tn('TBL_ROLE_PERMISSIONS') . " SET permission_key = 'manage_users' WHERE permission_key = 'manage_TBL_USERS'");
@@ -64,7 +67,8 @@ ensureHierarchySchema($GLOBALS['link']);
 function getNormalizedRole(string $role): string {
     $r = trim($role);
     if (strcasecmp($r, 'Super Admin') === 0 || strcasecmp($r, 'superadmin') === 0) return 'Super Admin';
-    if (strcasecmp($r, 'Admin') === 0 || strcasecmp($r, 'Manager') === 0) return 'Admin';
+    if (strcasecmp($r, 'Admin') === 0) return 'Admin';
+    if (strcasecmp($r, 'Manager') === 0) return 'Manager';
     if (strcasecmp($r, 'Supervisor') === 0) return 'Supervisor';
     return 'Officer';
 }
@@ -74,8 +78,9 @@ function getNormalizedRole(string $role): string {
  */
 function getRoleHierarchyLevel(string $role): int {
     return match (getNormalizedRole($role)) {
-        'Super Admin' => 4,
-        'Admin'       => 3,
+        'Super Admin' => 5,
+        'Admin'       => 4,
+        'Manager'     => 3,
         'Supervisor'  => 2,
         'Officer'     => 1,
         default       => 0,
@@ -115,11 +120,12 @@ function getAdminManagedTeamIds(mysqli $link, int $adminId): array {
     $teamIds = [];
     $stmt = $link->prepare("
         SELECT ID FROM " . tn('TBL_TEAMS') . " 
-        WHERE MANAGER_ID = ? 
+        WHERE admin_id = ? 
+           OR MANAGER_ID IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE admin_id = ?)
            OR SUPERVISOR_ID IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE admin_id = ?)
     ");
     if ($stmt) {
-        $stmt->bind_param('ii', $adminId, $adminId);
+        $stmt->bind_param('iii', $adminId, $adminId, $adminId);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($r = $res->fetch_assoc()) {
@@ -143,7 +149,7 @@ function getAdminAssignedSupervisorIds(mysqli $link, int $adminId): array {
         LEFT JOIN " . tn('TBL_TEAMS') . " t ON (t.SUPERVISOR_ID = u.ID)
         WHERE u.ROLE IN ('Supervisor', 'Manager')
           AND u.ROLE != 'Super Admin'
-          AND (t.MANAGER_ID = ? OR u.admin_id = ?)
+          AND (u.admin_id = ? OR t.admin_id = ?)
     ");
     if ($stmt) {
         $stmt->bind_param('ii', $adminId, $adminId);

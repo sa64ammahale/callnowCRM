@@ -61,7 +61,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/logs/
 | File | Purpose | Notes |
 |---|---|---|
-| `Reports.php` | Call performance reports (gated `view_reports`) | Modern reports hub: interactive Report Navigation Directory with themed micro-icon pills & live count badges; 3-tier multi-dimensional KPI cards relocated below charts inside Overview & Trends; presets, drilldowns, Doughnut breakdown, CSV export |
+| `Reports.php` | Call performance reports (gated `view_reports`) | Modern reports hub: interactive Report Navigation Directory with themed micro-icon pills & live count badges; 3-tier multi-dimensional KPI cards relocated below charts inside Overview & Trends; presets, drilldowns, Doughnut breakdown, CSV export; properly scopes `$isManager`, `$isAdmin`, `$isSupervisor`, `$isOfficer`. |
 | `call_history.php` | Real-time call logs audit trail (gated `view_reports`) | Log of all dialed calls from mobile app & web CRM; status badges, duration pills, audio playback, pagination. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `call_history_data.php`. |
 | `ViewDialList.php` | Legacy per-user dial list | **DELETED** — broken schema + SQLi on dates |
 | `manage_activity.php` | Activity log viewer/admin | CSRF-protected, sort whitelist. Table enhanced with server-side DataTables (copy/csv/excel/print + reuse existing `?export=csv`); JSON endpoint at `manage_activity_data.php`. |

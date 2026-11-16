@@ -9,6 +9,7 @@ requirePermission('view_reports');
 $userRole     = USER_ROLE;
 $isSuperAdmin = isUserSuperAdmin((int)USER_ID, $userRole);
 $isAdmin      = ($userRole === 'Admin' || $userRole === 'Manager') && !$isSuperAdmin;
+$isManager    = ($userRole === 'Manager') && !$isSuperAdmin;
 $isSupervisor = ($userRole === 'Supervisor') && !$isSuperAdmin && !$isAdmin;
 $isOfficer    = ($userRole === 'Officer') && !$isAdmin && !$isSuperAdmin && !$isSupervisor;
 
@@ -23,7 +24,7 @@ if ($isOfficer) {
 }
 
 // Super Admin Target Configuration Save Handler
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_targets'])) {
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['save_targets'])) {
     if (!$isSuperAdmin) {
         $_SESSION['error_message'] = "Unauthorized: Only Super Admin can configure targets.";
     } else {
