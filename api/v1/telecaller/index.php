@@ -307,7 +307,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         apiSuccess($res);
     } catch (Throwable $e) {
         error_log('claimLeadBatch error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
-        apiError(500, 'claimLeadBatch error: ' . $e->getMessage());
+        apiError(500, 'claimLeadBatch error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . basename($e->getFile()));
     }
 
 } elseif ($relativePath === '/calls/active' || $relativePath === '/calls/active/') {
