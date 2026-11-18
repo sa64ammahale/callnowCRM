@@ -500,8 +500,8 @@ function claimLeadBatch(
 
         $batchCols = ['batch_uuid', 'claim_request_id', 'company_code', 'telecaller_id', 'device_id', 'status', 'expires_at'];
         $batchPlaceholders = ['?', '?', '?', '?', '?', "'ACTIVE'", '?'];
-        $batchTypes = 'sssis';
-        $batchParams = [$batchUuid, $claimRequestId, $companyCode, $userId, $deviceId];
+        $batchTypes = 'sssiss';
+        $batchParams = [$batchUuid, $claimRequestId, $companyCode, $userId, $deviceId, $expiresAt];
 
         if (hasLeadEngineColumn($link, 'lead_batches', 'created_at')) {
             $batchCols[] = 'created_at';
@@ -539,10 +539,6 @@ function claimLeadBatch(
             $batchTypes .= 's';
             $batchParams[] = $requestHash;
         }
-
-        // Add expires_at param
-        $batchParams[] = $expiresAt;
-        $batchTypes .= 's';
 
         $batchSql = "INSERT INTO lead_batches (" . implode(', ', $batchCols) . ") VALUES (" . implode(', ', $batchPlaceholders) . ")";
         $insBatch = $link->prepare($batchSql);
