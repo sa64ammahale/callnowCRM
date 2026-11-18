@@ -484,6 +484,9 @@ function claimLeadBatch(
         $totalAllocated = count($allocatedLeads);
 
         $insBatch = $link->prepare("INSERT INTO lead_batches (batch_uuid, claim_request_id, company_code, telecaller_id, device_id, session_epoch, allocated_count, lease_duration_seconds, expires_at, status, request_params_json, request_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1200, ?, 'ACTIVE', ?, ?, NOW())");
+        if (!$insBatch) {
+            throw new Exception("Failed to prepare insert into lead_batches: " . $link->error);
+        }
         $insBatch->bind_param('sssisiisss', $batchUuid, $claimRequestId, $companyCode, $userId, $deviceId, $sessionEpoch, $totalAllocated, $expiresAt, $canonicalParams, $requestHash);
         $insBatch->execute();
         $batchId = (int)$insBatch->insert_id;
@@ -499,6 +502,9 @@ function claimLeadBatch(
             $followupId = isset($lead['followup_id']) ? (int)$lead['followup_id'] : null;
 
             $insRes = $link->prepare("INSERT INTO lead_reservations (batch_id, batch_uuid, reservation_token, company_code, telecaller_id, device_id, session_epoch, source, lead_id, phone_number_10, priority_tier, followup_id, state, reserved_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESERVED', NOW(), ?)");
+            if (!$insRes) {
+                throw new Exception("Failed to prepare insert into lead_reservations: " . $link->error);
+            }
             $insRes->bind_param('isssisisissis', $batchId, $batchUuid, $resToken, $companyCode, $userId, $deviceId, $sessionEpoch, $source, $leadId, $phone10, $tier, $followupId, $expiresAt);
             $insRes->execute();
             $insRes->close();
