@@ -283,14 +283,6 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 // -----------------------------------------------------------------------------
 // 2. LEAD DISTRIBUTION ENGINE ROUTES (Kotlin v1.2.0 & Next-Gen Calling Desk)
 // -----------------------------------------------------------------------------
-} elseif ($relativePath === '/debug-schema') {
-    $res = [
-        'lead_batches' => ($q = $link->query("SHOW COLUMNS FROM lead_batches")) ? $q->fetch_all(MYSQLI_ASSOC) : [],
-        'lead_reservations' => ($q = $link->query("SHOW COLUMNS FROM lead_reservations")) ? $q->fetch_all(MYSQLI_ASSOC) : [],
-        'temporary_database' => ($q = $link->query("SHOW COLUMNS FROM temporary_database")) ? $q->fetch_all(MYSQLI_ASSOC) : [],
-    ];
-    apiSuccess($res);
-
 } elseif ($relativePath === '/calling/claim' || $relativePath === '/calling/claim/' || $relativePath === '/call-buckets/claim' || $relativePath === '/call-buckets/claim/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
     if (defined('FEATURE_LEAD_ENGINE_ALLOCATION_ENABLED') && !FEATURE_LEAD_ENGINE_ALLOCATION_ENABLED) {

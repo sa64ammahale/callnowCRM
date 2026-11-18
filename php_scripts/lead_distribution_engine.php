@@ -498,10 +498,18 @@ function claimLeadBatch(
         $expiresAt = date('Y-m-d H:i:s', time() + 1200);
         $totalAllocated = count($allocatedLeads);
 
-        $batchCols = ['batch_uuid', 'claim_request_id', 'company_code', 'telecaller_id', 'device_id', 'status', 'expires_at', 'created_at'];
-        $batchPlaceholders = ['?', '?', '?', '?', '?', "'ACTIVE'", '?', 'NOW()'];
+        $batchCols = ['batch_uuid', 'claim_request_id', 'company_code', 'telecaller_id', 'device_id', 'status', 'expires_at'];
+        $batchPlaceholders = ['?', '?', '?', '?', '?', "'ACTIVE'", '?'];
         $batchTypes = 'sssis';
         $batchParams = [$batchUuid, $claimRequestId, $companyCode, $userId, $deviceId];
+
+        if (hasLeadEngineColumn($link, 'lead_batches', 'created_at')) {
+            $batchCols[] = 'created_at';
+            $batchPlaceholders[] = 'NOW()';
+        } elseif (hasLeadEngineColumn($link, 'lead_batches', 'allocated_at')) {
+            $batchCols[] = 'allocated_at';
+            $batchPlaceholders[] = 'NOW()';
+        }
 
         if (hasLeadEngineColumn($link, 'lead_batches', 'session_epoch')) {
             $batchCols[] = 'session_epoch';
