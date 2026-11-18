@@ -247,17 +247,15 @@ All 28 tables are created per tenant:
 | 26 | `password_reset_tokens` | SHA-256 hashed 30-minute password reset tokens |
 | 27 | `contact_lead_conversions` | Performance tracking for prospect-to-lead conversions |
 | 28 | `reporting_targets` | Role-based daily call, talk time, and lead targets |
+| 29 | `login_attempts` | Brute force login prevention and IP rate limiting |
+| 30 | `dnd_registry` | Permanent DND blacklist and synchronization |
+| 31 | `telecaller_engagement` | Real-time call XP, 5-tier mastery ranks, and target streaks |
+| 32 | `call_buckets` | Server-authoritative call bucket leases (UUID, telecaller, state, expires_at) |
+| 33 | `call_bucket_leads` | 15 associated lead records per bucket with completion tracking |
 
 ---
 
 ## Testing & Verification
-
-### Run CRM Backend Tests
-Verify multi-tenant isolation, database switching, sanitization, and provisioning:
-```powershell
-php tests/test_multi_tenant.php
-```
-*(Expected output: 26 Passed, 0 Failed)*.
 
 ### Batch PHP Syntax Linting
 Verify zero syntax errors across all PHP files:
@@ -398,6 +396,15 @@ flutter test test/user_profile_test.dart
 | `api_settings` | API configuration |
 | `api_database_assignments` | Token-to-database assignments |
 | `api_access_logs` | API request audit trail |
+| `call_buckets` | Server-authoritative call bucket leases (UUID, telecaller, state, expires_at) |
+| `call_bucket_leads` | 15 associated lead records per bucket with completion tracking |
+
+### Mobile App Server-Authoritative Call Bucket Leases
+Contact numbers are safely distributed via 15-minute transactional leases:
+- `POST /telecaller/call-buckets/claim`: Returns the telecaller's active unexpired bucket (resumption) or atomically assigns 15 new leads (`FOR UPDATE`).
+- `POST /telecaller/calls/{id}/complete`: Validates `bucket_id`, telecaller ownership, expiry, and lead membership (returns `403` or `409` on violation).
+- `POST /telecaller/call-buckets/{bucket_id}/close`: Closes early-finished bucket once all 15 calls have final outcomes.
+For detailed documentation on contact number sending and accepting, see [project-context/CALL_BUCKET_LEASES_INTEGRATION.md](file:///c:/xampp/htdocs/callnowCRM/project-context/CALL_BUCKET_LEASES_INTEGRATION.md).
 
 ### Logging Tables
 

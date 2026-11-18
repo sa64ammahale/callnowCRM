@@ -146,6 +146,8 @@ date_default_timezone_set('Asia/Kolkata');
         define('TBL_CONTACT_LEAD_CONVERSIONS', 'contact_lead_conversions');
         define('TBL_REPORTING_TARGETS',  'reporting_targets');
         define('TBL_TELECALLER_ENGAGEMENT', 'telecaller_engagement');
+        define('TBL_CALL_BUCKETS',       'call_buckets');
+        define('TBL_CALL_BUCKET_LEADS',   'call_bucket_leads');
     }
 
     // ── Self-heal guard (defense against a stale/deployed config or
@@ -181,6 +183,8 @@ date_default_timezone_set('Asia/Kolkata');
         'TBL_REPORTING_TARGETS' => 'reporting_targets',
         'TBL_DND_REGISTRY'     => 'dnd_registry',
         'TBL_TELECALLER_ENGAGEMENT' => 'telecaller_engagement',
+        'TBL_CALL_BUCKETS'      => 'call_buckets',
+        'TBL_CALL_BUCKET_LEADS'  => 'call_bucket_leads',
     ];
     foreach ($__cn_tbl as $__cn_k => $__cn_v) {
         $__cn_cur = defined($__cn_k) ? constant($__cn_k) : null;
@@ -274,10 +278,56 @@ date_default_timezone_set('Asia/Kolkata');
         }
     }
 
+    if (!function_exists('ensureBucketSchema')) {
+        function ensureBucketSchema(mysqli $link): void {
+            static $done = false;
+            if ($done) return;
+
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_CALL_BUCKETS') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                bucket_uuid VARCHAR(64) NOT NULL,
+                company_code VARCHAR(50) NOT NULL DEFAULT 'default',
+                telecaller_id INT NOT NULL,
+                state ENUM('active', 'closed', 'expired') NOT NULL DEFAULT 'active',
+                assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME NOT NULL,
+                closed_at DATETIME NULL DEFAULT NULL,
+                total_leads INT NOT NULL DEFAULT 15,
+                completed_calls INT NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_bucket_uuid (bucket_uuid),
+                KEY idx_telecaller_state (telecaller_id, state, expires_at),
+                KEY idx_expires (expires_at, state)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_CALL_BUCKET_LEADS') . " (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                bucket_id INT NOT NULL,
+                bucket_uuid VARCHAR(64) NOT NULL,
+                source ENUM('TEMP', 'MAIN') NOT NULL DEFAULT 'TEMP',
+                lead_id INT NOT NULL,
+                status ENUM('pending', 'completed') NOT NULL DEFAULT 'pending',
+                call_log_id INT NULL DEFAULT NULL,
+                completed_at DATETIME NULL DEFAULT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_bucket (bucket_id),
+                KEY idx_bucket_uuid (bucket_uuid),
+                KEY idx_bucket_lead (bucket_uuid, source, lead_id),
+                KEY idx_lead_source (source, lead_id, status),
+                KEY idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            $done = true;
+        }
+    }
+
     if (!function_exists('ensureApiSchema')) {
         function ensureApiSchema(mysqli $link): void {
             static $done = false;
             if ($done) return;
+
+            ensureBucketSchema($link);
 
             mysqli_query($link, "CREATE TABLE IF NOT EXISTS " . tn('TBL_API_SETTINGS') . " (
                 id INT AUTO_INCREMENT PRIMARY KEY,

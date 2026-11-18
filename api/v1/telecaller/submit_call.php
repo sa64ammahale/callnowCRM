@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 ensureApiSchema($GLOBALS['link']);
+ensureBucketSchema($GLOBALS['link']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     apiError(405, 'Method not allowed');
@@ -118,6 +119,69 @@ if (!in_array($rawSource, ['MAIN', 'TEMP', 'TEMPORARY'], true)) {
     apiError(400, 'Invalid source. Use MAIN or TEMP');
 }
 $source = ($rawSource === 'TEMPORARY' || $rawSource === 'TEMP') ? 'TEMP' : 'MAIN';
+
+// Validate bucket_id for server-authoritative lease protection
+if (empty($input['bucket_id'])) {
+    apiError(400, 'Missing required field: bucket_id');
+}
+$bucketUuid = trim((string)$input['bucket_id']);
+$stmtBk = $link->prepare("
+    SELECT id, bucket_uuid, telecaller_id, state, expires_at, total_leads, completed_calls 
+    FROM " . tn('TBL_CALL_BUCKETS') . " 
+    WHERE bucket_uuid = ? LIMIT 1
+");
+$stmtBk->bind_param('s', $bucketUuid);
+$stmtBk->execute();
+$bucket = $stmtBk->get_result()->fetch_assoc();
+$stmtBk->close();
+
+if (!$bucket || (int)$bucket['telecaller_id'] !== $userId) {
+    apiError(403, 'Invalid bucket lease: not authorized or bucket not found');
+}
+
+$isBucketExpired = ($bucket['state'] === 'expired') || (strtotime($bucket['expires_at']) <= time());
+if ($isBucketExpired) {
+    if ($bucket['state'] !== 'expired') {
+        $link->query("UPDATE " . tn('TBL_CALL_BUCKETS') . " SET state = 'expired' WHERE id = " . (int)$bucket['id']);
+    }
+    apiError(409, 'Call bucket lease has expired. Please claim a new bucket.');
+}
+
+if ($bucket['state'] === 'closed') {
+    apiError(409, 'Call bucket lease is already closed.');
+}
+
+// Validate lead belongs to this bucket
+$stmtBkl = $link->prepare("
+    SELECT id, status 
+    FROM " . tn('TBL_CALL_BUCKET_LEADS') . " 
+    WHERE bucket_id = ? AND source = ? AND lead_id = ? LIMIT 1
+");
+$stmtBkl->bind_param('isi', $bucket['id'], $source, $recordId);
+$stmtBkl->execute();
+$bklItem = $stmtBkl->get_result()->fetch_assoc();
+$stmtBkl->close();
+
+if (!$bklItem) {
+    apiError(403, 'Lead does not belong to the specified bucket lease');
+}
+
+// Check if this lead was reassigned to another active bucket
+$stmtRe = $link->prepare("
+    SELECT cb.id 
+    FROM " . tn('TBL_CALL_BUCKET_LEADS') . " cbl 
+    JOIN " . tn('TBL_CALL_BUCKETS') . " cb ON cbl.bucket_id = cb.id 
+    WHERE cbl.source = ? AND cbl.lead_id = ? AND cb.id != ? AND cb.state = 'active' AND cb.expires_at > NOW() 
+    LIMIT 1
+");
+$stmtRe->bind_param('sii', $source, $recordId, $bucket['id']);
+$stmtRe->execute();
+$isReassigned = ($stmtRe->get_result()->fetch_assoc() !== null);
+$stmtRe->close();
+
+if ($isReassigned) {
+    apiError(409, 'Lead has been reassigned to another caller bucket lease');
+}
 $rawCallStatus = trim($input['call_status']);
 if ($rawCallStatus === '') apiError(400, 'Call status is required');
 $rawStatusLow = strtolower($rawCallStatus);
@@ -141,7 +205,7 @@ $simSlot = !empty($input['sim_slot']) ? trim((string)$input['sim_slot']) : null;
 if (isset($input['metadata'])) {
     $metadata = is_array($input['metadata']) ? json_encode($input['metadata'], JSON_UNESCAPED_UNICODE) : (string)$input['metadata'];
 } else {
-    $knownKeys = ['record_id', 'lead_id', 'id', 'source', 'call_status', 'status', 'notes', 'call_duration', 'duration_seconds', 'timing_classification', 'next_followup', 'next_followup_at', 'recording_url', 'call_time', 'dial_time', 'call_end_time', 'total_duration', 'sim_slot'];
+    $knownKeys = ['record_id', 'lead_id', 'id', 'source', 'call_status', 'status', 'notes', 'call_duration', 'duration_seconds', 'timing_classification', 'next_followup', 'next_followup_at', 'recording_url', 'call_time', 'dial_time', 'call_end_time', 'total_duration', 'sim_slot', 'bucket_id'];
     $extra = array_diff_key($input, array_flip($knownKeys));
     $metadata = !empty($extra) ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null;
 }
@@ -314,6 +378,29 @@ if ($syncedLeadId && $syncedLeadId > 0) {
         $updLog->close();
     }
 }
+
+// Update call bucket lead item as completed
+$updBucketLead = $link->prepare("
+    UPDATE " . tn('TBL_CALL_BUCKET_LEADS') . " 
+    SET status = 'completed', call_log_id = ?, completed_at = NOW() 
+    WHERE bucket_id = ? AND source = ? AND lead_id = ?
+");
+if ($updBucketLead) {
+    $updBucketLead->bind_param('iisi', $logId, $bucket['id'], $source, $recordId);
+    $updBucketLead->execute();
+    $updBucketLead->close();
+}
+
+// Update completed calls count on bucket header
+$link->query("
+    UPDATE " . tn('TBL_CALL_BUCKETS') . " 
+    SET completed_calls = (
+        SELECT COUNT(*) FROM " . tn('TBL_CALL_BUCKET_LEADS') . " 
+        WHERE bucket_id = " . (int)$bucket['id'] . " AND status = 'completed'
+    ) 
+    WHERE id = " . (int)$bucket['id']
+);
+
 $link->commit();
 } catch (Throwable $e) {
     $link->rollback();
@@ -321,6 +408,12 @@ $link->commit();
     error_log('Call submission failed: ' . $e->getMessage());
     apiError(500, 'Unable to save call result');
 }
+
+// Fetch updated bucket progress
+$cntRes = $link->query("SELECT completed_calls, total_leads FROM " . tn('TBL_CALL_BUCKETS') . " WHERE id = " . (int)$bucket['id']);
+$cntRow = $cntRes ? $cntRes->fetch_assoc() : null;
+$completedCount = (int)($cntRow['completed_calls'] ?? 0);
+$totalLeads = (int)($cntRow['total_leads'] ?? 15);
 
 // Calculate real-time telecaller engagement & XP awards
 $engagementData = null;
@@ -342,6 +435,12 @@ $respPayload = [
     'timing_classification' => $timingTier,
     'duration' => $callDuration,
     'total_duration' => $totalDuration,
+    'bucket' => [
+        'bucket_id' => $bucket['bucket_uuid'],
+        'completed_calls' => $completedCount,
+        'total_leads' => $totalLeads,
+        'all_completed' => ($completedCount >= $totalLeads),
+    ],
 ];
 if ($engagementData !== null) {
     $respPayload['engagement'] = $engagementData;

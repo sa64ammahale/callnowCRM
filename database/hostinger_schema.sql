@@ -802,6 +802,46 @@ CREATE TABLE IF NOT EXISTS `telecaller_engagement` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- 32. CALL BUCKET LEASES (SERVER-AUTHORITATIVE BATCH QUEUES)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `call_buckets` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `bucket_uuid` varchar(64) NOT NULL,
+  `company_code` varchar(50) NOT NULL DEFAULT 'default',
+  `telecaller_id` int(11) NOT NULL,
+  `state` enum('active','closed','expired') NOT NULL DEFAULT 'active',
+  `assigned_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL,
+  `closed_at` datetime DEFAULT NULL,
+  `total_leads` int(11) NOT NULL DEFAULT 15,
+  `completed_calls` int(11) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_bucket_uuid` (`bucket_uuid`),
+  KEY `idx_telecaller_state` (`telecaller_id`, `state`, `expires_at`),
+  KEY `idx_expires` (`expires_at`, `state`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `call_bucket_leads` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `bucket_id` int(11) NOT NULL,
+  `bucket_uuid` varchar(64) NOT NULL,
+  `source` enum('TEMP','MAIN') NOT NULL DEFAULT 'TEMP',
+  `lead_id` int(11) NOT NULL,
+  `status` enum('pending','completed') NOT NULL DEFAULT 'pending',
+  `call_log_id` int(11) DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_bucket` (`bucket_id`),
+  KEY `idx_bucket_uuid` (`bucket_uuid`),
+  KEY `idx_bucket_lead` (`bucket_uuid`, `source`, `lead_id`),
+  KEY `idx_lead_source` (`source`, `lead_id`, `status`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ============================================================
 -- Done
 -- ============================================================
 SET FOREIGN_KEY_CHECKS=1;
