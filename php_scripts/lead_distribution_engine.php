@@ -38,12 +38,83 @@ function releaseTenantAllocLock(mysqli $link): void {
     $stmt->close();
 }
 
+function ensureLeadEngineSchema(mysqli $link): void {
+    static $ensured = false;
+    if ($ensured) return;
+
+    mysqli_query($link, "CREATE TABLE IF NOT EXISTS `lead_batches` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `batch_uuid` VARCHAR(64) NOT NULL,
+        `claim_request_id` VARCHAR(64) NOT NULL,
+        `company_code` VARCHAR(50) NOT NULL DEFAULT 'default',
+        `telecaller_id` INT NOT NULL,
+        `device_id` VARCHAR(100) NOT NULL,
+        `session_epoch` INT NOT NULL DEFAULT 1,
+        `allocated_count` INT NOT NULL DEFAULT 0,
+        `lease_duration_seconds` INT NOT NULL DEFAULT 1200,
+        `expires_at` DATETIME NOT NULL,
+        `status` ENUM('ACTIVE', 'EXPIRED', 'RELEASED', 'COMPLETED') NOT NULL DEFAULT 'ACTIVE',
+        `request_params_json` TEXT NULL,
+        `request_hash` CHAR(64) NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY `uniq_batch_uuid` (`batch_uuid`),
+        UNIQUE KEY `uniq_claim_request` (`company_code`, `telecaller_id`, `claim_request_id`),
+        KEY `idx_batch_caller_status` (`telecaller_id`, `status`, `expires_at`),
+        KEY `idx_batch_expiry` (`expires_at`, `status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    mysqli_query($link, "CREATE TABLE IF NOT EXISTS `lead_reservations` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `batch_id` INT NOT NULL,
+        `batch_uuid` VARCHAR(64) NOT NULL,
+        `reservation_token` VARCHAR(64) NOT NULL,
+        `call_lock_token` VARCHAR(64) NULL,
+        `company_code` VARCHAR(50) NOT NULL DEFAULT 'default',
+        `telecaller_id` INT NOT NULL,
+        `device_id` VARCHAR(100) NOT NULL,
+        `session_epoch` INT NOT NULL DEFAULT 1,
+        `source` ENUM('TEMP', 'MAIN') NOT NULL,
+        `lead_id` INT NOT NULL,
+        `phone_number_10` VARCHAR(15) NOT NULL,
+        `priority_tier` ENUM('P0', 'P1', 'P2', 'P3') NOT NULL,
+        `followup_id` INT DEFAULT NULL,
+        `state` ENUM('RESERVED', 'DIALING', 'COMPLETED', 'EXPIRED', 'RELEASED') NOT NULL DEFAULT 'RESERVED',
+        `reserved_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `dialing_started_at` DATETIME DEFAULT NULL,
+        `last_heartbeat_at` DATETIME DEFAULT NULL,
+        `expires_at` DATETIME NOT NULL,
+        `completed_at` DATETIME DEFAULT NULL,
+        `call_log_id` INT DEFAULT NULL,
+        `client_call_id` VARCHAR(128) DEFAULT NULL,
+        `reconciliation_needed` TINYINT(1) NOT NULL DEFAULT 0,
+        `active_phone_key` VARCHAR(30) GENERATED ALWAYS AS (
+            CASE WHEN `state` IN ('RESERVED', 'DIALING') THEN `phone_number_10` ELSE NULL END
+        ) VIRTUAL,
+        UNIQUE KEY `uniq_reservation_token` (`reservation_token`),
+        UNIQUE KEY `uniq_call_lock_token` (`call_lock_token`),
+        UNIQUE KEY `uniq_active_phone` (`active_phone_key`),
+        KEY `idx_res_batch` (`batch_id`),
+        KEY `idx_res_caller_state_exp` (`telecaller_id`, `state`, `expires_at`),
+        KEY `idx_res_lead_source` (`source`, `lead_id`, `state`),
+        KEY `idx_res_phone` (`phone_number_10`),
+        KEY `idx_res_dialing_reconciliation` (`state`, `dialing_started_at`, `reconciliation_needed`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    @mysqli_query($link, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `session_epoch` INT NOT NULL DEFAULT 1");
+    @mysqli_query($link, "ALTER TABLE `temporary_database` ADD COLUMN IF NOT EXISTS `CALL_COUNT` INT NOT NULL DEFAULT 0");
+
+    $ensured = true;
+}
+
 function sweepExpiredReservations(mysqli $link): void {
+    ensureLeadEngineSchema($link);
     $link->query("UPDATE lead_reservations SET state = 'EXPIRED' WHERE state = 'RESERVED' AND expires_at <= NOW()");
     $link->query("UPDATE lead_batches SET status = 'EXPIRED' WHERE status = 'ACTIVE' AND expires_at <= NOW()");
 }
 
 function getActiveCallLock(mysqli $link, int $userId): ?array {
+    ensureLeadEngineSchema($link);
     $stmt = $link->prepare("SELECT id, batch_uuid, reservation_token, call_lock_token, lead_id, source, phone_number_10, dialing_started_at, session_epoch, device_id FROM lead_reservations WHERE telecaller_id = ? AND state = 'DIALING' LIMIT 1");
     $stmt->bind_param('i', $userId);
     $stmt->execute();
@@ -263,6 +334,7 @@ function claimLeadBatch(
     int $batchSize = 15,
     bool $isPrefetch = false
 ): array {
+    ensureLeadEngineSchema($link);
     if ($batchSize < 1) $batchSize = 15;
     if ($batchSize > 30) $batchSize = 30;
 
