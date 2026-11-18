@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `lead_batches` (
     UNIQUE KEY `uniq_claim_request` (`company_code`, `telecaller_id`, `claim_request_id`),
     KEY `idx_batch_caller_status` (`telecaller_id`, `status`, `expires_at`),
     KEY `idx_batch_expiry` (`expires_at`, `status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `lead_reservations` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -61,7 +61,10 @@ CREATE TABLE IF NOT EXISTS `lead_reservations` (
     KEY `idx_res_lead_source` (`source`, `lead_id`, `state`),
     KEY `idx_res_phone` (`phone_number_10`),
     KEY `idx_res_dialing_reconciliation` (`state`, `dialing_started_at`, `reconciliation_needed`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `lead_reservations` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER TABLE `lead_batches` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 
 ALTER TABLE `users`
     ADD COLUMN IF NOT EXISTS `session_epoch` INT NOT NULL DEFAULT 1;

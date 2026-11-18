@@ -505,11 +505,11 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-        WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+        WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
     )
     AND NOT EXISTS (
         SELECT 1 FROM lead_reservations lr 
-        WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+        WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
           AND lr.state IN ('RESERVED', 'DIALING')
           AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
     )
@@ -517,10 +517,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     LIMIT ?";
     
     $stmt = $link->prepare($sqlTemp);
-    $stmt->bind_param('ii', $userId, $tempPoolLimit);
-    $stmt->execute();
-    $tempPoolRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+    if (!$stmt) {
+        error_log("Failed to prepare sqlTemp: " . $link->error);
+        $tempPoolRows = [];
+    } else {
+        $stmt->bind_param('ii', $userId, $tempPoolLimit);
+        $stmt->execute();
+        $tempPoolRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+    }
     
     $tempPoolIds = array_column($tempPoolRows, 'ID');
     if (!empty($tempPoolIds)) {
@@ -616,11 +621,11 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-            WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+            WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
         )
         AND NOT EXISTS (
             SELECT 1 FROM lead_reservations lr 
-            WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+            WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
               AND lr.state IN ('RESERVED', 'DIALING')
               AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
         )
@@ -628,10 +633,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         LIMIT ?";
         
         $stmt = $link->prepare($sqlMain);
-        $stmt->bind_param('iiii', $userId, $userId, $userId, $mainPoolLimit);
-        $stmt->execute();
-        $poolRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
+        if (!$stmt) {
+            error_log("Failed to prepare sqlMain: " . $link->error);
+            $poolRows = [];
+        } else {
+            $stmt->bind_param('iiii', $userId, $userId, $userId, $mainPoolLimit);
+            $stmt->execute();
+            $poolRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        }
         
         $poolIds = array_column($poolRows, 'ID');
         if (!empty($poolIds)) {
@@ -765,20 +775,25 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     )
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-        WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+        WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
     )
     AND NOT EXISTS (
         SELECT 1 FROM lead_reservations lr 
-        WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+        WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
           AND lr.state IN ('RESERVED', 'DIALING')
           AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
     )
     ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT 10");
-    $stmtTemp->bind_param('i', $userId);
-    $stmtTemp->execute();
-    $tempCandidates = array_column($stmtTemp->get_result()->fetch_all(MYSQLI_ASSOC), 'ID');
-    $stmtTemp->close();
+    if (!$stmtTemp) {
+        error_log("Failed to prepare next-call temp: " . $link->error);
+        $tempCandidates = [];
+    } else {
+        $stmtTemp->bind_param('i', $userId);
+        $stmtTemp->execute();
+        $tempCandidates = array_column($stmtTemp->get_result()->fetch_all(MYSQLI_ASSOC), 'ID');
+        $stmtTemp->close();
+    }
     
     $claimedRow = null;
     $claimedSource = null;
@@ -855,20 +870,25 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         )
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-            WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+            WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
         )
         AND NOT EXISTS (
             SELECT 1 FROM lead_reservations lr 
-            WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+            WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
               AND lr.state IN ('RESERVED', 'DIALING')
               AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
         )
         ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
         LIMIT 20");
-        $stmtMain->bind_param('iii', $userId, $userId, $userId);
-        $stmtMain->execute();
-        $mainCandidates = array_column($stmtMain->get_result()->fetch_all(MYSQLI_ASSOC), 'ID');
-        $stmtMain->close();
+        if (!$stmtMain) {
+            error_log("Failed to prepare next-call main: " . $link->error);
+            $mainCandidates = [];
+        } else {
+            $stmtMain->bind_param('iii', $userId, $userId, $userId);
+            $stmtMain->execute();
+            $mainCandidates = array_column($stmtMain->get_result()->fetch_all(MYSQLI_ASSOC), 'ID');
+            $stmtMain->close();
+        }
         
         if (!empty($mainCandidates)) {
             shuffle($mainCandidates);
