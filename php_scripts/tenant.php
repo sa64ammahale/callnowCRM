@@ -33,9 +33,7 @@ if (!function_exists('getMasterConnection')) {
 
         if ($masterLink === false) {
             $errMsg = $connectError ?: mysqli_connect_error();
-            if (defined('APP_DEBUG') && APP_DEBUG) {
-                die("ERROR: Master database connection failed: " . htmlspecialchars($errMsg, ENT_QUOTES, 'UTF-8') . " [Host: $host, User: $user, MasterDB: $masterDb, Port: $port]");
-            }
+            error_log("Master database connection failed: " . $errMsg . " [Host: $host, User: $user, MasterDB: $masterDb, Port: $port]");
             return null;
         }
 
@@ -70,10 +68,8 @@ if (!function_exists('resolveTenant')) {
         }
 
         if (!$stmt) {
-            if (defined('APP_DEBUG') && APP_DEBUG) {
-                $err = $prepareError ?: mysqli_error($master);
-                die("ERROR: Failed querying master registry table `{$tbl}`: " . htmlspecialchars($err, ENT_QUOTES, 'UTF-8'));
-            }
+            $err = $prepareError ?: mysqli_error($master);
+            error_log("Failed querying master registry table `{$tbl}`: " . $err);
             return null;
         }
 
