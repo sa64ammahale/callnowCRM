@@ -299,11 +299,16 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     $batchSize = isset($input['batch_size']) ? (int)$input['batch_size'] : (isset($input['size']) ? (int)$input['size'] : 15);
     $prefetch = !empty($input['prefetch']);
 
-    $res = claimLeadBatch($link, $userId, $companyCode, $deviceId, $sessionEpoch, $claimRequestId, $batchSize, $prefetch);
-    if (!empty($res['error'])) {
-        apiError($res['code'] ?? 400, $res['message'] ?? 'Error claiming batch');
+    try {
+        $res = claimLeadBatch($link, $userId, $companyCode, $deviceId, $sessionEpoch, $claimRequestId, $batchSize, $prefetch);
+        if (!empty($res['error'])) {
+            apiError($res['code'] ?? 400, $res['message'] ?? 'Error claiming batch');
+        }
+        apiSuccess($res);
+    } catch (Throwable $e) {
+        error_log('claimLeadBatch error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        apiError(500, 'claimLeadBatch error: ' . $e->getMessage());
     }
-    apiSuccess($res);
 
 } elseif ($relativePath === '/calls/active' || $relativePath === '/calls/active/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
@@ -2389,6 +2394,9 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     apiError(404, 'Telecaller endpoint not found');
 }
 } catch (Throwable $e) {
-    error_log('Telecaller API error: ' . $e->getMessage());
-    apiError(500, 'Unable to process request');
+    error_log('Telecaller API error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+    $debugMsg = (defined('APP_DEBUG') && APP_DEBUG) || getenv('APP_DEBUG') == '1' || isset($_GET['debug'])
+        ? ('API error: ' . $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine())
+        : 'Unable to process request';
+    apiError(500, $debugMsg);
 }

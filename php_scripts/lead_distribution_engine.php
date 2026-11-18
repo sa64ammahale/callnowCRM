@@ -38,6 +38,21 @@ function releaseTenantAllocLock(mysqli $link): void {
     $stmt->close();
 }
 
+function hasLeadEngineColumn(mysqli $link, string $table, string $column): bool {
+    static $colCache = [];
+    $key = "$table.$column";
+    if (isset($colCache[$key])) return $colCache[$key];
+    $res = @mysqli_query($link, "SHOW COLUMNS FROM `$table` LIKE '$column'");
+    $colCache[$key] = ($res && mysqli_num_rows($res) > 0);
+    return $colCache[$key];
+}
+
+function ensureLeadEngineColumn(mysqli $link, string $table, string $column, string $definition): void {
+    if (!hasLeadEngineColumn($link, $table, $column)) {
+        @mysqli_query($link, "ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+    }
+}
+
 function ensureLeadEngineSchema(mysqli $link): void {
     static $ensured = false;
     if ($ensured) return;
@@ -103,8 +118,12 @@ function ensureLeadEngineSchema(mysqli $link): void {
 
     @mysqli_query($link, "ALTER TABLE `lead_reservations` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
     @mysqli_query($link, "ALTER TABLE `lead_batches` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-    @mysqli_query($link, "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `session_epoch` INT NOT NULL DEFAULT 1");
-    @mysqli_query($link, "ALTER TABLE `temporary_database` ADD COLUMN IF NOT EXISTS `CALL_COUNT` INT NOT NULL DEFAULT 0");
+    ensureLeadEngineColumn($link, 'users', 'session_epoch', 'INT NOT NULL DEFAULT 1');
+    ensureLeadEngineColumn($link, tn('TBL_TEMP'), 'CALL_COUNT', 'INT NOT NULL DEFAULT 0');
+    ensureLeadEngineColumn($link, tn('TBL_TEMP'), 'BATCH_ASSIGNED_AT', 'DATETIME NULL');
+    ensureLeadEngineColumn($link, tn('TBL_TEMP'), 'TEMP_LAST_CALLED_AT', 'DATETIME NULL');
+    ensureLeadEngineColumn($link, tn('TBL_MAIN'), 'CALL_COUNT', 'INT NOT NULL DEFAULT 0');
+    ensureLeadEngineColumn($link, tn('TBL_MAIN'), 'BATCH_ASSIGNED_AT', 'DATETIME NULL');
 
     $ensured = true;
 }
@@ -344,10 +363,14 @@ function claimLeadBatch(
     $requestHash = hash('sha256', $canonicalParams);
 
     $checkStmt = $link->prepare("SELECT id, batch_uuid, request_hash, expires_at, status FROM lead_batches WHERE company_code = ? AND telecaller_id = ? AND claim_request_id = ? LIMIT 1");
-    $checkStmt->bind_param('sis', $companyCode, $userId, $claimRequestId);
-    $checkStmt->execute();
-    $existingBatch = $checkStmt->get_result()->fetch_assoc();
-    $checkStmt->close();
+    if ($checkStmt) {
+        $checkStmt->bind_param('sis', $companyCode, $userId, $claimRequestId);
+        $checkStmt->execute();
+        $existingBatch = $checkStmt->get_result()->fetch_assoc();
+        $checkStmt->close();
+    } else {
+        $existingBatch = null;
+    }
 
     if ($existingBatch) {
         if (!hash_equals((string)$existingBatch['request_hash'], $requestHash)) {
@@ -355,10 +378,14 @@ function claimLeadBatch(
         }
 
         $resStmt = $link->prepare("SELECT reservation_token, priority_tier, source, lead_id, phone_number_10, followup_id FROM lead_reservations WHERE batch_id = ? ORDER BY id ASC");
-        $resStmt->bind_param('i', $existingBatch['id']);
-        $resStmt->execute();
-        $savedRows = $resStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $resStmt->close();
+        if ($resStmt) {
+            $resStmt->bind_param('i', $existingBatch['id']);
+            $resStmt->execute();
+            $savedRows = $resStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $resStmt->close();
+        } else {
+            $savedRows = [];
+        }
 
         $leadsPayload = [];
         foreach ($savedRows as $r) {
@@ -379,23 +406,34 @@ function claimLeadBatch(
         ];
     }
 
-    $epochStmt = $link->prepare("SELECT session_epoch FROM users WHERE ID = ? LIMIT 1");
-    $epochStmt->bind_param('i', $userId);
-    $epochStmt->execute();
-    $uRow = $epochStmt->get_result()->fetch_assoc();
-    $epochStmt->close();
+    $currentEpoch = 1;
+    if (hasLeadEngineColumn($link, 'users', 'session_epoch')) {
+        $epochStmt = $link->prepare("SELECT session_epoch FROM users WHERE ID = ? LIMIT 1");
+        if ($epochStmt) {
+            $epochStmt->bind_param('i', $userId);
+            $epochStmt->execute();
+            $uRow = $epochStmt->get_result()->fetch_assoc();
+            $epochStmt->close();
+            $currentEpoch = (int)($uRow['session_epoch'] ?? 1);
+        }
+    }
 
-    $currentEpoch = (int)($uRow['session_epoch'] ?? 1);
     if ($sessionEpoch > $currentEpoch) {
-        $upEpoch = $link->prepare("UPDATE users SET session_epoch = ? WHERE ID = ?");
-        $upEpoch->bind_param('ii', $sessionEpoch, $userId);
-        $upEpoch->execute();
-        $upEpoch->close();
+        if (hasLeadEngineColumn($link, 'users', 'session_epoch')) {
+            $upEpoch = $link->prepare("UPDATE users SET session_epoch = ? WHERE ID = ?");
+            if ($upEpoch) {
+                $upEpoch->bind_param('ii', $sessionEpoch, $userId);
+                $upEpoch->execute();
+                $upEpoch->close();
+            }
+        }
 
         $relStmt = $link->prepare("UPDATE lead_reservations SET state = 'RELEASED' WHERE telecaller_id = ? AND state = 'RESERVED'");
-        $relStmt->bind_param('i', $userId);
-        $relStmt->execute();
-        $relStmt->close();
+        if ($relStmt) {
+            $relStmt->bind_param('i', $userId);
+            $relStmt->execute();
+            $relStmt->close();
+        }
     }
 
     if (!acquireTenantAllocLock($link, 5)) {
@@ -506,6 +544,10 @@ function queryWaterfallP1(mysqli $link, int $userId, int $limit, array $excluded
             ORDER BY f.followup_at ASC, f.id ASC
             LIMIT 50";
     $stmt = $link->prepare($sql);
+    if (!$stmt) {
+        error_log("Failed to prepare queryWaterfallP1: " . $link->error);
+        return [];
+    }
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -539,18 +581,25 @@ function queryWaterfallP1(mysqli $link, int $userId, int $limit, array $excluded
 function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excludedPhones): array {
     $candidates = [];
 
+    $hasTempCallCount = hasLeadEngineColumn($link, tn('TBL_TEMP'), 'CALL_COUNT');
+    $callCountClause = $hasTempCallCount ? " AND t.CALL_COUNT = 0" : "";
     $sqlTemp = "SELECT t.ID, t.CUST_MOBILE FROM " . tn('TBL_TEMP') . " t
         WHERE (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')
-          AND t.LAST_DIALED_DATE_TIME IS NULL AND t.CALL_COUNT = 0
+          AND t.LAST_DIALED_DATE_TIME IS NULL" . $callCountClause . "
           AND (t.CALL_DIALED_TELECALLER IS NULL OR t.CALL_DIALED_TELECALLER = ? OR t.BATCH_ASSIGNED_AT IS NULL OR t.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
           AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = t.ID AND f.contact_source = 'TEMP')
         ORDER BY t.TEMP_UPLOAD_DATETIME ASC, t.ID ASC
         LIMIT 50";
     $stmtT = $link->prepare($sqlTemp);
-    $stmtT->bind_param('i', $userId);
-    $stmtT->execute();
-    $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmtT->close();
+    if ($stmtT) {
+        $stmtT->bind_param('i', $userId);
+        $stmtT->execute();
+        $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmtT->close();
+    } else {
+        error_log("Failed to prepare queryWaterfallP0 Temp: " . $link->error);
+        $tRows = [];
+    }
 
     foreach ($tRows as $r) {
         if (count($candidates) >= $limit) break;
@@ -570,18 +619,25 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
 
     if (count($candidates) < $limit) {
         $needed = $limit - count($candidates);
+        $hasMainCallCount = hasLeadEngineColumn($link, tn('TBL_MAIN'), 'CALL_COUNT');
+        $callCountClauseM = $hasMainCallCount ? " AND m.CALL_COUNT = 0" : "";
         $sqlMain = "SELECT m.ID, m.MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " m
             WHERE (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')
-              AND m.LAST_DIALED_DATE_TIME IS NULL AND m.CALL_COUNT = 0
+              AND m.LAST_DIALED_DATE_TIME IS NULL" . $callCountClauseM . "
               AND (m.MAINDATABASE_CALL_DIALED_USER IS NULL OR m.MAINDATABASE_CALL_DIALED_USER = ? OR m.BATCH_ASSIGNED_AT IS NULL OR m.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
               AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = m.ID AND f.contact_source = 'MAIN')
             ORDER BY m.MAINDATABASE_UPLOAD_DATETIME ASC, m.ID ASC
             LIMIT 50";
         $stmtM = $link->prepare($sqlMain);
-        $stmtM->bind_param('i', $userId);
-        $stmtM->execute();
-        $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmtM->close();
+        if ($stmtM) {
+            $stmtM->bind_param('i', $userId);
+            $stmtM->execute();
+            $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmtM->close();
+        } else {
+            error_log("Failed to prepare queryWaterfallP0 Main: " . $link->error);
+            $mRows = [];
+        }
 
         foreach ($mRows as $r) {
             if (count($candidates) >= $limit) break;
@@ -606,21 +662,27 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
 function queryWaterfallP2(mysqli $link, int $userId, int $limit, array $excludedPhones): array {
     $candidates = [];
 
+    $hasTempCallCount = hasLeadEngineColumn($link, tn('TBL_TEMP'), 'CALL_COUNT');
+    $callCountClause = $hasTempCallCount ? " AND t.CALL_COUNT BETWEEN 1 AND 4" : "";
     $sqlTemp = "SELECT t.ID, t.CUST_MOBILE FROM " . tn('TBL_TEMP') . " t
         WHERE t.LAST_DIALED_DATE_TIME IS NOT NULL
           AND t.LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 90 DAY
-          AND t.LAST_DIALED_DATE_TIME < NOW() - INTERVAL 4 HOUR
-          AND t.CALL_COUNT BETWEEN 1 AND 4
+          AND t.LAST_DIALED_DATE_TIME < NOW() - INTERVAL 4 HOUR" . $callCountClause . "
           AND t.CALL_DIALED_STATUS IN ('Ringing', 'Busy', 'Switch Off', 'Not Reachable', 'Call Later', 'Callback / Busy')
           AND (t.CALL_DIALED_TELECALLER IS NULL OR t.CALL_DIALED_TELECALLER = ? OR t.BATCH_ASSIGNED_AT IS NULL OR t.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
           AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = t.ID)
-        ORDER BY t.CALL_COUNT ASC, t.LAST_DIALED_DATE_TIME ASC, t.ID ASC
+        ORDER BY t.LAST_DIALED_DATE_TIME ASC, t.ID ASC
         LIMIT 50";
     $stmtT = $link->prepare($sqlTemp);
-    $stmtT->bind_param('i', $userId);
-    $stmtT->execute();
-    $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmtT->close();
+    if ($stmtT) {
+        $stmtT->bind_param('i', $userId);
+        $stmtT->execute();
+        $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmtT->close();
+    } else {
+        error_log("Failed to prepare queryWaterfallP2 Temp: " . $link->error);
+        $tRows = [];
+    }
 
     foreach ($tRows as $r) {
         if (count($candidates) >= $limit) break;
@@ -639,21 +701,27 @@ function queryWaterfallP2(mysqli $link, int $userId, int $limit, array $excluded
     }
 
     if (count($candidates) < $limit) {
+        $hasMainCallCount = hasLeadEngineColumn($link, tn('TBL_MAIN'), 'CALL_COUNT');
+        $callCountClauseM = $hasMainCallCount ? " AND m.CALL_COUNT BETWEEN 1 AND 4" : "";
         $sqlMain = "SELECT m.ID, m.MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " m
             WHERE m.LAST_DIALED_DATE_TIME IS NOT NULL
               AND m.LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 90 DAY
-              AND m.LAST_DIALED_DATE_TIME < NOW() - INTERVAL 4 HOUR
-              AND m.CALL_COUNT BETWEEN 1 AND 4
+              AND m.LAST_DIALED_DATE_TIME < NOW() - INTERVAL 4 HOUR" . $callCountClauseM . "
               AND m.MAINDATABASE_CALL_DIALED_STATUS IN ('Ringing', 'Busy', 'Switch Off', 'Not Reachable', 'Call Later', 'Callback / Busy')
               AND (m.MAINDATABASE_CALL_DIALED_USER IS NULL OR m.MAINDATABASE_CALL_DIALED_USER = ? OR m.BATCH_ASSIGNED_AT IS NULL OR m.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
               AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = m.ID)
-            ORDER BY m.CALL_COUNT ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
+            ORDER BY m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
             LIMIT 50";
         $stmtM = $link->prepare($sqlMain);
-        $stmtM->bind_param('i', $userId);
-        $stmtM->execute();
-        $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmtM->close();
+        if ($stmtM) {
+            $stmtM->bind_param('i', $userId);
+            $stmtM->execute();
+            $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmtM->close();
+        } else {
+            error_log("Failed to prepare queryWaterfallP2 Main: " . $link->error);
+            $mRows = [];
+        }
 
         foreach ($mRows as $r) {
             if (count($candidates) >= $limit) break;
@@ -687,10 +755,15 @@ function queryWaterfallP3(mysqli $link, int $userId, int $limit, array $excluded
         ORDER BY t.LAST_DIALED_DATE_TIME ASC, t.ID ASC
         LIMIT 50";
     $stmtT = $link->prepare($sqlTemp);
-    $stmtT->bind_param('i', $userId);
-    $stmtT->execute();
-    $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmtT->close();
+    if ($stmtT) {
+        $stmtT->bind_param('i', $userId);
+        $stmtT->execute();
+        $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmtT->close();
+    } else {
+        error_log("Failed to prepare queryWaterfallP3 Temp: " . $link->error);
+        $tRows = [];
+    }
 
     foreach ($tRows as $r) {
         if (count($candidates) >= $limit) break;
@@ -718,10 +791,15 @@ function queryWaterfallP3(mysqli $link, int $userId, int $limit, array $excluded
             ORDER BY m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
             LIMIT 50";
         $stmtM = $link->prepare($sqlMain);
-        $stmtM->bind_param('i', $userId);
-        $stmtM->execute();
-        $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmtM->close();
+        if ($stmtM) {
+            $stmtM->bind_param('i', $userId);
+            $stmtM->execute();
+            $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmtM->close();
+        } else {
+            error_log("Failed to prepare queryWaterfallP3 Main: " . $link->error);
+            $mRows = [];
+        }
 
         foreach ($mRows as $r) {
             if (count($candidates) >= $limit) break;
@@ -758,7 +836,7 @@ function fetchLeadPhone(mysqli $link, string $source, int $leadId): ?string {
 }
 
 function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone): bool {
-    $dndQ = $link->prepare("SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number = ? LIMIT 1");
+    $dndQ = $link->prepare("SELECT id FROM " . tn('TBL_DND_REGISTRY') . " WHERE phone_number COLLATE utf8mb4_general_ci = ? LIMIT 1");
     if ($dndQ) {
         $dndQ->bind_param('s', $cleanPhone);
         $dndQ->execute();
@@ -767,7 +845,7 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone): bool {
         if ($isDnd) return true;
     }
 
-    $resQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 = ? AND state IN ('RESERVED', 'DIALING') AND (state = 'DIALING' OR expires_at > NOW()) LIMIT 1");
+    $resQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND state IN ('RESERVED', 'DIALING') AND (state = 'DIALING' OR expires_at > NOW()) LIMIT 1");
     if ($resQ) {
         $resQ->bind_param('s', $cleanPhone);
         $resQ->execute();
