@@ -236,24 +236,6 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
-## Completed Feature (2026-11-18): Server-Authoritative Call Bucket Leases for Mobile App
-- **Core Business Problem Solved**:
-  - Eliminates client-side queue decision making and race conditions. The mobile phone must never decide if a calling queue or lead is valid—the server strictly enforces expiration, ownership, and assignment state on every request.
-  - Prevents double-dialing across multiple telecallers via ACID transactions with `FOR UPDATE` row-level locks.
-  - Safely supports app restarts, network drops, and device reboots through idempotent bucket resumption within the 15-minute lease window.
-- **Database Schema Enhancements (Self-Healing & Additive)**:
-  - `call_buckets`: Tracks bucket lease headers (`bucket_uuid` UUID v4, `company_code`, `telecaller_id`, `state` ENUM `'active'`,`'closed'`,`'expired'`, `assigned_at`, `expires_at` [assigned_at + 15 min], `closed_at`, `total_leads`, `completed_calls`).
-  - `call_bucket_leads`: Tracks individual lead assignments and outcomes (`bucket_id`, `bucket_uuid`, `source` ENUM `'TEMP'`,`'MAIN'`, `lead_id`, `status` ENUM `'pending'`,`'completed'`, `call_log_id`, `completed_at`).
-  - Auto-created via `ensureBucketSchema($link)` in `php_scripts/config.php` and registered in `$__cn_tbl` as `TBL_CALL_BUCKETS` and `TBL_CALL_BUCKET_LEADS`.
-  - Added to `database/hostinger_schema.sql` (Section 32) and migration `database/migrations/2026_11_18_call_bucket_leases.sql`.
-- **API Endpoints (`api/v1/telecaller/index.php`, `submit_call.php`)**:
-  - `POST /telecaller/call-buckets/claim` (and `/api/v1/telecaller/call-buckets/claim`): Returns existing active unexpired bucket (resumption) or atomically claims 15 eligible leads (`temporary_database` or `main_database`) with `FOR UPDATE`, excluding active leases and DND numbers. Returns `{ bucket_id, expires_at, leads: [] }`.
-  - `POST /telecaller/call-buckets/{bucket_id}/close`: Validates telecaller ownership and enforces that all 15 calls have final outcomes before allowing early closure. Returns HTTP 409 if calls are still pending.
-  - `POST /telecaller/calls/{id}/complete`: Requires `bucket_id`, validates active lease ownership, validates server-enforced expiration (HTTP 409 if expired), verifies lead membership (HTTP 403), guards against reassignment (HTTP 409), increments `completed_calls`, and returns updated bucket progress.
-- **Documentation**:
-  - Created [project-context/CALL_BUCKET_LEASES_INTEGRATION.md](file:///c:/xampp/htdocs/callnowCRM/project-context/CALL_BUCKET_LEASES_INTEGRATION.md) detailing contact number sending and accepting flow with sequence diagrams.
-  - Created [docs/superpowers/specs/2026-11-18-call-bucket-leases-design.md](file:///c:/xampp/htdocs/callnowCRM/docs/superpowers/specs/2026-11-18-call-bucket-leases-design.md) with design specs.
-
 ## Completed Feature (2026-11-16): Telecaller Engagement & Motivation Engine (Lean MVP)
 - **Tenant Company Name & Software Project Name Distinction**:
   - Maintained clear separation between software project branding (`CallNow CRM`) and the tenant company name (`Incredit Solutions`).
