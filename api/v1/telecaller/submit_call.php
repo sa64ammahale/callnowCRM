@@ -23,6 +23,9 @@ $userId = (int)$tokenData['user_id'];
 $userRole = $tokenData['user_role'] ?? 'Telecaller';
 
 $input = apiReadJson();
+if (empty($input['record_id']) && !empty($input['lead_id'])) {
+    $input['record_id'] = $input['lead_id'];
+}
 if (isset($callCompletionRecordId)) {
     $input['record_id'] = $callCompletionRecordId;
     $input['source'] = $input['source'] ?? 'MAIN';
