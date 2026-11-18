@@ -124,6 +124,21 @@ function ensureLeadEngineSchema(mysqli $link): void {
     ensureLeadEngineColumn($link, tn('TBL_TEMP'), 'TEMP_LAST_CALLED_AT', 'DATETIME NULL');
     ensureLeadEngineColumn($link, tn('TBL_MAIN'), 'CALL_COUNT', 'INT NOT NULL DEFAULT 0');
     ensureLeadEngineColumn($link, tn('TBL_MAIN'), 'BATCH_ASSIGNED_AT', 'DATETIME NULL');
+    ensureLeadEngineColumn($link, 'lead_batches', 'allocated_count', 'INT NOT NULL DEFAULT 0');
+    ensureLeadEngineColumn($link, 'lead_batches', 'request_params_json', 'TEXT NULL');
+    ensureLeadEngineColumn($link, 'lead_batches', 'request_hash', 'CHAR(64) NULL');
+    ensureLeadEngineColumn($link, 'lead_batches', 'session_epoch', 'INT NOT NULL DEFAULT 1');
+    ensureLeadEngineColumn($link, 'lead_batches', 'lease_duration_seconds', 'INT NOT NULL DEFAULT 1200');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'reconciliation_needed', 'TINYINT(1) NOT NULL DEFAULT 0');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'client_call_id', 'VARCHAR(128) DEFAULT NULL');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'call_log_id', 'INT DEFAULT NULL');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'completed_at', 'DATETIME DEFAULT NULL');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'dialing_started_at', 'DATETIME DEFAULT NULL');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'last_heartbeat_at', 'DATETIME DEFAULT NULL');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'call_lock_token', 'VARCHAR(64) NULL');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'session_epoch', 'INT NOT NULL DEFAULT 1');
+    ensureLeadEngineColumn($link, 'lead_reservations', 'priority_tier', "ENUM('P0', 'P1', 'P2', 'P3') NOT NULL DEFAULT 'P0'");
+    ensureLeadEngineColumn($link, 'lead_reservations', 'followup_id', 'INT DEFAULT NULL');
 
     $ensured = true;
 }
@@ -483,11 +498,50 @@ function claimLeadBatch(
         $expiresAt = date('Y-m-d H:i:s', time() + 1200);
         $totalAllocated = count($allocatedLeads);
 
-        $insBatch = $link->prepare("INSERT INTO lead_batches (batch_uuid, claim_request_id, company_code, telecaller_id, device_id, session_epoch, allocated_count, lease_duration_seconds, expires_at, status, request_params_json, request_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1200, ?, 'ACTIVE', ?, ?, NOW())");
-        if (!$insBatch) {
-            throw new Exception("Failed to prepare insert into lead_batches: " . $link->error);
+        $batchCols = ['batch_uuid', 'claim_request_id', 'company_code', 'telecaller_id', 'device_id', 'status', 'expires_at', 'created_at'];
+        $batchPlaceholders = ['?', '?', '?', '?', '?', "'ACTIVE'", '?', 'NOW()'];
+        $batchTypes = 'sssis';
+        $batchParams = [$batchUuid, $claimRequestId, $companyCode, $userId, $deviceId];
+
+        if (hasLeadEngineColumn($link, 'lead_batches', 'session_epoch')) {
+            $batchCols[] = 'session_epoch';
+            $batchPlaceholders[] = '?';
+            $batchTypes .= 'i';
+            $batchParams[] = $sessionEpoch;
         }
-        $insBatch->bind_param('sssisiisss', $batchUuid, $claimRequestId, $companyCode, $userId, $deviceId, $sessionEpoch, $totalAllocated, $expiresAt, $canonicalParams, $requestHash);
+        if (hasLeadEngineColumn($link, 'lead_batches', 'allocated_count')) {
+            $batchCols[] = 'allocated_count';
+            $batchPlaceholders[] = '?';
+            $batchTypes .= 'i';
+            $batchParams[] = $totalAllocated;
+        }
+        if (hasLeadEngineColumn($link, 'lead_batches', 'lease_duration_seconds')) {
+            $batchCols[] = 'lease_duration_seconds';
+            $batchPlaceholders[] = '1200';
+        }
+        if (hasLeadEngineColumn($link, 'lead_batches', 'request_params_json')) {
+            $batchCols[] = 'request_params_json';
+            $batchPlaceholders[] = '?';
+            $batchTypes .= 's';
+            $batchParams[] = $canonicalParams;
+        }
+        if (hasLeadEngineColumn($link, 'lead_batches', 'request_hash')) {
+            $batchCols[] = 'request_hash';
+            $batchPlaceholders[] = '?';
+            $batchTypes .= 's';
+            $batchParams[] = $requestHash;
+        }
+
+        // Add expires_at param
+        $batchParams[] = $expiresAt;
+        $batchTypes .= 's';
+
+        $batchSql = "INSERT INTO lead_batches (" . implode(', ', $batchCols) . ") VALUES (" . implode(', ', $batchPlaceholders) . ")";
+        $insBatch = $link->prepare($batchSql);
+        if (!$insBatch) {
+            throw new Exception("Failed to prepare insert into lead_batches: " . $link->error . " (SQL: $batchSql)");
+        }
+        $insBatch->bind_param($batchTypes, ...$batchParams);
         $insBatch->execute();
         $batchId = (int)$insBatch->insert_id;
         $insBatch->close();
@@ -501,24 +555,53 @@ function claimLeadBatch(
             $tier = $lead['priority_tier'];
             $followupId = isset($lead['followup_id']) ? (int)$lead['followup_id'] : null;
 
-            $insRes = $link->prepare("INSERT INTO lead_reservations (batch_id, batch_uuid, reservation_token, company_code, telecaller_id, device_id, session_epoch, source, lead_id, phone_number_10, priority_tier, followup_id, state, reserved_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESERVED', NOW(), ?)");
-            if (!$insRes) {
-                throw new Exception("Failed to prepare insert into lead_reservations: " . $link->error);
+            $resCols = ['batch_id', 'batch_uuid', 'reservation_token', 'company_code', 'telecaller_id', 'device_id', 'source', 'lead_id', 'phone_number_10', 'state', 'reserved_at', 'expires_at'];
+            $resPlaceholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', "'RESERVED'", 'NOW()', '?'];
+            $resTypes = 'isssississ';
+            $resParams = [$batchId, $batchUuid, $resToken, $companyCode, $userId, $deviceId, $source, $leadId, $phone10, $expiresAt];
+
+            if (hasLeadEngineColumn($link, 'lead_reservations', 'session_epoch')) {
+                $resCols[] = 'session_epoch';
+                $resPlaceholders[] = '?';
+                $resTypes .= 'i';
+                $resParams[] = $sessionEpoch;
             }
-            $insRes->bind_param('isssisisissis', $batchId, $batchUuid, $resToken, $companyCode, $userId, $deviceId, $sessionEpoch, $source, $leadId, $phone10, $tier, $followupId, $expiresAt);
+            if (hasLeadEngineColumn($link, 'lead_reservations', 'priority_tier')) {
+                $resCols[] = 'priority_tier';
+                $resPlaceholders[] = '?';
+                $resTypes .= 's';
+                $resParams[] = $tier;
+            }
+            if (hasLeadEngineColumn($link, 'lead_reservations', 'followup_id')) {
+                $resCols[] = 'followup_id';
+                $resPlaceholders[] = '?';
+                $resTypes .= 'i';
+                $resParams[] = $followupId;
+            }
+
+            $resSql = "INSERT INTO lead_reservations (" . implode(', ', $resCols) . ") VALUES (" . implode(', ', $resPlaceholders) . ")";
+            $insRes = $link->prepare($resSql);
+            if (!$insRes) {
+                throw new Exception("Failed to prepare insert into lead_reservations: " . $link->error . " (SQL: $resSql)");
+            }
+            $insRes->bind_param($resTypes, ...$resParams);
             $insRes->execute();
             $insRes->close();
 
             if ($source === 'TEMP') {
                 $upT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET BATCH_ASSIGNED_AT = NOW(), CALL_DIALED_TELECALLER = ? WHERE ID = ?");
-                $upT->bind_param('ii', $userId, $leadId);
-                $upT->execute();
-                $upT->close();
+                if ($upT) {
+                    $upT->bind_param('ii', $userId, $leadId);
+                    $upT->execute();
+                    $upT->close();
+                }
             } else {
                 $upM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET BATCH_ASSIGNED_AT = NOW(), MAINDATABASE_CALL_DIALED_USER = ? WHERE ID = ?");
-                $upM->bind_param('ii', $userId, $leadId);
-                $upM->execute();
-                $upM->close();
+                if ($upM) {
+                    $upM->bind_param('ii', $userId, $leadId);
+                    $upM->execute();
+                    $upM->close();
+                }
             }
 
             $lead['reservation_token'] = $resToken;
