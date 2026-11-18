@@ -16,6 +16,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../../php_scripts/api_auth.php';
 require_once __DIR__ . '/../../../php_scripts/engagement_engine.php';
+require_once __DIR__ . '/../../../php_scripts/lead_distribution_engine.php';
 
 // Ensure call_logs schema has required columns
 try {
@@ -280,7 +281,194 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     ]);
 
 // -----------------------------------------------------------------------------
-// 2. BATCH LEADS FETCH (e.g. 15 leads for calling queue)
+// 2. LEAD DISTRIBUTION ENGINE ROUTES (Kotlin v1.2.0 & Next-Gen Calling Desk)
+// -----------------------------------------------------------------------------
+} elseif ($relativePath === '/calling/claim' || $relativePath === '/calling/claim/' || $relativePath === '/call-buckets/claim' || $relativePath === '/call-buckets/claim/') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    if (defined('FEATURE_LEAD_ENGINE_ALLOCATION_ENABLED') && !FEATURE_LEAD_ENGINE_ALLOCATION_ENABLED) {
+        apiError(503, 'Lead allocation is under scheduled maintenance. Please use web desk or standard batch queue.');
+    }
+    $input = apiReadJson();
+    $companyCode = getenv('COMPANY_CODE') ?: ($_SERVER['HTTP_X_COMPANY_CODE'] ?? 'default');
+    $deviceId = trim((string)($input['device_id'] ?? 'device_unknown'));
+    $sessionEpoch = max(1, (int)($input['session_epoch'] ?? 1));
+    $claimRequestId = trim((string)($input['claim_request_id'] ?? ''));
+    if ($claimRequestId === '') {
+        $claimRequestId = cnGenerateUuid();
+    }
+    $batchSize = isset($input['batch_size']) ? (int)$input['batch_size'] : (isset($input['size']) ? (int)$input['size'] : 15);
+    $prefetch = !empty($input['prefetch']);
+
+    $res = claimLeadBatch($link, $userId, $companyCode, $deviceId, $sessionEpoch, $claimRequestId, $batchSize, $prefetch);
+    if (!empty($res['error'])) {
+        apiError($res['code'] ?? 400, $res['message'] ?? 'Error claiming batch');
+    }
+    apiSuccess($res);
+
+} elseif ($relativePath === '/calls/active' || $relativePath === '/calls/active/') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
+    $res = getActiveCallLock($link, $userId);
+    apiSuccess($res ?: ['has_active_call' => false, 'call' => null]);
+
+} elseif ($relativePath === '/calls/start' || $relativePath === '/calls/start/' || preg_match('#^/calls/(\d+)/start-call$#', $relativePath, $startMatches)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    $input = apiReadJson();
+    $leadId = !empty($startMatches[1]) ? (int)$startMatches[1] : (int)($input['lead_id'] ?? ($input['record_id'] ?? 0));
+    $reservationToken = trim((string)($input['reservation_token'] ?? ''));
+    $source = strtoupper(trim((string)($input['source'] ?? 'TEMP'))) === 'TEMP' ? 'TEMP' : 'MAIN';
+    $deviceId = trim((string)($input['device_id'] ?? 'device_unknown'));
+    $sessionEpoch = max(1, (int)($input['session_epoch'] ?? 1));
+
+    if (empty($reservationToken) && !empty($input['bucket_id'])) {
+        $bId = trim((string)$input['bucket_id']);
+        $qToken = $link->prepare("SELECT reservation_token FROM lead_reservations WHERE batch_uuid = ? AND lead_id = ? AND source = ? LIMIT 1");
+        if ($qToken) {
+            $qToken->bind_param('sis', $bId, $leadId, $source);
+            $qToken->execute();
+            $tRow = $qToken->get_result()->fetch_assoc();
+            $qToken->close();
+            if ($tRow) {
+                $reservationToken = (string)$tRow['reservation_token'];
+            }
+        }
+    }
+
+    if (empty($reservationToken)) {
+        apiError(400, 'reservation_token is required');
+    }
+
+    $res = startCallLock($link, $userId, $reservationToken, $leadId, $source, $deviceId, $sessionEpoch);
+    if (!empty($res['error'])) {
+        apiError($res['code'] ?? 400, $res['message'] ?? 'Error starting call');
+    }
+    apiSuccess($res);
+
+} elseif ($relativePath === '/calling/heartbeat' || $relativePath === '/calling/heartbeat/' || preg_match('#^/call-buckets/([^/]+)/renew$#', $relativePath, $renewMatches)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    $input = apiReadJson();
+    $batchUuid = !empty($renewMatches[1]) ? trim((string)$renewMatches[1]) : trim((string)($input['batch_uuid'] ?? ($input['bucket_uuid'] ?? ($input['bucket_id'] ?? ''))));
+    $deviceId = trim((string)($input['device_id'] ?? 'device_unknown'));
+    $sessionEpoch = max(1, (int)($input['session_epoch'] ?? 1));
+    $reservationTokens = isset($input['reservation_tokens']) && is_array($input['reservation_tokens']) ? $input['reservation_tokens'] : [];
+
+    if (empty($batchUuid)) {
+        apiError(400, 'batch_uuid is required');
+    }
+
+    $res = renewBucketHeartbeat($link, $userId, $batchUuid, $deviceId, $sessionEpoch, $reservationTokens);
+    if (!empty($res['error'])) {
+        apiError($res['code'] ?? 400, $res['message'] ?? 'Error renewing heartbeat');
+    }
+    apiSuccess($res);
+
+} elseif (preg_match('#^/calls/(\d+)/abandon$#', $relativePath, $abandonMatches)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    $input = apiReadJson();
+    $reservationToken = trim((string)($input['reservation_token'] ?? ''));
+    $reason = trim((string)($input['reason'] ?? 'USER_CANCELED'));
+    if (empty($reservationToken)) {
+        apiError(400, 'reservation_token is required');
+    }
+    $res = abandonCallLock($link, $userId, $reservationToken, $reason);
+    if (!empty($res['error'])) {
+        apiError($res['code'] ?? 400, $res['message'] ?? 'Error abandoning call lock');
+    }
+    apiSuccess($res);
+
+} elseif ($relativePath === '/calling/release' || $relativePath === '/calling/release/' || preg_match('#^/call-buckets/([^/]+)/close$#', $relativePath, $closeMatches)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    $input = apiReadJson();
+    $batchUuid = !empty($closeMatches[1]) ? trim((string)$closeMatches[1]) : trim((string)($input['batch_uuid'] ?? ($input['bucket_uuid'] ?? ($input['bucket_id'] ?? ''))));
+    if (empty($batchUuid)) {
+        apiError(400, 'batch_uuid is required');
+    }
+    $res = releaseBatchQueue($link, $userId, $batchUuid);
+    if (!empty($res['error'])) {
+        apiError($res['code'] ?? 400, $res['message'] ?? 'Error releasing batch');
+    }
+    apiSuccess($res);
+
+} elseif ($relativePath === '/calls/sync' || $relativePath === '/calls/sync/') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    $input = apiReadJson();
+    $calls = isset($input['calls']) && is_array($input['calls']) ? $input['calls'] : [];
+    $results = [];
+
+    foreach ($calls as $callItem) {
+        $clientCallId = trim((string)($callItem['client_call_id'] ?? ''));
+        $recId = (int)($callItem['record_id'] ?? ($callItem['lead_id'] ?? 0));
+        $src = strtoupper(trim((string)($callItem['source'] ?? 'TEMP'))) === 'TEMP' ? 'TEMP' : 'MAIN';
+        $status = trim((string)($callItem['call_status'] ?? ($callItem['status'] ?? 'Connected')));
+        $dur = (int)($callItem['call_duration'] ?? ($callItem['duration'] ?? 0));
+        $notes = trim((string)($callItem['notes'] ?? ''));
+        $callTime = !empty($callItem['call_time']) ? date('Y-m-d H:i:s', strtotime($callItem['call_time'])) : date('Y-m-d H:i:s');
+        $resToken = trim((string)($callItem['reservation_token'] ?? ''));
+
+        if ($clientCallId !== '') {
+            $chk = $link->prepare("SELECT id FROM " . tn('TBL_CALL_LOGS') . " WHERE user_id = ? AND client_call_id = ? LIMIT 1");
+            if ($chk) {
+                $chk->bind_param('is', $userId, $clientCallId);
+                $chk->execute();
+                $existingLog = $chk->get_result()->fetch_assoc();
+                $chk->close();
+                if ($existingLog) {
+                    $results[] = [
+                        'client_call_id' => $clientCallId,
+                        'status' => 'SAVED',
+                        'log_id' => (int)$existingLog['id'],
+                        'replayed' => true,
+                        'reconciliation' => 'STATUS_SUPERSEDED'
+                    ];
+                    continue;
+                }
+            }
+        }
+
+        $timingTier = ($dur === 0) ? 'NOT_CONNECTED' : (($dur <= 20) ? 'CONNECTED_SHORT' : 'CONNECTED_CONVERSATION');
+        $reqHash = hash('sha256', json_encode($callItem, JSON_UNESCAPED_UNICODE));
+
+        $insLog = $link->prepare("INSERT INTO " . tn('TBL_CALL_LOGS') . " (record_id, client_contact_id, source, user_id, call_status, call_duration, total_duration, timing_classification, notes, call_time, client_call_id, request_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        if ($insLog) {
+            $insLog->bind_param('iisisissssss', $recId, $recId, $src, $userId, $status, $dur, $dur, $timingTier, $notes, $callTime, $clientCallId, $reqHash);
+            $insLog->execute();
+            $newLogId = (int)$insLog->insert_id;
+            $insLog->close();
+
+            if (!empty($resToken)) {
+                $upR = $link->prepare("UPDATE lead_reservations SET state = 'COMPLETED', completed_at = NOW(), call_log_id = ?, client_call_id = ? WHERE reservation_token = ?");
+                if ($upR) {
+                    $upR->bind_param('iss', $newLogId, $clientCallId, $resToken);
+                    $upR->execute();
+                    $upR->close();
+                }
+            }
+
+            $results[] = [
+                'client_call_id' => $clientCallId,
+                'status' => 'SAVED',
+                'log_id' => $newLogId,
+                'replayed' => false,
+                'reconciliation' => 'STATUS_UPDATED'
+            ];
+        } else {
+            $results[] = [
+                'client_call_id' => $clientCallId,
+                'status' => 'ERROR',
+                'log_id' => null,
+                'replayed' => false,
+                'reconciliation' => 'FAILED'
+            ];
+        }
+    }
+
+    apiSuccess([
+        'total_submitted' => count($calls),
+        'processed' => count($results),
+        'results' => $results
+    ]);
+
+// -----------------------------------------------------------------------------
+// 3. LEGACY BATCH LEADS FETCH (Flutter App & Web CRM Adapter)
 // -----------------------------------------------------------------------------
 } elseif ($relativePath === '/batch-leads' || $relativePath === '/batch-leads/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
@@ -318,6 +506,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     AND NOT EXISTS (
         SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
         WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM lead_reservations lr 
+        WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+          AND lr.state IN ('RESERVED', 'DIALING')
+          AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
     )
     ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT ?";
@@ -423,6 +617,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
             WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM lead_reservations lr 
+            WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+              AND lr.state IN ('RESERVED', 'DIALING')
+              AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
         )
         ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
         LIMIT ?";
@@ -567,6 +767,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
         WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
     )
+    AND NOT EXISTS (
+        SELECT 1 FROM lead_reservations lr 
+        WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10)
+          AND lr.state IN ('RESERVED', 'DIALING')
+          AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+    )
     ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
     LIMIT 10");
     $stmtTemp->bind_param('i', $userId);
@@ -650,6 +856,12 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         AND NOT EXISTS (
             SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
             WHERE dr.phone_number = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM lead_reservations lr 
+            WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+              AND lr.state IN ('RESERVED', 'DIALING')
+              AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
         )
         ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
         LIMIT 20");

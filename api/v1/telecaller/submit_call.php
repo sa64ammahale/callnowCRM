@@ -178,10 +178,10 @@ try {
 
 // Verify record exists and get customer phone number
 if ($source === 'TEMP') {
-    $stmt = $link->prepare("SELECT ID, CUST_MOBILE, CALL_DIALED_TELECALLER FROM " . tn('TBL_TEMP') . " WHERE ID = ? FOR UPDATE");
+    $stmt = $link->prepare("SELECT ID, CUST_MOBILE, CALL_DIALED_TELECALLER, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, CALL_COUNT FROM " . tn('TBL_TEMP') . " WHERE ID = ? FOR UPDATE");
     $stmt->bind_param('i', $recordId);
 } else {
-    $stmt = $link->prepare("SELECT ID, MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER FROM " . tn('TBL_MAIN') . " WHERE ID = ? FOR UPDATE");
+    $stmt = $link->prepare("SELECT ID, MAINDATABASE_MOBILE, MAINDATABASE_CALL_DIALED_USER, MAINDATABASE_CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, CALL_COUNT FROM " . tn('TBL_MAIN') . " WHERE ID = ? FOR UPDATE");
     $stmt->bind_param('i', $recordId);
 }
 $stmt->execute();
@@ -215,20 +215,55 @@ if ($recordUserId > 0 && $recordUserId !== $userId && !in_array($userRole, ['Adm
     apiError(403, 'Not authorized to update this record');
 }
 
-// 1. Update master table based on source
+$getStatusRank = static function(?string $st): int {
+    $s = strtolower(trim((string)$st));
+    if (in_array($s, ['do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd'], true) || str_contains($s, 'dnd') || str_contains($s, 'disturb') || str_contains($s, 'not call')) {
+        return 4;
+    }
+    if (in_array($s, ['lead', 'interested', 'enquiry', 'sanctioned', 'disbursed', 'login', 'connected'], true)) {
+        return 3;
+    }
+    if (in_array($s, ['wrong number', 'not interested', 'lost', 'rejected', 'reject'], true)) {
+        return 2;
+    }
+    return 1;
+};
+
+$currentStatus = (string)($source === 'TEMP' ? ($record['CALL_DIALED_STATUS'] ?? '') : ($record['MAINDATABASE_CALL_DIALED_STATUS'] ?? ''));
+$currentRank = $getStatusRank($currentStatus);
+$incomingRank = $getStatusRank($callStatus);
+
+$lastDialedDt = !empty($record['LAST_DIALED_DATE_TIME']) ? strtotime($record['LAST_DIALED_DATE_TIME']) : null;
+$incomingDialDt = !empty($dialTime) ? strtotime($dialTime) : time();
+
+$shouldUpdateMasterStatus = true;
+$reconciliation = 'STATUS_UPDATED';
+
+if ($currentRank === 4 && !$isDnd) {
+    $shouldUpdateMasterStatus = false;
+    $reconciliation = 'STATUS_SUPERSEDED';
+} elseif ($lastDialedDt !== null && $incomingDialDt < $lastDialedDt) {
+    if ($currentRank >= $incomingRank) {
+        $shouldUpdateMasterStatus = false;
+        $reconciliation = 'STATUS_SUPERSEDED';
+    }
+}
+
+$statusToSet = $shouldUpdateMasterStatus ? $callStatus : $currentStatus;
+
 if ($source === 'MAIN') {
     $sql = "UPDATE " . tn('TBL_MAIN') . " SET 
         MAINDATABASE_CALL_DIALED_STATUS = ?,
         MAINDATABASE_CALL_DIALED_USER = ?,
         MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
         MAINDATABASE_CALL_DIAL_TIME = COALESCE(?, NOW()),
-        LAST_DIALED_DATE_TIME = NOW(),
+        LAST_DIALED_DATE_TIME = GREATEST(COALESCE(LAST_DIALED_DATE_TIME, NOW()), COALESCE(?, NOW())),
         LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
         CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1,
         BATCH_ASSIGNED_AT = NULL
         WHERE ID = ?";
     $stmt = $link->prepare($sql);
-    $stmt->bind_param('sisssii', $callStatus, $userId, $notes, $notes, $dialTime, $isConnected, $recordId);
+    $stmt->bind_param('sissssii', $statusToSet, $userId, $notes, $notes, $dialTime, $dialTime, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
 } else {
@@ -236,12 +271,13 @@ if ($source === 'MAIN') {
         CALL_DIALED_STATUS = ?,
         CALL_DIALED_TELECALLER = ?,
         CUST_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE CUST_OTHER_INFO END,
-        LAST_DIALED_DATE_TIME = NOW(),
+        LAST_DIALED_DATE_TIME = GREATEST(COALESCE(LAST_DIALED_DATE_TIME, NOW()), COALESCE(?, NOW())),
         LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
+        CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1,
         BATCH_ASSIGNED_AT = NULL
         WHERE ID = ?";
     $stmt = $link->prepare($sql);
-    $stmt->bind_param('sissii', $callStatus, $userId, $notes, $notes, $isConnected, $recordId);
+    $stmt->bind_param('sissisii', $statusToSet, $userId, $notes, $notes, $dialTime, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
 }
@@ -314,6 +350,45 @@ if ($syncedLeadId && $syncedLeadId > 0) {
         $updLog->close();
     }
 }
+
+$reservationToken = trim((string)($input['reservation_token'] ?? ''));
+$bucketUuid = trim((string)($input['bucket_id'] ?? ($input['batch_uuid'] ?? '')));
+$matchedResId = null;
+
+if (!empty($reservationToken)) {
+    $qRes = $link->prepare("SELECT id, batch_uuid FROM lead_reservations WHERE reservation_token = ? LIMIT 1");
+    if ($qRes) {
+        $qRes->bind_param('s', $reservationToken);
+        $qRes->execute();
+        $rRow = $qRes->get_result()->fetch_assoc();
+        $qRes->close();
+        if ($rRow) {
+            $matchedResId = (int)$rRow['id'];
+            if (empty($bucketUuid)) $bucketUuid = (string)$rRow['batch_uuid'];
+        }
+    }
+} elseif (!empty($bucketUuid)) {
+    $qRes = $link->prepare("SELECT id FROM lead_reservations WHERE batch_uuid = ? AND lead_id = ? AND source = ? LIMIT 1");
+    if ($qRes) {
+        $qRes->bind_param('sis', $bucketUuid, $recordId, $source);
+        $qRes->execute();
+        $rRow = $qRes->get_result()->fetch_assoc();
+        $qRes->close();
+        if ($rRow) {
+            $matchedResId = (int)$rRow['id'];
+        }
+    }
+}
+
+if ($matchedResId !== null) {
+    $upRes = $link->prepare("UPDATE lead_reservations SET state = 'COMPLETED', completed_at = NOW(), call_log_id = ?, client_call_id = ? WHERE id = ?");
+    if ($upRes) {
+        $upRes->bind_param('isi', $logId, $clientCallId, $matchedResId);
+        $upRes->execute();
+        $upRes->close();
+    }
+}
+
 $link->commit();
 } catch (Throwable $e) {
     $link->rollback();
@@ -334,15 +409,35 @@ try {
 
 $respPayload = [
     'message' => 'Call result submitted successfully',
+    'call_id' => $logId,
     'log_id' => $logId,
     'record_id' => $recordId,
     'source' => $source,
+    'replayed' => false,
+    'reconciliation' => $reconciliation,
     'lead_id' => $syncedLeadId,
     'is_lead_generated' => $syncedLeadId !== null && $syncedLeadId > 0,
     'timing_classification' => $timingTier,
     'duration' => $callDuration,
     'total_duration' => $totalDuration,
 ];
+if (!empty($bucketUuid)) {
+    $qB = $link->prepare("SELECT COUNT(*) AS total_leads, SUM(CASE WHEN state = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_calls FROM lead_reservations WHERE batch_uuid = ?");
+    if ($qB) {
+        $qB->bind_param('s', $bucketUuid);
+        $qB->execute();
+        $bRow = $qB->get_result()->fetch_assoc();
+        $qB->close();
+        if ($bRow) {
+            $respPayload['bucket'] = [
+                'bucket_id' => $bucketUuid,
+                'batch_uuid' => $bucketUuid,
+                'completed_calls' => (int)$bRow['completed_calls'],
+                'total_leads' => (int)$bRow['total_leads']
+            ];
+        }
+    }
+}
 if ($engagementData !== null) {
     $respPayload['engagement'] = $engagementData;
 }
