@@ -36,6 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmt->bind_param('s', $username);
             $stmt->execute(); $user = $stmt->get_result()->fetch_assoc(); $stmt->close();
             if ($user && filter_var($user['LOGIN_ID'], FILTER_VALIDATE_EMAIL)) {
+                require_once __DIR__ . '/php_scripts/mailer.php';
                 $token = bin2hex(random_bytes(32));
                 $tokenHash = hash('sha256', $token);
                 $expiresAt = date('Y-m-d H:i:s', time() + 1800);
@@ -43,7 +44,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $stmt->bind_param('iss', $user['ID'], $tokenHash, $expiresAt);
                 if ($stmt->execute()) {
                     $resetUrl = url('reset-password') . '?token=' . rawurlencode($token);
-                    @mail($user['LOGIN_ID'], 'Reset your CallNow password', "Open this link within 30 minutes to choose a new password:\n" . $resetUrl . "\nIf you did not request this, ignore this email.");
+                    $sub = 'Reset your CallNow password';
+                    $body = "Hello,\n\nOpen this link within 30 minutes to choose a new password:\n" . $resetUrl . "\n\nIf you did not request this, please ignore this email.\n\n— CallNow Support Team";
+                    sendSystemEmail($user['LOGIN_ID'], $sub, $body);
                 }
                 $stmt->close();
             }

@@ -822,6 +822,18 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - `tests/test_dnd_absolute_enforcement.php`: 15/15 assertions passed (100%).
   - Zero PHP syntax errors across repository.
 
+## Completed Goal (2026-11-19): Mobile App Profile Page & Reset OTP via Email
+- **Profile Picture Upload Visibility**:
+  - `ProfileScreen.kt` (Android Native): Removed clipping from parent avatar container, enlarged camera edit badge to 36dp with white border and elevation, and added dedicated "Change Photo" action pill.
+- **Company Name Resolution**:
+  - `api/v1/auth/index.php`: Resolves full organization name from tenant table (`callnow_telecalling_companys` / `resolveTenant`), updates `fullProfile['company_name']` and `fullProfile['company']`, and backfills the `users` table.
+  - `php_scripts/api_auth.php`: `getFullUserProfileData()` falls back to `app_settings` (`company_name`) if company is empty or matches code.
+  - `NetworkModels.kt` & `ProfileScreen.kt`: Prioritizes `effectiveCompany` (`companyName`) over short `company` code.
+- **Reset OTP via Email**:
+  - `api/v1/auth/index.php`: Wired `php_scripts/mailer.php` (`sendSystemEmail()`) into `/auth/forgot-password` and added multi-tenant database connection switching in `/auth/forgot-password` and `/auth/reset-password`.
+  - `forgot-password.php`: Uses `mailer.php` for web portal password resets.
+
+
 
 
 

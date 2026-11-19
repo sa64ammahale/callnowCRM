@@ -566,7 +566,13 @@ function getFullUserProfileData(mysqli $link, int $userId): ?array {
 
     $resolvedEmail = $user['email'] ?: ($user['login_id'] ?? '');
     $resolvedPhone = $user['mobile'] ?? '';
-    $resolvedCompany = $user['company_name'] ?: ($user['company'] ?? '');
+    $resolvedCompany = trim((string)($user['company_name'] ?: ($user['company'] ?? '')));
+    if ($resolvedCompany === '' || in_array(strtolower($resolvedCompany), ['callnow', 'incredit', 'default'], true)) {
+        $setQ = @$link->query("SELECT setting_value FROM " . tn('TBL_APP_SETTINGS') . " WHERE setting_key = 'company_name' LIMIT 1");
+        if ($setQ && ($sRow = $setQ->fetch_assoc()) && !empty($sRow['setting_value'])) {
+            $resolvedCompany = trim($sRow['setting_value']);
+        }
+    }
     $resolvedTeam = $user['team_name'] ?: 'General Telecalling';
 
     // Construct photo URL and ensure sync between MySQL and disk storage

@@ -131,13 +131,29 @@ if ($endpoint === '/login') {
     $teamIds = getUserAssignedTeamIds($userId);
     $fullProfile = getFullUserProfileData($link, $userId);
 
+    $effectiveCompanyName = !empty($tenant['company_name']) ? trim($tenant['company_name']) : ($fullProfile['company_name'] ?? '');
+    if (!empty($tenant['company_name'])) {
+        $fullProfile['company_name'] = $tenant['company_name'];
+        $fullProfile['company'] = $tenant['company_name'];
+        if (!empty($tenant['company_code'])) {
+            $fullProfile['company_code'] = $tenant['company_code'];
+        }
+        $uUpd = $link->prepare("UPDATE " . tn('TBL_USERS') . " SET COMPANY_NAME = ?, COMPANY = ? WHERE ID = ? AND (COMPANY_NAME IS NULL OR COMPANY_NAME = '' OR COMPANY_NAME = ? OR COMPANY = ?)");
+        if ($uUpd) {
+            $uUpd->bind_param('ssiss', $tenant['company_name'], $tenant['company_name'], $userId, $tenant['company_code'], $tenant['company_code']);
+            $uUpd->execute();
+            $uUpd->close();
+        }
+    }
+
     logActivity($link, $userId, 'LOGIN', 'User logged in via mobile app', (string)$userId, 'TBL_USERS');
     
     apiSuccess(array_merge($fullProfile, [
         'token' => $token,
         'expires_at' => $expiresAt,
-        'company_code' => $tenant['company_code'] ?? ($user['COMPANY'] ?? ''),
-        'company_name' => $tenant['company_name'] ?? ($user['COMPANY_NAME'] ?? ($user['COMPANY'] ?? '')),
+        'company_code' => $tenant['company_code'] ?? ($fullProfile['company_code'] ?? ($user['COMPANY'] ?? '')),
+        'company_name' => $effectiveCompanyName,
+        'company' => $effectiveCompanyName,
         'user' => $fullProfile,
         'profile' => $fullProfile,
         'database_access' => $dbAccess,
@@ -244,7 +260,18 @@ if ($endpoint === '/login') {
         apiError(400, 'Email address or username is required');
     }
 
+    $companyCode = trim((string)($input['company_code'] ?? ($input['company'] ?? ($input['CompanyName'] ?? ''))));
+    $tenant = null;
+    if ($companyCode !== '') {
+        $tenant = resolveTenant($companyCode);
+        if ($tenant) {
+            $link = getTenantConnection($tenant['company_code']);
+            $GLOBALS['link'] = $link;
+        }
+    }
+
     require_once __DIR__ . '/../../../php_scripts/password_reset.php';
+    require_once __DIR__ . '/../../../php_scripts/mailer.php';
     ensurePasswordResetSchema($link);
 
     $stmt = $link->prepare("SELECT ID, LOGIN_ID, EMAIL, STATUS FROM " . tn('TBL_USERS') . " WHERE (EMAIL = ? OR LOGIN_ID = ?) AND STATUS = 'Active' LIMIT 1");
@@ -255,17 +282,16 @@ if ($endpoint === '/login') {
 
     $otp = sprintf('%06d', random_int(100000, 999999));
     $tokenHash = hash('sha256', $otp);
-    $expiresAt = date('Y-m-d H:i:s', time() + 900); // 15 minutes
+    $expiresAt = date('Y-m-d H:i:s', time() + 900);
 
+    $emailSent = false;
     if ($targetUser) {
         $uId = (int)$targetUser['ID'];
-        // Invalidate older unused reset tokens for this user
         $inv = $link->prepare("UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL");
         $inv->bind_param('i', $uId);
         $inv->execute();
         $inv->close();
 
-        // Insert new OTP token
         $tokStmt = $link->prepare("INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)");
         $tokStmt->bind_param('iss', $uId, $tokenHash, $expiresAt);
         $tokStmt->execute();
@@ -273,20 +299,20 @@ if ($endpoint === '/login') {
 
         $destEmail = !empty($targetUser['EMAIL']) && filter_var($targetUser['EMAIL'], FILTER_VALIDATE_EMAIL) ? $targetUser['EMAIL'] : $targetUser['LOGIN_ID'];
         if (filter_var($destEmail, FILTER_VALIDATE_EMAIL)) {
-            @mail($destEmail, 'CallNow CRM - Password Reset Verification Code', "Your verification code to reset your CallNow CRM password is:\n\n{$otp}\n\nThis code will expire in 15 minutes.\nIf you did not request this, please ignore this email.");
+            $subject = 'CallNow CRM - Password Reset Verification Code';
+            $body = "Hello,\n\nYour verification code to reset your CallNow CRM password is:\n\n{$otp}\n\nThis code will expire in 15 minutes.\nIf you did not request this, please ignore this email.\n\nBest regards,\nCallNow Support Team";
+            $emailSent = sendSystemEmail($destEmail, $subject, $body);
         }
-        logActivity($link, $uId, 'PASSWORD_RESET_OTP', "Password reset OTP requested for {$destEmail}", (string)$uId, 'TBL_USERS');
+        logActivity($link, $uId, 'PASSWORD_RESET_OTP', "Password reset OTP requested for {$destEmail}" . ($emailSent ? " (delivered)" : " (send failed)"), (string)$uId, 'TBL_USERS');
     }
 
     apiSuccess([
         'success' => true,
         'message' => 'If an active account exists with this email, a verification code has been sent.',
+        'email_sent' => $emailSent,
         'debug_otp' => APP_DEBUG ? $otp : null,
     ]);
 
-// -------------------------------------------------------------
-// 6c. RESET PASSWORD WITH OTP
-// -------------------------------------------------------------
 } elseif ($endpoint === '/reset-password' || $endpoint === '/verify-otp-reset' || $endpoint === '/password/reset') {
     if ($method !== 'POST') {
         apiError(405, 'Method not allowed');
@@ -296,11 +322,20 @@ if ($endpoint === '/login') {
     $otp   = trim((string)($input['otp'] ?? ($input['token'] ?? ($input['code'] ?? ''))));
     $newPass = (string)($input['new_password'] ?? ($input['password'] ?? ''));
     $confirmPass = (string)($input['password_confirmation'] ?? ($input['confirm_password'] ?? ''));
+    $companyCode = trim((string)($input['company_code'] ?? ($input['company'] ?? ($input['CompanyName'] ?? ''))));
 
     if ($email === '') apiError(400, 'Email address is required');
     if ($otp === '') apiError(400, 'Verification code / OTP is required');
     if (strlen($newPass) < 6) apiError(400, 'Password must be at least 6 characters long');
     if ($confirmPass !== '' && $confirmPass !== $newPass) apiError(400, 'Password confirmation does not match');
+
+    if ($companyCode !== '') {
+        $tenant = resolveTenant($companyCode);
+        if ($tenant) {
+            $link = getTenantConnection($tenant['company_code']);
+            $GLOBALS['link'] = $link;
+        }
+    }
 
     require_once __DIR__ . '/../../../php_scripts/password_reset.php';
     ensurePasswordResetSchema($link);
