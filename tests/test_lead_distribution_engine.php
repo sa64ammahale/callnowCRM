@@ -161,6 +161,45 @@ assertTest($getStatusRank('Wrong Number') === 2, "Wrong Number has terminal rank
 assertTest($getStatusRank('Ringing') === 1, "Ringing has transient rank (1)");
 assertTest($getStatusRank('Interested') > $getStatusRank('Ringing'), "Interested outranks Ringing; prevents downgrade on stale call");
 
+echo PHP_EOL . "9. Testing Active Batch Continuity & Queue Retention..." . PHP_EOL;
+// Release any leftover active batch first
+$link->query("UPDATE lead_batches SET status = 'RELEASED' WHERE telecaller_id = 1 AND status = 'ACTIVE'");
+$link->query("UPDATE lead_reservations SET state = 'RELEASED' WHERE telecaller_id = 1 AND state IN ('RESERVED', 'DIALING')");
+
+// 9.1 Claim a fresh batch with claim request A
+$claimA = 'claim-test-A-' . bin2hex(random_bytes(4));
+$batchA = claimLeadBatch($link, 1, 'default', 'device-test-1', 1, $claimA, 5, false);
+assertTest($batchA['success'] === true && !empty($batchA['leads']), "Initial batch A claimed successfully");
+$batchUuidA = $batchA['batch_uuid'];
+$leadCountA = count($batchA['leads']);
+
+// 9.2 Simulate app refresh / restart with a completely new claim_request_id B
+$claimB = 'claim-test-B-' . bin2hex(random_bytes(4));
+$batchB = claimLeadBatch($link, 1, 'default', 'device-test-1', 1, $claimB, 5, false);
+assertTest($batchB['success'] === true, "Claim request B succeeded");
+assertTest($batchB['batch_uuid'] === $batchUuidA, "Active batch continuity preserved: batch B returns identical active batch UUID as batch A");
+assertTest(count($batchB['leads']) === $leadCountA, "All uncalled leads preserved across refresh without number skipping");
+
+// 9.3 Mark 1 lead completed in batch A
+$firstResToken = $batchA['leads'][0]['reservation_token'];
+$link->query("UPDATE lead_reservations SET state = 'COMPLETED', completed_at = NOW() WHERE reservation_token = '$firstResToken'");
+
+// 9.4 Simulate another app restart / login with claim request C
+$claimC = 'claim-test-C-' . bin2hex(random_bytes(4));
+$batchC = claimLeadBatch($link, 1, 'default', 'device-test-1', 1, $claimC, 5, false);
+assertTest($batchC['batch_uuid'] === $batchUuidA, "Batch C still tracks same active batch UUID");
+assertTest(count($batchC['leads']) === ($leadCountA - 1), "Active batch returns remaining uncalled leads (completed lead subtracted)");
+
+// 9.5 Release batch and verify BATCH_ASSIGNED_AT is reset
+$relC = releaseBatchQueue($link, 1, $batchUuidA);
+assertTest($relC['success'] === true, "Batch queue release succeeded");
+
+$chkAssigned = $link->query("SELECT COUNT(*) FROM lead_reservations lr 
+    INNER JOIN " . tn('TBL_MAIN') . " m ON m.ID = lr.lead_id AND lr.source = 'MAIN'
+    WHERE lr.batch_uuid = '$batchUuidA' AND lr.state = 'RELEASED' AND m.BATCH_ASSIGNED_AT IS NOT NULL");
+$unresetCount = (int)$chkAssigned->fetch_row()[0];
+assertTest($unresetCount === 0, "Uncalled records in TBL_MAIN have BATCH_ASSIGNED_AT reset to NULL on release");
+
 echo PHP_EOL . "===================================================" . PHP_EOL;
 echo "Results: $passed Passed, $failed Failed" . PHP_EOL;
 echo "===================================================" . PHP_EOL;

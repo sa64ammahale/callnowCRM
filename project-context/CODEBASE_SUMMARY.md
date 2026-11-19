@@ -237,6 +237,24 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Feature (2026-11-19): Calling Desk Batch Continuity, Queue Retention & Starvation Fix
+- **Active Batch Affinity & Continuity (`php_scripts/lead_distribution_engine.php`)**:
+  - Implemented active batch affinity inside `claimLeadBatch()`: checks if the requesting telecaller already holds an active, unexpired batch (`status = 'ACTIVE' AND expires_at > NOW()`).
+  - If uncalled reservations exist (`state IN ('RESERVED', 'DIALING')`), returns the existing batch and its pending leads without re-allocating or skipping numbers.
+  - Automatically marks completed batches as `status = 'COMPLETED'` when 0 uncalled leads remain, seamlessly allocating the next fresh batch from the waterfall.
+  - Reset `BATCH_ASSIGNED_AT = NULL` and assigned telecaller ID on uncalled records in `TBL_TEMP` and `TBL_MAIN` upon batch release (`releaseBatchQueue()`) and batch expiration (`sweepExpiredReservations()`).
+- **SQL-Level Waterfall Query Optimization (`queryWaterfallP0`, `queryWaterfallP2`, `queryWaterfallP3`)**:
+  - Pushed active reservation exclusion (`lead_reservations` with `state IN ('RESERVED', 'DIALING')`) and `tbl_dnd_registry` exclusion directly into the SQL `WHERE` clause using `RIGHT(REGEXP_REPLACE(...))`.
+  - Replaced hardcoded `LIMIT 50` bottleneck with dynamically scaled candidate limits (`LIMIT ?`), eliminating waterfall starvation and false-positive "All Calls Completed!" states when thousands of uncalled numbers exist in `tbl_main_database`.
+- **Android Native Client Pull-to-Refresh & Retention (`CallingDeskScreen.kt`, `CallingDeskViewModel.kt`)**:
+  - Re-routed `PullToRefreshBox` on Calling Desk to invoke `refreshDesk()` rather than `loadBatch(force = true)`.
+  - `refreshDesk()` syncs offline queues, updates engagement stats, renews active leases, and verifies in-flight call logs while preserving the active calling queue and telecaller progress intact.
+  - Preserves active lead index and selection across background refreshes and app re-opens.
+- **Automated Verification**:
+  - Added Section 9 to `tests/test_lead_distribution_engine.php` testing batch continuity, queue retention across simulated app restarts/re-claims, completed lead progression, and `BATCH_ASSIGNED_AT` reset (34/34 assertions passing 100%).
+  - Whole-repository PHP syntax check passed with 0 errors across all files.
+  - Android Unit Test suite (`CallingDeskViewModelTest.kt`) passed 18/18 tests with 100% success rate.
+
 ## Completed Feature (2026-11-16): Telecaller Engagement & Motivation Engine (Lean MVP)
 - **Tenant Company Name & Software Project Name Distinction**:
   - Maintained clear separation between software project branding (`CallNow CRM`) and the tenant company name (`Incredit Solutions`).

@@ -145,6 +145,19 @@ function ensureLeadEngineSchema(mysqli $link): void {
 
 function sweepExpiredReservations(mysqli $link): void {
     ensureLeadEngineSchema($link);
+
+    $link->query("UPDATE " . tn('TBL_TEMP') . " t
+        INNER JOIN lead_reservations lr ON lr.lead_id = t.ID AND lr.source = 'TEMP'
+        SET t.BATCH_ASSIGNED_AT = NULL, t.CALL_DIALED_TELECALLER = NULL
+        WHERE lr.state = 'RESERVED' AND lr.expires_at <= NOW()
+          AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')");
+
+    $link->query("UPDATE " . tn('TBL_MAIN') . " m
+        INNER JOIN lead_reservations lr ON lr.lead_id = m.ID AND lr.source = 'MAIN'
+        SET m.BATCH_ASSIGNED_AT = NULL, m.MAINDATABASE_CALL_DIALED_USER = NULL
+        WHERE lr.state = 'RESERVED' AND lr.expires_at <= NOW()
+          AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')");
+
     $link->query("UPDATE lead_reservations SET state = 'EXPIRED' WHERE state = 'RESERVED' AND expires_at <= NOW()");
     $link->query("UPDATE lead_batches SET status = 'EXPIRED' WHERE status = 'ACTIVE' AND expires_at <= NOW()");
 }
@@ -347,6 +360,17 @@ function releaseBatchQueue(mysqli $link, int $userId, string $batchUuid): array 
     $releasedCount = $upRes->affected_rows;
     $upRes->close();
 
+    $batchIdInt = (int)$batch['id'];
+    $link->query("UPDATE " . tn('TBL_TEMP') . " t
+        INNER JOIN lead_reservations lr ON lr.lead_id = t.ID AND lr.source = 'TEMP' AND lr.batch_id = $batchIdInt
+        SET t.BATCH_ASSIGNED_AT = NULL, t.CALL_DIALED_TELECALLER = NULL
+        WHERE lr.state = 'RELEASED' AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')");
+
+    $link->query("UPDATE " . tn('TBL_MAIN') . " m
+        INNER JOIN lead_reservations lr ON lr.lead_id = m.ID AND lr.source = 'MAIN' AND lr.batch_id = $batchIdInt
+        SET m.BATCH_ASSIGNED_AT = NULL, m.MAINDATABASE_CALL_DIALED_USER = NULL
+        WHERE lr.state = 'RELEASED' AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')");
+
     $upBatch = $link->prepare("UPDATE lead_batches SET status = 'RELEASED' WHERE id = ?");
     $upBatch->bind_param('i', $batch['id']);
     $upBatch->execute();
@@ -457,6 +481,53 @@ function claimLeadBatch(
 
     try {
         sweepExpiredReservations($link);
+
+        if (!$isPrefetch) {
+            $actBatchStmt = $link->prepare("SELECT id, batch_uuid, request_hash, expires_at, status FROM lead_batches WHERE company_code = ? AND telecaller_id = ? AND status = 'ACTIVE' AND expires_at > NOW() ORDER BY id DESC LIMIT 1");
+            if ($actBatchStmt) {
+                $actBatchStmt->bind_param('si', $companyCode, $userId);
+                $actBatchStmt->execute();
+                $activeBatch = $actBatchStmt->get_result()->fetch_assoc();
+                $actBatchStmt->close();
+
+                if ($activeBatch) {
+                    $actResStmt = $link->prepare("SELECT reservation_token, priority_tier, source, lead_id, phone_number_10, followup_id FROM lead_reservations WHERE batch_id = ? AND telecaller_id = ? AND state IN ('RESERVED', 'DIALING') ORDER BY id ASC");
+                    if ($actResStmt) {
+                        $actResStmt->bind_param('ii', $activeBatch['id'], $userId);
+                        $actResStmt->execute();
+                        $savedRows = $actResStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                        $actResStmt->close();
+
+                        if (!empty($savedRows)) {
+                            $leadsPayload = [];
+                            foreach ($savedRows as $r) {
+                                $leadsPayload[] = formatLeadForClaimPayload($link, $r);
+                            }
+                            releaseTenantAllocLock($link);
+                            return [
+                                'success' => true,
+                                'batch_uuid' => $activeBatch['batch_uuid'],
+                                'bucket_id' => $activeBatch['batch_uuid'],
+                                'lease_duration_seconds' => 1200,
+                                'expires_at' => $activeBatch['expires_at'],
+                                'heartbeat_interval_seconds' => 600,
+                                'prefetch_threshold' => 3,
+                                'session_epoch' => $sessionEpoch,
+                                'total_allocated' => count($leadsPayload),
+                                'leads' => $leadsPayload
+                            ];
+                        } else {
+                            $upComp = $link->prepare("UPDATE lead_batches SET status = 'COMPLETED' WHERE id = ?");
+                            if ($upComp) {
+                                $upComp->bind_param('i', $activeBatch['id']);
+                                $upComp->execute();
+                                $upComp->close();
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         $allocatedLeads = [];
         $allocatedPhones = [];
@@ -673,6 +744,7 @@ function queryWaterfallP1(mysqli $link, int $userId, int $limit, array $excluded
 
 function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excludedPhones): array {
     $candidates = [];
+    $fetchLimit = max(150, $limit * 10);
 
     $hasTempCallCount = hasLeadEngineColumn($link, tn('TBL_TEMP'), 'CALL_COUNT');
     $callCountClause = $hasTempCallCount ? " AND t.CALL_COUNT = 0" : "";
@@ -681,11 +753,21 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
           AND t.LAST_DIALED_DATE_TIME IS NULL" . $callCountClause . "
           AND (t.CALL_DIALED_TELECALLER IS NULL OR t.CALL_DIALED_TELECALLER = ? OR t.BATCH_ASSIGNED_AT IS NULL OR t.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
           AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = t.ID AND f.contact_source = 'TEMP')
+          AND NOT EXISTS (
+              SELECT 1 FROM lead_reservations lr 
+              WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10)
+                AND lr.state IN ('RESERVED', 'DIALING')
+                AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+              WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
+          )
         ORDER BY t.TEMP_UPLOAD_DATETIME ASC, t.ID ASC
-        LIMIT 50";
+        LIMIT ?";
     $stmtT = $link->prepare($sqlTemp);
     if ($stmtT) {
-        $stmtT->bind_param('i', $userId);
+        $stmtT->bind_param('ii', $userId, $fetchLimit);
         $stmtT->execute();
         $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmtT->close();
@@ -712,6 +794,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
 
     if (count($candidates) < $limit) {
         $needed = $limit - count($candidates);
+        $fetchLimitM = max(150, $needed * 10);
         $hasMainCallCount = hasLeadEngineColumn($link, tn('TBL_MAIN'), 'CALL_COUNT');
         $callCountClauseM = $hasMainCallCount ? " AND m.CALL_COUNT = 0" : "";
         $sqlMain = "SELECT m.ID, m.MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " m
@@ -719,11 +802,21 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
               AND m.LAST_DIALED_DATE_TIME IS NULL" . $callCountClauseM . "
               AND (m.MAINDATABASE_CALL_DIALED_USER IS NULL OR m.MAINDATABASE_CALL_DIALED_USER = ? OR m.BATCH_ASSIGNED_AT IS NULL OR m.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
               AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = m.ID AND f.contact_source = 'MAIN')
+              AND NOT EXISTS (
+                  SELECT 1 FROM lead_reservations lr 
+                  WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+                    AND lr.state IN ('RESERVED', 'DIALING')
+                    AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+                  WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
+              )
             ORDER BY m.MAINDATABASE_UPLOAD_DATETIME ASC, m.ID ASC
-            LIMIT 50";
+            LIMIT ?";
         $stmtM = $link->prepare($sqlMain);
         if ($stmtM) {
-            $stmtM->bind_param('i', $userId);
+            $stmtM->bind_param('ii', $userId, $fetchLimitM);
             $stmtM->execute();
             $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmtM->close();
@@ -754,6 +847,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
 
 function queryWaterfallP2(mysqli $link, int $userId, int $limit, array $excludedPhones): array {
     $candidates = [];
+    $fetchLimit = max(150, $limit * 10);
 
     $hasTempCallCount = hasLeadEngineColumn($link, tn('TBL_TEMP'), 'CALL_COUNT');
     $callCountClause = $hasTempCallCount ? " AND t.CALL_COUNT BETWEEN 1 AND 4" : "";
@@ -764,11 +858,21 @@ function queryWaterfallP2(mysqli $link, int $userId, int $limit, array $excluded
           AND t.CALL_DIALED_STATUS IN ('Ringing', 'Busy', 'Switch Off', 'Not Reachable', 'Call Later', 'Callback / Busy')
           AND (t.CALL_DIALED_TELECALLER IS NULL OR t.CALL_DIALED_TELECALLER = ? OR t.BATCH_ASSIGNED_AT IS NULL OR t.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
           AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = t.ID)
+          AND NOT EXISTS (
+              SELECT 1 FROM lead_reservations lr 
+              WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10)
+                AND lr.state IN ('RESERVED', 'DIALING')
+                AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+              WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
+          )
         ORDER BY t.LAST_DIALED_DATE_TIME ASC, t.ID ASC
-        LIMIT 50";
+        LIMIT ?";
     $stmtT = $link->prepare($sqlTemp);
     if ($stmtT) {
-        $stmtT->bind_param('i', $userId);
+        $stmtT->bind_param('ii', $userId, $fetchLimit);
         $stmtT->execute();
         $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmtT->close();
@@ -794,6 +898,8 @@ function queryWaterfallP2(mysqli $link, int $userId, int $limit, array $excluded
     }
 
     if (count($candidates) < $limit) {
+        $needed = $limit - count($candidates);
+        $fetchLimitM = max(150, $needed * 10);
         $hasMainCallCount = hasLeadEngineColumn($link, tn('TBL_MAIN'), 'CALL_COUNT');
         $callCountClauseM = $hasMainCallCount ? " AND m.CALL_COUNT BETWEEN 1 AND 4" : "";
         $sqlMain = "SELECT m.ID, m.MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " m
@@ -803,11 +909,21 @@ function queryWaterfallP2(mysqli $link, int $userId, int $limit, array $excluded
               AND m.MAINDATABASE_CALL_DIALED_STATUS IN ('Ringing', 'Busy', 'Switch Off', 'Not Reachable', 'Call Later', 'Callback / Busy')
               AND (m.MAINDATABASE_CALL_DIALED_USER IS NULL OR m.MAINDATABASE_CALL_DIALED_USER = ? OR m.BATCH_ASSIGNED_AT IS NULL OR m.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
               AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = m.ID)
+              AND NOT EXISTS (
+                  SELECT 1 FROM lead_reservations lr 
+                  WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+                    AND lr.state IN ('RESERVED', 'DIALING')
+                    AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+                  WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
+              )
             ORDER BY m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
-            LIMIT 50";
+            LIMIT ?";
         $stmtM = $link->prepare($sqlMain);
         if ($stmtM) {
-            $stmtM->bind_param('i', $userId);
+            $stmtM->bind_param('ii', $userId, $fetchLimitM);
             $stmtM->execute();
             $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmtM->close();
@@ -838,6 +954,7 @@ function queryWaterfallP2(mysqli $link, int $userId, int $limit, array $excluded
 
 function queryWaterfallP3(mysqli $link, int $userId, int $limit, array $excludedPhones): array {
     $candidates = [];
+    $fetchLimit = max(150, $limit * 10);
 
     $sqlTemp = "SELECT t.ID, t.CUST_MOBILE FROM " . tn('TBL_TEMP') . " t
         WHERE t.LAST_DIALED_DATE_TIME IS NOT NULL
@@ -845,11 +962,21 @@ function queryWaterfallP3(mysqli $link, int $userId, int $limit, array $excluded
           AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS NOT IN ('Lead', 'Interested', 'Enquiry', 'Sanctioned', 'Disbursed', 'Login', 'Do Not Call', 'DND', 'Wrong Number', 'Not Interested', 'Lost', 'Rejected'))
           AND (t.CALL_DIALED_TELECALLER IS NULL OR t.CALL_DIALED_TELECALLER = ? OR t.BATCH_ASSIGNED_AT IS NULL OR t.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
           AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = t.ID)
+          AND NOT EXISTS (
+              SELECT 1 FROM lead_reservations lr 
+              WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10)
+                AND lr.state IN ('RESERVED', 'DIALING')
+                AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+              WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
+          )
         ORDER BY t.LAST_DIALED_DATE_TIME ASC, t.ID ASC
-        LIMIT 50";
+        LIMIT ?";
     $stmtT = $link->prepare($sqlTemp);
     if ($stmtT) {
-        $stmtT->bind_param('i', $userId);
+        $stmtT->bind_param('ii', $userId, $fetchLimit);
         $stmtT->execute();
         $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmtT->close();
@@ -875,17 +1002,29 @@ function queryWaterfallP3(mysqli $link, int $userId, int $limit, array $excluded
     }
 
     if (count($candidates) < $limit) {
+        $needed = $limit - count($candidates);
+        $fetchLimitM = max(150, $needed * 10);
         $sqlMain = "SELECT m.ID, m.MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " m
             WHERE m.LAST_DIALED_DATE_TIME IS NOT NULL
               AND m.LAST_DIALED_DATE_TIME < NOW() - INTERVAL 90 DAY
               AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS NOT IN ('Lead', 'Interested', 'Enquiry', 'Sanctioned', 'Disbursed', 'Login', 'Do Not Call', 'DND', 'Wrong Number', 'Not Interested', 'Lost', 'Rejected'))
               AND (m.MAINDATABASE_CALL_DIALED_USER IS NULL OR m.MAINDATABASE_CALL_DIALED_USER = ? OR m.BATCH_ASSIGNED_AT IS NULL OR m.BATCH_ASSIGNED_AT < NOW() - INTERVAL 20 MINUTE)
               AND NOT EXISTS (SELECT 1 FROM lead_followups f WHERE f.status = 'OPEN' AND f.client_contact_id = m.ID)
+              AND NOT EXISTS (
+                  SELECT 1 FROM lead_reservations lr 
+                  WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
+                    AND lr.state IN ('RESERVED', 'DIALING')
+                    AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
+                  WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
+              )
             ORDER BY m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
-            LIMIT 50";
+            LIMIT ?";
         $stmtM = $link->prepare($sqlMain);
         if ($stmtM) {
-            $stmtM->bind_param('i', $userId);
+            $stmtM->bind_param('ii', $userId, $fetchLimitM);
             $stmtM->execute();
             $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmtM->close();
