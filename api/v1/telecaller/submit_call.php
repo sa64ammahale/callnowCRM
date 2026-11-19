@@ -214,8 +214,28 @@ if ($cleanTargetMobile !== '') {
 }
 
 $recordUserId = (int)($record['CALL_DIALED_TELECALLER'] ?? $record['MAINDATABASE_CALL_DIALED_USER']);
-if ($recordUserId > 0 && $recordUserId !== $userId && !in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) && $userId !== 1) {
-    apiError(403, 'Not authorized to update this record');
+$isOwnerOrAdmin = ($recordUserId <= 0 || $recordUserId === $userId || in_array($userRole, ['Admin', 'Manager', 'Super Admin'], true) || $userId === 1);
+
+$hasReservationAccess = false;
+$isOpenRetryStatus = false;
+
+if (!$isOwnerOrAdmin) {
+    // Check if the telecaller has an active or valid reservation for this lead
+    $qResCheck = $link->prepare("
+        SELECT id FROM lead_reservations 
+        WHERE lead_id = ? AND source = ? AND telecaller_id = ? 
+        LIMIT 1
+    ");
+    if ($qResCheck) {
+        $qResCheck->bind_param('isi', $recordId, $source, $userId);
+        $qResCheck->execute();
+        $hasReservationAccess = ($qResCheck->get_result()->fetch_assoc() !== null);
+        $qResCheck->close();
+    }
+
+    // Check if master lead is currently in an uncalled or unconnected retry state
+    $currentMasterStatus = (string)($source === 'TEMP' ? ($record['CALL_DIALED_STATUS'] ?? '') : ($record['MAINDATABASE_CALL_DIALED_STATUS'] ?? ''));
+    $isOpenRetryStatus = in_array(strtolower(trim($currentMasterStatus)), ['', 'not called', 'pending', 'ringing', 'busy', 'switch off', 'not reachable', 'call later', 'callback / busy', 'callback/ busy'], true);
 }
 
 $getStatusRank = static function(?string $st): int {
@@ -242,7 +262,12 @@ $incomingDialDt = !empty($dialTime) ? strtotime($dialTime) : time();
 $shouldUpdateMasterStatus = true;
 $reconciliation = 'STATUS_UPDATED';
 
-if ($currentRank === 4 && !$isDnd) {
+if (!$isOwnerOrAdmin && !$hasReservationAccess && !$isOpenRetryStatus) {
+    // Record belongs to another telecaller and is in protected status (e.g. Lead, Won)
+    // Always log the physical call attempt in TBL_CALL_LOGS, but preserve master record owner/status
+    $shouldUpdateMasterStatus = false;
+    $reconciliation = 'UNAUTHORIZED_MASTER_UNCHANGED';
+} elseif ($currentRank === 4 && !$isDnd) {
     $shouldUpdateMasterStatus = false;
     $reconciliation = 'STATUS_SUPERSEDED';
 } elseif ($lastDialedDt !== null && $incomingDialDt < $lastDialedDt) {
@@ -253,6 +278,7 @@ if ($currentRank === 4 && !$isDnd) {
 }
 
 $statusToSet = $shouldUpdateMasterStatus ? $callStatus : $currentStatus;
+$userToSet = ($shouldUpdateMasterStatus || $recordUserId <= 0) ? $userId : $recordUserId;
 
 if ($source === 'MAIN') {
     $sql = "UPDATE " . tn('TBL_MAIN') . " SET 
@@ -266,7 +292,7 @@ if ($source === 'MAIN') {
         BATCH_ASSIGNED_AT = NULL
         WHERE ID = ?";
     $stmt = $link->prepare($sql);
-    $stmt->bind_param('sissssii', $statusToSet, $userId, $notes, $notes, $dialTime, $dialTime, $isConnected, $recordId);
+    $stmt->bind_param('sissssii', $statusToSet, $userToSet, $notes, $notes, $dialTime, $dialTime, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
 } else {
@@ -280,7 +306,7 @@ if ($source === 'MAIN') {
         BATCH_ASSIGNED_AT = NULL
         WHERE ID = ?";
     $stmt = $link->prepare($sql);
-    $stmt->bind_param('sissisii', $statusToSet, $userId, $notes, $notes, $dialTime, $isConnected, $recordId);
+    $stmt->bind_param('sisssii', $statusToSet, $userToSet, $notes, $notes, $dialTime, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
 }
@@ -356,6 +382,21 @@ if ($syncedLeadId && $syncedLeadId > 0) {
 
 $reservationToken = trim((string)($input['reservation_token'] ?? ''));
 $bucketUuid = trim((string)($input['bucket_id'] ?? ($input['batch_uuid'] ?? '')));
+if (empty($bucketUuid)) {
+    $qActiveBatch = $link->prepare("SELECT batch_uuid FROM lead_batches WHERE telecaller_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1");
+    if ($qActiveBatch) {
+        $qActiveBatch->bind_param('i', $userId);
+        $qActiveBatch->execute();
+        $abRow = $qActiveBatch->get_result()->fetch_assoc();
+        $qActiveBatch->close();
+        if ($abRow && !empty($abRow['batch_uuid'])) {
+            $bucketUuid = (string)$abRow['batch_uuid'];
+        }
+    }
+}
+if (empty($bucketUuid)) {
+    $bucketUuid = 'legacy-batch';
+}
 $matchedResId = null;
 
 if (!empty($reservationToken)) {
