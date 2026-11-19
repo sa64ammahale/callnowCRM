@@ -6,6 +6,8 @@
 *copy*
 *backup*
 *.bak
+*.tmp
+*.cache
 
 # Logs & temp error logs
 *.log
@@ -15,8 +17,19 @@ error_log
 .DS_Store
 Thumbs.db
 *.swp
+*~
 .kilo/
 memory/
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Root testing screenshots / debug dumps (assets/ stays tracked)
+/*.png
+/*.jpg
+/*.jpeg
+archive/
 
 # Uploaded user files (git-tracked via .gitkeep only)
 uploads/*

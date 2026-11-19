@@ -437,8 +437,9 @@ $link->commit();
 } catch (Throwable $e) {
     $link->rollback();
     if ((int)$e->getCode() === 1062 && ($saved = $replay())) apiSuccess($saved);
-    error_log('Call submission failed: ' . $e->getMessage());
-    apiError(500, 'Unable to save call result');
+    error_log('Call submission failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    $errMsg = (defined('APP_DEBUG') && APP_DEBUG) ? ('Unable to save call result: ' . $e->getMessage()) : 'Unable to save call result';
+    apiError(500, $errMsg);
 }
 
 // Calculate real-time telecaller engagement & XP awards

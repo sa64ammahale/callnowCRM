@@ -1655,6 +1655,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 'last_status' => $r['last_status'] ?? 'Not Called',
                 'last_call_time' => $r['last_call_time'],
                 'upload_time' => $r['upload_time'],
+                'created_at' => $r['upload_time'],
                 'call_count' => (int)($r['call_count'] ?? 0),
                 'assigned_user' => $r['assigned_user_name'] ?? null,
                 'assigned_user_name' => $r['assigned_user_name'] ?? null,
@@ -2057,8 +2058,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 } elseif (preg_match('#^/leads/(\d+)$#', $relativePath, $matches)) {
     $leadId = (int)$matches[1];
     $rawSource = strtoupper(trim($_GET['source'] ?? 'MAIN'));
-    if (in_array($rawSource, ['LEAD', 'LEADS'], true)) {
-        $resolve = $link->prepare('SELECT cust_id, assigned_to, created_by, team_id FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?');
+    $isCrmLead = in_array($rawSource, ['LEAD', 'LEADS'], true);
+    $custRecordId = 0;
+    if ($isCrmLead) {
+        $resolve = $link->prepare('SELECT cust_id, assigned_to, created_by, team_id, created_at FROM ' . tn('TBL_LEADS') . ' WHERE lead_id = ?');
         $resolve->bind_param('i', $leadId);
         $resolve->execute();
         $crmLead = $resolve->get_result()->fetch_assoc();
@@ -2084,28 +2087,29 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
                 apiError(403, 'Not authorized to access this lead');
             }
         }
-        $leadId = (int)$crmLead['cust_id'];
-    }
-    $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
-    $ownerColumn = $source === 'TEMP' ? 'CALL_DIALED_TELECALLER' : 'MAINDATABASE_CALL_DIALED_USER';
-    $recordTable = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
-    $guard = $link->prepare('SELECT ' . $ownerColumn . ' AS owner_id FROM ' . tn($recordTable) . ' WHERE ID = ?');
-    $guard->bind_param('i', $leadId);
-    $guard->execute();
-    $owner = $guard->get_result()->fetch_assoc();
-    $guard->close();
-    if (!$owner) apiError(404, 'Lead not found');
-    $ownerId = (int)($owner['owner_id'] ?? 0);
-    if (isManagerOrAdminRole($userRole, $userId)) {
-        // Full access
-    } elseif (isSupervisorRole($userRole)) {
-        $subIds = getSupervisorSubordinateUserIds($link, $userId, (int)$teamId);
-        if ($ownerId !== 0 && !in_array($ownerId, $subIds, true)) {
-            apiError(403, 'Not authorized to access this record');
-        }
+        $custRecordId = (int)($crmLead['cust_id'] ?? 0);
     } else {
-        if ($ownerId !== 0 && $ownerId !== $userId) {
-            apiError(403, 'Not authorized to access this record');
+        $source = ($rawSource === 'TEMP' || $rawSource === 'TEMPORARY') ? 'TEMP' : 'MAIN';
+        $ownerColumn = $source === 'TEMP' ? 'CALL_DIALED_TELECALLER' : 'MAINDATABASE_CALL_DIALED_USER';
+        $recordTable = $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN';
+        $guard = $link->prepare('SELECT ' . $ownerColumn . ' AS owner_id FROM ' . tn($recordTable) . ' WHERE ID = ?');
+        $guard->bind_param('i', $leadId);
+        $guard->execute();
+        $owner = $guard->get_result()->fetch_assoc();
+        $guard->close();
+        if (!$owner) apiError(404, 'Lead not found');
+        $ownerId = (int)($owner['owner_id'] ?? 0);
+        if (isManagerOrAdminRole($userRole, $userId)) {
+            // Full access
+        } elseif (isSupervisorRole($userRole)) {
+            $subIds = getSupervisorSubordinateUserIds($link, $userId, (int)$teamId);
+            if ($ownerId !== 0 && !in_array($ownerId, $subIds, true)) {
+                apiError(403, 'Not authorized to access this record');
+            }
+        } else {
+            if ($ownerId !== 0 && $ownerId !== $userId) {
+                apiError(403, 'Not authorized to access this record');
+            }
         }
     }
 
@@ -2219,6 +2223,43 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 
         apiSuccess(['message' => 'Lead updated successfully']);
     } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        $leadCreationTime = null;
+        if (isset($crmLead) && !empty($crmLead['created_at'])) {
+            $leadCreationTime = $crmLead['created_at'];
+        } else {
+            $chkLeadTs = $link->prepare("SELECT created_at FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? OR cust_id = ? LIMIT 1");
+            if ($chkLeadTs) {
+                $chkLeadTs->bind_param('ii', $leadId, $leadId);
+                $chkLeadTs->execute();
+                $lRow = $chkLeadTs->get_result()->fetch_assoc();
+                $chkLeadTs->close();
+                if ($lRow && !empty($lRow['created_at'])) {
+                    $leadCreationTime = $lRow['created_at'];
+                }
+            }
+            if (!$leadCreationTime) {
+                $uploadCol = $source === 'TEMP' ? 'TEMP_UPLOAD_DATETIME' : 'MAINDATABASE_UPLOAD_DATETIME';
+                $chkUpload = $link->prepare("SELECT {$uploadCol} as ut FROM " . tn($recordTable) . " WHERE ID = ? LIMIT 1");
+                if ($chkUpload) {
+                    $chkUpload->bind_param('i', $leadId);
+                    $chkUpload->execute();
+                    $uRow = $chkUpload->get_result()->fetch_assoc();
+                    $chkUpload->close();
+                    if ($uRow && !empty($uRow['ut'])) {
+                        $leadCreationTime = $uRow['ut'];
+                    }
+                }
+            }
+        }
+
+        if ($leadCreationTime) {
+            $createdTs = strtotime($leadCreationTime);
+            if ($createdTs > 0 && (time() - $createdTs) < (3 * 86400)) {
+                $eligibleDate = date('d M Y, h:i A', $createdTs + (3 * 86400));
+                apiError(403, "Leads cannot be deleted within 3 days of creation. This lead was added on " . date('d M Y', $createdTs) . " and can only be deleted after " . $eligibleDate . ".");
+            }
+        }
+
         $todayStr = date('Y-m-d');
         $delCountStmt = $link->prepare("SELECT COUNT(*) as c FROM " . tn('TBL_ACTIVITY_LOG') . " 
             WHERE USER_ID = ? AND ACTION_TYPE = 'LEAD_DELETED' AND DATE(LOG_TIME) = ?");
@@ -2236,16 +2277,20 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $delLeadStmt->execute();
         $delLeadStmt->close();
 
-        if ($source === 'TEMP') {
-            $delRecStmt = $link->prepare("DELETE FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
-        } else {
+        if (isset($custRecordId) && $custRecordId > 0) {
             $delRecStmt = $link->prepare("DELETE FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+            $delRecStmt->bind_param('i', $custRecordId);
+            $delRecStmt->execute();
+            $delRecStmt->close();
+        } elseif (!empty($recordTable)) {
+            $delRecStmt = $link->prepare("DELETE FROM " . tn($recordTable) . " WHERE ID = ?");
+            $delRecStmt->bind_param('i', $leadId);
+            $delRecStmt->execute();
+            $delRecStmt->close();
         }
-        $delRecStmt->bind_param('i', $leadId);
-        $delRecStmt->execute();
-        $delRecStmt->close();
 
-        logActivity($link, $userId, 'LEAD_DELETED', "User deleted lead ID {$leadId} (Daily count: " . ($delCount + 1) . ")", (string)$leadId, $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN');
+        $sourceTable = $isCrmLead ? 'TBL_LEADS' : ($source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN');
+        logActivity($link, $userId, 'LEAD_DELETED', "User deleted lead ID {$leadId} (Daily count: " . ($delCount + 1) . ")", (string)$leadId, $sourceTable);
 
         apiSuccess(['message' => 'Lead deleted successfully', 'deleted_today' => $delCount + 1]);
     } else {

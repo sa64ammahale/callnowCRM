@@ -25,7 +25,7 @@ if ($leadId <= 0) {
     exit;
 }
 
-$stmt = mysqli_prepare($link, "SELECT lead_id, assigned_to FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? LIMIT 1");
+$stmt = mysqli_prepare($link, "SELECT lead_id, assigned_to, created_at FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? LIMIT 1");
 mysqli_stmt_bind_param($stmt, 'i', $leadId);
 mysqli_stmt_execute($stmt);
 $lead = mysqli_stmt_get_result($stmt)->fetch_assoc();
@@ -33,6 +33,17 @@ mysqli_stmt_close($stmt);
 
 if (!$lead) {
     echo json_encode(['ok' => false, 'message' => 'Lead not found.']);
+    exit;
+}
+
+$createdAtTs = !empty($lead['created_at']) ? strtotime($lead['created_at']) : 0;
+if ($createdAtTs > 0 && (time() - $createdAtTs) < (3 * 86400)) {
+    $canDeleteAfter = date('d M Y, h:i A', $createdAtTs + (3 * 86400));
+    http_response_code(403);
+    echo json_encode([
+        'ok' => false,
+        'message' => "Leads cannot be deleted within 3 days of creation. This lead was added on " . date('d M Y', $createdAtTs) . " and can only be deleted after {$canDeleteAfter}."
+    ]);
     exit;
 }
 
