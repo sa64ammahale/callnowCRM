@@ -120,6 +120,8 @@ function buildDateCondition(string $period, ?string $dateFrom, ?string $dateTo, 
         case 'month':
         case 'this_month':
             return "($col >= DATE_FORMAT(CURDATE(), '%Y-%m-01 00:00:00') AND $col < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01 00:00:00'), INTERVAL 1 MONTH))";
+        case 'last_month':
+            return "($col >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01 00:00:00') AND $col < DATE_FORMAT(CURDATE(), '%Y-%m-01 00:00:00'))";
         case 'year':
         case 'this_year':
             return "YEAR($col) = YEAR(CURDATE())";
@@ -1492,8 +1494,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $params = [];
         $types = '';
 
-        if ($period !== null && strtolower(trim($period)) !== 'all') {
-            $whereParts[] = buildDateCondition($period, $dateFrom, $dateTo, 'COALESCE(l.created_at, l.updated_at)');
+        $hasCustomDates = (!empty($dateFrom) || !empty($dateTo));
+        if (($period !== null && strtolower(trim($period)) !== 'all') || $hasCustomDates) {
+            $effectivePeriod = $hasCustomDates ? 'custom' : $period;
+            $whereParts[] = buildDateCondition($effectivePeriod, $dateFrom, $dateTo, 'COALESCE(l.created_at, l.updated_at)');
         }
 
         $scope = strtolower(trim($_GET['scope'] ?? 'mine'));
@@ -2135,10 +2139,15 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'POST') {
         $input = apiReadJson();
         $name = trim($input['name'] ?? ($input['customer_name'] ?? ''));
+        $mobile = trim($input['mobile'] ?? ($input['customer_mobile'] ?? ''));
         $company = trim($input['company'] ?? ($input['customer_company'] ?? ''));
-        $package = trim($input['package'] ?? ($input['customer_package'] ?? ''));
-        $otherInfo = trim($input['other_info'] ?? ($input['notes'] ?? ''));
-        $status = trim($input['status'] ?? ($input['call_status'] ?? ''));
+        $package = trim($input['package'] ?? ($input['customer_package'] ?? ($input['loan_amount'] ?? '')));
+        $otherInfo = trim($input['other_info'] ?? ($input['notes'] ?? ($input['remarks'] ?? '')));
+        $loanType = trim($input['loan_type'] ?? '');
+        $netSalary = trim($input['net_salary'] ?? ($input['monthly_salary'] ?? ''));
+        $bankName = trim($input['bank_name'] ?? ($input['login_bank_name'] ?? ''));
+        $leadStage = trim($input['lead_stage'] ?? ($input['temperature'] ?? ''));
+        $status = trim($input['status'] ?? ($input['lead_status_new'] ?? ($input['call_status'] ?? '')));
         $canMoveLeadStage = in_array(strtolower(trim($userRole)), ['super admin', 'admin', 'manager', 'supervisor'], true) || $userId === 1;
         $pipelineStages = ['LEAD', 'FOLLOWUP', 'INTERNAL_UNDERWRITING', 'LOGIN', 'BANK_UNDERWRITING', 'SANCTIONED', 'DISBURSED', 'REJECT'];
         if (!$canMoveLeadStage && in_array(strtoupper($status), $pipelineStages, true)) {
@@ -2148,41 +2157,58 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         if ($source === 'TEMP') {
             $stmt = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET 
                 CUST_NAME = CASE WHEN ? != '' THEN ? ELSE CUST_NAME END,
+                CUST_MOBILE = CASE WHEN ? != '' THEN ? ELSE CUST_MOBILE END,
                 CUST_COMPANY = CASE WHEN ? != '' THEN ? ELSE CUST_COMPANY END,
                 CUST_PACKAGE = CASE WHEN ? != '' THEN ? ELSE CUST_PACKAGE END,
                 CUST_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE CUST_OTHER_INFO END,
                 CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE CALL_DIALED_STATUS END
                 WHERE ID = ?");
-            $stmt->bind_param('ssssssssssi', $name, $name, $company, $company, $package, $package, $otherInfo, $otherInfo, $status, $status, $leadId);
+            $stmt->bind_param('ssssssssssssi', $name, $name, $mobile, $mobile, $company, $company, $package, $package, $otherInfo, $otherInfo, $status, $status, $leadId);
         } else {
             $stmt = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET 
                 MAINDATABASE_NAME = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_NAME END,
+                MAINDATABASE_MOBILE = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_MOBILE END,
                 MAINDATABASE_COMPANY = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_COMPANY END,
                 MAINDATABASE_PACKAGE = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_PACKAGE END,
                 MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
                 MAINDATABASE_CALL_DIALED_STATUS = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_CALL_DIALED_STATUS END
                 WHERE ID = ?");
-            $stmt->bind_param('ssssssssssi', $name, $name, $company, $company, $package, $package, $otherInfo, $otherInfo, $status, $status, $leadId);
+            $stmt->bind_param('ssssssssssssi', $name, $name, $mobile, $mobile, $company, $company, $package, $package, $otherInfo, $otherInfo, $status, $status, $leadId);
         }
         $stmt->execute();
         $stmt->close();
 
         $lUpd = $link->prepare("UPDATE " . tn('TBL_LEADS') . " SET 
             NAME = CASE WHEN ? != '' THEN ? ELSE NAME END,
+            MOBILE = CASE WHEN ? != '' THEN ? ELSE MOBILE END,
             COMPANY_NAME = CASE WHEN ? != '' THEN ? ELSE COMPANY_NAME END,
             loan_amount = CASE WHEN ? != '' THEN ? ELSE loan_amount END,
+            loan_type = CASE WHEN ? != '' THEN ? ELSE loan_type END,
+            net_salary = CASE WHEN ? != '' THEN ? ELSE net_salary END,
+            bank_name = CASE WHEN ? != '' THEN ? ELSE bank_name END,
+            login_bank_name = CASE WHEN ? != '' THEN ? ELSE login_bank_name END,
+            lead_stage = CASE WHEN ? != '' THEN ? ELSE lead_stage END,
             remarks = CASE WHEN ? != '' THEN ? ELSE remarks END,
             OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE OTHER_INFO END,
+            lead_status_new = CASE WHEN ? != '' THEN ? ELSE lead_status_new END,
             updated_by = ?,
             updated_at = NOW()
             WHERE lead_id = ? OR cust_id = ?");
         if ($lUpd) {
-            $lUpd->bind_param('sssssssssiii',
+            $types24 = str_repeat('s', 24) . 'iii';
+            $lUpd->bind_param($types24,
                 $name, $name,
+                $mobile, $mobile,
                 $company, $company,
                 $package, $package,
+                $loanType, $loanType,
+                $netSalary, $netSalary,
+                $bankName, $bankName,
+                $bankName, $bankName,
+                $leadStage, $leadStage,
                 $otherInfo, $otherInfo,
-                $otherInfo,
+                $otherInfo, $otherInfo,
+                $status, $status,
                 $userId,
                 $leadId, $leadId
             );
