@@ -149,16 +149,16 @@ function sweepExpiredReservations(mysqli $link): void {
     $link->query("UPDATE " . tn('TBL_TEMP') . " t
         INNER JOIN lead_reservations lr ON lr.lead_id = t.ID AND lr.source = 'TEMP'
         SET t.BATCH_ASSIGNED_AT = NULL, t.CALL_DIALED_TELECALLER = NULL
-        WHERE lr.state = 'RESERVED' AND lr.expires_at <= NOW()
+        WHERE ((lr.state = 'RESERVED' AND lr.expires_at <= NOW()) OR (lr.state = 'DIALING' AND lr.expires_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR)))
           AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')");
 
     $link->query("UPDATE " . tn('TBL_MAIN') . " m
         INNER JOIN lead_reservations lr ON lr.lead_id = m.ID AND lr.source = 'MAIN'
         SET m.BATCH_ASSIGNED_AT = NULL, m.MAINDATABASE_CALL_DIALED_USER = NULL
-        WHERE lr.state = 'RESERVED' AND lr.expires_at <= NOW()
+        WHERE ((lr.state = 'RESERVED' AND lr.expires_at <= NOW()) OR (lr.state = 'DIALING' AND lr.expires_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR)))
           AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')");
 
-    $link->query("UPDATE lead_reservations SET state = 'EXPIRED' WHERE state = 'RESERVED' AND expires_at <= NOW()");
+    $link->query("UPDATE lead_reservations SET state = 'EXPIRED' WHERE (state = 'RESERVED' AND expires_at <= NOW()) OR (state = 'DIALING' AND expires_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR))");
     $link->query("UPDATE lead_batches SET status = 'EXPIRED' WHERE status = 'ACTIVE' AND expires_at <= NOW()");
 }
 
@@ -565,9 +565,25 @@ function claimLeadBatch(
             }
         }
 
+        $totalAllocated = count($allocatedLeads);
+        if ($totalAllocated === 0) {
+            return [
+                'success' => true,
+                'batch_uuid' => '',
+                'bucket_id' => '',
+                'lease_duration_seconds' => 0,
+                'expires_at' => date('Y-m-d H:i:s'),
+                'heartbeat_interval_seconds' => 600,
+                'prefetch_threshold' => 0,
+                'session_epoch' => $sessionEpoch,
+                'total_allocated' => 0,
+                'leads' => [],
+                'message' => 'No pending leads available in queue'
+            ];
+        }
+
         $batchUuid = cnGenerateUuid();
         $expiresAt = date('Y-m-d H:i:s', time() + 1200);
-        $totalAllocated = count($allocatedLeads);
 
         $batchCols = ['batch_uuid', 'claim_request_id', 'company_code', 'telecaller_id', 'device_id', 'status', 'expires_at'];
         $batchPlaceholders = ['?', '?', '?', '?', '?', "'ACTIVE'", '?'];
