@@ -2329,6 +2329,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $totalPages = $total > 0 ? (int)ceil($total / $limit) : 1;
         apiSuccess([
             'data' => $items,
+            'followups' => $items,
             'total' => $total,
             'page' => $page,
             'limit' => $limit,
@@ -2388,7 +2389,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         $newId = (int)$stmt->insert_id;
         $stmt->close();
 
-        apiSuccess(['message' => 'Follow-up created successfully', 'followup_id' => $newId]);
+        apiSuccess(['message' => 'Follow-up created successfully', 'followup_id' => $newId, 'id' => $newId]);
     } else {
         apiError(405, 'Method not allowed');
     }
