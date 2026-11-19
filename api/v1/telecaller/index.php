@@ -1055,7 +1055,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             'connected_short' => (int)($agg['connected_short_calls'] ?? 0),
             'connected_conversation' => (int)($agg['connected_conversation_calls'] ?? 0),
         ],
-        'status_breakdown' => $statusMap,
+        'status_breakdown' => empty($statusMap) ? (object)[] : (object)$statusMap,
+        'dispositions' => empty($statusMap) ? (object)[] : (object)$statusMap,
         'engagement' => function_exists('getTelecallerEngagementSummary') ? getTelecallerEngagementSummary($link, $userId) : null,
     ]);
 
@@ -2217,6 +2218,36 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         }
 
         apiSuccess(['message' => 'Lead updated successfully']);
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        $todayStr = date('Y-m-d');
+        $delCountStmt = $link->prepare("SELECT COUNT(*) as c FROM " . tn('TBL_ACTIVITY_LOG') . " 
+            WHERE USER_ID = ? AND ACTION_TYPE = 'LEAD_DELETED' AND DATE(LOG_TIME) = ?");
+        $delCountStmt->bind_param('is', $userId, $todayStr);
+        $delCountStmt->execute();
+        $delCount = (int)$delCountStmt->get_result()->fetch_assoc()['c'];
+        $delCountStmt->close();
+
+        if ($delCount >= 2) {
+            apiError(429, 'Daily lead deletion limit reached. You cannot delete more than 2 leads in a single day.');
+        }
+
+        $delLeadStmt = $link->prepare("DELETE FROM " . tn('TBL_LEADS') . " WHERE lead_id = ? OR cust_id = ?");
+        $delLeadStmt->bind_param('ii', $leadId, $leadId);
+        $delLeadStmt->execute();
+        $delLeadStmt->close();
+
+        if ($source === 'TEMP') {
+            $delRecStmt = $link->prepare("DELETE FROM " . tn('TBL_TEMP') . " WHERE ID = ?");
+        } else {
+            $delRecStmt = $link->prepare("DELETE FROM " . tn('TBL_MAIN') . " WHERE ID = ?");
+        }
+        $delRecStmt->bind_param('i', $leadId);
+        $delRecStmt->execute();
+        $delRecStmt->close();
+
+        logActivity($link, $userId, 'LEAD_DELETED', "User deleted lead ID {$leadId} (Daily count: " . ($delCount + 1) . ")", (string)$leadId, $source === 'TEMP' ? 'TBL_TEMP' : 'TBL_MAIN');
+
+        apiSuccess(['message' => 'Lead deleted successfully', 'deleted_today' => $delCount + 1]);
     } else {
         apiError(405, 'Method not allowed');
     }
@@ -2240,42 +2271,10 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             $where[] = buildDateCondition($period, $dateFrom, $dateTo, 'f.followup_at');
         }
 
-        $scope = strtolower(trim($_GET['scope'] ?? 'mine'));
-        if (!empty($_GET['user_id'])) {
-            $targetUserId = (int)$_GET['user_id'];
-            $isAuthorizedTarget = false;
-            if ($targetUserId === $userId || isManagerOrAdminRole($userRole, $userId)) {
-                $isAuthorizedTarget = true;
-            } elseif (isSupervisorRole($userRole)) {
-                $subIds = getSupervisorSubordinateUserIds($link, $userId, (int)$teamId);
-                $isAuthorizedTarget = in_array($targetUserId, $subIds, true);
-            }
-
-            if ($isAuthorizedTarget) {
-                $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
-                $params[] = $targetUserId;
-                $params[] = $targetUserId;
-                $types .= 'ii';
-            } else {
-                $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
-                $params[] = $userId;
-                $params[] = $userId;
-                $types .= 'ii';
-            }
-        } elseif ($scope === 'all' && isManagerOrAdminRole($userRole, $userId)) {
-            // Admin/Manager viewing all follow-ups company-wide - no user filter
-        } elseif ($scope === 'all' && isSupervisorRole($userRole)) {
-            // Supervisor viewing subordinates' follow-ups
-            $subIds = getSupervisorSubordinateUserIds($link, $userId, (int)$teamId);
-            $inList = implode(',', $subIds);
-            $where[] = "(f.user_id IN ($inList) OR l.assigned_to IN ($inList))";
-        } else {
-            // Default: 'mine' - strict personal follow-ups for the telecaller
-            $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
-            $params[] = $userId;
-            $params[] = $userId;
-            $types .= 'ii';
-        }
+        $where[] = "(f.user_id = ? OR l.assigned_to = ?)";
+        $params[] = $userId;
+        $params[] = $userId;
+        $types .= 'ii';
 
         if ($status !== 'all' && $status !== '') {
             $where[] = "f.status = ?";
