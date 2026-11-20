@@ -875,6 +875,15 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
 - **Android Native App (`CallingDeskViewModel.kt`)**:
   - `closeBucketAndLoadNext` & `skipLead`: Auto-submits dialed calls before closing/skipping to prevent losing dial history.
 
+## Completed Goal (2026-11-20): Fix Missing `canManageTeams` Function Error
+- **Issue**: Visiting the Teams page (`modules/users/teams_dashboard.php:414`) threw `Fatal error: Uncaught Error: Call to undefined function canManageTeams()`.
+- **Root Cause**: An automated replacement had previously renamed `canManageTeams` and `canViewAllTeams` to `canManageTBL_TEAMS` and `canViewAllTBL_TEAMS` in `php_scripts/team_auth.php`.
+- **Fix**:
+  - Restored `canManageTeams()` and `canViewAllTeams()` in `php_scripts/team_auth.php`, supporting normalized roles (`Super Admin`, `Admin`, `Manager`). Retained `canManageTBL_TEAMS()` and `canViewAllTBL_TEAMS()` as backward-compatibility aliases.
+  - Added fallback implementations of `canManageTeams()` and `canViewAllTeams()` in `php_scripts/hierarchy_engine.php` (guarded with `!function_exists`), ensuring any script loading `auth.php` has immediate access to these helpers without missing-function fatal errors.
+- **Verification**: Batch lint across all 91 PHP files passed with 0 errors; verified role permissions and team assignment scoping across Super Admin, Admin, Manager, and Supervisor roles.
+
+
 
 
 

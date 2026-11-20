@@ -552,3 +552,36 @@ function canActorAssignRole(string $actorRole, string $targetRole): bool {
     }
     return false;
 }
+
+/**
+ * Team Management Access Helpers
+ */
+if (!function_exists('canManageTeams')) {
+    function canManageTeams(): bool {
+        if (function_exists('isSuperAdmin') && isSuperAdmin()) return true;
+        $role = defined('USER_ROLE') ? USER_ROLE : ($_SESSION['role'] ?? '');
+        $norm = function_exists('getNormalizedRole') ? getNormalizedRole($role) : $role;
+        return in_array($norm, ['Super Admin', 'Admin', 'Manager'], true);
+    }
+}
+
+if (!function_exists('canViewAllTeams')) {
+    function canViewAllTeams(): bool {
+        if (function_exists('isSuperAdmin') && isSuperAdmin()) return true;
+        $role = defined('USER_ROLE') ? USER_ROLE : ($_SESSION['role'] ?? '');
+        $norm = function_exists('getNormalizedRole') ? getNormalizedRole($role) : $role;
+        return $norm === 'Super Admin';
+    }
+}
+
+if (!function_exists('canManageTBL_TEAMS')) {
+    function canManageTBL_TEAMS(): bool {
+        return canManageTeams();
+    }
+}
+
+if (!function_exists('canViewAllTBL_TEAMS')) {
+    function canViewAllTBL_TEAMS(): bool {
+        return canViewAllTeams();
+    }
+}

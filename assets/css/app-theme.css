@@ -1180,7 +1180,6 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
 .dashboard-reports-spotlight {
     background: linear-gradient(135deg, #FAF5FF 0%, #FFFFFF 48%, #F0F9FF 100%);
     border: 1px solid #E9D5FF;
-    border-left: 4px solid #7C3AED;
     border-radius: var(--radius-lg);
     box-shadow: 0 2px 8px rgba(124, 58, 237, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
     position: relative;
@@ -1510,8 +1509,6 @@ nav[aria-label="breadcrumb"],
 .dashboard-section-card.natural-success {
     background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 55%, #DCFCE7 100%) !important;
     border: 1px solid #BBF7D0 !important;
-    border-top: 3px solid #16A34A !important;
-    border-left: 4px solid #16A34A !important;
 }
 .card.natural-success *,
 .crm-card.natural-success *,
@@ -1545,8 +1542,6 @@ nav[aria-label="breadcrumb"],
 .dashboard-section-card.natural-primary {
     background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 55%, #F3E8FF 100%) !important;
     border: 1px solid #E9D5FF !important;
-    border-top: 3px solid #7C3AED !important;
-    border-left: 4px solid #7C3AED !important;
 }
 .card.natural-primary *,
 .crm-card.natural-primary *,
@@ -1580,8 +1575,6 @@ nav[aria-label="breadcrumb"],
 .dashboard-section-card.natural-warning {
     background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 55%, #FEF3C7 100%) !important;
     border: 1px solid #FDE68A !important;
-    border-top: 3px solid #F59E0B !important;
-    border-left: 4px solid #F59E0B !important;
 }
 .card.natural-warning *,
 .crm-card.natural-warning *,
@@ -1615,8 +1608,6 @@ nav[aria-label="breadcrumb"],
 .dashboard-section-card.natural-danger {
     background: linear-gradient(180deg, #FFFFFF 0%, #FFF1F2 55%, #FFE4E6 100%) !important;
     border: 1px solid #FECDD3 !important;
-    border-top: 3px solid #E11D48 !important;
-    border-left: 4px solid #E11D48 !important;
 }
 .card.natural-danger *,
 .crm-card.natural-danger *,
@@ -1650,8 +1641,6 @@ nav[aria-label="breadcrumb"],
 .dashboard-section-card.natural-info {
     background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 55%, #E0F2FE 100%) !important;
     border: 1px solid #BAE6FD !important;
-    border-top: 3px solid #0284C7 !important;
-    border-left: 4px solid #0284C7 !important;
 }
 .card.natural-info *,
 .crm-card.natural-info *,
@@ -1685,8 +1674,6 @@ nav[aria-label="breadcrumb"],
 .dashboard-section-card.natural-neutral {
     background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
     border: 1px solid #E2E8F0 !important;
-    border-top: 3px solid #64748B !important;
-    border-left: 4px solid #64748B !important;
 }
 .card.natural-neutral *,
 .crm-card.natural-neutral *,
@@ -1852,32 +1839,27 @@ nav[aria-label="breadcrumb"],
 .metric-card:has(.bg-success), .stat-card:has(.bg-success) {
     background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 55%, #DCFCE7 100%) !important;
     border-color: #BBF7D0 !important;
-    border-left: 4px solid #16A34A !important;
 }
 .metric-card:has(.text-primary), .stat-card:has(.text-primary),
 .metric-card:has(.bg-primary), .stat-card:has(.bg-primary),
 .metric-card:has(.bg-purple), .stat-card:has(.bg-purple) {
     background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 55%, #F3E8FF 100%) !important;
     border-color: #E9D5FF !important;
-    border-left: 4px solid #7C3AED !important;
 }
 .metric-card:has(.text-warning), .stat-card:has(.text-warning),
 .metric-card:has(.bg-warning), .stat-card:has(.bg-warning) {
     background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 55%, #FEF3C7 100%) !important;
     border-color: #FDE68A !important;
-    border-left: 4px solid #F59E0B !important;
 }
 .metric-card:has(.text-danger), .stat-card:has(.text-danger),
 .metric-card:has(.bg-danger), .stat-card:has(.bg-danger) {
     background: linear-gradient(180deg, #FFFFFF 0%, #FFF1F2 55%, #FFE4E6 100%) !important;
     border-color: #FECDD3 !important;
-    border-left: 4px solid #E11D48 !important;
 }
 .metric-card:has(.text-info), .stat-card:has(.text-info),
 .metric-card:has(.bg-info), .stat-card:has(.bg-info) {
     background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 55%, #E0F2FE 100%) !important;
     border-color: #BAE6FD !important;
-    border-left: 4px solid #0284C7 !important;
 }
 
 .metric-card:has(.metric-card-icon),
@@ -3281,7 +3263,6 @@ table.dataTable .badge {
 .status-card-lead {
     background: #FFFFFF !important;
     border-color: #E2E8F0 !important;
-    border-left: 4px solid #6D45F9 !important;
 }
 .status-card-lead:hover {
     border-color: #C7D2FE !important;
@@ -3290,7 +3271,6 @@ table.dataTable .badge {
 .status-card-reject {
     background: linear-gradient(180deg, #FEF2F2 0%, #FFFFFF 85%) !important;
     border-color: #FECDD3 !important;
-    border-left: 4px solid #DC2626 !important;
 }
 .status-card-reject:hover {
     border-color: #F87171 !important;
@@ -3299,7 +3279,6 @@ table.dataTable .badge {
 .status-card-disbursed {
     background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 85%) !important;
     border-color: #BBF7D0 !important;
-    border-left: 4px solid #16A34A !important;
 }
 .status-card-disbursed:hover {
     border-color: #4ADE80 !important;
@@ -3308,7 +3287,6 @@ table.dataTable .badge {
 .status-card-rework {
     background: linear-gradient(180deg, #FFFBEB 0%, #FFFFFF 85%) !important;
     border-color: #FDE68A !important;
-    border-left: 4px solid #D97706 !important;
 }
 .status-card-rework:hover {
     border-color: #F59E0B !important;
@@ -3317,7 +3295,6 @@ table.dataTable .badge {
 .status-card-followup {
     background: linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 85%) !important;
     border-color: #BAE6FD !important;
-    border-left: 4px solid #0284C7 !important;
 }
 .status-card-followup:hover {
     border-color: #38BDF8 !important;
@@ -3326,7 +3303,6 @@ table.dataTable .badge {
 .status-card-internal_underwriting {
     background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 85%) !important;
     border-color: #CBD5E1 !important;
-    border-left: 4px solid #64748B !important;
 }
 .status-card-internal_underwriting:hover {
     border-color: #94A3B8 !important;
@@ -3335,7 +3311,6 @@ table.dataTable .badge {
 .status-card-login {
     background: linear-gradient(180deg, #FFFDF0 0%, #FFFFFF 85%) !important;
     border-color: #FEF08A !important;
-    border-left: 4px solid #CA8A04 !important;
 }
 .status-card-login:hover {
     border-color: #FACC15 !important;
@@ -3344,7 +3319,6 @@ table.dataTable .badge {
 .status-card-bank_underwriting {
     background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 85%) !important;
     border-color: #E9D5FF !important;
-    border-left: 4px solid #9333EA !important;
 }
 .status-card-bank_underwriting:hover {
     border-color: #C084FC !important;
@@ -3353,7 +3327,6 @@ table.dataTable .badge {
 .status-card-sanctioned {
     background: linear-gradient(180deg, #ECFDF5 0%, #FFFFFF 85%) !important;
     border-color: #99F6E4 !important;
-    border-left: 4px solid #059669 !important;
 }
 .status-card-sanctioned:hover {
     border-color: #34D399 !important;

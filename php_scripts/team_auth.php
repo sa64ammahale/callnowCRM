@@ -20,16 +20,43 @@ if (!defined('USER_TEAM_NAME')) define('USER_TEAM_NAME', $user['TEAM_NAME'] ?? '
 if (!defined('IS_SUPERVISOR_OF_TEAM'))  define('IS_SUPERVISOR_OF_TEAM', ($user['ID'] == $user['SUPERVISOR_ID']));
 
 // Helper Functions
-function canViewAllTBL_TEAMS() {
-    return (defined('USER_ROLE') && USER_ROLE === 'Super Admin') || (function_exists('isSuperAdmin') && isSuperAdmin());
+if (!function_exists('canViewAllTeams')) {
+    function canViewAllTeams(): bool {
+        if (function_exists('isSuperAdmin') && isSuperAdmin()) return true;
+        $role = defined('USER_ROLE') ? USER_ROLE : ($_SESSION['role'] ?? '');
+        if (function_exists('getNormalizedRole')) {
+            return getNormalizedRole($role) === 'Super Admin';
+        }
+        return $role === 'Super Admin';
+    }
 }
 
-function canManageTBL_TEAMS() {
-    return in_array(USER_ROLE, ['Super Admin', 'Admin', 'Manager']);
+if (!function_exists('canManageTeams')) {
+    function canManageTeams(): bool {
+        if (function_exists('isSuperAdmin') && isSuperAdmin()) return true;
+        $role = defined('USER_ROLE') ? USER_ROLE : ($_SESSION['role'] ?? '');
+        if (function_exists('getNormalizedRole')) {
+            $norm = getNormalizedRole($role);
+            return in_array($norm, ['Super Admin', 'Admin', 'Manager'], true);
+        }
+        return in_array($role, ['Super Admin', 'Admin', 'Manager'], true);
+    }
+}
+
+if (!function_exists('canViewAllTBL_TEAMS')) {
+    function canViewAllTBL_TEAMS(): bool {
+        return canViewAllTeams();
+    }
+}
+
+if (!function_exists('canManageTBL_TEAMS')) {
+    function canManageTBL_TEAMS(): bool {
+        return canManageTeams();
+    }
 }
 
 function getTeamFilterSQL($table_alias = 'm') {
-    if (canViewAllTBL_TEAMS()) return "";
+    if (canViewAllTeams()) return "";
     
     if (USER_ROLE == 'Supervisor') {
         return " AND {$table_alias}.CALL_BY IN (SELECT ID FROM " . tn('TBL_USERS') . " WHERE TEAM_ID = " . USER_TEAM_ID . ")";
