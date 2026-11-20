@@ -468,7 +468,7 @@ $(document).on('click', '.phone-reveal-btn', function () {
     var table = btn.data('table');
     if (!recordId) return;
     btn.prop('disabled', true).find('i').toggleClass('bi-eye bi-hourglass-top');
-    $.post('../../php_scripts/phone_reveal.php', {record_id: recordId, source: source, table: table}, function (resp) {
+    $.post('../../php_scripts/phone_reveal.php', {record_id: recordId, source: source, table: table, csrf_token: '<?= $_SESSION['csrf_token'] ?? '' ?>'}, function (resp) {
         btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
         if (resp.success && resp.mobile) {
             btn.closest('.list-group-item').find('.phone-masked').replaceWith('<a href="tel:' + resp.mobile + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + resp.mobile + '</a>');

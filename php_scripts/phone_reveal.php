@@ -9,10 +9,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$input = json_decode(file_get_contents('php://input'), true);
-$recordId = (int)($input['record_id'] ?? 0);
-$source = strtoupper(trim($input['source'] ?? ''));
-$table = trim($input['table'] ?? '');
+verifyCsrfToken($_POST['csrf_token'] ?? '');
+
+$recordId = (int)($_POST['record_id'] ?? 0);
+$source = strtoupper(trim($_POST['source'] ?? ''));
+$table = trim($_POST['table'] ?? '');
 
 if ($recordId <= 0 || !in_array($source, ['MAIN', 'TEMP', 'LEADS'], true)) {
     http_response_code(400);
