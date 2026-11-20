@@ -1057,6 +1057,36 @@ body[data-sidebar="collapsed"] .app-sidebar-link {
     border-bottom-right-radius: var(--radius-lg);
 }
 
+/* Profile page cards */
+.card-profile {
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+}
+.card-profile .card-body {
+    padding: 1.5rem;
+}
+.card-profile .card-header {
+    background: transparent;
+    border-bottom: none;
+    padding: 0.75rem 1.5rem 0.5rem;
+}
+.card-profile .card-footer {
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border-subtle);
+}
+.card-border {
+    border: 1px solid var(--border-default);
+}
+.rounded-circle {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
 /* Module Header */
 .crm-module-header,
 .module-header {
