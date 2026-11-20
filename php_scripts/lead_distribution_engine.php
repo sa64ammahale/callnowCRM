@@ -94,7 +94,7 @@ function ensureLeadEngineSchema(mysqli $link): void {
         `phone_number_10` VARCHAR(15) NOT NULL,
         `priority_tier` ENUM('P0', 'P1', 'P2', 'P3') NOT NULL,
         `followup_id` INT DEFAULT NULL,
-        `state` ENUM('RESERVED', 'DIALING', 'COMPLETED', 'EXPIRED', 'RELEASED') NOT NULL DEFAULT 'RESERVED',
+        `state` ENUM('RESERVED', 'DIALING', 'COMPLETED', 'EXPIRED', 'RELEASED', 'SKIPPED') NOT NULL DEFAULT 'RESERVED',
         `reserved_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         `dialing_started_at` DATETIME DEFAULT NULL,
         `last_heartbeat_at` DATETIME DEFAULT NULL,
@@ -121,6 +121,8 @@ function ensureLeadEngineSchema(mysqli $link): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
     @mysqli_query($link, "ALTER TABLE `lead_reservations` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+    @mysqli_query($link, "ALTER TABLE `lead_reservations` MODIFY COLUMN `state` ENUM('RESERVED', 'DIALING', 'COMPLETED', 'EXPIRED', 'RELEASED', 'SKIPPED') NOT NULL DEFAULT 'RESERVED'");
+    @mysqli_query($link, "ALTER TABLE `lead_reservations` ADD INDEX `idx_res_caller_skip` (`phone_number_10`, `telecaller_id`, `state`, `reserved_at`)");
     @mysqli_query($link, "ALTER TABLE `lead_batches` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
     ensureLeadEngineColumn($link, 'users', 'session_epoch', 'INT NOT NULL DEFAULT 1');
     ensureLeadEngineColumn($link, tn('TBL_TEMP'), 'CALL_COUNT', 'INT NOT NULL DEFAULT 0');
@@ -340,6 +342,87 @@ function abandonCallLock(mysqli $link, int $userId, string $reservationToken, st
         'reservation_token' => $reservationToken,
         'state' => 'RELEASED',
         'message' => 'Call lock abandoned successfully'
+    ];
+}
+
+function skipLeadReservation(mysqli $link, int $userId, int $leadId, string $source, ?string $reservationToken = null): array {
+    ensureLeadEngineSchema($link);
+    $resolvedSource = strtoupper(trim((string)$source)) === 'TEMP' ? 'TEMP' : 'MAIN';
+
+    $row = null;
+    if (!empty($reservationToken)) {
+        $stmt = $link->prepare("SELECT id, state, telecaller_id, phone_number_10, lead_id, source FROM lead_reservations WHERE reservation_token = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $reservationToken);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
+    }
+
+    if (!$row && $leadId > 0) {
+        $stmt = $link->prepare("SELECT id, state, telecaller_id, phone_number_10, lead_id, source FROM lead_reservations WHERE lead_id = ? AND source = ? AND telecaller_id = ? ORDER BY id DESC LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('isi', $leadId, $resolvedSource, $userId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
+    }
+
+    $phone10 = '';
+    if ($row) {
+        if ((int)$row['telecaller_id'] !== $userId) {
+            return ['error' => 'FORBIDDEN', 'code' => 403, 'message' => 'Reservation belongs to another telecaller'];
+        }
+        $phone10 = (string)($row['phone_number_10'] ?? '');
+        if ($leadId <= 0) {
+            $leadId = (int)($row['lead_id'] ?? 0);
+        }
+        $up = $link->prepare("UPDATE lead_reservations SET state = 'SKIPPED' WHERE id = ?");
+        if ($up) {
+            $up->bind_param('i', $row['id']);
+            $up->execute();
+            $up->close();
+        }
+    } else {
+        $phone10 = fetchLeadPhone($link, $resolvedSource, $leadId);
+        $cleanPhone = normalize_indian_phone($phone10, true);
+        if ($cleanPhone) {
+            $phone10 = $cleanPhone;
+            $resToken = 'skip_' . cnGenerateUuid();
+            $stmtIns = $link->prepare("INSERT INTO lead_reservations (batch_id, batch_uuid, reservation_token, company_code, telecaller_id, device_id, source, lead_id, phone_number_10, priority_tier, state, reserved_at, expires_at) VALUES (0, 'skipped-batch', ?, 'default', ?, 'device_skip', ?, ?, ?, 'P0', 'SKIPPED', NOW(), NOW() + INTERVAL 90 DAY)");
+            if ($stmtIns) {
+                $stmtIns->bind_param('sisis', $resToken, $userId, $resolvedSource, $leadId, $phone10);
+                $stmtIns->execute();
+                $stmtIns->close();
+            }
+        }
+    }
+
+    if ($resolvedSource === 'TEMP') {
+        $upT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET BATCH_ASSIGNED_AT = NULL, CALL_DIALED_TELECALLER = NULL WHERE ID = ? AND CALL_DIALED_TELECALLER = ?");
+        if ($upT) {
+            $upT->bind_param('ii', $leadId, $userId);
+            $upT->execute();
+            $upT->close();
+        }
+    } else {
+        $upM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET BATCH_ASSIGNED_AT = NULL, MAINDATABASE_CALL_DIALED_USER = NULL WHERE ID = ? AND MAINDATABASE_CALL_DIALED_USER = ?");
+        if ($upM) {
+            $upM->bind_param('ii', $leadId, $userId);
+            $upM->execute();
+            $upM->close();
+        }
+    }
+
+    return [
+        'success' => true,
+        'lead_id' => $leadId,
+        'source' => $resolvedSource,
+        'phone' => $phone10,
+        'state' => 'SKIPPED',
+        'message' => 'Lead skipped for 90 days'
     ];
 }
 
@@ -841,7 +924,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
           AND NOT EXISTS (
               SELECT 1 FROM lead_reservations lr 
               WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10)
-                AND (lr.state IN ('RESERVED', 'DIALING') OR lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR OR (lr.telecaller_id = ? AND lr.reserved_at >= NOW() - INTERVAL 2 HOUR))
+                AND (lr.state IN ('RESERVED', 'DIALING') OR (lr.state = 'COMPLETED' AND (lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR)) OR (lr.telecaller_id = ? AND (lr.reserved_at >= NOW() - INTERVAL 2 HOUR OR (lr.state = 'SKIPPED' AND lr.reserved_at >= NOW() - INTERVAL 90 DAY))))
           )
           AND NOT EXISTS (
               SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -889,7 +972,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
               AND NOT EXISTS (
                   SELECT 1 FROM lead_reservations lr 
                   WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
-                    AND (lr.state IN ('RESERVED', 'DIALING') OR lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR OR (lr.telecaller_id = ? AND lr.reserved_at >= NOW() - INTERVAL 2 HOUR))
+                    AND (lr.state IN ('RESERVED', 'DIALING') OR (lr.state = 'COMPLETED' AND (lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR)) OR (lr.telecaller_id = ? AND (lr.reserved_at >= NOW() - INTERVAL 2 HOUR OR (lr.state = 'SKIPPED' AND lr.reserved_at >= NOW() - INTERVAL 90 DAY))))
               )
               AND NOT EXISTS (
                   SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -1171,7 +1254,7 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone, int $currentUser
         if ($isReserved) return true;
     }
 
-    $resRecentQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND (dialing_started_at >= NOW() - INTERVAL 12 HOUR OR completed_at >= NOW() - INTERVAL 12 HOUR) LIMIT 1");
+    $resRecentQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND state IN ('COMPLETED', 'DIALING') AND (dialing_started_at >= NOW() - INTERVAL 12 HOUR OR completed_at >= NOW() - INTERVAL 12 HOUR) LIMIT 1");
     if ($resRecentQ) {
         $resRecentQ->bind_param('s', $cleanPhone);
         $resRecentQ->execute();
@@ -1217,6 +1300,15 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone, int $currentUser
     }
 
     if ($currentUserId > 0) {
+        $skipQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND telecaller_id = ? AND state = 'SKIPPED' AND reserved_at >= NOW() - INTERVAL 90 DAY LIMIT 1");
+        if ($skipQ) {
+            $skipQ->bind_param('si', $cleanPhone, $currentUserId);
+            $skipQ->execute();
+            $isSkipped = ($skipQ->get_result()->fetch_assoc() !== null);
+            $skipQ->close();
+            if ($isSkipped) return true;
+        }
+
         $userRepeatQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND telecaller_id = ? AND reserved_at >= NOW() - INTERVAL 2 HOUR LIMIT 1");
         if ($userRepeatQ) {
             $userRepeatQ->bind_param('si', $cleanPhone, $currentUserId);

@@ -418,6 +418,21 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     }
     apiSuccess($res);
 
+} elseif (preg_match('#^/calls/(\d+)/skip$#', $relativePath, $skipMatches) || $relativePath === '/calls/skip' || $relativePath === '/calling/skip') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
+    $input = apiReadJson();
+    $leadId = !empty($skipMatches[1]) ? (int)$skipMatches[1] : (int)($input['record_id'] ?? ($input['lead_id'] ?? 0));
+    $source = trim((string)($input['source'] ?? ($input['database'] ?? 'MAIN')));
+    $reservationToken = trim((string)($input['reservation_token'] ?? ''));
+    if ($leadId <= 0 && empty($reservationToken)) {
+        apiError(400, 'lead_id or reservation_token is required');
+    }
+    $res = skipLeadReservation($link, $userId, $leadId, $source, $reservationToken ?: null);
+    if (!empty($res['error'])) {
+        apiError($res['code'] ?? 400, $res['message'] ?? 'Error skipping lead');
+    }
+    apiSuccess($res);
+
 } elseif ($relativePath === '/calling/release' || $relativePath === '/calling/release/' || preg_match('#^/call-buckets/([^/]+)/close$#', $relativePath, $closeMatches)) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
     $input = apiReadJson();
