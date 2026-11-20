@@ -249,6 +249,7 @@ function recordCallEngagement(
 
     return [
         'xp_earned' => $totalAwardXp,
+        'daily_xp' => ($dailyRow ? (int)$dailyRow['xp_earned'] : 0) + $totalAwardXp,
         'call_xp' => $callXp,
         'target_bonus_xp' => $targetBonusXp,
         'total_xp' => $newTotalXp,
@@ -278,12 +279,22 @@ function getTelecallerEngagementSummary(mysqli $link, int $userId): array {
     $qLife->close();
     $totalXp = (int)($lifeRow['tot'] ?? 0);
 
-    // Today's rollup
-    $qD = $link->prepare("SELECT `calls_dialed`, `connected_calls`, `daily_target`, `streak_count` FROM `{$table}` WHERE `user_id` = ? AND `record_type` = 'daily' AND `event_date` = ? LIMIT 1");
+    $qTodayXp = $link->prepare("SELECT COALESCE(SUM(`xp_earned`), 0) as `today_tot` FROM `{$table}` WHERE `user_id` = ? AND `record_type` = 'xp' AND `event_date` = ?");
+    $qTodayXp->bind_param('is', $userId, $today);
+    $qTodayXp->execute();
+    $todayXpRow = $qTodayXp->get_result()->fetch_assoc();
+    $qTodayXp->close();
+    $dailyXp = (int)($todayXpRow['today_tot'] ?? 0);
+
+    $qD = $link->prepare("SELECT `calls_dialed`, `connected_calls`, `daily_target`, `streak_count`, `xp_earned` FROM `{$table}` WHERE `user_id` = ? AND `record_type` = 'daily' AND `event_date` = ? LIMIT 1");
     $qD->bind_param('is', $userId, $today);
     $qD->execute();
     $dRow = $qD->get_result()->fetch_assoc();
     $qD->close();
+
+    if ($dailyXp === 0 && $dRow && isset($dRow['xp_earned']) && (int)$dRow['xp_earned'] > 0) {
+        $dailyXp = (int)$dRow['xp_earned'];
+    }
 
     $connectedToday = $dRow ? (int)$dRow['connected_calls'] : 0;
     $dialsToday = $dRow ? (int)$dRow['calls_dialed'] : 0;
@@ -301,6 +312,7 @@ function getTelecallerEngagementSummary(mysqli $link, int $userId): array {
 
     return [
         'total_xp' => $totalXp,
+        'daily_xp' => $dailyXp,
         'level' => $rankInfo['level'],
         'level_title' => $rankInfo['title'],
         'badge_theme' => $rankInfo['badge_theme'],
