@@ -151,6 +151,42 @@ function updateCurrentCallingDatabase(mysqli $link, int $userId, string $databas
     $stmt->close();
 }
 
+function synchronizeMobileCallResult(mysqli $link, int $recordId, string $source, int $userId, string $status, int $duration): void {
+    $source = $source === 'TEMP' ? 'TEMP' : 'MAIN';
+    if ($source === 'TEMP') {
+        $phoneStmt = $link->prepare("SELECT CUST_MOBILE FROM " . tn('TBL_TEMP') . " WHERE ID = ? LIMIT 1");
+    } else {
+        $phoneStmt = $link->prepare("SELECT MAINDATABASE_MOBILE FROM " . tn('TBL_MAIN') . " WHERE ID = ? LIMIT 1");
+    }
+    if (!$phoneStmt) return;
+    $phoneStmt->bind_param('i', $recordId);
+    $phoneStmt->execute();
+    $phoneRow = $phoneStmt->get_result()->fetch_row();
+    $phoneStmt->close();
+    $phone = normalize_indian_phone((string)($phoneRow[0] ?? ''), true);
+    if (!$phone) return;
+    $connected = $duration > 0 ? 1 : 0;
+
+    if ($source === 'TEMP') {
+        $primary = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = ?, CALL_DIALED_TELECALLER = ?, LAST_DIALED_DATE_TIME = NOW(), LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1, BATCH_ASSIGNED_AT = NULL WHERE ID = ?");
+        $primary->bind_param('siii', $status, $userId, $connected, $recordId);
+        $paired = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = ?, MAINDATABASE_CALL_DIALED_USER = ?, MAINDATABASE_CALL_DIAL_TIME = NOW(), LAST_DIALED_DATE_TIME = NOW(), LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1, BATCH_ASSIGNED_AT = NULL WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ?");
+    } else {
+        $primary = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = ?, MAINDATABASE_CALL_DIALED_USER = ?, MAINDATABASE_CALL_DIAL_TIME = NOW(), LAST_DIALED_DATE_TIME = NOW(), LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1, BATCH_ASSIGNED_AT = NULL WHERE ID = ?");
+        $primary->bind_param('siii', $status, $userId, $connected, $recordId);
+        $paired = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = ?, CALL_DIALED_TELECALLER = ?, LAST_DIALED_DATE_TIME = NOW(), LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1, BATCH_ASSIGNED_AT = NULL WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ?");
+    }
+    if ($primary) {
+        $primary->execute();
+        $primary->close();
+    }
+    if ($paired) {
+        $paired->bind_param('siis', $status, $userId, $connected, $phone);
+        $paired->execute();
+        $paired->close();
+    }
+}
+
 // -----------------------------------------------------------------------------
 // 0. TELECALLER PROFILE FALLBACK (/profile and /me)
 // -----------------------------------------------------------------------------
@@ -440,6 +476,8 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
             $insLog->execute();
             $newLogId = (int)$insLog->insert_id;
             $insLog->close();
+
+            synchronizeMobileCallResult($link, $recId, $src, $userId, $status, $dur);
 
             if (!empty($resToken)) {
                 $upR = $link->prepare("UPDATE lead_reservations SET state = 'COMPLETED', completed_at = NOW(), call_log_id = ?, client_call_id = ? WHERE reservation_token = ?");

@@ -295,6 +295,21 @@ if ($source === 'MAIN') {
     $stmt->bind_param('sissssii', $statusToSet, $userToSet, $notes, $notes, $dialTime, $dialTime, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
+
+    if ($cleanTargetMobile !== '') {
+        $pairedStmt = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET
+            CALL_DIALED_STATUS = ?,
+            CALL_DIALED_TELECALLER = ?,
+            CUST_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE CUST_OTHER_INFO END,
+            LAST_DIALED_DATE_TIME = GREATEST(COALESCE(LAST_DIALED_DATE_TIME, NOW()), COALESCE(?, NOW())),
+            LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
+            CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1,
+            BATCH_ASSIGNED_AT = NULL
+            WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ?");
+        $pairedStmt->bind_param('sisssis', $statusToSet, $userToSet, $notes, $notes, $dialTime, $isConnected, $cleanTargetMobile);
+        $pairedStmt->execute();
+        $pairedStmt->close();
+    }
 } else {
     $sql = "UPDATE " . tn('TBL_TEMP') . " SET 
         CALL_DIALED_STATUS = ?,
@@ -309,6 +324,22 @@ if ($source === 'MAIN') {
     $stmt->bind_param('sisssii', $statusToSet, $userToSet, $notes, $notes, $dialTime, $isConnected, $recordId);
     $stmt->execute();
     $stmt->close();
+
+    if ($cleanTargetMobile !== '') {
+        $pairedStmt = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET
+            MAINDATABASE_CALL_DIALED_STATUS = ?,
+            MAINDATABASE_CALL_DIALED_USER = ?,
+            MAINDATABASE_OTHER_INFO = CASE WHEN ? != '' THEN ? ELSE MAINDATABASE_OTHER_INFO END,
+            MAINDATABASE_CALL_DIAL_TIME = COALESCE(?, NOW()),
+            LAST_DIALED_DATE_TIME = GREATEST(COALESCE(LAST_DIALED_DATE_TIME, NOW()), COALESCE(?, NOW())),
+            LAST_CONNECTED_PERIOD = CASE WHEN ? = 1 THEN NOW() ELSE LAST_CONNECTED_PERIOD END,
+            CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1,
+            BATCH_ASSIGNED_AT = NULL
+            WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ?");
+        $pairedStmt->bind_param('sissssis', $statusToSet, $userToSet, $notes, $notes, $dialTime, $dialTime, $isConnected, $cleanTargetMobile);
+        $pairedStmt->execute();
+        $pairedStmt->close();
+    }
 }
 
 // If marked as DND, strictly register and synchronize across ALL occurrences of this phone number in both tables

@@ -154,13 +154,13 @@ function sweepExpiredReservations(mysqli $link): void {
     ensureLeadEngineSchema($link);
 
     $link->query("UPDATE " . tn('TBL_TEMP') . " t
-        INNER JOIN lead_reservations lr ON lr.lead_id = t.ID AND lr.source = 'TEMP'
+        INNER JOIN lead_reservations lr ON lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10)
         SET t.BATCH_ASSIGNED_AT = NULL, t.CALL_DIALED_TELECALLER = NULL
         WHERE ((lr.state = 'RESERVED' AND lr.expires_at <= NOW()) OR (lr.state = 'DIALING' AND lr.expires_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR)))
           AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')");
 
     $link->query("UPDATE " . tn('TBL_MAIN') . " m
-        INNER JOIN lead_reservations lr ON lr.lead_id = m.ID AND lr.source = 'MAIN'
+        INNER JOIN lead_reservations lr ON lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
         SET m.BATCH_ASSIGNED_AT = NULL, m.MAINDATABASE_CALL_DIALED_USER = NULL
         WHERE ((lr.state = 'RESERVED' AND lr.expires_at <= NOW()) OR (lr.state = 'DIALING' AND lr.expires_at <= DATE_SUB(NOW(), INTERVAL 1 HOUR)))
           AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')");
@@ -369,12 +369,12 @@ function releaseBatchQueue(mysqli $link, int $userId, string $batchUuid): array 
 
     $batchIdInt = (int)$batch['id'];
     $link->query("UPDATE " . tn('TBL_TEMP') . " t
-        INNER JOIN lead_reservations lr ON lr.lead_id = t.ID AND lr.source = 'TEMP' AND lr.batch_id = $batchIdInt
+        INNER JOIN lead_reservations lr ON lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10) AND lr.batch_id = $batchIdInt
         SET t.BATCH_ASSIGNED_AT = NULL, t.CALL_DIALED_TELECALLER = NULL
         WHERE lr.state = 'RELEASED' AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')");
 
     $link->query("UPDATE " . tn('TBL_MAIN') . " m
-        INNER JOIN lead_reservations lr ON lr.lead_id = m.ID AND lr.source = 'MAIN' AND lr.batch_id = $batchIdInt
+        INNER JOIN lead_reservations lr ON lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) AND lr.batch_id = $batchIdInt
         SET m.BATCH_ASSIGNED_AT = NULL, m.MAINDATABASE_CALL_DIALED_USER = NULL
         WHERE lr.state = 'RELEASED' AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')");
 
