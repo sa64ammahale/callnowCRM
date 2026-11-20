@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../../php_scripts/phone_helper.php';
+
 function ensureLeadModuleSchema(mysqli $link): void
 {
     static $done = false;
@@ -658,6 +660,14 @@ function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStag
     $assignedName = htmlspecialchars($lead['assigned_name'] ?? 'Unassigned', ENT_QUOTES, 'UTF-8');
     $companyName = htmlspecialchars($lead['company_name'] ?? '', ENT_QUOTES, 'UTF-8');
     $mobile = htmlspecialchars($lead['mobile'] ?? 'N/A', ENT_QUOTES, 'UTF-8');
+    $leadCanViewPhone = canViewFullPhone();
+    if ($leadCanViewPhone || $mobile === 'N/A') {
+        $phoneBadgeHtml = ($mobile !== 'N/A')
+            ? '<a href="tel:' . $mobile . '" class="pl-badge-pill pl-badge-phone" title="Call customer"><i class="bi bi-telephone me-1"></i>' . $mobile . '</a>'
+            : '';
+    } else {
+        $phoneBadgeHtml = '<span class="phone-masked pl-badge-pill pl-badge-phone" style="cursor:pointer;" data-record-id="' . $leadId . '" data-source="LEADS" data-table="' . tn('TBL_LEADS') . '" title="Click to reveal number">' . mask_phone($mobile) . '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn" data-record-id="' . $leadId . '" data-source="LEADS" data-table="' . tn('TBL_LEADS') . '" title="Reveal number"><i class="bi bi-eye"></i></button>';
+    }
     $loanAmount = htmlspecialchars($lead['loan_amount'] ?? '', ENT_QUOTES, 'UTF-8');
     $loanType = htmlspecialchars($lead['loan_type'] ?? '', ENT_QUOTES, 'UTF-8');
 
@@ -753,9 +763,7 @@ function renderPipelineCard(array $lead, string $currentStage, bool $canMoveStag
             </div>
 
             <div class="d-flex flex-wrap gap-1 my-2">
-                <a href="tel:' . $mobile . '" class="pl-badge-pill pl-badge-phone" title="Call customer">
-                    <i class="bi bi-telephone me-1"></i>' . $mobile . '
-                </a>
+                ' . $phoneBadgeHtml . '
                 ' . $loanBadge . '
                 ' . $typeBadge . '
                 ' . $reworkBadge . '

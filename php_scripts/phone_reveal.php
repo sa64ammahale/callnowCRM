@@ -29,24 +29,28 @@ $tbl = $tableMap[$source];
 
 $mobileCol = '';
 $ownerCol = '';
+$idCol = 'ID';
 switch ($source) {
     case 'MAIN':
         $mobileCol = 'MAINDATABASE_MOBILE';
         $ownerCol = 'MAINDATABASE_CALL_DIALED_USER';
+        $idCol = 'ID';
         break;
     case 'TEMP':
         $mobileCol = 'CUST_MOBILE';
         $ownerCol = 'CALL_DIALED_TELECALLER';
+        $idCol = 'ID';
         break;
     case 'LEADS':
         $mobileCol = 'MOBILE';
         $ownerCol = 'assigned_to';
+        $idCol = 'lead_id';
         break;
 }
 
 $canViewAll = canViewFullPhone();
 
-$sql = "SELECT {$mobileCol} AS mobile FROM {$tbl} WHERE ID = ?";
+$sql = "SELECT {$mobileCol} AS mobile FROM {$tbl} WHERE {$idCol} = ?";
 $params = [$recordId];
 $types = 'i';
 

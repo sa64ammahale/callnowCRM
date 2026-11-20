@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 + '</div>'
                 + '<div class="crm-lead-card-body">'
                 + '<div class="d-flex flex-wrap gap-1 mb-2">'
-                + (card.mobile && card.mobile !== 'N/A' ? '<a href="tel:' + escapeHtml(card.mobile) + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + escapeHtml(card.mobile) + '</a>' : '')
+                + (<?= canViewFullPhone() ? 'true' : 'false' ?> || !card.mobile || card.mobile === 'N/A' ? (card.mobile && card.mobile !== 'N/A' ? '<a href="tel:' + escapeHtml(card.mobile) + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + escapeHtml(card.mobile) + '</a>' : '') : '<span class="phone-masked badge bg-secondary text-decoration-none" style="cursor:pointer;" data-record-id="' + card.lead_id + '" data-source="LEADS" data-table="" title="Click to reveal number">' + (card.mobile && card.mobile !== 'N/A' ? '••••••' + String(card.mobile).slice(-4) : '—') + '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="' + card.lead_id + '" data-source="LEADS" data-table="" title="Reveal number"><i class="bi bi-eye"></i></button>')
                 + (card.identity ? card.identity.filter(function(i) { return i.label === 'Loan Type'; }).map(function(i) { return '<span class="badge bg-primary">' + escapeHtml(i.value) + '</span>'; }).join('') : '')
                 + (followupDate ? '<span class="badge ' + (followupBadge || 'bg-secondary') + '"><i class="bi bi-alarm me-1"></i>' + escapeHtml(followupDate) + '</span>' : '')
                 + (card.rework_flag ? '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Rework</span>' : '')
@@ -743,6 +743,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!np || np === state.page) return;
         state.page = np;
         fetchCards();
+    });
+});
+
+// Phone reveal click handler for lead register
+$(document).on('click', '.phone-reveal-btn', function () {
+    var btn = $(this);
+    var recordId = btn.data('record-id');
+    var source = btn.data('source');
+    var table = btn.data('table');
+    if (!recordId) return;
+    btn.prop('disabled', true).find('i').toggleClass('bi-eye bi-hourglass-top');
+    $.post('php_scripts/phone_reveal.php', {record_id: recordId, source: source, table: table}, function (resp) {
+        btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+        if (resp.success && resp.mobile) {
+            btn.closest('.crm-lead-card-body, td, div').find('.phone-masked').replaceWith('<a href="tel:' + resp.mobile + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + resp.mobile + '</a>');
+            btn.remove();
+        } else {
+            alert('Cannot reveal number: ' + (resp.error || 'Access denied'));
+        }
+    }, 'json').fail(function () {
+        btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+        alert('Server error while revealing number.');
     });
 });
 </script>

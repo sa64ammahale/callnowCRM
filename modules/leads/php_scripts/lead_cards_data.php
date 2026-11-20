@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 require_once __DIR__ . '/../lead_common.php';
+require_once __DIR__ . '/../../../php_scripts/phone_helper.php';
 api_init();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -237,7 +238,8 @@ foreach ($rows as $row) {
     $cards[] = [
         'lead_id' => (int)$row['lead_id'],
         'customer_name' => $row['customer_name'] ?: 'Unknown',
-        'mobile' => $row['mobile'],
+        'mobile' => canViewFullPhone() ? $row['mobile'] : mask_phone($row['mobile']),
+        'can_reveal_phone' => !canViewFullPhone() && !empty($row['mobile']),
         'status' => $status,
         'status_label' => $meta['label'],
         'status_badge' => leadStatusBadgeClass($status),

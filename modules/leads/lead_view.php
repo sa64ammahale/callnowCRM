@@ -213,7 +213,19 @@ $daysInStage = $lead['updated_at'] ? max(0, (int)((time() - strtotime($lead['upd
     <div class="col-xl-2 col-md-4 col-sm-6 col-12">
         <div class="p-2 border rounded bg-surface">
             <div class="text-muted text-uppercase" style="font-size:0.625rem; font-weight:600;">Customer Mobile</div>
-            <div class="fw-bold text-dark small"><a href="tel:<?= htmlspecialchars($lead['mobile'] ?? '') ?>" class="text-decoration-none text-dark"><i class="bi bi-telephone text-primary me-1"></i><?= htmlspecialchars($lead['mobile'] ?? '-') ?></a></div>
+            <div class="fw-bold text-dark small">
+                <?php $lvCanView = canViewFullPhone(); $lvMobile = $lead['mobile'] ?? ''; ?>
+                <?php if ($lvCanView || empty($lvMobile)): ?>
+                    <?php if (!empty($lvMobile)): ?>
+                        <a href="tel:<?= htmlspecialchars($lvMobile) ?>" class="text-decoration-none text-dark"><i class="bi bi-telephone text-primary me-1"></i><?= htmlspecialchars($lvMobile) ?></a>
+                    <?php else: ?>
+                        <span class="text-muted">-</span>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <span class="phone-masked d-inline-block font-monospace" style="cursor:pointer;" data-record-id="<?= (int)($lead['lead_id'] ?? 0) ?>" data-source="LEADS" data-table="<?= tn('TBL_LEADS') ?>" title="Click to reveal number"><?= mask_phone($lvMobile) ?></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="<?= (int)($lead['lead_id'] ?? 0) ?>" data-source="LEADS" data-table="<?= tn('TBL_LEADS') ?>" title="Reveal number"><i class="bi bi-eye"></i></button>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     <div class="col-xl-2 col-md-4 col-sm-6 col-12">

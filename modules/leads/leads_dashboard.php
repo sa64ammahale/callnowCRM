@@ -356,6 +356,7 @@ const APP_BASE_URL = '<?= defined('APP_BASE') ? APP_BASE : '' ?>';
 const CSRF_TOKEN = '<?= $_SESSION['csrf_token'] ?? '' ?>';
 const LEAD_VIEW_URL = '<?= url('modules/leads/lead_view.php') ?>';
 const LEAD_PIPELINE_URL = '<?= url('modules/leads/lead_pipeline.php') ?>';
+const CAN_VIEW_FULL_PHONE = <?= canViewFullPhone() ? 'true' : 'false' ?>;
 
 function escapeHtml(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
@@ -386,7 +387,7 @@ function renderTodayFollowups(data) {
             + '<span class="badge ' + leadStatusBadgeClass(l.lead_status_new) + '">' + escapeHtml(l.lead_status_new) + '</span>'
             + '</div>'
             + '<div class="d-flex align-items-center justify-content-between mt-1">'
-            + '<a href="tel:' + escapeHtml(l.mobile) + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + escapeHtml(l.mobile) + '</a>'
+            + (window.canViewFullPhone || !l.mobile ? '<a href="tel:' + escapeHtml(l.mobile) + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + escapeHtml(l.mobile || '—') + '</a>' : '<span class="phone-masked badge bg-secondary text-decoration-none" style="cursor:pointer;" data-record-id="' + l.lead_id + '" data-source="LEADS" data-table="" title="Click to reveal number">' + (l.mobile ? '••••••' + String(l.mobile).slice(-4) : '—') + '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="' + l.lead_id + '" data-source="LEADS" data-table="" title="Reveal number"><i class="bi bi-eye"></i></button>')
             + '<a href="' + LEAD_VIEW_URL + '?id=' + l.lead_id + '" class="btn btn-sm btn-primary py-0 px-2" style="font-size:0.75rem;"><i class="bi bi-pencil-square me-1"></i>Open</a>'
             + '</div>'
             + '</div>';
@@ -409,7 +410,7 @@ function renderRecentLeads(data) {
             + '<span class="badge ' + leadStatusBadgeClass(l.lead_status_new) + '">' + escapeHtml(l.lead_status_new) + '</span>'
             + '</div>'
             + '<div class="d-flex align-items-center justify-content-between mt-1">'
-            + '<a href="tel:' + escapeHtml(l.mobile) + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + escapeHtml(l.mobile) + '</a>'
+            + (CAN_VIEW_FULL_PHONE || !l.mobile ? '<a href="tel:' + escapeHtml(l.mobile) + '" class="badge bg-secondary text-decoration-none"><i class="bi bi-telephone me-1"></i>' + escapeHtml(l.mobile || '—') + '</a>' : '<span class="phone-masked badge bg-secondary text-decoration-none" style="cursor:pointer;" data-record-id="' + l.lead_id + '" data-source="LEADS" data-table="" title="Click to reveal number">' + (l.mobile ? '••••••' + String(l.mobile).slice(-4) : '—') + '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="' + l.lead_id + '" data-source="LEADS" data-table="" title="Reveal number"><i class="bi bi-eye"></i></button>')
             + '<div class="d-flex gap-1">'
             + '<a href="' + LEAD_VIEW_URL + '?id=' + l.lead_id + '" class="btn btn-sm btn-secondary py-0 px-2" style="font-size:0.75rem;">Manage</a>'
             + '<a href="' + LEAD_PIPELINE_URL + '#lead-' + l.lead_id + '" class="btn btn-sm btn-ghost py-0 px-2" style="font-size:0.75rem;"><i class="bi bi-kanban"></i></a>'
