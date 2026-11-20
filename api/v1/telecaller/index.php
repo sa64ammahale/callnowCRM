@@ -298,7 +298,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     if ($claimRequestId === '') {
         $claimRequestId = cnGenerateUuid();
     }
-    $batchSize = isset($input['batch_size']) ? (int)$input['batch_size'] : (isset($input['size']) ? (int)$input['size'] : 15);
+    $batchSize = 15;
     $prefetch = !empty($input['prefetch']);
 
     try {
@@ -480,7 +480,7 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
 } elseif ($relativePath === '/batch-leads' || $relativePath === '/batch-leads/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
-    $limit = min(50, max(1, (int)($_GET['limit'] ?? 15)));
+    $limit = 15;
     $companyCode = getenv('COMPANY_CODE') ?: ($_SERVER['HTTP_X_COMPANY_CODE'] ?? 'default');
     $deviceId = trim((string)($_GET['device_id'] ?? 'device_legacy_adapter'));
     $sessionEpoch = max(1, (int)($_GET['session_epoch'] ?? 1));

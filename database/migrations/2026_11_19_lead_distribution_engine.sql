@@ -53,9 +53,13 @@ CREATE TABLE IF NOT EXISTS `lead_reservations` (
     `active_phone_key` VARCHAR(30) GENERATED ALWAYS AS (
         CASE WHEN `state` IN ('RESERVED', 'DIALING') THEN `phone_number_10` ELSE NULL END
     ) VIRTUAL,
+    `active_lead_key` VARCHAR(32) GENERATED ALWAYS AS (
+        CASE WHEN `state` IN ('RESERVED', 'DIALING') THEN CONCAT(`source`, ':', `lead_id`) ELSE NULL END
+    ) VIRTUAL,
     UNIQUE KEY `uniq_reservation_token` (`reservation_token`),
     UNIQUE KEY `uniq_call_lock_token` (`call_lock_token`),
     UNIQUE KEY `uniq_active_phone` (`active_phone_key`),
+    UNIQUE KEY `uniq_active_lead` (`active_lead_key`),
     KEY `idx_res_batch` (`batch_id`),
     KEY `idx_res_caller_state_exp` (`telecaller_id`, `state`, `expires_at`),
     KEY `idx_res_lead_source` (`source`, `lead_id`, `state`),
@@ -65,6 +69,23 @@ CREATE TABLE IF NOT EXISTS `lead_reservations` (
 
 ALTER TABLE `lead_reservations` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ALTER TABLE `lead_batches` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+UPDATE `lead_reservations` lr
+INNER JOIN (
+    SELECT `source`, `lead_id`, MAX(`id`) AS keep_id
+    FROM `lead_reservations`
+    WHERE `state` IN ('RESERVED', 'DIALING')
+    GROUP BY `source`, `lead_id`
+    HAVING COUNT(*) > 1
+) d ON d.`source` = lr.`source` AND d.`lead_id` = lr.`lead_id`
+SET lr.`state` = 'RELEASED'
+WHERE lr.`state` IN ('RESERVED', 'DIALING') AND lr.`id` <> d.keep_id;
+
+ALTER TABLE `lead_reservations`
+    ADD COLUMN IF NOT EXISTS `active_lead_key` VARCHAR(32) GENERATED ALWAYS AS (
+        CASE WHEN `state` IN ('RESERVED', 'DIALING') THEN CONCAT(`source`, ':', `lead_id`) ELSE NULL END
+    ) VIRTUAL,
+    ADD UNIQUE INDEX IF NOT EXISTS `uniq_active_lead` (`active_lead_key`);
 
 ALTER TABLE `users`
     ADD COLUMN IF NOT EXISTS `session_epoch` INT NOT NULL DEFAULT 1;

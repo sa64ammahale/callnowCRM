@@ -41,7 +41,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `reporting_engine.php` | Performance engine: Client Contact metrics, Calling analytics, Lead metrics, Hourly breakdown (9:30-18:30), Dynamic user `daily_calling_limit` period targets & uncapped achievement percentages, Supervisor rollups, Admin rollups, Follow-up hub, Alerts, Rankings |
 | `hierarchy_engine.php` | 5-tier organizational hierarchy isolation engine (`Super Admin` -> `Admin` -> `Manager` -> `Supervisor` -> `Officer`), self-healing schema, scoping and rollup helpers |
 | `engagement_engine.php` | Telecaller Engagement & Motivation Engine: real-time XP (+5 attempt, +20 connect, +50 conversation, +100 target bonus), 5-tier Caller Mastery ranks (Bronze 🥉 to Diamond 👑), consecutive target streaks, daily rollups, and API telemetry |
-| `lead_distribution_engine.php` | Lead Distribution & Concurrency Engine (v1.4): P0–P3 mutually exclusive waterfall allocation, MariaDB 10.4 advisory locking (`GET_LOCK`), VGC active phone unique constraint, 20m batch leases, decoupled dial locks, multi-device session epoch fencing, heartbeat renewals, and orphan audit reconciliation |
+| `lead_distribution_engine.php` | Lead Distribution & Concurrency Engine (v1.5): P0–P3 mutually exclusive waterfall allocation, MariaDB 10.4 advisory locking (`GET_LOCK`), active phone and exact-record uniqueness constraints, 2h batch leases, decoupled dial locks, multi-device session epoch fencing, heartbeat renewals, and orphan audit reconciliation |
 
 ### modules/settings/
 | File | Purpose | Notes |
