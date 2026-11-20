@@ -65,49 +65,147 @@ function getCallerMasteryRank(int $totalXp): array {
 }
 
 /**
- * Calculate historical consecutive-day target streak prior to today
+ * Calculate historical consecutive-day calling streak strictly prior to todayDate.
  */
 function getTelecallerStreak(mysqli $link, int $userId, ?string $todayDate = null): int {
     ensureEngagementSchema($link);
-    $table = tn('TBL_TELECALLER_ENGAGEMENT');
+    $tableLogs = tn('TBL_CALL_LOGS');
+    $tableEng = tn('TBL_TELECALLER_ENGAGEMENT');
     $today = $todayDate ?: date('Y-m-d');
 
     $stmt = $link->prepare("
-        SELECT `event_date`, `connected_calls`, `daily_target` 
-        FROM `{$table}` 
-        WHERE `user_id` = ? AND `record_type` = 'daily' AND `event_date` < ? 
-        ORDER BY `event_date` DESC 
-        LIMIT 60
+        SELECT DISTINCT call_dt FROM (
+            SELECT DATE(COALESCE(call_time, created_at)) as call_dt 
+            FROM `{$tableLogs}` 
+            WHERE user_id = ? AND DATE(COALESCE(call_time, created_at)) < ?
+            UNION
+            SELECT event_date as call_dt 
+            FROM `{$tableEng}` 
+            WHERE user_id = ? AND event_date < ? AND (
+                (record_type = 'daily' AND (
+                    (daily_target > 0 AND daily_target <= 100 AND connected_calls >= daily_target)
+                    OR ((daily_target <= 0 OR daily_target > 100) AND (calls_dialed > 0 OR connected_calls > 0))
+                ))
+                OR (record_type = 'xp' AND xp_earned > 0)
+            )
+        ) combined_dates 
+        WHERE call_dt IS NOT NULL
+        ORDER BY call_dt DESC
     ");
     if (!$stmt) return 0;
 
-    $stmt->bind_param('is', $userId, $today);
+    $stmt->bind_param('isis', $userId, $today, $userId, $today);
     $stmt->execute();
     $res = $stmt->get_result();
+    $dates = [];
+    while ($row = $res->fetch_assoc()) {
+        $dates[$row['call_dt']] = true;
+    }
+    $stmt->close();
+
+    if (empty($dates)) return 0;
 
     $streak = 0;
     $expectedDate = new DateTime($today);
     $expectedDate->modify('-1 day');
 
+    while (isset($dates[$expectedDate->format('Y-m-d')])) {
+        $streak++;
+        $expectedDate->modify('-1 day');
+    }
+
+    return $streak;
+}
+
+/**
+ * Calculate consecutive-day calling streak details from both call_logs and telecaller_engagement.
+ * Returns:
+ *   - current_streak: Consecutive active days up to today (or yesterday if today has no calls yet).
+ *   - best_streak: Longest consecutive run of active calling days across full history.
+ *   - effective_streak: current_streak > 0 ? current_streak : best_streak.
+ *   - active_today: bool whether user had calls today.
+ */
+function getTelecallerStreakDetails(mysqli $link, int $userId, ?string $todayDate = null): array {
+    ensureEngagementSchema($link);
+    $tableLogs = tn('TBL_CALL_LOGS');
+    $tableEng = tn('TBL_TELECALLER_ENGAGEMENT');
+    $today = $todayDate ?: date('Y-m-d');
+
+    $stmt = $link->prepare("
+        SELECT DISTINCT call_dt FROM (
+            SELECT DATE(COALESCE(call_time, created_at)) as call_dt 
+            FROM `{$tableLogs}` 
+            WHERE user_id = ? AND (call_time IS NOT NULL OR created_at IS NOT NULL)
+            UNION
+            SELECT event_date as call_dt 
+            FROM `{$tableEng}` 
+            WHERE user_id = ? AND (
+                (record_type = 'daily' AND (
+                    (daily_target > 0 AND daily_target <= 100 AND connected_calls >= daily_target)
+                    OR ((daily_target <= 0 OR daily_target > 100) AND (calls_dialed > 0 OR connected_calls > 0))
+                ))
+                OR (record_type = 'xp' AND xp_earned > 0)
+            )
+        ) combined_dates 
+        WHERE call_dt IS NOT NULL
+        ORDER BY call_dt DESC
+    ");
+    if (!$stmt) {
+        return ['current_streak' => 0, 'best_streak' => 0, 'effective_streak' => 0, 'active_today' => false];
+    }
+
+    $stmt->bind_param('ii', $userId, $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $dates = [];
     while ($row = $res->fetch_assoc()) {
-        $rowDate = $row['event_date'];
-        $connected = (int)$row['connected_calls'];
-        $target = max(1, (int)$row['daily_target']);
-
-        if ($rowDate !== $expectedDate->format('Y-m-d')) {
-            break; // Missed a calendar day
-        }
-
-        if ($connected >= $target) {
-            $streak++;
-            $expectedDate->modify('-1 day');
-        } else {
-            break; // Failed to hit target on that day
-        }
+        $dates[] = $row['call_dt'];
     }
     $stmt->close();
 
-    return $streak;
+    if (empty($dates)) {
+        return ['current_streak' => 0, 'best_streak' => 0, 'effective_streak' => 0, 'active_today' => false];
+    }
+
+    $dateSet = array_flip($dates);
+    $activeToday = isset($dateSet[$today]);
+    $pastStreak = getTelecallerStreak($link, $userId, $today);
+
+    // 1. Current Active Streak
+    $currentStreak = $activeToday ? ($pastStreak + 1) : $pastStreak;
+
+    // 2. Best / Longest Consecutive Streak
+    $ascDates = array_values(array_unique($dates));
+    sort($ascDates);
+    $bestStreak = 0;
+    $tempStreak = 0;
+    $prevDate = null;
+    foreach ($ascDates as $dStr) {
+        $cur = new DateTime($dStr);
+        if ($prevDate === null) {
+            $tempStreak = 1;
+        } else {
+            $diff = $prevDate->diff($cur)->days;
+            if ($diff === 1) {
+                $tempStreak++;
+            } else {
+                $tempStreak = 1;
+            }
+        }
+        if ($tempStreak > $bestStreak) {
+            $bestStreak = $tempStreak;
+        }
+        $prevDate = $cur;
+    }
+
+    $effectiveStreak = $currentStreak > 0 ? $currentStreak : $bestStreak;
+
+    return [
+        'current_streak' => $currentStreak,
+        'best_streak' => $bestStreak,
+        'effective_streak' => $effectiveStreak,
+        'active_today' => $activeToday
+    ];
 }
 
 /**
@@ -269,15 +367,36 @@ function recordCallEngagement(
 function getTelecallerEngagementSummary(mysqli $link, int $userId): array {
     ensureEngagementSchema($link);
     $table = tn('TBL_TELECALLER_ENGAGEMENT');
+    $tableLogs = tn('TBL_CALL_LOGS');
     $today = date('Y-m-d');
 
-    // Total lifetime XP
+    // Total lifetime XP from telecaller_engagement
     $qLife = $link->prepare("SELECT COALESCE(SUM(`xp_earned`), 0) as `tot` FROM `{$table}` WHERE `user_id` = ? AND `record_type` = 'xp'");
     $qLife->bind_param('i', $userId);
     $qLife->execute();
     $lifeRow = $qLife->get_result()->fetch_assoc();
     $qLife->close();
     $totalXp = (int)($lifeRow['tot'] ?? 0);
+
+    // If lifetime XP is 0, estimate lifetime XP from call_logs
+    if ($totalXp === 0) {
+        $qLogsTot = $link->prepare("
+            SELECT SUM(CASE 
+                WHEN `call_duration` > 20 OR `timing_classification` = 'CONNECTED_CONVERSATION' THEN 50
+                WHEN `call_duration` > 0 OR `timing_classification` IN ('CONNECTED_SHORT', 'CONNECTED') THEN 20
+                ELSE 5 
+            END) as est_tot
+            FROM `{$tableLogs}`
+            WHERE `user_id` = ?
+        ");
+        if ($qLogsTot) {
+            $qLogsTot->bind_param('i', $userId);
+            $qLogsTot->execute();
+            $totRow = $qLogsTot->get_result()->fetch_assoc();
+            $qLogsTot->close();
+            $totalXp = (int)($totRow['est_tot'] ?? 0);
+        }
+    }
 
     $qTodayXp = $link->prepare("SELECT COALESCE(SUM(`xp_earned`), 0) as `today_tot` FROM `{$table}` WHERE `user_id` = ? AND `record_type` = 'xp' AND `event_date` = ?");
     $qTodayXp->bind_param('is', $userId, $today);
@@ -299,14 +418,41 @@ function getTelecallerEngagementSummary(mysqli $link, int $userId): array {
     $connectedToday = $dRow ? (int)$dRow['connected_calls'] : 0;
     $dialsToday = $dRow ? (int)$dRow['calls_dialed'] : 0;
 
+    // Check call_logs for today's live activity
+    $qLogsToday = $link->prepare("
+        SELECT COUNT(*) as dials, 
+               SUM(CASE WHEN `call_duration` > 0 THEN 1 ELSE 0 END) as connected,
+               SUM(CASE 
+                   WHEN `call_duration` > 20 OR `timing_classification` = 'CONNECTED_CONVERSATION' THEN 50
+                   WHEN `call_duration` > 0 OR `timing_classification` IN ('CONNECTED_SHORT', 'CONNECTED') THEN 20
+                   ELSE 5 
+               END) as today_xp
+        FROM `{$tableLogs}`
+        WHERE `user_id` = ? AND DATE(COALESCE(`call_time`, `created_at`)) = ?
+    ");
+    if ($qLogsToday) {
+        $qLogsToday->bind_param('is', $userId, $today);
+        $qLogsToday->execute();
+        $lRow = $qLogsToday->get_result()->fetch_assoc();
+        $qLogsToday->close();
+        if ($lRow) {
+            $dialsToday = max($dialsToday, (int)($lRow['dials'] ?? 0));
+            $connectedToday = max($connectedToday, (int)($lRow['connected'] ?? 0));
+            if ($dailyXp === 0 && (int)($lRow['today_xp'] ?? 0) > 0) {
+                $dailyXp = (int)$lRow['today_xp'];
+            }
+        }
+    }
+
     $targetRes = $link->query("SELECT `daily_calling_limit` FROM " . tn('TBL_USERS') . " WHERE `ID` = {$userId} LIMIT 1");
     $targetRow = $targetRes ? $targetRes->fetch_assoc() : [];
     $dailyTarget = (isset($targetRow['daily_calling_limit']) && (int)$targetRow['daily_calling_limit'] > 0)
         ? (int)$targetRow['daily_calling_limit']
         : ($dRow && (int)$dRow['daily_target'] > 0 ? (int)$dRow['daily_target'] : 250);
-    $pastStreak = getTelecallerStreak($link, $userId, $today);
-    $isTargetMet = ($connectedToday >= $dailyTarget && $connectedToday > 0);
-    $streak = $isTargetMet ? ($pastStreak + 1) : $pastStreak;
+
+    // Calculate streak
+    $streakDetails = getTelecallerStreakDetails($link, $userId, $today);
+    $streak = $streakDetails['effective_streak'];
 
     $rankInfo = getCallerMasteryRank($totalXp);
 
@@ -318,9 +464,11 @@ function getTelecallerEngagementSummary(mysqli $link, int $userId): array {
         'badge_theme' => $rankInfo['badge_theme'],
         'next_xp' => $rankInfo['next_xp'],
         'streak_days' => $streak,
+        'current_streak' => $streakDetails['current_streak'],
+        'best_streak' => $streakDetails['best_streak'],
         'connected_today' => $connectedToday,
         'dials_today' => $dialsToday,
         'target_today' => $dailyTarget,
-        'target_met' => ($connectedToday >= $dailyTarget),
+        'target_met' => ($connectedToday >= $dailyTarget && $connectedToday > 0),
     ];
 }

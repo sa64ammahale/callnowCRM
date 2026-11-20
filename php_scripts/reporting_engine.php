@@ -1125,12 +1125,21 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
     // Batch load engagement metrics (total XP, mastery level, streak)
     $xpMap = [];
     $streakMap = [];
-    $userIds = array_filter(array_column($ranked, 'employee_id'));
+    $userIds = [];
+    foreach ($ranked as $item) {
+        $uid = (int)($item['user_id'] ?? $item['employee_id'] ?? 0);
+        if ($uid > 0) {
+            $userIds[] = $uid;
+        }
+    }
+    $userIds = array_values(array_unique($userIds));
     if (!empty($userIds) && $link instanceof mysqli) {
         ensureEngagementSchema($link);
         $table = tn('TBL_TELECALLER_ENGAGEMENT');
+        $tableLogs = tn('TBL_CALL_LOGS');
         $idList = implode(',', array_map('intval', $userIds));
 
+        // 1. XP from engagement ledger
         $resXp = @$link->query("SELECT `user_id`, SUM(`xp_earned`) as tot FROM `{$table}` WHERE `user_id` IN ({$idList}) AND `record_type` = 'xp' GROUP BY `user_id`");
         if ($resXp) {
             while ($xRow = $resXp->fetch_assoc()) {
@@ -1138,12 +1147,117 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
             }
         }
 
-        $today = date('Y-m-d');
-        $resD = @$link->query("SELECT `user_id`, `streak_count` FROM `{$table}` WHERE `user_id` IN ({$idList}) AND `record_type` = 'daily' AND `event_date` = '{$today}'");
-        if ($resD) {
-            while ($dRow = $resD->fetch_assoc()) {
-                $streakMap[(int)$dRow['user_id']] = (int)$dRow['streak_count'];
+        // Fallback: estimate XP from call_logs for users without engagement rows
+        $missingXpIds = [];
+        foreach ($userIds as $uid) {
+            if (empty($xpMap[$uid])) {
+                $missingXpIds[] = (int)$uid;
             }
+        }
+        if (!empty($missingXpIds)) {
+            $mList = implode(',', $missingXpIds);
+            $resLogsXp = @$link->query("
+                SELECT `user_id`, 
+                       SUM(CASE 
+                           WHEN `call_duration` > 20 OR `timing_classification` = 'CONNECTED_CONVERSATION' THEN 50
+                           WHEN `call_duration` > 0 OR `timing_classification` IN ('CONNECTED_SHORT', 'CONNECTED') THEN 20
+                           ELSE 5 
+                       END) as est_xp
+                FROM `{$tableLogs}`
+                WHERE `user_id` IN ({$mList})
+                GROUP BY `user_id`
+            ");
+            if ($resLogsXp) {
+                while ($lRow = $resLogsXp->fetch_assoc()) {
+                    $xpMap[(int)$lRow['user_id']] = (int)$lRow['est_xp'];
+                }
+            }
+        }
+
+        // 2. Batch calculate streak for each user from call dates
+        $sqlDates = "
+            SELECT user_id, call_dt FROM (
+                SELECT user_id, DATE(COALESCE(call_time, created_at)) as call_dt
+                FROM `{$tableLogs}`
+                WHERE user_id IN ({$idList}) AND (call_time IS NOT NULL OR created_at IS NOT NULL)
+                UNION
+                SELECT user_id, event_date as call_dt
+                FROM `{$table}`
+                WHERE user_id IN ({$idList}) AND (
+                    (record_type = 'daily' AND (
+                        (daily_target > 0 AND daily_target <= 100 AND connected_calls >= daily_target)
+                        OR ((daily_target <= 0 OR daily_target > 100) AND (calls_dialed > 0 OR connected_calls > 0))
+                    ))
+                    OR (record_type = 'xp' AND xp_earned > 0)
+                )
+            ) comb
+            WHERE call_dt IS NOT NULL
+            GROUP BY user_id, call_dt
+            ORDER BY user_id, call_dt ASC
+        ";
+        $resDates = @$link->query($sqlDates);
+        $userDates = [];
+        if ($resDates) {
+            while ($dr = $resDates->fetch_assoc()) {
+                $userDates[(int)$dr['user_id']][] = $dr['call_dt'];
+            }
+        }
+
+        $today = date('Y-m-d');
+        foreach ($userIds as $uid) {
+            $dates = $userDates[(int)$uid] ?? [];
+            if (empty($dates)) {
+                $streakMap[(int)$uid] = 0;
+                continue;
+            }
+            $dateSet = array_flip($dates);
+            $activeToday = isset($dateSet[$today]);
+
+            // Current streak
+            $currentStreak = 0;
+            if ($activeToday) {
+                $currentStreak = 1;
+                $chk = new DateTime($today);
+                $chk->modify('-1 day');
+                while (isset($dateSet[$chk->format('Y-m-d')])) {
+                    $currentStreak++;
+                    $chk->modify('-1 day');
+                }
+            } else {
+                $yesterday = new DateTime($today);
+                $yesterday->modify('-1 day');
+                if (isset($dateSet[$yesterday->format('Y-m-d')])) {
+                    $chk = $yesterday;
+                    while (isset($dateSet[$chk->format('Y-m-d')])) {
+                        $currentStreak++;
+                        $chk->modify('-1 day');
+                    }
+                }
+            }
+
+            // Best streak
+            $bestStreak = 0;
+            $tempStreak = 0;
+            $prevDate = null;
+            foreach ($dates as $dStr) {
+                $cur = new DateTime($dStr);
+                if ($prevDate === null) {
+                    $tempStreak = 1;
+                } else {
+                    $diff = $prevDate->diff($cur)->days;
+                    if ($diff === 1) {
+                        $tempStreak++;
+                    } else {
+                        $tempStreak = 1;
+                    }
+                }
+                if ($tempStreak > $bestStreak) {
+                    $bestStreak = $tempStreak;
+                }
+                $prevDate = $cur;
+            }
+
+            $streakMap[(int)$uid] = $currentStreak > 0 ? $currentStreak : $bestStreak;
         }
     }
 
@@ -1177,7 +1291,7 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
 
         $r['sales_score'] = round($sLeads + $sDisbC + $sDisbA, 1);
 
-        $uid = (int)($r['employee_id'] ?? 0);
+        $uid = (int)($r['user_id'] ?? $r['employee_id'] ?? 0);
         $totXp = $xpMap[$uid] ?? 0;
         $rankData = function_exists('getCallerMasteryRank') ? getCallerMasteryRank($totXp) : ['level' => 1, 'title' => 'Bronze Caller 🥉', 'badge_theme' => 'dark'];
         $streak = $streakMap[$uid] ?? (function_exists('getTelecallerStreak') && $link ? getTelecallerStreak($link, $uid) : 0);
