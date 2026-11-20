@@ -236,7 +236,7 @@ $canViewPhone = canViewFullPhone();
 $rows = [];
 while ($r = mysqli_fetch_assoc($result)) {
     $mobile = $r['cust_mobile'] ?? '';
-    if (!$canViewPhone && !empty($mobile)) {
+    if (!$canViewPhone && $mobile !== null && $mobile !== '' && trim($mobile) !== '') {
         $mobile = mask_phone($mobile);
     }
     $rows[] = [
