@@ -45,31 +45,35 @@ $columns = [
 ];
 
 // Build WHERE
-$where = "WHERE 1=1";
+$contactScope = getHierarchyContactFilterSQL($link, (int)USER_ID, USER_ROLE, 'm', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
+$where = "WHERE $contactScope";
 $params = [];
 if ($search !== '') {
-    $where .= " AND (MAINDATABASE_MOBILE LIKE ? 
-                OR MAINDATABASE_NAME LIKE ? 
-                OR MAINDATABASE_COMPANY LIKE ? 
-                OR MAINDATABASE_OTHER_INFO LIKE ?)";
+    $where .= " AND (m.MAINDATABASE_MOBILE LIKE ? 
+                OR m.MAINDATABASE_NAME LIKE ? 
+                OR m.MAINDATABASE_COMPANY LIKE ? 
+                OR m.MAINDATABASE_OTHER_INFO LIKE ?)";
     $like = "%$search%";
     $params = array_fill(0, 4, $like);
 }
 
 // ORDER BY
-$orderby = $columns[$col] ?? 'MAINDATABASE_UPLOAD_DATETIME';
+$orderby = $columns[$col] ?? 'm.MAINDATABASE_UPLOAD_DATETIME';
+if (strpos($orderby, 'm.') !== 0 && strpos($orderby, 'u.') !== 0) {
+    $orderby = 'm.' . $orderby;
+}
 $orderby .= " " . ($dir === 'asc' ? 'ASC' : 'DESC');
 
 // Total records (without filter)
-$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN'));
+$totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " m WHERE $contactScope");
 $total = ($totalRes && $row = mysqli_fetch_assoc($totalRes)) ? (int)$row['c'] : 0;
 
 // Filtered records count
 if ($search === '') {
     $filtered = $total;
 } else {
-    $countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " 
-                   LEFT JOIN " . tn('TBL_USERS') . " u ON " . tn('TBL_MAIN') . ".MAINDATABASE_CALL_DIALED_USER = u.ID 
+    $countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " m 
+                   LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID 
                    $where";
     $stmt = mysqli_prepare($link, $countQuery);
     if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
@@ -79,16 +83,16 @@ if ($search === '') {
 }
 
 // Data query
-$sql = "SELECT maindb.ID, 
-               MAINDATABASE_MOBILE,
-               MAINDATABASE_NAME,
-               MAINDATABASE_COMPANY,
-               MAINDATABASE_PACKAGE,
-               MAINDATABASE_CALL_DIALED_STATUS,
+$sql = "SELECT m.ID, 
+               m.MAINDATABASE_MOBILE,
+               m.MAINDATABASE_NAME,
+               m.MAINDATABASE_COMPANY,
+               m.MAINDATABASE_PACKAGE,
+               m.MAINDATABASE_CALL_DIALED_STATUS,
                u.NAME AS assigned_name,
-               DATE_FORMAT(MAINDATABASE_UPLOAD_DATETIME, '%d-%b-%Y %h:%i %p') AS upload_dt
-        FROM " . tn('TBL_MAIN') . " maindb
-        LEFT JOIN " . tn('TBL_USERS') . " u ON maindb.MAINDATABASE_CALL_DIALED_USER = u.ID
+               DATE_FORMAT(m.MAINDATABASE_UPLOAD_DATETIME, '%d-%b-%Y %h:%i %p') AS upload_dt
+        FROM " . tn('TBL_MAIN') . " m
+        LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID
         $where
         ORDER BY $orderby
         LIMIT ?, ?";

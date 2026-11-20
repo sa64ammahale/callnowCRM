@@ -26,8 +26,6 @@ if (isSuperAdmin()) {
     if (!empty($authTeamIds)) {
         $tList = implode(',', array_map('intval', $authTeamIds));
         $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tList) ORDER BY NAME");
-    } elseif (isAdmin()) {
-        $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " ORDER BY NAME");
     } else {
         $teamsResult = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE 1=0");
     }
@@ -69,7 +67,7 @@ if ($isEdit) {
     $result = mysqli_stmt_get_result($stmt);
     $editUser = mysqli_fetch_assoc($result);
     if (!$editUser) { header("Location: users_view.php"); exit; }
-    if (!isAdmin() && !isSuperAdmin() && !canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, $userID)) {
+    if (!isSuperAdmin() && !canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, $userID)) {
         http_response_code(403);
         exit('Access denied');
     }

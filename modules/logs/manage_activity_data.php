@@ -41,7 +41,7 @@ if (isOfficer()) {
     $where[] = "a.USER_ID = ?";
     $types .= 'i';
     $params[] = $userId;
-} elseif (!isAdmin() && !isSuperAdmin()) {
+} elseif (!isSuperAdmin()) {
     $accIds = getAccessibleUserIds($link);
     if (!empty($accIds)) {
         $where[] = "a.USER_ID IN (" . implode(',', array_map('intval', $accIds)) . ")";
@@ -54,10 +54,31 @@ if (isOfficer()) {
 
 $where_sql = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
-/* Total (unfiltered) count */
-$count_sql = "SELECT COUNT(*) FROM " . tn('TBL_ACTIVITY_LOG') . " a LEFT JOIN " . tn('TBL_USERS') . " u ON a.USER_ID = u.ID";
+/* Total (unfiltered) count within authorized scope */
+$totalWhereParts = ['1=1'];
+$totalTypes = '';
+$totalParams = [];
+if (isOfficer()) {
+    $totalWhereParts[] = 'a.USER_ID = ?';
+    $totalTypes .= 'i';
+    $totalParams[] = $userId;
+} elseif (!isSuperAdmin()) {
+    $accIdsTotal = getAccessibleUserIds($link);
+    if (!empty($accIdsTotal)) {
+        $totalWhereParts[] = 'a.USER_ID IN (' . implode(',', array_map('intval', $accIdsTotal)) . ')';
+    } else {
+        $totalWhereParts[] = 'a.USER_ID = ?';
+        $totalTypes .= 'i';
+        $totalParams[] = $userId;
+    }
+}
+$count_where = count($totalWhereParts) ? 'WHERE ' . implode(' AND ', $totalWhereParts) : '';
+$count_sql = "SELECT COUNT(*) FROM " . tn('TBL_ACTIVITY_LOG') . " a LEFT JOIN " . tn('TBL_USERS') . " u ON a.USER_ID = u.ID $count_where";
 $total = 0;
 if ($stmt = mysqli_prepare($link, $count_sql)) {
+    if ($totalTypes !== '') {
+        $stmt->bind_param($totalTypes, ...$totalParams);
+    }
     mysqli_stmt_execute($stmt);
     mysqli_stmt_bind_result($stmt, $total);
     mysqli_stmt_fetch($stmt);

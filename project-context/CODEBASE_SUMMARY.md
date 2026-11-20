@@ -158,6 +158,26 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
     - Removed `u.TEAM_ID IS NULL` unassigned leak for Managers.
     - Populates `teams.admin_id` on team creation.
 
+### 13. Strict Role Hierarchy & Data Scoping Across Entire CRM (November 2026)
+- **Root Cause Resolution**:
+  - `php_scripts/hierarchy_engine.php`: Fixed critical flaw in `getNormalizedRole()` where `'Supervisor'` matched `str_contains('SUPER')` before `'SUPERVISOR'`, erroneously classifying Supervisors as `Super Admin` and globally bypassing all SQL security filters.
+  - Reordered checks to match `SUPERVISOR` explicitly before `SUPER ADMIN` / `SUPER`, restoring full isolation across all tiers.
+  - Eliminated `!isAdmin() && !isSuperAdmin()` bypasses across `call_history.php`, `call_history_data.php`, `manage_activity.php`, `manage_activity_data.php`, `lead_view.php`, `lead_update.php`, `lead_pipeline_ajax.php`, `data_management_main.php`, and `data_management_temporary.php`, ensuring multi-Admin isolation so Admins are strictly scoped to their own branches.
+- **Modules Hardened & Scoped**:
+  - `modules/logs/Reports.php`: Scoped Teams, Supervisors, and Managers dropdowns to authorized branch/squad; gated comprehensive CSV/Excel export behind `can('export_data')`.
+  - `php_scripts/reporting_engine.php`: `getAdminPerformanceRows()` strictly returns `[]` for Supervisors and Managers; `getSupervisorPerformanceRows()` strictly returns squad rollup for Supervisors.
+  - `modules/logs/call_history.php` & `call_history_data.php`: Scoped user filter to `getAccessibleUserIds()` for all non-superadmins; scoped total count query; gated DataTables CSV/Excel export behind `can('export_data')`.
+  - `modules/logs/manage_activity.php` & `manage_activity_data.php`: Scoped user filters and total count queries; gated CSV/Excel exports behind `can('export_data')`.
+  - `modules/leads/lead_pipeline.php` & `lead_pipeline_ajax.php`: Applied strict `assigned_to IN (getAccessibleUserIds())` filter across card movement and lazy-load queries for all non-superadmins.
+  - `modules/leads/lead_view.php`, `lead_update.php`, `lead_delete.php`: Enforced target user access verification for viewing, updating, and deleting leads.
+  - `modules/users/users_view.php`: Scoped action buttons so Supervisors cannot edit higher-tier users (Managers, Admins, Super Admins); only allows editing subordinate staff.
+  - `modules/users/users_add.php`: Enforced `canUserAccessTargetUser()` on edits; constrained role choices and team selections to caller's hierarchical scope.
+  - `modules/users/teams_dashboard.php`: Restricted team creation, editing, and deletion to `canManageTeams()` (Super Admin, Admin, Manager); Supervisors have clean read-only squad view. Server-side guard rejects unauthorized POST mutations.
+  - `modules/users/team_members.php`: Restricted supervisor assignment and member transfers to `canManageTeams()`; Supervisors have read-only view of their squad roster.
+  - `modules/settings/permissions_manager.php`: Restricted page access to `manage_settings` (Super Admin and Admin); scoped User Overrides tab to Admin's branch staff; guarded role and user assignment mutations from unauthorized escalation.
+  - `php_scripts/permissions.php`: Removed `* => 1` wildcard default from Manager; assigned explicit permissions and set `manage_settings = 0` for non-Admins.
+  - `modules/database/maindatabase_ajax/datatable.php`: Applied `getHierarchyContactFilterSQL()` across Main DB DataTables queries so records match the user's authorized contacts.
+
 ### 1. Deleted legacy files
 - `modules/users/DeleteRow.php` — SQL injection + destructive schema ops
 - `modules/leads/AddEnquiry.php` — SQLi via $mobile + broken schema

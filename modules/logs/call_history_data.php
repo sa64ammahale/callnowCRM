@@ -105,7 +105,7 @@ if (isOfficer()) {
     $whereParts[] = 'u.ID = ?';
     $params[] = USER_ID;
     $types .= 'i';
-} elseif (!isAdmin() && !isSuperAdmin()) {
+} elseif (!isSuperAdmin()) {
     $accIds = getAccessibleUserIds($link);
     if (!empty($accIds)) {
         $whereParts[] = 'u.ID IN (' . implode(',', array_map('intval', $accIds)) . ')';
@@ -121,8 +121,22 @@ if (!isSuperAdmin()) {
 
 $whereSql = 'WHERE ' . implode(' AND ', $whereParts);
 
-/* Total (unfiltered) count */
-$totalSql = "SELECT COUNT(*) AS c FROM " . tn('TBL_CALL_LOGS') . " cl JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID";
+/* Total (unfiltered) count within authorized scope */
+$totalWhereParts = ['1=1'];
+if (isOfficer()) {
+    $totalWhereParts[] = 'u.ID = ' . (int)USER_ID;
+} elseif (!isSuperAdmin()) {
+    $accIdsTotal = getAccessibleUserIds($link);
+    if (!empty($accIdsTotal)) {
+        $totalWhereParts[] = 'u.ID IN (' . implode(',', array_map('intval', $accIdsTotal)) . ')';
+    } else {
+        $totalWhereParts[] = 'u.ID = ' . (int)USER_ID;
+    }
+}
+if (!isSuperAdmin()) {
+    $totalWhereParts[] = "u.ROLE != 'Super Admin'";
+}
+$totalSql = "SELECT COUNT(*) AS c FROM " . tn('TBL_CALL_LOGS') . " cl JOIN " . tn('TBL_USERS') . " u ON cl.user_id = u.ID WHERE " . implode(' AND ', $totalWhereParts);
 $totalStmt = mysqli_prepare($link, $totalSql);
 mysqli_stmt_execute($totalStmt);
 $total = (int)mysqli_stmt_get_result($totalStmt)->fetch_assoc()['c'];

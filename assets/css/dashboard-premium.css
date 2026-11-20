@@ -653,14 +653,12 @@
 .dash-chart-card-trend {
     background: linear-gradient(180deg, #FFFFFF 0%, #F8F9FE 100%);
     border: 1.5px solid #E2E8F0;
-    border-top: 3px solid #6D3BFF;
 }
 
 /* Card B: Database Dispositions */
 .dash-chart-card-disp {
     background: linear-gradient(180deg, #FFFFFF 0%, #F8FDF9 100%);
     border: 1.5px solid #E2E8F0;
-    border-top: 3px solid #16A34A;
 }
 
 .dash-chart-card-header {
@@ -801,19 +799,16 @@
 .dash-metric-box-dialed {
     background: linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%);
     border: 1.5px solid #CBD5E1;
-    border-top: 3px solid #64748B;
 }
 
 .dash-metric-box-connected {
     background: linear-gradient(180deg, #F0FDF4 0%, #DCFCE7 100%);
     border: 1.5px solid #86EFAC;
-    border-top: 3px solid #16A34A;
 }
 
 .dash-metric-box-rate {
     background: linear-gradient(180deg, #FAF5FF 0%, #F3E8FF 100%);
     border: 1.5px solid #D8B4FE;
-    border-top: 3px solid #6D3BFF;
 }
 
 .dash-metric-box-lbl {

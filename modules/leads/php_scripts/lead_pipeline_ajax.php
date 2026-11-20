@@ -57,7 +57,7 @@ if ($action === 'move_stage') {
     // Return updated stage counts with active date filter applied
     $scopeWhereClauses = [];
     $accessibleUserIds = getAccessibleUserIds($link);
-    if (!isAdmin() && !isSuperAdmin()) {
+    if (!isSuperAdmin()) {
         if (!empty($accessibleUserIds)) {
             $scopeWhereClauses[] = 'assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
         } else {
@@ -116,7 +116,7 @@ if ($action === 'load_more') {
     $params = [$stage];
 
     $accessibleUserIds = getAccessibleUserIds($link);
-    if (!isAdmin() && !isSuperAdmin()) {
+    if (!isSuperAdmin()) {
         if (!empty($accessibleUserIds)) {
             $inU = implode(',', array_map('intval', $accessibleUserIds));
             $whereClauses[] = "l.assigned_to IN ({$inU})";

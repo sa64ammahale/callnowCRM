@@ -169,9 +169,12 @@ if ($isSuperAdmin) {
         if ($sRes) $allSupervisors = mysqli_fetch_all($sRes, MYSQLI_ASSOC);
     }
 } elseif ($isSupervisor) {
-    $supId = (int)USER_ID;
-    $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE SUPERVISOR_ID = $supId ORDER BY NAME");
-    if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
+    $supTeams = getAuthorizedTeamIds($link, (int)USER_ID, 'Supervisor', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
+    if (!empty($supTeams)) {
+        $tIn = implode(',', array_map('intval', $supTeams));
+        $tRes = mysqli_query($link, "SELECT ID, NAME FROM " . tn('TBL_TEAMS') . " WHERE ID IN ($tIn) ORDER BY NAME");
+        if ($tRes) $TBL_TEAMS = mysqli_fetch_all($tRes, MYSQLI_ASSOC);
+    }
 }
 
 // Validate requested team & supervisor filters against user authorization
@@ -429,6 +432,7 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
 
 // Comprehensive Multi-Section CSV Export Handler
 if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
+    requirePermission('export_data');
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="CallNow_Performance_Report_' . date('Y-m-d_His') . '.csv"');

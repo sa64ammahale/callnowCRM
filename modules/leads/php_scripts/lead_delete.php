@@ -48,7 +48,7 @@ if ($createdAtTs > 0 && (time() - $createdAtTs) < (3 * 86400)) {
 }
 
 $accessibleUserIds = getAccessibleUserIds($link);
-if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds) && !in_array((int)$lead['assigned_to'], $accessibleUserIds, true)) {
+if (!isSuperAdmin() && !empty($accessibleUserIds) && !in_array((int)$lead['assigned_to'], $accessibleUserIds, true)) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'message' => 'Access denied.']);
     exit;

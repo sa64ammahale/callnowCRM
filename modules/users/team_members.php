@@ -19,6 +19,14 @@ $search_name = trim($_GET['search_name'] ?? '');
 $filter_role = $_GET['role'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if (!canManageTeams()) {
+        $msg = 'Access denied: supervisors cannot assign members or change team supervisors.';
+        $msg_type = 'danger';
+        $_POST['action'] = '';
+    }
+}
+
 if (($_POST['action'] ?? '') === 'assign_member') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $msg = "Invalid session token"; $msg_type = "danger";
@@ -226,8 +234,10 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
         </div>
     </div>
 
+    <?php $canManageTeams = canManageTeams(); ?>
     <div class="row g-3">
         <!-- LEFT: Team Supervisors Card -->
+        <?php if ($canManageTeams): ?>
         <div class="col-lg-4">
             <div class="crm-card h-100">
                 <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
@@ -284,8 +294,10 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
             </div>
         </div>
 
+        <?php endif; ?>
+
         <!-- RIGHT: Member Assignments Table -->
-        <div class="col-lg-8">
+        <div class="<?= $canManageTeams ? 'col-lg-8' : 'col-12' ?>">
             <div class="crm-card h-100">
                 <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span class="fw-semibold text-dark">
@@ -351,7 +363,7 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                                     <th style="width: 110px;">Role</th>
                                     <th style="width: 120px;">Mobile</th>
                                     <th style="width: 110px;">Current Team</th>
-                                    <th style="min-width: 220px;" class="text-end">Assign / Transfer</th>
+                                    <?php if ($canManageTeams): ?><th style="min-width: 220px;" class="text-end">Assign / Transfer</th><?php else: ?><th style="width: 110px;" class="text-end">Status</th><?php endif; ?>
                                 </tr>
                             </thead>
                             <tbody>
@@ -403,20 +415,24 @@ if ($rd) while ($r = mysqli_fetch_assoc($rd)) $roleDesc[$r['role_name']] = $r['d
                                                 </div>
                                             </td>
                                             <td class="text-end">
-                                                <form method="POST" class="d-inline-flex gap-1 align-items-center justify-content-end">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                                                    <input type="hidden" name="action" value="assign_member">
-                                                    <input type="hidden" name="user_id" value="<?= (int)$u['ID'] ?>">
-                                                    <select name="team_id" class="form-select form-select-sm" style="width: auto; min-width: 140px; font-size: 0.78rem;">
-                                                        <option value="">No Team</option>
-                                                        <?php foreach ($teamsList as $t): ?>
-                                                            <option value="<?= (int)$t['ID'] ?>" <?= ($u['TEAM_ID'] == $t['ID']) ? 'selected' : '' ?>><?= htmlspecialchars($t['NAME']) ?></option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                    <button type="submit" class="btn btn-outline-primary btn-sm px-2" title="Update Assignment">
-                                                        <i class="bi bi-check-lg"></i>
-                                                    </button>
-                                                </form>
+                                                <?php if ($canManageTeams): ?>
+                                                    <form method="POST" class="d-inline-flex gap-1 align-items-center justify-content-end">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                                        <input type="hidden" name="action" value="assign_member">
+                                                        <input type="hidden" name="user_id" value="<?= (int)$u['ID'] ?>">
+                                                        <select name="team_id" class="form-select form-select-sm" style="width: auto; min-width: 140px; font-size: 0.78rem;">
+                                                            <option value="">No Team</option>
+                                                            <?php foreach ($teamsList as $t): ?>
+                                                                <option value="<?= (int)$t['ID'] ?>" <?= ($u['TEAM_ID'] == $t['ID']) ? 'selected' : '' ?>><?= htmlspecialchars($t['NAME']) ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                        <button type="submit" class="btn btn-outline-primary btn-sm px-2" title="Update Assignment">
+                                                            <i class="bi bi-check-lg"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <span class="badge <?= $stClass ?> border"><i class="bi bi-circle-fill me-1" style="font-size: 0.35rem;"></i><?= htmlspecialchars($u['STATUS']) ?></span>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

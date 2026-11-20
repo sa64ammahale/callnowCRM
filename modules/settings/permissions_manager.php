@@ -22,6 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Role permission matrix
         if ($action === 'save_role_perms') {
             $role = $_POST['role'] ?? '';
+            if (!isSuperAdmin() && in_array($role, ['Super Admin', 'Admin'], true)) {
+                $msg = 'Access denied: Admin-level roles can only be modified by Super Admin.';
+                $msg_type = 'danger';
+                $action = '';
+            }
             $cs = $link->prepare("SELECT role_name FROM " . tn('TBL_ROLES') . " WHERE role_name = ?");
             $cs->bind_param('s', $role);
             $cs->execute();
@@ -47,6 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Per-user override matrix
         if ($action === 'save_user_perms') {
             $uid = (int)($_POST['user_id'] ?? 0);
+            if (!isSuperAdmin() && !canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, $uid)) {
+                $msg = 'Access denied: target user is outside your branch.';
+                $msg_type = 'danger';
+                $action = '';
+            }
             $role = $_POST['role'] ?? '';
             $us = $link->prepare("SELECT ID FROM " . tn('TBL_USERS') . " WHERE ID = ?");
             $us->bind_param('i', $uid);
@@ -74,6 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Clear per-user overrides
         if ($action === 'clear_user_perms') {
             $uid = (int)($_POST['user_id'] ?? 0);
+            if (!isSuperAdmin() && !canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, $uid)) {
+                $msg = 'Access denied: target user is outside your branch.';
+                $msg_type = 'danger';
+                $action = '';
+            }
             $link->query("DELETE FROM " . tn('TBL_USER_PERMISSIONS') . " WHERE user_id = $uid");
             clearRbacCache();
             $msg = "Overrides cleared; user #$uid now inherits base role permissions.";
@@ -85,6 +100,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'assign_role') {
             $uid = (int)($_POST['user_id'] ?? 0);
             $role = $_POST['role'] ?? '';
+            if (!isSuperAdmin() && (!canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, $uid) || in_array($role, ['Super Admin', 'Admin'], true))) {
+                $msg = 'Access denied: you cannot assign Admin-level roles or alter users outside your branch.';
+                $msg_type = 'danger';
+                $action = '';
+            }
             $cs = $link->prepare("SELECT role_name, id FROM " . tn('TBL_ROLES') . " WHERE role_name = ?");
             $cs->bind_param('s', $role);
             $cs->execute();
@@ -283,7 +303,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ─── Fetch data ───
 $allRoles = [];
-$ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ROLE = r.role_name AND ROLE != 'Super Admin') as user_count FROM " . tn('TBL_ROLES') . " r WHERE r.role_name != 'Super Admin' ORDER BY r.is_system DESC, r.id");
+$roleFilter = isSuperAdmin() ? "r.role_name != 'Super Admin'" : "r.role_name NOT IN ('Super Admin', 'Admin')";
+$ar = mysqli_query($link, "SELECT r.*, (SELECT COUNT(*) FROM " . tn('TBL_USERS') . " WHERE ROLE = r.role_name AND ROLE != 'Super Admin') as user_count FROM " . tn('TBL_ROLES') . " r WHERE $roleFilter ORDER BY r.is_system DESC, r.id");
 if ($ar) while ($a = mysqli_fetch_assoc($ar)) $allRoles[] = $a;
 
 $allPermissions = getAllPermissions($link);
@@ -300,7 +321,8 @@ if ($selectedRole) {
 }
 
 $allUsers = [];
-$ur = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " WHERE ROLE != 'Super Admin' ORDER BY NAME");
+$userScopeSql = isSuperAdmin() ? "ROLE != 'Super Admin'" : ("ROLE != 'Super Admin' AND " . getHierarchyUserFilterSQL($link, (int)USER_ID, USER_ROLE, 'u', 'ID'));
+$ur = mysqli_query($link, "SELECT ID, NAME, ROLE FROM " . tn('TBL_USERS') . " u WHERE $userScopeSql ORDER BY NAME");
 if ($ur) while ($u = mysqli_fetch_assoc($ur)) $allUsers[] = $u;
 
 if ($selectedUser === null && !empty($allUsers)) {

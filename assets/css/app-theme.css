@@ -1396,7 +1396,6 @@ nav[aria-label="breadcrumb"],
 .metric-card, .stat-card {
     background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 60%, #F1F5F9 100%);
     border: 1px solid #E2E8F0;
-    border-top: 3px solid #64748B;
     border-radius: var(--radius-lg); /* 14px */
     padding: 1.05rem 1.15rem;
     display: flex !important;
@@ -1438,7 +1437,6 @@ nav[aria-label="breadcrumb"],
 .metric-card:has(.bg-success) {
     background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 60%, #DCFCE7 100%) !important;
     border-color: #BBF7D0 !important;
-    border-top: 3px solid #16A34A !important;
 }
 
 /* Primary / Calls / Brand / Pipeline (Purple) */
@@ -1451,7 +1449,6 @@ nav[aria-label="breadcrumb"],
 .metric-card:has(.bg-purple) {
     background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 60%, #F3E8FF 100%) !important;
     border-color: #E9D5FF !important;
-    border-top: 3px solid #7C3AED !important;
 }
 
 /* Warning / Leads / Pending / Attention (Amber) */
@@ -1463,7 +1460,6 @@ nav[aria-label="breadcrumb"],
 .metric-card:has(.bg-warning) {
     background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 60%, #FEF3C7 100%) !important;
     border-color: #FDE68A !important;
-    border-top: 3px solid #F59E0B !important;
 }
 
 /* Danger / Low Rate / Customer Declined (Red) */
@@ -1475,7 +1471,6 @@ nav[aria-label="breadcrumb"],
 .metric-card:has(.bg-danger) {
     background: linear-gradient(180deg, #FFFFFF 0%, #FFF1F2 60%, #FFE4E6 100%) !important;
     border-color: #FECDD3 !important;
-    border-top: 3px solid #E11D48 !important;
 }
 
 /* Info / Database / Telephony (Sky) */
@@ -1487,7 +1482,6 @@ nav[aria-label="breadcrumb"],
 .metric-card:has(.bg-info) {
     background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 60%, #E0F2FE 100%) !important;
     border-color: #BAE6FD !important;
-    border-top: 3px solid #0284C7 !important;
 }
 
 /* Neutral / Secondary / Standard Slate */
@@ -1497,10 +1491,395 @@ nav[aria-label="breadcrumb"],
 .metric-card:has(.metric-card-value.text-dark) {
     background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
     border-color: #E2E8F0 !important;
-    border-top: 3px solid #64748B !important;
 }
 
-/* Metric card with left icon layout */
+/* ==========================================================================
+   Natural Card Color System — soft background washes + accent borders
+   Applies to all card types: .card, .crm-card, .metric-card, .stat-card,
+   .dash-kpi-card, .dash-module-card, .dashboard-section-card
+   Text kept dark for readability on light washes.
+   ========================================================================== */
+
+/* Natural — Success / Green */
+.card.natural-success,
+.crm-card.natural-success,
+.metric-card.natural-success,
+.stat-card.natural-success,
+.dash-kpi-card.natural-success,
+.dash-module-card.natural-success,
+.dashboard-section-card.natural-success {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 55%, #DCFCE7 100%) !important;
+    border: 1px solid #BBF7D0 !important;
+    border-top: 3px solid #16A34A !important;
+    border-left: 4px solid #16A34A !important;
+}
+.card.natural-success *,
+.crm-card.natural-success *,
+.metric-card.natural-success *,
+.stat-card.natural-success *,
+.dash-kpi-card.natural-success *,
+.dash-module-card.natural-success *,
+.dashboard-section-card.natural-success * {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+}
+.card.natural-success h1, .card.natural-success h2, .card.natural-success h3,
+.card.natural-success h4, .card.natural-success h5, .card.natural-success h6,
+.crm-card.natural-success h1, .crm-card.natural-success h2, .crm-card.natural-success h3,
+.crm-card.natural-success h4, .crm-card.natural-success h5, .crm-card.natural-success h6,
+.metric-card.natural-success .metric-card-title,
+.metric-card.natural-success .metric-card-label,
+.metric-card.natural-success .metric-card-value,
+.stat-card.natural-success .stat-card-label,
+.stat-card.natural-success .stat-card-value {
+    color: #065F46 !important;
+}
+
+/* Natural — Primary / Purple */
+.card.natural-primary,
+.crm-card.natural-primary,
+.metric-card.natural-primary,
+.stat-card.natural-primary,
+.dash-kpi-card.natural-primary,
+.dash-module-card.natural-primary,
+.dashboard-section-card.natural-primary {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 55%, #F3E8FF 100%) !important;
+    border: 1px solid #E9D5FF !important;
+    border-top: 3px solid #7C3AED !important;
+    border-left: 4px solid #7C3AED !important;
+}
+.card.natural-primary *,
+.crm-card.natural-primary *,
+.metric-card.natural-primary *,
+.stat-card.natural-primary *,
+.dash-kpi-card.natural-primary *,
+.dash-module-card.natural-primary *,
+.dashboard-section-card.natural-primary * {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+}
+.card.natural-primary h1, .card.natural-primary h2, .card.natural-primary h3,
+.card.natural-primary h4, .card.natural-primary h5, .card.natural-primary h6,
+.crm-card.natural-primary h1, .crm-card.natural-primary h2, .crm-card.natural-primary h3,
+.crm-card.natural-primary h4, .crm-card.natural-primary h5, .crm-card.natural-primary h6,
+.metric-card.natural-primary .metric-card-title,
+.metric-card.natural-primary .metric-card-label,
+.metric-card.natural-primary .metric-card-value,
+.stat-card.natural-primary .stat-card-label,
+.stat-card.natural-primary .stat-card-value {
+    color: #5B21B6 !important;
+}
+
+/* Natural — Warning / Amber */
+.card.natural-warning,
+.crm-card.natural-warning,
+.metric-card.natural-warning,
+.stat-card.natural-warning,
+.dash-kpi-card.natural-warning,
+.dash-module-card.natural-warning,
+.dashboard-section-card.natural-warning {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 55%, #FEF3C7 100%) !important;
+    border: 1px solid #FDE68A !important;
+    border-top: 3px solid #F59E0B !important;
+    border-left: 4px solid #F59E0B !important;
+}
+.card.natural-warning *,
+.crm-card.natural-warning *,
+.metric-card.natural-warning *,
+.stat-card.natural-warning *,
+.dash-kpi-card.natural-warning *,
+.dash-module-card.natural-warning *,
+.dashboard-section-card.natural-warning * {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+}
+.card.natural-warning h1, .card.natural-warning h2, .card.natural-warning h3,
+.card.natural-warning h4, .card.natural-warning h5, .card.natural-warning h6,
+.crm-card.natural-warning h1, .crm-card.natural-warning h2, .crm-card.natural-warning h3,
+.crm-card.natural-warning h4, .crm-card.natural-warning h5, .crm-card.natural-warning h6,
+.metric-card.natural-warning .metric-card-title,
+.metric-card.natural-warning .metric-card-label,
+.metric-card.natural-warning .metric-card-value,
+.stat-card.natural-warning .stat-card-label,
+.stat-card.natural-warning .stat-card-value {
+    color: #92400E !important;
+}
+
+/* Natural — Danger / Red */
+.card.natural-danger,
+.crm-card.natural-danger,
+.metric-card.natural-danger,
+.stat-card.natural-danger,
+.dash-kpi-card.natural-danger,
+.dash-module-card.natural-danger,
+.dashboard-section-card.natural-danger {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFF1F2 55%, #FFE4E6 100%) !important;
+    border: 1px solid #FECDD3 !important;
+    border-top: 3px solid #E11D48 !important;
+    border-left: 4px solid #E11D48 !important;
+}
+.card.natural-danger *,
+.crm-card.natural-danger *,
+.metric-card.natural-danger *,
+.stat-card.natural-danger *,
+.dash-kpi-card.natural-danger *,
+.dash-module-card.natural-danger *,
+.dashboard-section-card.natural-danger * {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+}
+.card.natural-danger h1, .card.natural-danger h2, .card.natural-danger h3,
+.card.natural-danger h4, .card.natural-danger h5, .card.natural-danger h6,
+.crm-card.natural-danger h1, .crm-card.natural-danger h2, .crm-card.natural-danger h3,
+.crm-card.natural-danger h4, .crm-card.natural-danger h5, .crm-card.natural-danger h6,
+.metric-card.natural-danger .metric-card-title,
+.metric-card.natural-danger .metric-card-label,
+.metric-card.natural-danger .metric-card-value,
+.stat-card.natural-danger .stat-card-label,
+.stat-card.natural-danger .stat-card-value {
+    color: #B91C1C !important;
+}
+
+/* Natural — Info / Blue */
+.card.natural-info,
+.crm-card.natural-info,
+.metric-card.natural-info,
+.stat-card.natural-info,
+.dash-kpi-card.natural-info,
+.dash-module-card.natural-info,
+.dashboard-section-card.natural-info {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 55%, #E0F2FE 100%) !important;
+    border: 1px solid #BAE6FD !important;
+    border-top: 3px solid #0284C7 !important;
+    border-left: 4px solid #0284C7 !important;
+}
+.card.natural-info *,
+.crm-card.natural-info *,
+.metric-card.natural-info *,
+.stat-card.natural-info *,
+.dash-kpi-card.natural-info *,
+.dash-module-card.natural-info *,
+.dashboard-section-card.natural-info * {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+}
+.card.natural-info h1, .card.natural-info h2, .card.natural-info h3,
+.card.natural-info h4, .card.natural-info h5, .card.natural-info h6,
+.crm-card.natural-info h1, .crm-card.natural-info h2, .crm-card.natural-info h3,
+.crm-card.natural-info h4, .crm-card.natural-info h5, .crm-card.natural-info h6,
+.metric-card.natural-info .metric-card-title,
+.metric-card.natural-info .metric-card-label,
+.metric-card.natural-info .metric-card-value,
+.stat-card.natural-info .stat-card-label,
+.stat-card.natural-info .stat-card-value {
+    color: #0369A1 !important;
+}
+
+/* Natural — Neutral / Slate */
+.card.natural-neutral,
+.crm-card.natural-neutral,
+.metric-card.natural-neutral,
+.stat-card.natural-neutral,
+.dash-kpi-card.natural-neutral,
+.dash-module-card.natural-neutral,
+.dashboard-section-card.natural-neutral {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+    border: 1px solid #E2E8F0 !important;
+    border-top: 3px solid #64748B !important;
+    border-left: 4px solid #64748B !important;
+}
+.card.natural-neutral *,
+.crm-card.natural-neutral *,
+.metric-card.natural-neutral *,
+.stat-card.natural-neutral *,
+.dash-kpi-card.natural-neutral *,
+.dash-module-card.natural-neutral *,
+.dashboard-section-card.natural-neutral * {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+}
+.card.natural-neutral h1, .card.natural-neutral h2, .card.natural-neutral h3,
+.card.natural-neutral h4, .card.natural-neutral h5, .card.natural-neutral h6,
+.crm-card.natural-neutral h1, .crm-card.natural-neutral h2, .crm-card.natural-neutral h3,
+.crm-card.natural-neutral h4, .crm-card.natural-neutral h5, .crm-card.natural-neutral h6,
+.metric-card.natural-neutral .metric-card-title,
+.metric-card.natural-neutral .metric-card-label,
+.metric-card.natural-neutral .metric-card-value,
+.stat-card.natural-neutral .stat-card-label,
+.stat-card.natural-neutral .stat-card-value {
+    color: #334155 !important;
+}
+
+/* Natural badge text contrast inside natural cards */
+.card.natural-success .badge,
+.crm-card.natural-success .badge,
+.metric-card.natural-success .badge,
+.stat-card.natural-success .badge,
+.dash-kpi-card.natural-success .badge,
+.dash-module-card.natural-success .badge,
+.dashboard-section-card.natural-success .badge {
+    background: rgba(22, 163, 74, 0.15) !important;
+    color: #065F46 !important;
+    border: 1px solid #BBF7D0 !important;
+}
+.card.natural-primary .badge,
+.crm-card.natural-primary .badge,
+.metric-card.natural-primary .badge,
+.stat-card.natural-primary .badge,
+.dash-kpi-card.natural-primary .badge,
+.dash-module-card.natural-primary .badge,
+.dashboard-section-card.natural-primary .badge {
+    background: rgba(91, 33, 182, 0.15) !important;
+    color: #5B21B6 !important;
+    border: 1px solid #E9D5FF !important;
+}
+.card.natural-warning .badge,
+.crm-card.natural-warning .badge,
+.metric-card.natural-warning .badge,
+.stat-card.natural-warning .badge,
+.dash-kpi-card.natural-warning .badge,
+.dash-module-card.natural-warning .badge,
+.dashboard-section-card.natural-warning .badge {
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: #92400E !important;
+    border: 1px solid #FDE68A !important;
+}
+.card.natural-danger .badge,
+.crm-card.natural-danger .badge,
+.metric-card.natural-danger .badge,
+.stat-card.natural-danger .badge,
+.dash-kpi-card.natural-danger .badge,
+.dash-module-card.natural-danger .badge,
+.dashboard-section-card.natural-danger .badge {
+    background: rgba(185, 28, 28, 0.15) !important;
+    color: #B91C1C !important;
+    border: 1px solid #FECDD3 !important;
+}
+.card.natural-info .badge,
+.crm-card.natural-info .badge,
+.metric-card.natural-info .badge,
+.stat-card.natural-info .badge,
+.dash-kpi-card.natural-info .badge,
+.dash-module-card.natural-info .badge,
+.dashboard-section-card.natural-info .badge {
+    background: rgba(2, 132, 199, 0.15) !important;
+    color: #0369A1 !important;
+    border: 1px solid #BAE6FD !important;
+}
+.card.natural-neutral .badge,
+.crm-card.natural-neutral .badge,
+.metric-card.natural-neutral .badge,
+.stat-card.natural-neutral .badge,
+.dash-kpi-card.natural-neutral .badge,
+.dash-module-card.natural-neutral .badge,
+.dashboard-section-card.natural-neutral .badge {
+    background: rgba(100, 116, 139, 0.15) !important;
+    color: #334155 !important;
+    border: 1px solid #E2E8F0 !important;
+}
+
+/* Metric card semantic themes: keep readable dark text on washes */
+.metric-card.success .metric-card-value,
+.metric-card.success .metric-card-title,
+.metric-card.success .metric-card-label,
+.metric-card.success .metric-card-subtitle,
+.stat-card.success .stat-card-value,
+.stat-card.success .stat-card-label,
+.stat-card.success .stat-card-sub {
+    color: #065F46 !important;
+}
+.metric-card.primary .metric-card-value,
+.metric-card.primary .metric-card-title,
+.metric-card.primary .metric-card-label,
+.metric-card.primary .metric-card-subtitle,
+.stat-card.primary .stat-card-value,
+.stat-card.primary .stat-card-label,
+.stat-card.primary .stat-card-sub {
+    color: #5B21B6 !important;
+}
+.metric-card.warning .metric-card-value,
+.metric-card.warning .metric-card-title,
+.metric-card.warning .metric-card-label,
+.metric-card.warning .metric-card-subtitle,
+.stat-card.warning .stat-card-value,
+.stat-card.warning .stat-card-label,
+.stat-card.warning .stat-card-sub {
+    color: #92400E !important;
+}
+.metric-card.danger .metric-card-value,
+.metric-card.danger .metric-card-title,
+.metric-card.danger .metric-card-label,
+.metric-card.danger .metric-card-subtitle,
+.stat-card.danger .stat-card-value,
+.stat-card.danger .stat-card-label,
+.stat-card.danger .stat-card-sub {
+    color: #B91C1C !important;
+}
+.metric-card.info .metric-card-value,
+.metric-card.info .metric-card-title,
+.metric-card.info .metric-card-label,
+.metric-card.info .metric-card-subtitle,
+.stat-card.info .stat-card-value,
+.stat-card.info .stat-card-label,
+.stat-card.info .stat-card-sub {
+    color: #0369A1 !important;
+}
+.metric-card.neutral .metric-card-value,
+.metric-card.neutral .metric-card-title,
+.metric-card.neutral .metric-card-label,
+.metric-card.neutral .metric-card-subtitle,
+.stat-card.neutral .stat-card-value,
+.stat-card.neutral .stat-card-label,
+.stat-card.neutral .stat-card-sub {
+    color: #334155 !important;
+}
+
+/* Dashboard kpi cards: readable dark values on colored cards */
+.dash-kpi-card .dash-kpi-value,
+.dash-kpi-card .dash-kpi-label,
+.dash-kpi-card .dash-kpi-pill,
+.dash-module-card .dash-module-name,
+.dash-module-card .dash-module-sub,
+.dashboard-section-card .dashboard-section-title {
+    color: var(--text-primary) !important;
+    opacity: 1 !important;
+}
+
+/* ==========================================================================
+   Auto-apply natural washes when card contains a semantic color indicator
+   ========================================================================== */
+.metric-card:has(.text-success), .stat-card:has(.text-success),
+.metric-card:has(.bg-success), .stat-card:has(.bg-success) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 55%, #DCFCE7 100%) !important;
+    border-color: #BBF7D0 !important;
+    border-left: 4px solid #16A34A !important;
+}
+.metric-card:has(.text-primary), .stat-card:has(.text-primary),
+.metric-card:has(.bg-primary), .stat-card:has(.bg-primary),
+.metric-card:has(.bg-purple), .stat-card:has(.bg-purple) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 55%, #F3E8FF 100%) !important;
+    border-color: #E9D5FF !important;
+    border-left: 4px solid #7C3AED !important;
+}
+.metric-card:has(.text-warning), .stat-card:has(.text-warning),
+.metric-card:has(.bg-warning), .stat-card:has(.bg-warning) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 55%, #FEF3C7 100%) !important;
+    border-color: #FDE68A !important;
+    border-left: 4px solid #F59E0B !important;
+}
+.metric-card:has(.text-danger), .stat-card:has(.text-danger),
+.metric-card:has(.bg-danger), .stat-card:has(.bg-danger) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFF1F2 55%, #FFE4E6 100%) !important;
+    border-color: #FECDD3 !important;
+    border-left: 4px solid #E11D48 !important;
+}
+.metric-card:has(.text-info), .stat-card:has(.text-info),
+.metric-card:has(.bg-info), .stat-card:has(.bg-info) {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 55%, #E0F2FE 100%) !important;
+    border-color: #BAE6FD !important;
+    border-left: 4px solid #0284C7 !important;
+}
+
 .metric-card:has(.metric-card-icon),
 .stat-card:has(.stat-card-icon) {
     flex-direction: row !important;
@@ -2979,6 +3358,84 @@ table.dataTable .badge {
 .status-card-sanctioned:hover {
     border-color: #34D399 !important;
     box-shadow: 0 4px 16px rgba(5, 150, 105, 0.12) !important;
+}
+
+/* ==========================================================================
+   Zoom / Display Scaling Responsive Adjustments
+   Fixes layouts that look cramped at 100% Windows scaling / zoom.
+   At 90% zoom everything shrinks and fits; at 100% fixed pixel widths
+   overflow and feel cramped. These breakpoints make the shell fluid.
+   ========================================================================== */
+
+/* Large desktop at 100% zoom: tighten content padding and search width */
+@media (max-width: 1439px) {
+    .app-content { padding: 1.25rem 1.5rem; }
+    .app-topbar-search { max-width: 380px; }
+    .metric-card, .stat-card { padding: 0.95rem 1.05rem; }
+    .welcome-strip { padding: 1rem 1.3rem; gap: 1rem; margin-bottom: 1.25rem; }
+}
+
+/* Standard desktop / laptop at 100% zoom: reduce sidebar width and spacing */
+@media (max-width: 1199px) {
+    :root {
+        --sidebar-width: 248px;
+        --topbar-height: 60px;
+    }
+    .app-content { padding: 1rem 1.25rem; }
+    .app-topbar-search { max-width: 320px; }
+    .app-topbar-user-name { max-width: 110px; }
+    .metric-card, .stat-card { padding: 0.875rem 1rem; }
+    .crm-module-header { margin-bottom: 1rem; padding-bottom: 0.75rem; }
+    .crm-toolbar { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+    .table thead th,
+    .crm-table thead th,
+    table.dataTable thead th { padding: 0.7rem 0.85rem !important; font-size: 0.785rem !important; }
+    .table tbody td,
+    .crm-table tbody td,
+    table.dataTable tbody td { padding: 0.7rem 0.85rem !important; font-size: 0.785rem; }
+    .pipeline-column { flex: 0 0 270px; max-width: 270px; }
+    .pipeline-board { gap: 0.75rem; }
+    .form-control { height: 36px; font-size: 0.785rem; padding: 0.4rem 0.7rem; }
+    .btn { height: 36px; font-size: 0.785rem; padding: 0.4rem 0.8rem; }
+}
+
+/* Smaller laptop / high-density display at 100% zoom */
+@media (max-width: 1023px) {
+    :root {
+        --sidebar-width: 232px;
+        --topbar-height: 56px;
+    }
+    .app-content { padding: 0.875rem 1rem; }
+    .app-topbar-search { max-width: 260px; }
+    .app-topbar-user-name { max-width: 85px; }
+    .app-topbar-breadcrumb { display: none; }
+    .metric-card, .stat-card { padding: 0.8rem 0.9rem; }
+    .crm-toolbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .crm-toolbar-left, .crm-toolbar-right { width: 100%; justify-content: space-between; }
+    .table thead th,
+    .crm-table thead th,
+    table.dataTable thead th { padding: 0.6rem 0.7rem !important; font-size: 0.75rem !important; white-space: nowrap; }
+    .table tbody td,
+    .crm-table tbody td,
+    table.dataTable tbody td { padding: 0.6rem 0.7rem !important; font-size: 0.75rem; }
+    .pipeline-column { flex: 0 0 240px; max-width: 240px; }
+    .pipeline-board { gap: 0.6rem; }
+    .form-control { height: 34px; font-size: 0.75rem; padding: 0.35rem 0.65rem; }
+    .btn { height: 34px; font-size: 0.75rem; padding: 0.35rem 0.7rem; }
+    .modal-content { border-radius: 12px; margin: 1rem; }
+    .modal-body { padding: 1rem; }
+    .modal-header, .modal-footer { padding: 0.875rem 1rem; }
+}
+
+/* Ensure tables scroll horizontally instead of breaking layout at any zoom */
+.table-responsive-card .table-responsive,
+.card:has(.table) .table-responsive,
+.crm-card:has(.table) .table-responsive {
+    overflow-x: auto;
+}
+
+table {
+    min-width: 100%;
 }
 
 

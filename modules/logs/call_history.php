@@ -100,7 +100,7 @@ if (isOfficer()) {
     $whereParts[] = 'u.ID = ?';
     $params[] = USER_ID;
     $types .= 'i';
-} elseif (!isAdmin() && !isSuperAdmin()) {
+} elseif (!isSuperAdmin()) {
     $accIds = getAccessibleUserIds($link);
     if (!empty($accIds)) {
         $whereParts[] = 'u.ID IN (' . implode(',', array_map('intval', $accIds)) . ')';
@@ -595,8 +595,10 @@ $(document).ready(function() {
         dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
         buttons: [
             { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
+            <?php if (can('export_data')): ?>
             { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'CallHistory_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
             { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm', title: 'CallHistory_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            <?php endif; ?>
             { extend: 'print', text: '<i class="bi bi-printer me-1"></i> Print', className: 'btn btn-secondary btn-sm' }
         ],
         columnDefs: [

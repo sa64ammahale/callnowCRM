@@ -108,7 +108,7 @@ if (isOfficer()) {
     $where[] = "a.USER_ID = ?";
     $types .= 'i';
     $params[] = USER_ID;
-} elseif (!isAdmin() && !isSuperAdmin()) {
+} elseif (!isSuperAdmin()) {
     $accIds = getAccessibleUserIds($link);
     if (!empty($accIds)) {
         $where[] = "a.USER_ID IN (" . implode(',', array_map('intval', $accIds)) . ")";
@@ -173,6 +173,7 @@ if ($stmt = mysqli_prepare($link, $select_sql)) {
 
 /* CSV export */
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    requirePermission('export_data');
     $export_sql = "SELECT a.LOG_ID, a.USER_ID, u.NAME AS USER_NAME, u.ROLE AS USER_ROLE,
                            a.ACTION_TYPE, a.ACTION_DETAILS, a.AFFECTED_IDS, a.TARGET_TABLE, a.LOG_TIME, a.IP_ADDRESS
                     FROM " . tn('TBL_ACTIVITY_LOG') . " a
@@ -218,7 +219,7 @@ if (function_exists('getSuperAdminUserIds')) {
 }
 if (isOfficer()) {
     $actUserWhere[] = 'ID = ' . (int)USER_ID;
-} elseif (!isAdmin() && !isSuperAdmin()) {
+} elseif (!isSuperAdmin()) {
     if (!empty($accessibleUserIds)) {
         $actUserWhere[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     } else {
@@ -268,9 +269,11 @@ $baseQuery = $_GET;
             <p class="text-muted small mb-0">Complete audit trail of user actions, database mutations, and system access</p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <?php if (can('export_data')): ?>
             <a role="button" class="btn btn-outline-secondary btn-sm" href="?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>">
                 <i class="bi bi-download me-1"></i> Export CSV
             </a>
+            <?php endif; ?>
             <?php if ($userRole === 'Admin'): ?>
                 <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#bulkDeleteConfirm">
                     <i class="bi bi-trash me-1"></i> Bulk Delete
@@ -639,8 +642,10 @@ $(document).ready(function() {
         dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
         buttons: [
             { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
+            <?php if (can('export_data')): ?>
             { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'ActivityLog_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
             { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm', title: 'ActivityLog_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
+            <?php endif; ?>
             { extend: 'print', text: '<i class="bi bi-printer me-1"></i> Print', className: 'btn btn-secondary btn-sm' }
         ],
         columnDefs: [

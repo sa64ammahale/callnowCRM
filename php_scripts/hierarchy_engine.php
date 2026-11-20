@@ -69,10 +69,11 @@ ensureHierarchySchema($GLOBALS['link']);
  */
 function getNormalizedRole(string $role): string {
     $r = strtoupper(trim($role));
-    if (str_contains($r, 'SUPER')) return 'Super Admin';
+    if (str_contains($r, 'SUPER ADMIN') || str_contains($r, 'SUPER_ADMIN') || str_contains($r, 'SUPERADMIN') || $r === 'SUPER ADMIN') return 'Super Admin';
+    if (str_contains($r, 'SUPERVISOR')) return 'Supervisor';
     if (str_contains($r, 'ADMIN')) return 'Admin';
     if (str_contains($r, 'MANAGER')) return 'Manager';
-    if (str_contains($r, 'SUPERVISOR')) return 'Supervisor';
+    if (str_contains($r, 'OFFICER') || str_contains($r, 'CALLER') || str_contains($r, 'AGENT') || str_contains($r, 'TELECALLER')) return 'Officer';
     return 'Officer';
 }
 

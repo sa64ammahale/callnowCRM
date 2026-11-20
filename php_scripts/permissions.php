@@ -36,10 +36,15 @@ if (!function_exists('getTBL_PERMISSIONSeed')) {
         return [
             'Super Admin' => ['*' => 1],
             'Admin' => ['*' => 1],
-            'Manager' => ['*' => 1, 'export_db' => 0],
-            'Supervisor' => [
+            'Manager' => [
                 'manage_users' => 1, 'manage_teams' => 1, 'assign_leads' => 1, 'manage_leads' => 1,
                 'export_data' => 1, 'export_db' => 0, 'view_reports' => 1, 'view_activity' => 1,
+                'manage_database' => 1, 'upload_data' => 1, 'manage_settings' => 0, 'manage_super_admin' => 0, 'manage_api' => 0,
+            ],
+            'Supervisor' => [
+                'manage_users' => 1, 'manage_teams' => 0, 'assign_leads' => 1, 'manage_leads' => 1,
+                'export_data' => 0, 'export_db' => 0, 'view_reports' => 1, 'view_activity' => 1,
+                'manage_settings' => 0, 'manage_super_admin' => 0,
             ],
             'Officer' => [
                 'manage_leads' => 1, 'view_reports' => 1, 'view_activity' => 1, 'export_db' => 0,

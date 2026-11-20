@@ -19,7 +19,7 @@ $bankOptions = indianBankOptions();
 
 $accessibleUserIds = getAccessibleUserIds($link);
 $accessWhere = '';
-if (!isAdmin() && !isSuperAdmin() && !empty($accessibleUserIds)) {
+if (!isSuperAdmin() && !empty($accessibleUserIds)) {
     $accessWhere = ' AND l.assigned_to IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
 }
 

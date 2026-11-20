@@ -440,7 +440,7 @@ if (function_exists('getSuperAdminUserIds')) {
 }
 if (isOfficer()) {
     $userWhere[] = 'ID = ' . (int)USER_ID;
-} elseif (!isAdmin() && !isSuperAdmin()) {
+} elseif (!isSuperAdmin()) {
     if (!empty($accessibleUserIds)) {
         $userWhere[] = 'ID IN (' . implode(',', array_map('intval', $accessibleUserIds)) . ')';
     } else {

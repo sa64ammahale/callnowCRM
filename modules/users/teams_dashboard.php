@@ -48,6 +48,14 @@ function isValidTeamHierarchy(mysqli $link, ?int $adminId, ?int $managerId, ?int
     return true;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if (!canManageTeams()) {
+        $msg = 'Access denied: supervisors are not permitted to create or modify teams.';
+        $msg_type = 'danger';
+        $_POST['action'] = '';
+    }
+}
+
 // ==================== REASSIGN MEMBERS ====================
 if (($_POST['action'] ?? '') === 'reassign_members') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -403,8 +411,10 @@ if ($members_res) {
         </div>
     </div>
 
+    <?php $canManageTeams = canManageTeams(); ?>
     <div class="row g-3">
         <!-- Left Column: Add / Edit Team Form -->
+        <?php if ($canManageTeams): ?>
         <div class="col-lg-4">
             <?php
             $edit_mode = false;
@@ -492,8 +502,10 @@ if ($members_res) {
             </div>
         </div>
 
+        <?php endif; ?>
+
         <!-- Right Column: Teams List -->
-        <div class="col-lg-8">
+        <div class="<?= $canManageTeams ? 'col-lg-8' : 'col-12' ?>">
             <div class="crm-card">
                 <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -553,17 +565,23 @@ if ($members_res) {
                                                 <span class="badge bg-primary-subtle text-primary border"><?= (int)$t['MEMBER_COUNT'] ?></span>
                                             </td>
                                             <td class="text-end">
-                                                <a href="<?= url('modules/users/teams_dashboard.php') ?>?edit=<?= (int)$t['ID'] ?>" class="btn btn-sm btn-outline-secondary px-2 py-1 team-action-btn" title="Edit team">
-                                                    <i class="bi bi-pencil-square"></i>
-                                                </a>
-                                                <form method="POST" class="d-inline ms-1" onsubmit="return confirm('Delete team «<?= htmlspecialchars($t['TEAM_NAME']) ?>»? All members will be unassigned.');">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                                                    <input type="hidden" name="action" value="delete">
-                                                    <input type="hidden" name="team_id" value="<?= (int)$t['ID'] ?>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1 team-action-btn" title="Delete team">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </form>
+                                                <?php if ($canManageTeams): ?>
+                                                    <a href="<?= url('modules/users/teams_dashboard.php') ?>?edit=<?= (int)$t['ID'] ?>" class="btn btn-sm btn-outline-secondary px-2 py-1 team-action-btn" title="Edit team">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </a>
+                                                    <form method="POST" class="d-inline ms-1" onsubmit="return confirm('Delete team «<?= htmlspecialchars($t['TEAM_NAME']) ?>»? All members will be unassigned.');">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                                        <input type="hidden" name="action" value="delete">
+                                                        <input type="hidden" name="team_id" value="<?= (int)$t['ID'] ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1 team-action-btn" title="Delete team">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <a href="<?= url('modules/users/team_members.php') ?>?team_id=<?= (int)$t['ID'] ?>" class="btn btn-sm btn-outline-primary px-2 py-1" title="View Squad Members">
+                                                        <i class="bi bi-people me-1"></i> View Members
+                                                    </a>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endwhile; ?>

@@ -410,14 +410,26 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-end">
-                                        <?php if ((int)$u['ID'] === 1 || (in_array($u['ROLE'], ['Admin', 'Super Admin']) && (int)$u['ID'] !== USER_ID)): ?>
-                                            <span class="badge bg-light text-muted border" title="Protected System Account">
-                                                <i class="bi bi-shield-lock"></i>
-                                            </span>
-                                        <?php else: ?>
+                                        <?php
+                                        $canEditThisUser = false;
+                                        if (isSuperAdmin()) {
+                                            $canEditThisUser = true;
+                                        } elseif ((int)$u['ID'] === (int)USER_ID) {
+                                            $canEditThisUser = true;
+                                        } elseif ((int)$u['ID'] !== 1 && !in_array($u['ROLE'], ['Super Admin', 'Admin'])) {
+                                            if (canActorAssignRole(USER_ROLE, (string)$u['ROLE']) && canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, (int)$u['ID'])) {
+                                                $canEditThisUser = true;
+                                            }
+                                        }
+                                        ?>
+                                        <?php if ($canEditThisUser): ?>
                                             <a href="<?= url('modules/users/users_add.php') ?>?ID=<?= $u['ID'] ?>" class="btn btn-sm btn-outline-secondary px-2 py-1" title="Edit User">
                                                 <i class="bi bi-pencil-square"></i>
                                             </a>
+                                        <?php else: ?>
+                                            <span class="badge bg-light text-muted border" title="Protected Account">
+                                                <i class="bi bi-shield-lock"></i>
+                                            </span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -520,14 +532,26 @@ $totalInactive = max(0, $globalTotal - $totalActive);
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-end">
-                                            <?php if ((int)$u['ID'] === 1 || (in_array($u['ROLE'], ['Admin', 'Super Admin']) && (int)$u['ID'] !== USER_ID)): ?>
-                                                <span class="badge bg-light text-muted border">
-                                                    <i class="bi bi-shield-lock"></i>
-                                                </span>
-                                            <?php else: ?>
+                                            <?php
+                                            $canEditOther = false;
+                                            if (isSuperAdmin()) {
+                                                $canEditOther = true;
+                                            } elseif ((int)$u['ID'] === (int)USER_ID) {
+                                                $canEditOther = true;
+                                            } elseif ((int)$u['ID'] !== 1 && !in_array($u['ROLE'], ['Super Admin', 'Admin'])) {
+                                                if (canActorAssignRole(USER_ROLE, (string)$u['ROLE']) && canUserAccessTargetUser($link, (int)USER_ID, USER_ROLE, (int)$u['ID'])) {
+                                                    $canEditOther = true;
+                                                }
+                                            }
+                                            ?>
+                                            <?php if ($canEditOther): ?>
                                                 <a href="<?= url('modules/users/users_add.php') ?>?ID=<?= $u['ID'] ?>" class="btn btn-sm btn-outline-secondary px-2 py-1" title="Edit User">
                                                     <i class="bi bi-pencil-square"></i>
                                                 </a>
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-muted border" title="Protected Account">
+                                                    <i class="bi bi-shield-lock"></i>
+                                                </span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
