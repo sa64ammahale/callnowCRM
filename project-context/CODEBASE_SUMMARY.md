@@ -840,16 +840,21 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - `tests/test_dnd_absolute_enforcement.php`: 15/15 assertions passed (100%).
   - Zero PHP syntax errors across repository.
 
-## Completed Goal (2026-11-19): Mobile App Profile Page & Reset OTP via Email
-- **Profile Picture Upload Visibility**:
-  - `ProfileScreen.kt` (Android Native): Removed clipping from parent avatar container, enlarged camera edit badge to 36dp with white border and elevation, and added dedicated "Change Photo" action pill.
-- **Company Name Resolution**:
-  - `api/v1/auth/index.php`: Resolves full organization name from tenant table (`callnow_telecalling_companys` / `resolveTenant`), updates `fullProfile['company_name']` and `fullProfile['company']`, and backfills the `users` table.
-  - `php_scripts/api_auth.php`: `getFullUserProfileData()` falls back to `app_settings` (`company_name`) if company is empty or matches code.
-  - `NetworkModels.kt` & `ProfileScreen.kt`: Prioritizes `effectiveCompany` (`companyName`) over short `company` code.
-- **Reset OTP via Email**:
-  - `api/v1/auth/index.php`: Wired `php_scripts/mailer.php` (`sendSystemEmail()`) into `/auth/forgot-password` and added multi-tenant database connection switching in `/auth/forgot-password` and `/auth/reset-password`.
-  - `forgot-password.php`: Uses `mailer.php` for web portal password resets.
+## Completed Goal (2026-11-20): Duplicate Number & Batch Distribution Bug Fixes
+- **Root Cause & Identified Bugs**:
+  1. **Dialing State Not Reflected in Master Tables**: `startCallLock` updated `lead_reservations` to `DIALING`, but did not update `LAST_DIALED_DATE_TIME` or `CALL_COUNT` on `TBL_MAIN` / `TBL_TEMP`. Unsubmitted calls remained in `Not Called` / `CALL_COUNT = 0` status.
+  2. **Batch Release Recirculation Trap**: `releaseBatchQueue` cleared `BATCH_ASSIGNED_AT = NULL` on master tables for unsubmitted leads. Since `LAST_DIALED_DATE_TIME` was still NULL, `queryWaterfallP0` immediately re-picked those exact same leads at the top of the queue.
+  3. **Batch Release DIALING State Ignored**: `releaseBatchQueue` only released `state = 'RESERVED'`. In-flight dialed leads remained `state = 'DIALING'`, causing `claimLeadBatch` to repeatedly re-serve the old active batch.
+  4. **Faulty Self-Exclusion in Reservation Check**: `isPhoneReservedOrDnd` checked `telecaller_id != ?`, returning false for the caller's own reservations and allowing re-allocation of identical numbers to the same telecaller.
+  5. **Fatal SQL Error in Recent Call Log Check**: `isPhoneReservedOrDnd` queried non-existent `phone_number` column in `call_logs`, crashing silently and bypassing the 12-hour cooling check.
+- **Engine & API Fixes (`php_scripts/lead_distribution_engine.php`, `api/v1/telecaller/index.php`)**:
+  - `startCallLock`: Immediately sets `LAST_DIALED_DATE_TIME = NOW()`, `MAINDATABASE_CALL_DIAL_TIME = NOW()`, and increments `CALL_COUNT` on `TBL_MAIN` and `TBL_TEMP` (both record ID and 10-digit phone match) upon dialing.
+  - `releaseBatchQueue`: Releases both `'RESERVED'` and `'DIALING'` states, marks batch `'RELEASED'`, and preserves `LAST_DIALED_DATE_TIME` on master records.
+  - `isPhoneReservedOrDnd`: Removes `telecaller_id != ?` self-exclusion; checks DND, active reservations across all callers, 12-hour dialed/completed cooldown in `lead_reservations`, 12-hour dialed timestamp in `TBL_MAIN`/`TBL_TEMP`, 120-minute batch assignment, and 2-hour anti-repeat block per telecaller.
+  - `queryWaterfallP0`: Enforces 12-hour dialed/completed cooldown and 2-hour per-telecaller anti-repeat block in SQL.
+- **Android Native App (`CallingDeskViewModel.kt`)**:
+  - `closeBucketAndLoadNext` & `skipLead`: Auto-submits dialed calls before closing/skipping to prevent losing dial history.
+
 
 
 

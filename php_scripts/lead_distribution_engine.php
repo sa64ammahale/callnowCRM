@@ -217,7 +217,7 @@ function getActiveCallLock(mysqli $link, int $userId): ?array {
 }
 
 function startCallLock(mysqli $link, int $userId, string $reservationToken, int $leadId, string $source, string $deviceId, int $sessionEpoch): array {
-    $stmt = $link->prepare("SELECT id, state, telecaller_id, session_epoch, expires_at FROM lead_reservations WHERE reservation_token = ? LIMIT 1");
+    $stmt = $link->prepare("SELECT id, state, telecaller_id, session_epoch, expires_at, lead_id, source, phone_number_10 FROM lead_reservations WHERE reservation_token = ? LIMIT 1");
     $stmt->bind_param('s', $reservationToken);
     $stmt->execute();
     $res = $stmt->get_result()->fetch_assoc();
@@ -264,6 +264,41 @@ function startCallLock(mysqli $link, int $userId, string $reservationToken, int 
     $up->bind_param('ssii', $callLockToken, $deviceId, $sessionEpoch, $res['id']);
     $up->execute();
     $up->close();
+
+    $resolvedLeadId = (int)($res['lead_id'] ?? $leadId);
+    $resolvedSource = strtoupper(trim((string)($res['source'] ?? $source))) === 'TEMP' ? 'TEMP' : 'MAIN';
+    $resolvedPhone = trim((string)($res['phone_number_10'] ?? ''));
+
+    if ($resolvedSource === 'TEMP') {
+        $upT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET LAST_DIALED_DATE_TIME = NOW(), CALL_DIALED_TELECALLER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE ID = ?");
+        if ($upT) {
+            $upT->bind_param('ii', $userId, $resolvedLeadId);
+            $upT->execute();
+            $upT->close();
+        }
+    } else {
+        $upM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW(), MAINDATABASE_CALL_DIALED_USER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE ID = ?");
+        if ($upM) {
+            $upM->bind_param('ii', $userId, $resolvedLeadId);
+            $upM->execute();
+            $upM->close();
+        }
+    }
+
+    if (!empty($resolvedPhone)) {
+        $upAllT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET LAST_DIALED_DATE_TIME = NOW(), CALL_DIALED_TELECALLER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ?");
+        if ($upAllT) {
+            $upAllT->bind_param('is', $userId, $resolvedPhone);
+            $upAllT->execute();
+            $upAllT->close();
+        }
+        $upAllM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW(), MAINDATABASE_CALL_DIALED_USER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ?");
+        if ($upAllM) {
+            $upAllM->bind_param('is', $userId, $resolvedPhone);
+            $upAllM->execute();
+            $upAllM->close();
+        }
+    }
 
     return [
         'success' => true,
@@ -361,7 +396,7 @@ function releaseBatchQueue(mysqli $link, int $userId, string $batchUuid): array 
         return ['error' => 'BATCH_NOT_FOUND', 'code' => 404, 'message' => 'Batch not found'];
     }
 
-    $upRes = $link->prepare("UPDATE lead_reservations SET state = 'RELEASED' WHERE batch_id = ? AND telecaller_id = ? AND state = 'RESERVED'");
+    $upRes = $link->prepare("UPDATE lead_reservations SET state = 'RELEASED' WHERE batch_id = ? AND telecaller_id = ? AND state IN ('RESERVED', 'DIALING')");
     $upRes->bind_param('ii', $batch['id'], $userId);
     $upRes->execute();
     $releasedCount = $upRes->affected_rows;
@@ -371,12 +406,12 @@ function releaseBatchQueue(mysqli $link, int $userId, string $batchUuid): array 
     $link->query("UPDATE " . tn('TBL_TEMP') . " t
         INNER JOIN lead_reservations lr ON lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10) AND lr.batch_id = $batchIdInt
         SET t.BATCH_ASSIGNED_AT = NULL, t.CALL_DIALED_TELECALLER = NULL
-        WHERE lr.state = 'RELEASED' AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')");
+        WHERE lr.state = 'RELEASED' AND t.LAST_DIALED_DATE_TIME IS NULL AND (t.CALL_DIALED_STATUS IS NULL OR t.CALL_DIALED_STATUS = '' OR t.CALL_DIALED_STATUS = 'Not Called' OR t.CALL_DIALED_STATUS = 'Pending')");
 
     $link->query("UPDATE " . tn('TBL_MAIN') . " m
         INNER JOIN lead_reservations lr ON lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) AND lr.batch_id = $batchIdInt
         SET m.BATCH_ASSIGNED_AT = NULL, m.MAINDATABASE_CALL_DIALED_USER = NULL
-        WHERE lr.state = 'RELEASED' AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')");
+        WHERE lr.state = 'RELEASED' AND m.LAST_DIALED_DATE_TIME IS NULL AND (m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending')");
 
     $upBatch = $link->prepare("UPDATE lead_batches SET status = 'RELEASED' WHERE id = ?");
     $upBatch->bind_param('i', $batch['id']);
@@ -806,8 +841,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
           AND NOT EXISTS (
               SELECT 1 FROM lead_reservations lr 
               WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10)
-                AND lr.state IN ('RESERVED', 'DIALING')
-                AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+                AND (lr.state IN ('RESERVED', 'DIALING') OR lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR OR (lr.telecaller_id = ? AND lr.reserved_at >= NOW() - INTERVAL 2 HOUR))
           )
           AND NOT EXISTS (
               SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -817,7 +851,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
         LIMIT ?";
     $stmtT = $link->prepare($sqlTemp);
     if ($stmtT) {
-        $stmtT->bind_param('i', $fetchLimit);
+        $stmtT->bind_param('ii', $userId, $fetchLimit);
         $stmtT->execute();
         $tRows = $stmtT->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmtT->close();
@@ -855,8 +889,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
               AND NOT EXISTS (
                   SELECT 1 FROM lead_reservations lr 
                   WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
-                    AND lr.state IN ('RESERVED', 'DIALING')
-                    AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
+                    AND (lr.state IN ('RESERVED', 'DIALING') OR lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR OR (lr.telecaller_id = ? AND lr.reserved_at >= NOW() - INTERVAL 2 HOUR))
               )
               AND NOT EXISTS (
                   SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -866,7 +899,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
             LIMIT ?";
         $stmtM = $link->prepare($sqlMain);
         if ($stmtM) {
-            $stmtM->bind_param('i', $fetchLimitM);
+            $stmtM->bind_param('ii', $userId, $fetchLimitM);
             $stmtM->execute();
             $mRows = $stmtM->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmtM->close();
@@ -1129,66 +1162,69 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone, int $currentUser
         if ($isDnd) return true;
     }
 
-    if ($currentUserId > 0) {
-        $resQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND telecaller_id != ? AND state IN ('RESERVED', 'DIALING') AND (state = 'DIALING' OR expires_at > NOW()) LIMIT 1");
-        if ($resQ) {
-            $resQ->bind_param('si', $cleanPhone, $currentUserId);
-            $resQ->execute();
-            $isReserved = ($resQ->get_result()->fetch_assoc() !== null);
-            $resQ->close();
-            if ($isReserved) return true;
-        }
-
-        $tempQ = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " 
-            WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ? 
-              AND CALL_DIALED_TELECALLER IS NOT NULL 
-              AND CALL_DIALED_TELECALLER != ? 
-              AND BATCH_ASSIGNED_AT IS NOT NULL 
-              AND BATCH_ASSIGNED_AT > NOW() - INTERVAL 120 MINUTE 
-            LIMIT 1");
-        if ($tempQ) {
-            $tempQ->bind_param('si', $cleanPhone, $currentUserId);
-            $tempQ->execute();
-            $isAssignedTemp = ($tempQ->get_result()->fetch_assoc() !== null);
-            $tempQ->close();
-            if ($isAssignedTemp) return true;
-        }
-
-        $mainQ = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " 
-            WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ? 
-              AND MAINDATABASE_CALL_DIALED_USER IS NOT NULL 
-              AND MAINDATABASE_CALL_DIALED_USER != ? 
-              AND BATCH_ASSIGNED_AT IS NOT NULL 
-              AND BATCH_ASSIGNED_AT > NOW() - INTERVAL 120 MINUTE 
-            LIMIT 1");
-        if ($mainQ) {
-            $mainQ->bind_param('si', $cleanPhone, $currentUserId);
-            $mainQ->execute();
-            $isAssignedMain = ($mainQ->get_result()->fetch_assoc() !== null);
-            $mainQ->close();
-            if ($isAssignedMain) return true;
-        }
-    } else {
-        $resQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND state IN ('RESERVED', 'DIALING') AND (state = 'DIALING' OR expires_at > NOW()) LIMIT 1");
-        if ($resQ) {
-            $resQ->bind_param('s', $cleanPhone);
-            $resQ->execute();
-            $isReserved = ($resQ->get_result()->fetch_assoc() !== null);
-            $resQ->close();
-            if ($isReserved) return true;
-        }
+    $resQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND state IN ('RESERVED', 'DIALING') AND (state = 'DIALING' OR expires_at > NOW()) LIMIT 1");
+    if ($resQ) {
+        $resQ->bind_param('s', $cleanPhone);
+        $resQ->execute();
+        $isReserved = ($resQ->get_result()->fetch_assoc() !== null);
+        $resQ->close();
+        if ($isReserved) return true;
     }
 
-    $clQ = $link->prepare("SELECT id FROM " . tn('TBL_CALL_LOGS') . " 
-        WHERE (phone_number = ? OR RIGHT(REGEXP_REPLACE(phone_number, '[^0-9]', ''), 10) = ?) 
-          AND created_at >= NOW() - INTERVAL 12 HOUR 
-        LIMIT 1");
-    if ($clQ) {
-        $clQ->bind_param('ss', $cleanPhone, $cleanPhone);
-        $clQ->execute();
-        $isRecentlyCalled = ($clQ->get_result()->fetch_assoc() !== null);
-        $clQ->close();
-        if ($isRecentlyCalled) return true;
+    $resRecentQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND (dialing_started_at >= NOW() - INTERVAL 12 HOUR OR completed_at >= NOW() - INTERVAL 12 HOUR) LIMIT 1");
+    if ($resRecentQ) {
+        $resRecentQ->bind_param('s', $cleanPhone);
+        $resRecentQ->execute();
+        $isRecentlyDialedRes = ($resRecentQ->get_result()->fetch_assoc() !== null);
+        $resRecentQ->close();
+        if ($isRecentlyDialedRes) return true;
+    }
+
+    $mainDialQ = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ? AND LAST_DIALED_DATE_TIME IS NOT NULL AND LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 12 HOUR LIMIT 1");
+    if ($mainDialQ) {
+        $mainDialQ->bind_param('s', $cleanPhone);
+        $mainDialQ->execute();
+        $isMainDialed = ($mainDialQ->get_result()->fetch_assoc() !== null);
+        $mainDialQ->close();
+        if ($isMainDialed) return true;
+    }
+
+    $tempDialQ = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ? AND LAST_DIALED_DATE_TIME IS NOT NULL AND LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 12 HOUR LIMIT 1");
+    if ($tempDialQ) {
+        $tempDialQ->bind_param('s', $cleanPhone);
+        $tempDialQ->execute();
+        $isTempDialed = ($tempDialQ->get_result()->fetch_assoc() !== null);
+        $tempDialQ->close();
+        if ($isTempDialed) return true;
+    }
+
+    $mainAssignedQ = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ? AND BATCH_ASSIGNED_AT IS NOT NULL AND BATCH_ASSIGNED_AT > NOW() - INTERVAL 120 MINUTE LIMIT 1");
+    if ($mainAssignedQ) {
+        $mainAssignedQ->bind_param('s', $cleanPhone);
+        $mainAssignedQ->execute();
+        $isAssignedMain = ($mainAssignedQ->get_result()->fetch_assoc() !== null);
+        $mainAssignedQ->close();
+        if ($isAssignedMain) return true;
+    }
+
+    $tempAssignedQ = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ? AND BATCH_ASSIGNED_AT IS NOT NULL AND BATCH_ASSIGNED_AT > NOW() - INTERVAL 120 MINUTE LIMIT 1");
+    if ($tempAssignedQ) {
+        $tempAssignedQ->bind_param('s', $cleanPhone);
+        $tempAssignedQ->execute();
+        $isAssignedTemp = ($tempAssignedQ->get_result()->fetch_assoc() !== null);
+        $tempAssignedQ->close();
+        if ($isAssignedTemp) return true;
+    }
+
+    if ($currentUserId > 0) {
+        $userRepeatQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND telecaller_id = ? AND reserved_at >= NOW() - INTERVAL 2 HOUR LIMIT 1");
+        if ($userRepeatQ) {
+            $userRepeatQ->bind_param('si', $cleanPhone, $currentUserId);
+            $userRepeatQ->execute();
+            $isRepeatForUser = ($userRepeatQ->get_result()->fetch_assoc() !== null);
+            $userRepeatQ->close();
+            if ($isRepeatForUser) return true;
+        }
     }
 
     return false;

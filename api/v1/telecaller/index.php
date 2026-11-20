@@ -440,6 +440,18 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
         }
     }
     $res = releaseBatchQueue($link, $userId, $batchUuid);
+    if (!empty($res['error']) && ($res['code'] ?? 0) === 404) {
+        $stmtB = $link->prepare("SELECT batch_uuid FROM lead_batches WHERE telecaller_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1");
+        if ($stmtB) {
+            $stmtB->bind_param('i', $userId);
+            $stmtB->execute();
+            $bRow = $stmtB->get_result()->fetch_assoc();
+            $stmtB->close();
+            if ($bRow && !empty($bRow['batch_uuid']) && $bRow['batch_uuid'] !== $batchUuid) {
+                $res = releaseBatchQueue($link, $userId, (string)$bRow['batch_uuid']);
+            }
+        }
+    }
     if (!empty($res['error'])) {
         apiError($res['code'] ?? 400, $res['message'] ?? 'Error releasing batch');
     }
