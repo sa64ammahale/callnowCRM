@@ -475,501 +475,104 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     ]);
 
 // -----------------------------------------------------------------------------
-// 3. LEGACY BATCH LEADS FETCH (Flutter App & Web CRM Adapter)
+// 3. UNIFIED BATCH LEADS FETCH (Flutter App & Web CRM Adapter via Engine)
 // -----------------------------------------------------------------------------
 } elseif ($relativePath === '/batch-leads' || $relativePath === '/batch-leads/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
     $limit = min(50, max(1, (int)($_GET['limit'] ?? 15)));
-    $leads = [];
-    
-    $tempPoolLimit = max(30, $limit * 2);
-    $sqlTemp = "SELECT ID FROM " . tn('TBL_TEMP') . " 
-    WHERE (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
-    AND (LAST_DIALED_DATE_TIME IS NULL OR LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY))
-    AND (
-        CALL_DIALED_TELECALLER = ? 
-        OR CALL_DIALED_TELECALLER IS NULL 
-        OR BATCH_ASSIGNED_AT IS NULL 
-        OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
-    )
-    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-    AND NOT EXISTS (
-        SELECT 1 FROM " . tn('TBL_MAIN') . " m 
-        WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND (
-            LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-            OR m.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
-        )
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
-        WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND (
-            LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-            OR (t2.ID <> " . tn('TBL_TEMP') . ".ID AND t2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY))
-        )
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-        WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM lead_reservations lr 
-        WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-          AND lr.state IN ('RESERVED', 'DIALING')
-          AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
-    )
-    ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
-    LIMIT ?";
-    
-    $stmt = $link->prepare($sqlTemp);
-    if (!$stmt) {
-        error_log("Failed to prepare sqlTemp: " . $link->error);
-        $tempPoolRows = [];
-    } else {
-        $stmt->bind_param('ii', $userId, $tempPoolLimit);
-        $stmt->execute();
-        $tempPoolRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
+    $companyCode = getenv('COMPANY_CODE') ?: ($_SERVER['HTTP_X_COMPANY_CODE'] ?? 'default');
+    $deviceId = trim((string)($_GET['device_id'] ?? 'device_legacy_adapter'));
+    $sessionEpoch = max(1, (int)($_GET['session_epoch'] ?? 1));
+    $claimRequestId = trim((string)($_GET['claim_request_id'] ?? ''));
+    if ($claimRequestId === '') {
+        $claimRequestId = cnGenerateUuid();
     }
     
-    $tempPoolIds = array_column($tempPoolRows, 'ID');
-    if (!empty($tempPoolIds)) {
-        shuffle($tempPoolIds);
-        $tempSlice = array_slice($tempPoolIds, 0, $limit);
-        $inClauseTemp = implode(',', array_map('intval', $tempSlice));
-        
-        $link->query("UPDATE " . tn('TBL_TEMP') . " 
-            SET CALL_DIALED_TELECALLER = $userId, 
-                BATCH_ASSIGNED_AT = NOW() 
-            WHERE ID IN ($inClauseTemp) 
-              AND (CALL_DIALED_TELECALLER IS NULL OR CALL_DIALED_TELECALLER = $userId OR BATCH_ASSIGNED_AT IS NULL OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE))");
-        
-        $fetchTemp = $link->prepare("SELECT 
-            ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
-            CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME, TEMP_UPLOAD_DATETIME
-        FROM " . tn('TBL_TEMP') . "
-        WHERE ID IN ($inClauseTemp)
-          AND CALL_DIALED_TELECALLER = ?
-          AND BATCH_ASSIGNED_AT >= (NOW() - INTERVAL 1 MINUTE)
-        ORDER BY ID ASC");
-        $fetchTemp->bind_param('i', $userId);
-        $fetchTemp->execute();
-        $claimedTempRows = $fetchTemp->get_result()->fetch_all(MYSQLI_ASSOC);
-        $fetchTemp->close();
-        
-        foreach ($claimedTempRows as $row) {
-            $mob = $row['CUST_MOBILE'] ?? '';
-            $leads[] = [
-                'id' => (int)$row['ID'],
-                'record_id' => (int)$row['ID'],
-                'source' => 'TEMP',
-                'name' => $row['CUST_NAME'] ?? '',
-                'mobile' => $mob,
-                'dial_phone' => format_indian_phone($mob, 'e164'),
-                'dial_uri' => format_indian_phone($mob, 'dial_uri'),
-                'formatted_mobile' => format_indian_phone($mob, 'display'),
-                'company' => $row['CUST_COMPANY'] ?? '',
-                'package' => $row['CUST_PACKAGE'] ?? '',
-                'other_info' => $row['CUST_OTHER_INFO'] ?? '',
-                'last_status' => $row['CALL_DIALED_STATUS'] ?? 'Not Called',
-                'last_call_time' => $row['LAST_DIALED_DATE_TIME'] ?? null,
-                'upload_time' => $row['TEMP_UPLOAD_DATETIME'] ?? null,
-            ];
+    try {
+        $claimRes = claimLeadBatch($link, $userId, $companyCode, $deviceId, $sessionEpoch, $claimRequestId, $limit, false);
+        if (!empty($claimRes['error'])) {
+            apiError($claimRes['code'] ?? 400, $claimRes['message'] ?? 'Error claiming batch');
         }
-    }
-    
-    $remaining = $limit - count($leads);
-    if ($remaining > 0 && count($leads) === 0) {
-        $mainPoolLimit = max(150, $remaining * 10);
-        $sqlMain = "SELECT m.ID
-        FROM " . tn('TBL_MAIN') . " m
-        WHERE (m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '')
-        AND (
-            m.MAINDATABASE_CALL_DIALED_USER = ? 
-            OR m.MAINDATABASE_CALL_DIALED_USER IS NULL 
-            OR m.BATCH_ASSIGNED_AT IS NULL 
-            OR m.BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
-        )
-        AND (
-            m.LAST_DIALED_DATE_TIME IS NULL 
-            OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY)
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_MAIN') . " m2
-            WHERE m2.MAINDATABASE_MOBILE = m.MAINDATABASE_MOBILE
-              AND m2.ID <> m.ID
-              AND m2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_LEADS') . " l 
-            WHERE l.cust_id = m.ID
-            AND l.assigned_to != ?
-            AND (
-                LOWER(COALESCE(l.lead_status_new, l.lead_status, '')) NOT IN ('lost', 'reject', 'closed', 'archived')
-                OR l.next_followup_at > NOW()
-            )
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_CALL_LOGS') . " cl 
-            WHERE cl.record_id = m.ID AND cl.source = 'MAIN'
-            AND cl.user_id != ?
-            AND (cl.next_followup > NOW() OR cl.created_at >= (NOW() - INTERVAL 90 DAY))
-        )
-        AND LOWER(COALESCE(m.MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_TEMP') . " t 
-            WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
-            AND (
-                LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-                OR t.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
-            )
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-            WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM lead_reservations lr 
-            WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-              AND lr.state IN ('RESERVED', 'DIALING')
-              AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
-        )
-        ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
-        LIMIT ?";
-        
-        $stmt = $link->prepare($sqlMain);
-        if (!$stmt) {
-            error_log("Failed to prepare sqlMain: " . $link->error);
-            $poolRows = [];
-        } else {
-            $stmt->bind_param('iiii', $userId, $userId, $userId, $mainPoolLimit);
-            $stmt->execute();
-            $poolRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
+        $leads = $claimRes['leads'] ?? [];
+        $hasTemp = false;
+        $hasMain = false;
+        foreach ($leads as $l) {
+            if (($l['source'] ?? '') === 'TEMP') $hasTemp = true;
+            if (($l['source'] ?? '') === 'MAIN') $hasMain = true;
         }
+        $currentDb = ($hasTemp && $hasMain) ? 'MIXED' : ($hasTemp ? 'TEMPORARY' : 'MAIN');
+        if ($hasTemp) updateCurrentCallingDatabase($link, $userId, 'temporary');
+        elseif ($hasMain) updateCurrentCallingDatabase($link, $userId, 'main');
         
-        $poolIds = array_column($poolRows, 'ID');
-        if (!empty($poolIds)) {
-            shuffle($poolIds);
-            $targetSlice = array_slice($poolIds, 0, $remaining);
-            $inClause = implode(',', array_map('intval', $targetSlice));
-            
-            $link->query("UPDATE " . tn('TBL_MAIN') . " 
-                SET MAINDATABASE_CALL_DIALED_USER = $userId, 
-                    BATCH_ASSIGNED_AT = NOW() 
-                WHERE ID IN ($inClause) 
-                  AND (MAINDATABASE_CALL_DIALED_USER IS NULL OR MAINDATABASE_CALL_DIALED_USER = $userId OR BATCH_ASSIGNED_AT IS NULL OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE))");
-            
-            $stmtFetch = $link->prepare("SELECT 
-                m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE, m.MAINDATABASE_COMPANY, 
-                m.MAINDATABASE_PACKAGE, m.MAINDATABASE_OTHER_INFO, m.MAINDATABASE_CALL_DIALED_STATUS,
-                m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_UPLOAD_DATETIME, m.CALL_COUNT
-            FROM " . tn('TBL_MAIN') . " m
-            WHERE m.ID IN ($inClause)
-              AND m.MAINDATABASE_CALL_DIALED_USER = ?
-              AND m.BATCH_ASSIGNED_AT >= (NOW() - INTERVAL 1 MINUTE)
-            ORDER BY m.ID ASC");
-            $stmtFetch->bind_param('i', $userId);
-            $stmtFetch->execute();
-            $mainRows = $stmtFetch->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmtFetch->close();
-            
-            $claimedCount = count($mainRows);
-            if ($claimedCount < $remaining && count($poolIds) > count($targetSlice)) {
-                $unattempted = array_values(array_diff($poolIds, $targetSlice));
-                $needed = $remaining - $claimedCount;
-                $slice2 = array_slice($unattempted, 0, $needed);
-                if (!empty($slice2)) {
-                    $inClause2 = implode(',', array_map('intval', $slice2));
-                    $link->query("UPDATE " . tn('TBL_MAIN') . " 
-                        SET MAINDATABASE_CALL_DIALED_USER = $userId, 
-                            BATCH_ASSIGNED_AT = NOW() 
-                        WHERE ID IN ($inClause2) 
-                          AND (MAINDATABASE_CALL_DIALED_USER IS NULL OR MAINDATABASE_CALL_DIALED_USER = $userId OR BATCH_ASSIGNED_AT IS NULL OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE))");
-                    
-                    $stmtFetch2 = $link->prepare("SELECT 
-                        m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE, m.MAINDATABASE_COMPANY, 
-                        m.MAINDATABASE_PACKAGE, m.MAINDATABASE_OTHER_INFO, m.MAINDATABASE_CALL_DIALED_STATUS,
-                        m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_UPLOAD_DATETIME, m.CALL_COUNT
-                    FROM " . tn('TBL_MAIN') . " m
-                    WHERE m.ID IN ($inClause2)
-                      AND m.MAINDATABASE_CALL_DIALED_USER = ?
-                      AND m.BATCH_ASSIGNED_AT >= (NOW() - INTERVAL 1 MINUTE)
-                    ORDER BY m.ID ASC");
-                    $stmtFetch2->bind_param('i', $userId);
-                    $stmtFetch2->execute();
-                    $moreRows = $stmtFetch2->get_result()->fetch_all(MYSQLI_ASSOC);
-                    $stmtFetch2->close();
-                    foreach ($moreRows as $r) {
-                        $mainRows[] = $r;
-                    }
-                }
-            }
-            
-            foreach ($mainRows as $row) {
-                $mob = $row['MAINDATABASE_MOBILE'] ?? '';
-                $leads[] = [
-                    'id' => (int)$row['ID'],
-                    'record_id' => (int)$row['ID'],
-                    'source' => 'MAIN',
-                    'name' => $row['MAINDATABASE_NAME'] ?? '',
-                    'mobile' => $mob,
-                    'dial_phone' => format_indian_phone($mob, 'e164'),
-                    'dial_uri' => format_indian_phone($mob, 'dial_uri'),
-                    'formatted_mobile' => format_indian_phone($mob, 'display'),
-                    'company' => $row['MAINDATABASE_COMPANY'] ?? '',
-                    'package' => $row['MAINDATABASE_PACKAGE'] ?? '',
-                    'other_info' => $row['MAINDATABASE_OTHER_INFO'] ?? '',
-                    'call_count' => (int)($row['CALL_COUNT'] ?? 0),
-                    'last_status' => $row['MAINDATABASE_CALL_DIALED_STATUS'] ?? 'Not Called',
-                    'last_call_time' => $row['LAST_DIALED_DATE_TIME'] ?? null,
-                    'upload_time' => $row['MAINDATABASE_UPLOAD_DATETIME'] ?? null,
-                ];
-            }
-        }
+        apiSuccess([
+            'batch_uuid' => $claimRes['batch_uuid'] ?? '',
+            'bucket_id' => $claimRes['bucket_id'] ?? ($claimRes['batch_uuid'] ?? ''),
+            'current_database' => $currentDb,
+            'lease_duration_minutes' => 120,
+            'lease_duration_seconds' => 7200,
+            'expires_at' => $claimRes['expires_at'] ?? null,
+            'leads' => $leads,
+            'count' => count($leads),
+            'limit' => $limit,
+        ]);
+    } catch (Throwable $e) {
+        error_log('batch-leads error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        apiError(500, 'batch-leads error: ' . $e->getMessage());
     }
-    
-    $hasTemp = false;
-    $hasMain = false;
-    foreach ($leads as $l) {
-        if ($l['source'] === 'TEMP') $hasTemp = true;
-        if ($l['source'] === 'MAIN') $hasMain = true;
-    }
-    $currentDb = ($hasTemp && $hasMain) ? 'MIXED' : ($hasTemp ? 'TEMPORARY' : 'MAIN');
-    if ($hasTemp) updateCurrentCallingDatabase($link, $userId, 'temporary');
-    elseif ($hasMain) updateCurrentCallingDatabase($link, $userId, 'main');
-    apiSuccess([
-        'current_database' => $currentDb,
-        'lease_duration_minutes' => 15,
-        'leads' => $leads,
-        'count' => count($leads),
-        'limit' => $limit,
-    ]);
 
 // -----------------------------------------------------------------------------
-// 3. NEXT-CALL (Single Lead Fallback with Atomic Locking)
+// 3. NEXT-CALL (Single Lead Fallback via Unified Engine)
 // -----------------------------------------------------------------------------
 } elseif ($relativePath === '/next-call' || $relativePath === '/next-call/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') apiError(405, 'Method not allowed');
     
-    $stmtTemp = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " 
-    WHERE (CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Pending' OR CALL_DIALED_STATUS = 'Not Called')
-    AND (LAST_DIALED_DATE_TIME IS NULL OR LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY))
-    AND (
-        CALL_DIALED_TELECALLER = ? 
-        OR CALL_DIALED_TELECALLER IS NULL 
-        OR BATCH_ASSIGNED_AT IS NULL 
-        OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
-    )
-    AND LOWER(COALESCE(CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-    AND NOT EXISTS (
-        SELECT 1 FROM " . tn('TBL_MAIN') . " m 
-        WHERE m.MAINDATABASE_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND (
-            LOWER(m.MAINDATABASE_CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-            OR m.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
-        )
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM " . tn('TBL_TEMP') . " t2 
-        WHERE t2.CUST_MOBILE = " . tn('TBL_TEMP') . ".CUST_MOBILE 
-        AND (
-            LOWER(t2.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-            OR (t2.ID <> " . tn('TBL_TEMP') . ".ID AND t2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY))
-        )
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-        WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM lead_reservations lr 
-        WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(" . tn('TBL_TEMP') . ".CUST_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-          AND lr.state IN ('RESERVED', 'DIALING')
-          AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
-    )
-    ORDER BY (LAST_DIALED_DATE_TIME IS NOT NULL) ASC, LAST_DIALED_DATE_TIME ASC, TEMP_UPLOAD_DATETIME ASC, ID ASC
-    LIMIT 10");
-    if (!$stmtTemp) {
-        error_log("Failed to prepare next-call temp: " . $link->error);
-        $tempCandidates = [];
-    } else {
-        $stmtTemp->bind_param('i', $userId);
-        $stmtTemp->execute();
-        $tempCandidates = array_column($stmtTemp->get_result()->fetch_all(MYSQLI_ASSOC), 'ID');
-        $stmtTemp->close();
-    }
+    $companyCode = getenv('COMPANY_CODE') ?: ($_SERVER['HTTP_X_COMPANY_CODE'] ?? 'default');
+    $deviceId = trim((string)($_GET['device_id'] ?? 'device_next_call'));
+    $sessionEpoch = max(1, (int)($_GET['session_epoch'] ?? 1));
+    $claimRequestId = cnGenerateUuid();
     
-    $claimedRow = null;
-    $claimedSource = null;
-    
-    if (!empty($tempCandidates)) {
-        shuffle($tempCandidates);
-        foreach ($tempCandidates as $candId) {
-            $candId = (int)$candId;
-            $link->query("UPDATE " . tn('TBL_TEMP') . " 
-                SET CALL_DIALED_TELECALLER = $userId, 
-                    BATCH_ASSIGNED_AT = NOW() 
-                WHERE ID = $candId 
-                  AND (CALL_DIALED_TELECALLER IS NULL OR CALL_DIALED_TELECALLER = $userId OR BATCH_ASSIGNED_AT IS NULL OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE))");
-            if ($link->affected_rows > 0) {
-                $fStmt = $link->prepare("SELECT 
-                    ID, CUST_NAME, CUST_MOBILE, CUST_COMPANY, CUST_PACKAGE, CUST_OTHER_INFO,
-                    TEMP_UPLOAD_DATETIME, CALL_DIALED_STATUS, LAST_DIALED_DATE_TIME
-                FROM " . tn('TBL_TEMP') . " WHERE ID = ? LIMIT 1");
-                $fStmt->bind_param('i', $candId);
-                $fStmt->execute();
-                $claimedRow = $fStmt->get_result()->fetch_assoc();
-                $fStmt->close();
-                if ($claimedRow) {
-                    $claimedSource = 'TEMP';
-                    break;
-                }
-            }
+    try {
+        $claimRes = claimLeadBatch($link, $userId, $companyCode, $deviceId, $sessionEpoch, $claimRequestId, 1, false);
+        if (!empty($claimRes['error'])) {
+            apiError($claimRes['code'] ?? 400, $claimRes['message'] ?? 'Error fetching next call');
         }
-    }
-    
-    if (!$claimedRow) {
-        $stmtMain = $link->prepare("SELECT m.ID
-        FROM " . tn('TBL_MAIN') . " m
-        WHERE (m.MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR m.MAINDATABASE_CALL_DIALED_STATUS = 'Pending' OR m.MAINDATABASE_CALL_DIALED_STATUS IS NULL OR m.MAINDATABASE_CALL_DIALED_STATUS = '')
-        AND (
-            m.MAINDATABASE_CALL_DIALED_USER = ? 
-            OR m.MAINDATABASE_CALL_DIALED_USER IS NULL 
-            OR m.BATCH_ASSIGNED_AT IS NULL 
-            OR m.BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE)
-        )
-        AND (
-            m.LAST_DIALED_DATE_TIME IS NULL 
-            OR m.LAST_DIALED_DATE_TIME < (NOW() - INTERVAL 90 DAY)
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_MAIN') . " m2
-            WHERE m2.MAINDATABASE_MOBILE = m.MAINDATABASE_MOBILE
-              AND m2.ID <> m.ID
-              AND m2.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_LEADS') . " l 
-            WHERE l.cust_id = m.ID
-            AND l.assigned_to != ?
-            AND (
-                LOWER(COALESCE(l.lead_status_new, l.lead_status, '')) NOT IN ('lost', 'reject', 'closed', 'archived')
-                OR l.next_followup_at > NOW()
-            )
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_CALL_LOGS') . " cl 
-            WHERE cl.record_id = m.ID AND cl.source = 'MAIN'
-            AND cl.user_id != ?
-            AND (cl.next_followup > NOW() OR cl.created_at >= (NOW() - INTERVAL 90 DAY))
-        )
-        AND LOWER(COALESCE(m.MAINDATABASE_CALL_DIALED_STATUS, '')) NOT IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_TEMP') . " t 
-            WHERE t.CUST_MOBILE = m.MAINDATABASE_MOBILE 
-            AND (
-                LOWER(t.CALL_DIALED_STATUS) IN ('do not call', 'dnd', 'dnc', 'dnd number', 'do not disturb', 'do_not_call', 'do_not_disturb', 'not_connected_dnd')
-                OR t.LAST_DIALED_DATE_TIME >= (NOW() - INTERVAL 90 DAY)
-            )
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
-            WHERE dr.phone_number COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM lead_reservations lr 
-            WHERE lr.phone_number_10 COLLATE utf8mb4_general_ci = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10) COLLATE utf8mb4_general_ci
-              AND lr.state IN ('RESERVED', 'DIALING')
-              AND (lr.state = 'DIALING' OR lr.expires_at > NOW())
-        )
-        ORDER BY (m.LAST_DIALED_DATE_TIME IS NOT NULL) ASC, m.LAST_DIALED_DATE_TIME ASC, m.ID ASC
-        LIMIT 20");
-        if (!$stmtMain) {
-            error_log("Failed to prepare next-call main: " . $link->error);
-            $mainCandidates = [];
-        } else {
-            $stmtMain->bind_param('iii', $userId, $userId, $userId);
-            $stmtMain->execute();
-            $mainCandidates = array_column($stmtMain->get_result()->fetch_all(MYSQLI_ASSOC), 'ID');
-            $stmtMain->close();
+        $leads = $claimRes['leads'] ?? [];
+        if (!empty($leads)) {
+            $lead = $leads[0];
+            $source = $lead['source'];
+            if ($source === 'TEMP') updateCurrentCallingDatabase($link, $userId, 'temporary');
+            else updateCurrentCallingDatabase($link, $userId, 'main');
+            
+            $mob = $lead['mobile'] ?? '';
+            apiSuccess([
+                'source' => $source,
+                'record_id' => (int)$lead['id'],
+                'lead_id' => (int)$lead['id'],
+                'reservation_token' => $lead['reservation_token'] ?? '',
+                'priority' => $lead['priority'] ?? 'P0',
+                'customer' => [
+                    'name' => $lead['name'] ?? '',
+                    'mobile' => $mob,
+                    'dial_phone' => $lead['dial_phone'] ?? format_indian_phone($mob, 'e164'),
+                    'dial_uri' => $lead['dial_uri'] ?? format_indian_phone($mob, 'dial_uri'),
+                    'formatted_mobile' => $lead['formatted_mobile'] ?? format_indian_phone($mob, 'display'),
+                    'company' => $lead['company'] ?? '',
+                    'package' => $lead['package'] ?? '',
+                    'other_info' => $lead['other_info'] ?? '',
+                ],
+                'upload_time' => $lead['upload_time'] ?? null,
+                'last_status' => $lead['last_status'] ?? 'Not Called',
+                'last_call_time' => $lead['last_call_time'] ?? null,
+            ]);
         }
         
-        if (!empty($mainCandidates)) {
-            shuffle($mainCandidates);
-            foreach ($mainCandidates as $candId) {
-                $candId = (int)$candId;
-                $link->query("UPDATE " . tn('TBL_MAIN') . " 
-                    SET MAINDATABASE_CALL_DIALED_USER = $userId, 
-                        BATCH_ASSIGNED_AT = NOW() 
-                    WHERE ID = $candId 
-                      AND (MAINDATABASE_CALL_DIALED_USER IS NULL OR MAINDATABASE_CALL_DIALED_USER = $userId OR BATCH_ASSIGNED_AT IS NULL OR BATCH_ASSIGNED_AT < (NOW() - INTERVAL 15 MINUTE))");
-                if ($link->affected_rows > 0) {
-                    $fStmt = $link->prepare("SELECT 
-                        m.ID, m.MAINDATABASE_NAME, m.MAINDATABASE_MOBILE, m.MAINDATABASE_COMPANY,
-                        m.MAINDATABASE_PACKAGE, m.MAINDATABASE_OTHER_INFO, m.MAINDATABASE_CALL_DIALED_STATUS,
-                        m.LAST_DIALED_DATE_TIME, m.MAINDATABASE_UPLOAD_DATETIME
-                    FROM " . tn('TBL_MAIN') . " m WHERE m.ID = ? LIMIT 1");
-                    $fStmt->bind_param('i', $candId);
-                    $fStmt->execute();
-                    $claimedRow = $fStmt->get_result()->fetch_assoc();
-                    $fStmt->close();
-                    if ($claimedRow) {
-                        $claimedSource = 'MAIN';
-                        break;
-                    }
-                }
-            }
-        }
+        apiSuccess(['message' => 'No calls available at this time']);
+    } catch (Throwable $e) {
+        error_log('next-call error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        apiError(500, 'next-call error: ' . $e->getMessage());
     }
-    
-    if ($claimedRow && $claimedSource === 'TEMP') {
-        updateCurrentCallingDatabase($link, $userId, 'temporary');
-        $mob = $claimedRow['CUST_MOBILE'] ?? '';
-        apiSuccess([
-            'source' => 'TEMP',
-            'record_id' => (int)$claimedRow['ID'],
-            'customer' => [
-                'name' => $claimedRow['CUST_NAME'] ?? '',
-                'mobile' => $mob,
-                'dial_phone' => format_indian_phone($mob, 'e164'),
-                'dial_uri' => format_indian_phone($mob, 'dial_uri'),
-                'formatted_mobile' => format_indian_phone($mob, 'display'),
-                'company' => $claimedRow['CUST_COMPANY'] ?? '',
-                'package' => $claimedRow['CUST_PACKAGE'] ?? '',
-                'other_info' => $claimedRow['CUST_OTHER_INFO'] ?? '',
-            ],
-            'upload_time' => $claimedRow['TEMP_UPLOAD_DATETIME'],
-            'last_status' => $claimedRow['CALL_DIALED_STATUS'] ?? 'Not Called',
-            'last_call_time' => $claimedRow['LAST_DIALED_DATE_TIME'],
-        ]);
-    }
-    
-    if ($claimedRow && $claimedSource === 'MAIN') {
-        updateCurrentCallingDatabase($link, $userId, 'main');
-        $mob = $claimedRow['MAINDATABASE_MOBILE'] ?? '';
-        apiSuccess([
-            'source' => 'MAIN',
-            'record_id' => (int)$claimedRow['ID'],
-            'customer' => [
-                'name' => $claimedRow['MAINDATABASE_NAME'] ?? '',
-                'mobile' => $mob,
-                'dial_phone' => format_indian_phone($mob, 'e164'),
-                'dial_uri' => format_indian_phone($mob, 'dial_uri'),
-                'formatted_mobile' => format_indian_phone($mob, 'display'),
-                'company' => $claimedRow['MAINDATABASE_COMPANY'] ?? '',
-                'package' => $claimedRow['MAINDATABASE_PACKAGE'] ?? '',
-                'other_info' => $claimedRow['MAINDATABASE_OTHER_INFO'] ?? '',
-            ],
-            'upload_time' => $claimedRow['MAINDATABASE_UPLOAD_DATETIME'],
-            'last_status' => $claimedRow['MAINDATABASE_CALL_DIALED_STATUS'] ?? 'Not Called',
-            'last_call_time' => $claimedRow['LAST_DIALED_DATE_TIME'],
-        ]);
-    }
-    
-    apiSuccess(['message' => 'No calls available at this time']);
+
 
 // -----------------------------------------------------------------------------
 // 4. SUBMIT CALL RESULT & DETAILED ANALYTICS
