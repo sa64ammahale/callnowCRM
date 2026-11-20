@@ -987,10 +987,15 @@ function getFollowupList(mysqli $link, ?int $userId, ?int $teamId, string $userR
             ) AS customer_name,
             COALESCE(
                 NULLIF(TRIM(l.MOBILE), ''),
+                NULLIF(TRIM(l.phone_number), ''),
                 NULLIF(TRIM(m.MAINDATABASE_MOBILE), ''),
+                NULLIF(TRIM(m.CLEAN_MOBILE), ''),
                 NULLIF(TRIM(ml.MAINDATABASE_MOBILE), ''),
+                NULLIF(TRIM(ml.CLEAN_MOBILE), ''),
                 NULLIF(TRIM(t.CUST_MOBILE), ''),
+                NULLIF(TRIM(t.CLEAN_MOBILE), ''),
                 NULLIF(TRIM(tl.CUST_MOBILE), ''),
+                NULLIF(TRIM(tl.CLEAN_MOBILE), ''),
                 ''
             ) AS customer_mobile,
             COALESCE(
