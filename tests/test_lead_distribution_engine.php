@@ -64,17 +64,26 @@ try {
 }
 
 echo PHP_EOL . "3. Testing Batch Claim & Idempotency..." . PHP_EOL;
+$link->query("UPDATE lead_batches SET status = 'RELEASED' WHERE telecaller_id = 1 AND status = 'ACTIVE'");
+$link->query("UPDATE lead_reservations SET state = 'RELEASED' WHERE telecaller_id = 1 AND state IN ('RESERVED', 'DIALING')");
+
+$userEpoch = 1;
+$uEpRes = $link->query("SELECT session_epoch FROM users WHERE ID = 1 LIMIT 1");
+if ($uEpRes && $uEpRow = $uEpRes->fetch_assoc()) {
+    $userEpoch = (int)($uEpRow['session_epoch'] ?? 1);
+}
+
 $claimReqId = 'claim-test-' . bin2hex(random_bytes(6));
-$resClaim1 = claimLeadBatch($link, 1, 'default', 'device-test-1', 1, $claimReqId, 5, false);
+$resClaim1 = claimLeadBatch($link, 1, 'default', 'device-test-1', $userEpoch, $claimReqId, 5, false);
 assertTest($resClaim1['success'] === true, "Batch claimed successfully");
 assertTest(isset($resClaim1['batch_uuid']) && isset($resClaim1['leads']), "Batch contains batch_uuid and leads array");
 
-$resClaim2 = claimLeadBatch($link, 1, 'default', 'device-test-1', 1, $claimReqId, 5, false);
+$resClaim2 = claimLeadBatch($link, 1, 'default', 'device-test-1', $userEpoch, $claimReqId, 5, false);
 assertTest($resClaim2['success'] === true, "Replaying identical claim_request_id succeeds");
 assertTest($resClaim2['batch_uuid'] === $resClaim1['batch_uuid'], "Replay returns identical batch_uuid");
 assertTest(count($resClaim2['leads']) === count($resClaim1['leads']), "Replay returns identical lead count without re-allocating");
 
-$resClaimConflict = claimLeadBatch($link, 1, 'default', 'device-test-1', 1, $claimReqId, 10, false);
+$resClaimConflict = claimLeadBatch($link, 1, 'default', 'device-test-1', $userEpoch, $claimReqId, 10, false);
 assertTest(!empty($resClaimConflict['error']) && $resClaimConflict['code'] === 409, "Sending same claim_request_id with different batch_size returns 409 Conflict");
 
 echo PHP_EOL . "4. Testing Active-Call Lock Decoupling..." . PHP_EOL;
@@ -84,7 +93,7 @@ if (!empty($resClaim1['leads'])) {
     $leadId = (int)$firstLead['id'];
     $source = $firstLead['source'];
 
-    $startRes = startCallLock($link, 1, $resToken, $leadId, $source, 'device-test-1', 1);
+    $startRes = startCallLock($link, 1, $resToken, $leadId, $source, 'device-test-1', $userEpoch);
     assertTest($startRes['success'] === true, "Start-call lock acquired");
     assertTest($startRes['state'] === 'DIALING' && !empty($startRes['call_lock_token']), "Lead moved to DIALING with call_lock_token");
 
