@@ -237,6 +237,24 @@ Column mapping applied:
 - `users.role_id` FK → `roles.id`. `can($key)` resolution: Admin or USER_ID===1 → true; else `user_permissions` override if present; else `role_permissions`; default false.
 - Bootstrap/seed via `setup_permissions.php` (idempotent, guarded by `rbac_initialized`).
 
+## Completed Feature (2026-11-20): Batch Release & Fresh Batch Fetch in Settings and Calling Desk Shortcut
+- **Backend Batch Release Resolution (`api/v1/telecaller/index.php`)**:
+  - Enhanced `POST /api/v1/telecaller/calling/release` to resolve active batches automatically when `batch_uuid` is omitted, `'current'`, or `'active'`.
+  - Safely returns `released_count = 0` if no active batch is held, avoiding 400 errors during reset operations.
+- **Android Native Client Settings Screen (`SettingsScreen.kt`, `SettingsViewModel.kt`, `SettingsUiState.kt`)**:
+  - Added dedicated card: **Calling Queue & Batch Allocation** with prominent action row: **Release & Fetch New Batch**.
+  - Integrated safe confirmation dialog (`AlertDialog`) detailing that uncalled leads return to the CRM pool while completed calls are preserved.
+  - Added `releaseAndFetchNewBatch()` to `SettingsViewModel` wired with `bucketDao` and `leadDao`: releases active server bucket, marks local Room cache as released, claims fresh batch from waterfall, and populates fresh leads into Room.
+- **Calling Desk Quick-Action Shortcuts (`CallingDeskScreen.kt`, `CallingDeskViewModel.kt`, `AuthenticatedScaffold.kt`)**:
+  - Added compact **`[ ↻ New Batch ]`** shortcut pill directly in the Calling Desk header row alongside the lead counter.
+  - Added one-tap **`[↻]`** batch release shortcut icon button in `TopAppBar` on Calling Desk tab.
+  - Enhanced `closeBucketAndLoadNext()` in `CallingDeskViewModel` to release active bucket, clear Room uncalled leads, force-claim a new batch from server, and show confirmation feedback.
+- **Automated Verification**:
+  - Added unit test cases to `SettingsViewModelTest.kt` (`testReleaseAndFetchNewBatchSuccess`, `testReleaseAndFetchNewBatchEmptyPool`, `testReleaseAndFetchNewBatchFailure`).
+  - Added unit test case to `CallingDeskViewModelTest.kt` (`closeBucketAndLoadNext releases active bucket and loads fresh batch`).
+  - Executed `./gradlew testDebugUnitTest` with 100% test pass rate (BUILD SUCCESSFUL).
+  - Executed PHP syntax check on `api/v1/telecaller/index.php` with 0 errors.
+
 ## Completed Feature (2026-11-19): Calling Desk Batch Continuity, Queue Retention & Starvation Fix
 - **Active Batch Affinity & Continuity (`php_scripts/lead_distribution_engine.php`)**:
   - Implemented active batch affinity inside `claimLeadBatch()`: checks if the requesting telecaller already holds an active, unexpired batch (`status = 'ACTIVE' AND expires_at > NOW()`).

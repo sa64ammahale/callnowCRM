@@ -422,8 +422,22 @@ if ($relativePath === '/dashboard' || $relativePath === '/dashboard/') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') apiError(405, 'Method not allowed');
     $input = apiReadJson();
     $batchUuid = !empty($closeMatches[1]) ? trim((string)$closeMatches[1]) : trim((string)($input['batch_uuid'] ?? ($input['bucket_uuid'] ?? ($input['bucket_id'] ?? ''))));
-    if (empty($batchUuid)) {
-        apiError(400, 'batch_uuid is required');
+    if (empty($batchUuid) || $batchUuid === 'current' || $batchUuid === 'active') {
+        $stmtB = $link->prepare("SELECT batch_uuid FROM lead_batches WHERE telecaller_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1");
+        $stmtB->bind_param('i', $userId);
+        $stmtB->execute();
+        $bRow = $stmtB->get_result()->fetch_assoc();
+        $stmtB->close();
+        if ($bRow && !empty($bRow['batch_uuid'])) {
+            $batchUuid = $bRow['batch_uuid'];
+        } else {
+            apiSuccess([
+                'success' => true,
+                'batch_uuid' => '',
+                'released_count' => 0,
+                'message' => 'No active batch to release'
+            ]);
+        }
     }
     $res = releaseBatchQueue($link, $userId, $batchUuid);
     if (!empty($res['error'])) {
