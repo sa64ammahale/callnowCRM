@@ -23,6 +23,18 @@
     --text-disabled: #A6A6AE;
     --text-inverse: #FAFAFB;
 
+    /* 2b. Mastery Level Tier Colors */
+    --mastery-1-bg: #8A8A96;
+    --mastery-1-color: #FFFFFF;
+    --mastery-2-bg: #6D45F9;
+    --mastery-2-color: #FFFFFF;
+    --mastery-3-bg: #F59E0B;
+    --mastery-3-color: #FFFFFF;
+    --mastery-4-bg: #0284C7;
+    --mastery-4-color: #FFFFFF;
+    --mastery-5-bg: #FACC15;
+    --mastery-5-color: #090912;
+
     /* 3. Borders */
     --border: #E5E5E8;
     --border-default: #E5E5E8;
@@ -3499,6 +3511,367 @@ table {
 #reportTabsContent .crm-card-body {
     max-width: 100%;
     overflow-x: clip;
+}
+
+/* ==========================================================================
+   Report Officer Name — Fix Overlap (Sales Officer column)
+   ========================================================================== */
+#reportTabsContent table .emp-officer-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    min-width: 0;
+}
+#reportTabsContent table .emp-name-wrap {
+    min-width: 0;
+    overflow: hidden;
+}
+#reportTabsContent table .emp-name,
+#reportTabsContent table .emp-role {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    display: block !important;
+    max-width: 100% !important;
+}
+
+/* ==========================================================================
+   Mastery Level Column — Motivating Tier Design for Telecallers
+   ========================================================================== */
+#reportTabsContent table .mastery-cell {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 0;
+}
+#reportTabsContent table .mastery-title {
+    white-space: nowrap !important;
+    font-weight: 700 !important;
+}
+#reportTabsContent table .mastery-xp-bar {
+    width: 100% !important;
+    height: 5px !important;
+    background: #E2E8F0 !important;
+    border-radius: 3px !important;
+    overflow: hidden !important;
+}
+#reportTabsContent table .mastery-xp-fill {
+    height: 100% !important;
+    transition: width 0.5s ease !important;
+}
+
+/* Make rankings table cells compact */
+#reportTabsContent table.table th,
+#reportTabsContent table.table td {
+    padding: 0.5rem 0.6rem !important;
+    font-size: 0.765rem !important;
+    line-height: 1.3;
+}
+
+/* Keep header compact */
+#reportTabsContent table.table thead th {
+    font-size: 0.72rem !important;
+    padding: 0.55rem 0.6rem !important;
+    white-space: nowrap !important;
+}
+
+/* Remove forced min-width on progress containers inside report tables */
+#reportTabsContent .progress,
+#reportTabsContent .progress > div,
+#reportTabsContent table .d-flex[style*="min-width"] {
+    min-width: 0 !important;
+    width: auto !important;
+}
+
+/* Progress bars inside tables shrink to fit */
+#reportTabsContent table .progress {
+    flex: 1 1 100%;
+    min-width: 0;
+    height: 5px;
+}
+
+/* Badges inside report table cells stay small */
+#reportTabsContent table .badge {
+    font-size: 0.65rem !important;
+    padding: 0.18rem 0.45rem !important;
+    white-space: nowrap;
+}
+
+/* Avatar inside report tables stays compact */
+#reportTabsContent table .avatar-circle {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 10px !important;
+}
+
+/* Specific: employee & rankings tables fit viewport */
+#employeeReportTable,
+#reportTabsContent table[id*="employee"],
+#reportTabsContent table[id*="ranking"],
+#reportTabsContent table[id*="callHistory"] {
+    width: 100% !important;
+}
+
+/* ==========================================================================
+   Dark Theme Tables — Modern Professional Dark UI (Light Theme Compatible)
+   Add class "table-dark" to any .table / .crm-table / table.dataTable
+   No logic changes — UI only. Works with light theme pages.
+   ========================================================================== */
+
+/* Dark table wrapper / card */
+.table-dark,
+.table-dark .table,
+.crm-table-dark,
+.crm-table-dark .crm-table,
+table.dataTable-dark,
+table.dataTable-dark table.dataTable {
+    --bs-table-bg: #0F172A;
+    --bs-table-color: #F8FAFC;
+    --bs-table-striped-bg: #1E293B;
+    --bs-table-hover-bg: #334155;
+    --bs-table-border-color: #334155;
+    color: #F8FAFC !important;
+    background: #0F172A !important;
+}
+
+/* Dark table header */
+.table-dark thead th,
+.crm-table-dark thead th,
+table.dataTable-dark thead th,
+.table-dark > thead > tr > th,
+.crm-table-dark > thead > tr > th,
+table.dataTable-dark > thead > tr > th {
+    background: #1E293B !important;
+    color: #F8FAFC !important;
+    border-color: #334155 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    font-size: 0.72rem !important;
+}
+
+/* Dark table cells */
+.table-dark tbody td,
+.crm-table-dark tbody td,
+table.dataTable-dark tbody td,
+.table-dark > tbody > tr > td,
+.crm-table-dark > tbody > tr > td,
+table.dataTable-dark > tbody > tr > td {
+    background: #0F172A !important;
+    color: #F8FAFC !important;
+    border-color: #334155 !important;
+    font-size: 0.8125rem !important;
+}
+
+/* Dark table rows */
+.table-dark tbody tr,
+.crm-table-dark tbody tr,
+table.dataTable-dark tbody tr {
+    background: #0F172A !important;
+    transition: background-color 0.15s ease-in-out;
+}
+
+/* Dark zebra striping */
+.table-dark tbody tr:nth-child(even),
+.crm-table-dark tbody tr:nth-child(even),
+table.dataTable-dark tbody tr:nth-child(even) {
+    background: #16213E !important;
+}
+
+/* Dark hover state */
+.table-dark tbody tr:hover,
+.crm-table-dark tbody tr:hover,
+table.dataTable-dark tbody tr:hover,
+.table-dark tbody tr:hover > *,
+.crm-table-dark tbody tr:hover > *,
+table.dataTable-dark tbody tr:hover > * {
+    background: #1E293B !important;
+}
+
+/* Dark selected/active row */
+.table-dark tbody tr.table-active,
+.table-dark tbody tr.selected,
+.crm-table-dark tbody tr.table-active,
+.crm-table-dark tbody tr.selected,
+table.dataTable-dark tbody tr.table-active,
+table.dataTable-dark tbody tr.selected {
+    background: #334155 !important;
+    color: #FFFFFF !important;
+}
+
+/* Dark table within crm-card */
+.crm-card.table-dark-card,
+.table-dark .crm-card,
+.crm-table-dark .crm-card {
+    background: #0F172A !important;
+    border-color: #334155 !important;
+}
+
+/* Badges inside dark tables */
+.table-dark .badge,
+.crm-table-dark .badge,
+table.dataTable-dark .badge {
+    background: #334155 !important;
+    color: #F8FAFC !important;
+    border: 1px solid #475569 !important;
+}
+.table-dark .badge.bg-primary,
+.crm-table-dark .badge.bg-primary,
+table.dataTable-dark .badge.bg-primary,
+.table-dark .badge-primary,
+.crm-table-dark .badge-primary,
+table.dataTable-dark .badge-primary {
+    background: #6D45F9 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #8B5CF6 !important;
+}
+.table-dark .badge.bg-success,
+.crm-table-dark .badge.bg-success,
+table.dataTable-dark .badge.bg-success,
+.table-dark .badge-success,
+.crm-table-dark .badge-success,
+table.dataTable-dark .badge-success {
+    background: #10B981 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #34D399 !important;
+}
+.table-dark .badge.bg-warning,
+.crm-table-dark .badge.bg-warning,
+table.dataTable-dark .badge.bg-warning,
+.table-dark .badge-warning,
+.crm-table-dark .badge-warning,
+table.dataTable-dark .badge-warning {
+    background: #F59E0B !important;
+    color: #FFFFFF !important;
+    border: 1px solid #FBBF24 !important;
+}
+.table-dark .badge.bg-danger,
+.crm-table-dark .badge.bg-danger,
+table.dataTable-dark .badge.bg-danger,
+.table-dark .badge-danger,
+.crm-table-dark .badge-danger,
+table.dataTable-dark .badge-danger {
+    background: #EF4444 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #F87171 !important;
+}
+.table-dark .badge.bg-info,
+.crm-table-dark .badge.bg-info,
+table.dataTable-dark .badge.bg-info,
+.table-dark .badge-info,
+.crm-table-dark .badge-info,
+table.dataTable-dark .badge-info {
+    background: #06B6D4 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #22D3EE !important;
+}
+.table-dark .badge.bg-secondary,
+.crm-table-dark .badge.bg-secondary,
+table.dataTable-dark .badge.bg-secondary,
+.table-dark .badge-secondary,
+.crm-table-dark .badge-secondary,
+table.dataTable-dark .badge-secondary {
+    background: #64748B !important;
+    color: #FFFFFF !important;
+    border: 1px solid #94A3B8 !important;
+}
+
+/* Progress bars inside dark tables */
+.table-dark .progress,
+.crm-table-dark .progress,
+table.dataTable-dark .progress {
+    background: #1E293B !important;
+    border: 1px solid #334155 !important;
+}
+.table-dark .progress-bar,
+.crm-table-dark .progress-bar,
+table.dataTable-dark .progress-bar {
+    background: #6D45F9 !important;
+}
+
+/* Text muted inside dark tables */
+.table-dark .text-muted,
+.crm-table-dark .text-muted,
+table.dataTable-dark .text-muted {
+    color: #94A3B8 !important;
+}
+
+/* Form controls inside dark tables */
+.table-dark .form-control,
+.crm-table-dark .form-control,
+table.dataTable-dark .form-control,
+.table-dark .form-select,
+.crm-table-dark .form-select,
+table.dataTable-dark .form-select {
+    background: #1E293B !important;
+    color: #F8FAFC !important;
+    border-color: #334155 !important;
+}
+.table-dark .form-control::placeholder,
+.crm-table-dark .form-control::placeholder,
+table.dataTable-dark .form-control::placeholder {
+    color: #64748B !important;
+}
+
+/* Checkbox / radio inside dark tables */
+.table-dark .form-check-input,
+.crm-table-dark .form-check-input,
+table.dataTable-dark .form-check-input {
+    background: #1E293B !important;
+    border-color: #334155 !important;
+}
+.table-dark .form-check-input:checked,
+.crm-table-dark .form-check-input:checked,
+table.dataTable-dark .form-check-input:checked {
+    background: #6D45F9 !important;
+    border-color: #6D45F9 !important;
+}
+
+/* Avatar inside dark tables */
+.table-dark .avatar-circle,
+.crm-table-dark .avatar-circle,
+table.dataTable-dark .avatar-circle {
+    background: #334155 !important;
+    color: #F8FAFC !important;
+    border-color: #475569 !important;
+}
+
+/* Table header sticky for dark tables */
+.table-dark thead th[style*="position: sticky"],
+.crm-table-dark thead th[style*="position: sticky"],
+table.dataTable-dark thead th[style*="position: sticky"] {
+    background: #0F172A !important;
+    z-index: 2;
+}
+
+/* Dark table caption */
+.table-dark caption,
+.crm-table-dark caption,
+table.dataTable-dark caption {
+    color: #F8FAFC !important;
+}
+
+/* Ensure dark tables fit viewport */
+.table-dark,
+.crm-table-dark,
+table.dataTable-dark {
+    width: 100% !important;
+    table-layout: auto;
+}
+
+/* Dark table responsive wrapper */
+.table-dark .table-responsive,
+.crm-table-dark .table-responsive,
+table.dataTable-dark .table-responsive {
+    border-color: #334155 !important;
+}
+
+/* Convenience: dark card wrapper for tables */
+.table-dark-card {
+    background: #0F172A !important;
+    border: 1px solid #334155 !important;
+    border-radius: var(--radius-lg) !important;
+    overflow: hidden;
 }
 
 

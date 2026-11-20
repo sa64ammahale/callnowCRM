@@ -1234,13 +1234,13 @@ include __DIR__ . '/../../php_scripts/header.php';
                                     ?>
                                         <tr>
                                             <td>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <div class="avatar-circle" style="width:28px; height:28px; font-size:11px;">
+                                                <div class="d-flex align-items-center gap-2 emp-officer-row">
+                                                    <div class="avatar-circle" style="width:28px; height:28px; font-size:11px; flex-shrink:0;">
                                                         <?= strtoupper(substr($emp['employee_name'], 0, 2)) ?>
                                                     </div>
-                                                    <div>
-                                                        <strong class="text-dark fs-xs"><?= htmlspecialchars($emp['employee_name']) ?></strong>
-                                                        <div class="text-muted fs-xs"><?= htmlspecialchars($emp['user_role']) ?></div>
+                                                    <div class="emp-name-wrap" style="min-width:0;">
+                                                        <strong class="text-dark fs-xs emp-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; max-width:100%;"><?= htmlspecialchars($emp['employee_name']) ?></strong>
+                                                        <div class="text-muted fs-xs emp-role" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; max-width:100%;"><?= htmlspecialchars($emp['user_role']) ?></div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1605,15 +1605,36 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                 <?= $medal ?: ('#' . $rankIdx) ?>
                                             </td>
                                             <td>
-                                                <strong class="text-dark fs-xs"><?= htmlspecialchars($rk['employee_name']) ?></strong>
-                                                <?php if ($isMe): ?>
-                                                    <span class="badge bg-primary text-white ms-1 fs-xxs">YOU</span>
-                                                <?php endif; ?>
+                                                <div class="d-flex align-items-center gap-2 emp-officer-row">
+                                                    <strong class="text-dark fs-xs emp-name" style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; max-width:100%;"><?= htmlspecialchars($rk['employee_name']) ?></strong>
+                                                    <?php if ($isMe): ?>
+                                                        <span class="badge bg-primary text-white ms-1 fs-xxs">YOU</span>
+                                                    <?php endif; ?>
+                                                </div>
                                             </td>
                                             <td class="fs-xs text-muted"><?= htmlspecialchars($rk['team_name'] ?: 'No Team') ?></td>
                                             <td>
-                                                <span class="badge badge-purple fs-xs"><?= htmlspecialchars($rk['level_title'] ?? 'Bronze Caller 🥉') ?></span>
-                                                <div class="fs-xxs text-muted mt-0.5"><?= number_format($rk['total_xp'] ?? 0) ?> XP</div>
+                                                <?php
+                                                    $rkTheme = $rk['badge_theme'] ?? 'primary';
+                                                    $rkLevel = (int)($rk['level'] ?? 1);
+                                                    $rkNextXp = $rk['next_xp'] ?? null;
+                                                    $rkCurrentXp = (int)($rk['total_xp'] ?? 0);
+                                                    $rkXpPct = $rkNextXp ? min(100, round(($rkCurrentXp / $rkNextXp) * 100)) : 100;
+                                                ?>
+                                                <div class="mastery-cell" style="display:flex; flex-direction:column; gap:2px;">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="mastery-level-badge fs-xxs fw-bold text-uppercase" style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; background:var(--mastery-<?= $rkLevel ?>-bg, #6D45F9); color:var(--mastery-<?= $rkLevel ?>-color, #FFFFFF);"><?= $rkLevel ?></span>
+                                                        <span class="badge badge-<?= $rkTheme ?> fs-xs mastery-title" style="white-space:nowrap;"><?= htmlspecialchars($rk['level_title'] ?? 'Bronze Caller 🥉') ?></span>
+                                                    </div>
+                                                    <?php if ($rkNextXp): ?>
+                                                        <div class="mastery-xp-bar" style="width:100%; height:5px; background:#E2E8F0; border-radius:3px; overflow:hidden;">
+                                                            <div class="mastery-xp-fill" style="width:<?= $rkXpPct ?>%; height:100%; background:var(--mastery-<?= $rkLevel ?>-bg, #6D45F9); transition:width 0.5s ease;"></div>
+                                                        </div>
+                                                        <div class="fs-xxs text-muted text-right" style="font-size:10px;"><?= number_format($rkCurrentXp) ?> / <?= number_format($rkNextXp) ?> XP</div>
+                                                    <?php else: ?>
+                                                        <div class="fs-xxs text-success fw-bold text-right" style="font-size:10px;">MAX LEVEL REACHED 👑</div>
+                                                    <?php endif; ?>
+                                                </div>
                                             </td>
                                             <td class="text-center">
                                                 <?php $streak = (int)($rk['streak_days'] ?? 0); ?>

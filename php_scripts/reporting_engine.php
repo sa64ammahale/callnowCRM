@@ -1300,6 +1300,7 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
         $r['level'] = $rankData['level'];
         $r['level_title'] = $rankData['title'];
         $r['badge_theme'] = $rankData['badge_theme'];
+        $r['next_xp'] = $rankData['next_xp'] ?? null;
         $r['streak_days'] = $streak;
     }
     unset($r);
