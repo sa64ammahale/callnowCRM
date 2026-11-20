@@ -1,6 +1,14 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 
+if (!canViewFullPhone()) {
+    logActivity($link, USER_ID, 'EXPORT_BLOCKED', "Attempted to export Main Database CSV without admin privileges", (string)USER_ID, 'TBL_MAIN');
+    http_response_code(403);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => 'Export restricted to Admin / Super Admin']);
+    exit;
+}
+
 requirePermission('export_db');
 api_init();
 

@@ -173,6 +173,11 @@ if ($stmt = mysqli_prepare($link, $select_sql)) {
 
 /* CSV export */
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    if (!canViewFullPhone()) {
+        logActivity($link, USER_ID, 'EXPORT_BLOCKED', "Attempted to export Activity Log CSV without admin privileges", (string)USER_ID, 'TBL_ACTIVITY_LOG');
+        $_SESSION['access_denied_message'] = "Export restricted to Admin / Super Admin.";
+        appRedirect('modules/logs/manage_activity.php');
+    }
     requirePermission('export_data');
     $export_sql = "SELECT a.LOG_ID, a.USER_ID, u.NAME AS USER_NAME, u.ROLE AS USER_ROLE,
                            a.ACTION_TYPE, a.ACTION_DETAILS, a.AFFECTED_IDS, a.TARGET_TABLE, a.LOG_TIME, a.IP_ADDRESS

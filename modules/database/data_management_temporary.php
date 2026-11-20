@@ -361,6 +361,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($action === 'export_csv') {
+        if (!canViewFullPhone()) {
+            logActivity($link, USER_ID, 'EXPORT_BLOCKED', "Attempted to export Temporary Database CSV without admin privileges", (string)USER_ID, 'TBL_TEMP');
+            respond_json(['error' => 'Export restricted to Admin / Super Admin']);
+            exit;
+        }
         $limit = min(intval($_POST['limit'] ?? $EXPORT_MAX), $EXPORT_MAX);
 
         $where = [];

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/phone_helper.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
 requirePermission('view_reports');
 
@@ -230,8 +231,14 @@ if ($dataTypes !== '') {
 mysqli_stmt_execute($dataStmt);
 $result = mysqli_stmt_get_result($dataStmt);
 
+$canViewPhone = canViewFullPhone();
+
 $rows = [];
 while ($r = mysqli_fetch_assoc($result)) {
+    $mobile = $r['cust_mobile'] ?? '';
+    if (!$canViewPhone && !empty($mobile)) {
+        $mobile = mask_phone($mobile);
+    }
     $rows[] = [
         $r['created_at'],
         $r['cust_name'],
@@ -242,7 +249,7 @@ while ($r = mysqli_fetch_assoc($result)) {
         $r['user_name'],
         $r['next_followup'],
         $r['recording_url'],
-        $r['cust_mobile'],
+        $mobile,
         $r['cust_company'],
         $r['timing_classification'],
         $r['total_duration'],
@@ -251,6 +258,7 @@ while ($r = mysqli_fetch_assoc($result)) {
         $r['call_end_time'],
         $r['metadata'],
         $r['id'],
+        $r['record_id'] ?? 0,
     ];
 }
 mysqli_stmt_close($dataStmt);

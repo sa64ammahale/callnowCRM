@@ -391,11 +391,19 @@ include __DIR__ . '/../../php_scripts/header.php';
                                     </td>
                                     <td>
                                         <strong class="text-dark fs-xs"><?= htmlspecialchars($r['cust_name'] ?: ('Record #' . $r['record_id'])) ?></strong>
-                                        <?php if ($r['cust_mobile']): ?>
+                                        <?php $chCanView = canViewFullPhone(); $chMobile = $r['cust_mobile'] ?? ''; ?>
+                                        <?php if ($chCanView || empty($chMobile)): ?>
+                                            <?php if ($chMobile): ?>
+                                                <div class="fs-xs">
+                                                    <a href="tel:<?= urlencode($chMobile) ?>" class="text-decoration-none font-monospace text-muted">
+                                                        <i class="bi bi-telephone text-primary me-1"></i><?= htmlspecialchars($chMobile) ?>
+                                                    </a>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php else: ?>
                                             <div class="fs-xs">
-                                                <a href="tel:<?= urlencode($r['cust_mobile']) ?>" class="text-decoration-none font-monospace text-muted">
-                                                    <i class="bi bi-telephone text-primary me-1"></i><?= htmlspecialchars($r['cust_mobile']) ?>
-                                                </a>
+                                                <span class="phone-masked d-inline-block font-monospace text-muted" style="cursor:pointer;" data-record-id="<?= (int)($r['record_id'] ?? 0) ?>" data-source="<?= htmlspecialchars($r['source'] ?? 'MAIN') ?>" data-table="<?= tn('TBL_' . strtoupper($r['source'] ?? 'MAIN')) ?>" title="Click to reveal number"><?= mask_phone($chMobile) ?></span>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="<?= (int)($r['record_id'] ?? 0) ?>" data-source="<?= htmlspecialchars($r['source'] ?? 'MAIN') ?>" data-table="<?= tn('TBL_' . strtoupper($r['source'] ?? 'MAIN')) ?>" title="Reveal number"><i class="bi bi-eye"></i></button>
                                             </div>
                                         <?php endif; ?>
                                         <?php if ($r['cust_company']): ?>
@@ -595,14 +603,14 @@ $(document).ready(function() {
         dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
         buttons: [
             { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
-            <?php if (can('export_data')): ?>
+            <?php if (canViewFullPhone()): ?>
             { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'CallHistory_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
             { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm', title: 'CallHistory_' + new Date().toISOString().slice(0,10), exportOptions: { modifier: { page: 'all' } } },
             <?php endif; ?>
             { extend: 'print', text: '<i class="bi bi-printer me-1"></i> Print', className: 'btn btn-secondary btn-sm' }
         ],
         columnDefs: [
-            { visible: false, targets: [9, 10, 11, 12, 13, 14, 15, 16, 17] },
+            { visible: false, targets: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
             {
                 targets: 0,
                 render: function (data) {
@@ -617,9 +625,17 @@ $(document).ready(function() {
                 render: function (data, type, row) {
                     var name = data || '—';
                     var mobile = row[9] || '';
+                    var source = row[2] || '';
+                    var recordId = row[18] || 0;
                     var company = row[10] || '';
                     var html = '<strong class="text-dark fs-xs">' + name + '</strong>';
-                    if (mobile) html += '<div class="fs-xs"><a href="tel:' + mobile + '" class="text-decoration-none font-monospace text-muted"><i class="bi bi-telephone text-primary me-1"></i>' + mobile + '</a></div>';
+                    if (mobile) {
+                        if (String(mobile).charAt(0) === '•') {
+                            html += '<div class="fs-xs"><span class="phone-masked d-inline-block font-monospace text-muted" style="cursor:pointer;" data-record-id="' + recordId + '" data-source="' + source + '" data-table="" title="Click to reveal number">' + mobile + '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="' + recordId + '" data-source="' + source + '" data-table="" title="Reveal number"><i class="bi bi-eye"></i></button></div>';
+                        } else {
+                            html += '<div class="fs-xs"><a href="tel:' + mobile + '" class="text-decoration-none font-monospace text-muted"><i class="bi bi-telephone text-primary me-1"></i>' + mobile + '</a></div>';
+                        }
+                    }
                     if (company) html += '<div class="fs-xs text-muted text-truncate" style="max-width:200px;"><i class="bi bi-building me-1"></i>' + company + '</div>';
                     return html;
                 }
@@ -711,6 +727,28 @@ $(document).ready(function() {
                 previous: '<i class="bi bi-chevron-left"></i>'
             }
         }
+    });
+});
+
+// Phone reveal click handler
+$(document).on('click', '.phone-reveal-btn', function () {
+    var btn = $(this);
+    var recordId = btn.data('record-id');
+    var source = btn.data('source');
+    var table = btn.data('table');
+    if (!recordId) return;
+    btn.prop('disabled', true).find('i').toggleClass('bi-eye bi-hourglass-top');
+    $.post('php_scripts/phone_reveal.php', {record_id: recordId, source: source, table: table}, function (resp) {
+        btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+        if (resp.success && resp.mobile) {
+            btn.closest('td').find('.phone-masked').replaceWith('<a href="tel:' + resp.mobile + '" class="text-decoration-none font-monospace fw-bold text-success"><i class="bi bi-telephone me-1"></i>' + resp.mobile + '</a>');
+            btn.remove();
+        } else {
+            alert('Cannot reveal number: ' + (resp.error || 'Access denied'));
+        }
+    }, 'json').fail(function () {
+        btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+        alert('Server error while revealing number.');
     });
 });
 </script>

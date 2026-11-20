@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../php_scripts/phone_helper.php';
 
 requirePermission('manage_database');
 
@@ -119,9 +120,20 @@ while ($row = mysqli_fetch_assoc($result)) {
     $nameHtml = $nameEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$nameEsc.'">'.$nameEsc.'</span>' : '-';
     $compHtml = $compEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$compEsc.'">'.$compEsc.'</span>' : '-';
 
+    $mdCanView = canViewFullPhone();
+    $mdMobile = $row['MAINDATABASE_MOBILE'] ?? '';
+    $mdMobileHtml = '';
+    if ($mdCanView || empty($mdMobile)) {
+        $mdMobileHtml = !empty($mdMobile)
+            ? '<a href="tel:' . htmlspecialchars($mdMobile, ENT_QUOTES, 'UTF-8') . '" class="text-decoration-none font-monospace">' . htmlspecialchars($mdMobile, ENT_QUOTES, 'UTF-8') . '</a>'
+            : '<span class="text-muted font-monospace">—</span>';
+    } else {
+        $mdMobileHtml = '<span class="phone-masked d-inline-block font-monospace" style="cursor:pointer;" data-record-id="' . (int)$row['ID'] . '" data-source="MAIN" data-table="' . tn('TBL_MAIN') . '" title="Click to reveal number">' . mask_phone($mdMobile) . '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn" data-record-id="' . (int)$row['ID'] . '" data-source="MAIN" data-table="' . tn('TBL_MAIN') . '" title="Reveal number"><i class="bi bi-eye"></i></button>';
+    }
+
     $data[] = [
         '<input type="checkbox" class="row-checkbox" value="'.$row['ID'].'">', // 0 – checkbox
-        htmlspecialchars($row['MAINDATABASE_MOBILE'] ?? '', ENT_QUOTES, 'UTF-8'), // 1
+        $mdMobileHtml, // 1
         $nameHtml,                                                             // 2
         $compHtml,                                                             // 3
         $packEsc ?: '-',                                                       // 4

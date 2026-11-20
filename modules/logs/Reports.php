@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
+require_once __DIR__ . '/../../php_scripts/phone_helper.php';
 require_once __DIR__ . '/../../php_scripts/reporting_engine.php';
 
 requirePermission('view_reports');
@@ -432,6 +433,13 @@ $self = htmlspecialchars($_SERVER['PHP_SELF']);
 
 // Comprehensive Multi-Section CSV Export Handler
 if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
+    if (!canViewFullPhone()) {
+        logActivity($link, USER_ID, 'EXPORT_BLOCKED', "Attempted to export CSV/Excel report without admin privileges", (string)USER_ID, 'TBL_REPORTING');
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Export restricted to Admin / Super Admin']);
+        exit;
+    }
     requirePermission('export_data');
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: text/csv; charset=UTF-8');
@@ -1087,9 +1095,19 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             <td class="font-monospace fs-xs text-muted">#<?= $c['ID'] ?></td>
                                             <td><strong class="text-dark fs-xs"><?= htmlspecialchars($c['name'] ?: 'Unnamed') ?></strong></td>
                                             <td>
-                                                <a href="tel:<?= urlencode($c['mobile']) ?>" class="text-decoration-none font-monospace fs-xs">
-                                                    <?= htmlspecialchars($c['mobile']) ?>
-                                                </a>
+                                                <?php $cCanView = canViewFullPhone(); $cMobile = $c['mobile'] ?? ''; ?>
+                                                <?php if ($cCanView || empty($cMobile)): ?>
+                                                    <?php if (!empty($cMobile)): ?>
+                                                        <a href="tel:<?= urlencode($cMobile) ?>" class="text-decoration-none font-monospace fs-xs">
+                                                            <?= htmlspecialchars($cMobile) ?>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <span class="text-muted font-monospace fs-xs">—</span>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <span class="phone-masked d-inline-block font-monospace fs-xs" style="cursor:pointer;" data-record-id="<?= $c['ID'] ?>" data-source="MAIN" data-table="<?= tn('TBL_MAIN') ?>" title="Click to reveal number"><?= mask_phone($cMobile) ?></span>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn" data-record-id="<?= $c['ID'] ?>" data-source="MAIN" data-table="<?= tn('TBL_MAIN') ?>" title="Reveal number"><i class="bi bi-eye"></i></button>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="fs-xs text-muted"><?= htmlspecialchars($c['company'] ?: '—') ?></td>
                                             <td class="fs-xs text-dark"><?= htmlspecialchars($c['officer_name'] ?: 'Unassigned') ?></td>
@@ -1483,7 +1501,15 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                     <div class="text-muted fs-xxs"><?= htmlspecialchars($fo['company_name']) ?></div>
                                                 <?php endif; ?>
                                             </td>
-                                            <td class="font-monospace fs-xs"><?= htmlspecialchars($fo['customer_mobile'] ?: '—') ?></td>
+                                            <td class="font-monospace fs-xs">
+                                                <?php $foCanView = canViewFullPhone(); $foMobile = $fo['customer_mobile'] ?: ''; ?>
+                                                <?php if ($foCanView || empty($foMobile)): ?>
+                                                    <?= htmlspecialchars($foMobile ?: '—') ?>
+                                                <?php else: ?>
+                                                    <span class="phone-masked d-inline-block font-monospace fs-xs" style="cursor:pointer;" data-record-id="<?= (int)($fo['client_contact_id'] ?? $fo['lead_id'] ?? 0) ?>" data-source="<?= htmlspecialchars($fo['contact_source'] ?? 'MAIN') ?>" data-table="<?= tn('TBL_' . strtoupper($fo['contact_source'] ?? 'MAIN')) ?>" title="Click to reveal number"><?= mask_phone($foMobile) ?></span>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn" data-record-id="<?= (int)($fo['client_contact_id'] ?? $fo['lead_id'] ?? 0) ?>" data-source="<?= htmlspecialchars($fo['contact_source'] ?? 'MAIN') ?>" data-table="<?= tn('TBL_' . strtoupper($fo['contact_source'] ?? 'MAIN')) ?>" title="Reveal number"><i class="bi bi-eye"></i></button>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>
                                                 <?php if (!empty($fo['lead_id'])): ?>
                                                     <a href="<?= url('modules/leads/lead_view.php?id=' . (int)$fo['lead_id']) ?>" class="badge badge-success fs-xs text-decoration-none">
@@ -1916,4 +1942,26 @@ if (document.getElementById('dispositionDoughnutChart')) {
         }
     });
 }
+
+// Phone reveal click handler
+$(document).on('click', '.phone-reveal-btn', function () {
+    var btn = $(this);
+    var recordId = btn.data('record-id');
+    var source = btn.data('source');
+    var table = btn.data('table');
+    if (!recordId) return;
+    btn.prop('disabled', true).find('i').toggleClass('bi-eye bi-hourglass-top');
+    $.post('php_scripts/phone_reveal.php', {record_id: recordId, source: source, table: table}, function (resp) {
+        btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+        if (resp.success && resp.mobile) {
+            btn.closest('td').find('.phone-masked').replaceWith('<a href="tel:' + resp.mobile + '" class="text-decoration-none font-monospace fw-bold text-success"><i class="bi bi-telephone me-1"></i>' + resp.mobile + '</a>');
+            btn.remove();
+        } else {
+            alert('Cannot reveal number: ' + (resp.error || 'Access denied'));
+        }
+    }, 'json').fail(function () {
+        btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+        alert('Server error while revealing number.');
+    });
+});
 </script>

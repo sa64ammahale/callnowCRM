@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
+require_once __DIR__ . '/../../../php_scripts/phone_helper.php';
 
 requirePermission('manage_database');
 
@@ -104,10 +105,21 @@ while ($row = mysqli_fetch_assoc($result)) {
     $nameHtml = $nameEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$nameEsc.'">'.$nameEsc.'</span>' : '-';
     $compHtml = $compEsc !== '' ? '<span class="d-inline-block text-truncate" style="max-width: 180px;" title="'.$compEsc.'">'.$compEsc.'</span>' : '-';
 
+    $ttCanView = canViewFullPhone();
+    $ttMobile = $row['CUST_MOBILE'] ?? '';
+    $ttMobileHtml = '';
+    if ($ttCanView || empty($ttMobile)) {
+        $ttMobileHtml = !empty($ttMobile)
+            ? '<a href="tel:' . htmlspecialchars($ttMobile, ENT_QUOTES, 'UTF-8') . '" class="text-decoration-none font-monospace">' . htmlspecialchars($ttMobile, ENT_QUOTES, 'UTF-8') . '</a>'
+            : '<span class="text-muted font-monospace">—</span>';
+    } else {
+        $ttMobileHtml = '<span class="phone-masked d-inline-block font-monospace" style="cursor:pointer;" data-record-id="' . (int)$row['ID'] . '" data-source="TEMP" data-table="' . tn('TBL_TEMP') . '" title="Click to reveal number">' . mask_phone($ttMobile) . '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn" data-record-id="' . (int)$row['ID'] . '" data-source="TEMP" data-table="' . tn('TBL_TEMP') . '" title="Reveal number"><i class="bi bi-eye"></i></button>';
+    }
+
     $data[] = [
         '<input type="checkbox" class="row-checkbox" value="'.$row['ID'].'">', // 0 – checkbox
         $row['ID'],                                                            // 1 – ID
-        htmlspecialchars($row['CUST_MOBILE'] ?? '', ENT_QUOTES, 'UTF-8'),      // 2 – Mobile
+        $ttMobileHtml,      // 2 – Mobile
         $nameHtml,                                                             // 3 – Name
         $compHtml,                                                             // 4 – Company
         $packEsc ?: '-',                                                       // 5 – Package

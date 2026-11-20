@@ -52,6 +52,7 @@ function isSuperAdmin() { return USER_ROLE === 'Super Admin' || USER_ID === 1; }
 function isManager() { return USER_ROLE === 'Manager'; }
 function isSupervisor() { return USER_ROLE === 'Supervisor'; }
 function isOfficer() { return USER_ROLE === 'Officer'; }
+function canViewFullPhone(): bool { return isAdmin() || isSuperAdmin(); }
 
 // Require role
 function requireRole($TBL_ROLES) {
@@ -190,7 +191,7 @@ function normalizeActivityType($actionType): string {
     $allowed = [
         'INSERT', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT',
         'UPLOAD', 'TRANSFER', 'EXPORT', 'ASSIGN', 'STATUS_CHANGE',
-        'REMARK', 'BULK_DELETE', 'BULK_UPDATE', 'TEAM_CHANGE'
+        'REMARK', 'BULK_DELETE', 'BULK_UPDATE', 'TEAM_CHANGE', 'PHONE_VIEW'
     ];
 
     if (in_array($normalized, $allowed, true)) {

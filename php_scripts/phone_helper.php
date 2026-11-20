@@ -58,3 +58,16 @@ if (!function_exists('is_valid_indian_mobile')) {
         return normalize_indian_phone($raw, true) !== null;
     }
 }
+
+if (!function_exists('mask_phone')) {
+    function mask_phone(?string $mobile): string {
+        if ($mobile === null || $mobile === '' || trim($mobile) === '' || $mobile === '—') {
+            return '—';
+        }
+        $digits = preg_replace('/\D/', '', $mobile);
+        if (strlen($digits) < 4) {
+            return '—';
+        }
+        return str_repeat('•', strlen($digits) - 4) . substr($digits, -4);
+    }
+}
