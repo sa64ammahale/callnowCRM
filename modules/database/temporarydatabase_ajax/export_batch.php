@@ -8,7 +8,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
     exit;
 }
 
-requirePermission('export_data');
+requirePermission('export_db');
 api_init();
 
 $offset = intval($_POST['offset'] ?? 0);

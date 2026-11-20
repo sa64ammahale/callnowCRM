@@ -257,7 +257,7 @@ $maxHourlyCall = max(1, max($hourlyCalls));
             <a href="<?= url('modules/database/data_management_main.php') ?>" class="dash-action-btn">
                 <i class="bi bi-database btn-icon-green"></i> Customer Database
             </a>
-            <?php if (can('export_data')): ?>
+            <?php if (can('export_db')): ?>
             <a href="<?= url('modules/database/maindatabase_ajax/download_bach.php') ?>" class="dash-action-btn">
                 <i class="bi bi-cloud-arrow-down btn-icon-blue"></i> Export Full DB
             </a>

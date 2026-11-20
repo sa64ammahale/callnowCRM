@@ -130,10 +130,12 @@ if (!$isWorkspaceActive && !$isLeadsActive && !$isDataActive && !$isReportsActiv
                         <i class="bi bi-slash-circle"></i>
                         <span class="link-text">DND Numbers</span>
                     </a>
+                    <?php if (can('export_db')): ?>
                     <a class="app-sidebar-link <?= navActive(['download_bach.php']) ? 'active' : '' ?>" href="<?= url('modules/database/maindatabase_ajax/download_bach.php') ?>" title="Export Full Database">
                         <i class="bi bi-cloud-arrow-down"></i>
                         <span class="link-text">Export Database</span>
                     </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

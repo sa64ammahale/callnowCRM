@@ -9,7 +9,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 - **Backend**: PHP 8.x procedural, MySQL via `mysqli` (procedural + occasional OO), database `callnow_incredit`
 - **Frontend**: Bootstrap 5.3, jQuery, DataTables, Bootstrap Icons via CDN; monochrome theme (`assets/css/app-theme.css` with light+dark tokens)
 - **Auth**: Hand-rolled session-based, bcrypt (`password_hash`/`verify`), 30-min idle timeout
-- **RBAC**: Permission-based. 11 system permission keys + DB-backed custom keys (`permissions` table). Roles (incl. custom) map to perms via `role_permissions`; users may have per-user overrides in `user_permissions`. `can($key)` is the sole access gate (Admin + System Admin ID=1 always pass).
+- **RBAC**: Permission-based. 14 system permission keys (incl. `export_db` for full database downloads) + DB-backed custom keys (`permissions` table). Roles (incl. custom) map to perms via `role_permissions`; users may have per-user overrides in `user_permissions`. `can($key)` is the sole access gate (Admin + System Admin ID=1 always pass).
 - **Routing**: Direct file-based, no front controller
 - **Shared chrome**: `php_scripts/header.php` + `php_scripts/footer.php`
 
@@ -108,9 +108,9 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | `datatable.php` | DataTables server-side JSON | Column whitelist |
 | `bulk_delete.php` | Bulk delete Main DB rows | Now role-guarded (Admin) + CSRF |
 | `get_total_count.php` | Returns total Main DB count | Now role-guarded |
-| `export_csv.php` | Full CSV export | Now role-guarded (Admin) |
-| `export_batch.php` | Batched JSON CSV export | Now role-guarded (Admin) |
-| `download_bach.php` | HTML page orchestrating batch downloads | Now role-guarded (Admin) |
+| `export_csv.php` | Full CSV export | Gated by `export_db` (Admin and above default, RBAC managed) |
+| `export_batch.php` | Batched JSON CSV export | Gated by `export_db` (Admin and above default, RBAC managed) |
+| `download_bach.php` | HTML page orchestrating batch downloads | Gated by `export_db` (Admin and above default, RBAC managed) |
 
 #### modules/database/sql/
 | File | Purpose |

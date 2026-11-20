@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../php_scripts/auth.php';
 
-requirePermission('export_data');
+requirePermission('export_db');
 api_init();
 
 if (!isset($link) || !$link) {

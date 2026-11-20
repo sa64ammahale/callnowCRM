@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../php_scripts/auth.php';
 require_once __DIR__ . '/../../php_scripts/team_auth.php';
 require_once __DIR__ . '/../../php_scripts/permissions.php';
 requirePermission('manage_settings');
+seedExportDbPermission($link);
 
 $msg = '';
 $msg_type = '';
@@ -29,7 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg_type = 'danger';
             } else {
                 $stmt = $link->prepare("INSERT INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
-                foreach (array_keys(getPermissionSeed()) as $pk) {
+                $allPermKeys = array_unique(array_merge(array_keys(getPermissionSeed()), array_column(getAllPermissions($link), 'permission_key')));
+                foreach ($allPermKeys as $pk) {
                     $v = ($role === 'Admin') ? 1 : (isset($_POST["perm_$pk"]) ? 1 : 0);
                     $stmt->bind_param('ssi', $role, $pk, $v);
                     $stmt->execute();
@@ -54,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg_type = 'danger';
             } else {
                 $stmt = $link->prepare("INSERT INTO " . tn('TBL_USER_PERMISSIONS') . " (user_id, permission_key, permission_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE permission_value = VALUES(permission_value)");
-                foreach (array_keys(getPermissionSeed()) as $pk) {
+                $allPermKeys = array_unique(array_merge(array_keys(getPermissionSeed()), array_column(getAllPermissions($link), 'permission_key')));
+                foreach ($allPermKeys as $pk) {
                     $v = isset($_POST["uperm_$pk"]) ? 1 : 0;
                     $stmt->bind_param('isi', $uid, $pk, $v);
                     $stmt->execute();
@@ -139,7 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $s->bind_param('ss', $roleName, $roleDesc);
                     if ($s->execute()) {
                         $is2 = $link->prepare("INSERT IGNORE INTO " . tn('TBL_ROLE_PERMISSIONS') . " (role, permission_key, permission_value) VALUES (?, ?, 0)");
-                        foreach (array_keys(getPermissionSeed()) as $pk) {
+                        $allPermKeys = array_unique(array_merge(array_keys(getPermissionSeed()), array_column(getAllPermissions($link), 'permission_key')));
+                        foreach ($allPermKeys as $pk) {
                             $is2->bind_param('ss', $roleName, $pk);
                             $is2->execute();
                         }
@@ -316,7 +320,8 @@ if ($selectedUser) {
         $rp = mysqli_query($link, "SELECT permission_key, permission_value FROM " . tn('TBL_ROLE_PERMISSIONS') . " WHERE role = '" . mysqli_real_escape_string($link, $userInfo['ROLE']) . "'");
         $userRolePerms = [];
         while ($rp && $row = mysqli_fetch_assoc($rp)) $userRolePerms[$row['permission_key']] = (int)$row['permission_value'];
-        foreach ($seedKeys as $pk) {
+        $allPermKeys = array_unique(array_merge($seedKeys, array_column($allPermissions, 'permission_key')));
+        foreach ($allPermKeys as $pk) {
             $effectivePerms[$pk] = $userPerms[$pk] ?? $userRolePerms[$pk] ?? 0;
         }
     }

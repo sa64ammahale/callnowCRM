@@ -542,9 +542,11 @@ include __DIR__ . '/../../php_scripts/header.php';
                     <button id="exportBtn" class="btn btn-secondary btn-sm">
                         <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Filtered
                     </button>
+                    <?php if (can('export_db')): ?>
                     <button id="exportFullBtn" class="btn btn-secondary btn-sm">
                         <i class="bi bi-cloud-arrow-down me-1"></i> Export Full DB
                     </button>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -1083,6 +1085,7 @@ $(document).ready(function() {
         form.appendTo('body').submit().remove();
     });
 
+    <?php if (can('export_db')): ?>
     $('#exportFullBtn').on('click', function(){
         $.get(APP_BASE + '/modules/database/temporarydatabase_ajax/get_total_count', function (total) {
             total = parseInt(total);
@@ -1100,6 +1103,7 @@ $(document).ready(function() {
             }
         });
     });
+    <?php endif; ?>
 
     $('#activityModal').on('show.bs.modal', function(){
         $('#activityList').html('<div class="text-center py-3 text-muted fs-xs">Loading activity logs...</div>');

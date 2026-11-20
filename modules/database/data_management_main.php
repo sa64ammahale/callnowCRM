@@ -396,7 +396,9 @@ $(document).ready(function() {
         buttons: [
             { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
             { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'MainDatabase_Export_' + new Date().toISOString().slice(0,10) },
-            { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm' },
+            { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm' }
+            <?php if (can('export_db')): ?>
+            ,
             {
                 text: '<i class="bi bi-cloud-download me-1"></i> Export Full DB',
                 className: 'btn btn-primary btn-sm',
@@ -418,6 +420,7 @@ $(document).ready(function() {
                     });
                 }
             }
+            <?php endif; ?>
         ],
         columnDefs: [
             { orderable: false, targets: 0, className: 'text-center' },
