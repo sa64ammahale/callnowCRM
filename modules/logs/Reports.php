@@ -1263,7 +1263,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <div class="d-flex align-items-center gap-2" style="min-width: 110px;">
+                                                <div class="d-flex align-items-center gap-2 score-progress">
                                                     <div class="progress flex-grow-1" style="height: 6px;">
                                                         <div class="progress-bar <?= $achGood ? 'bg-success' : ($achWarn ? 'bg-danger' : 'bg-primary') ?>" style="width: <?= min(100, $emp['achievement_pct']) ?>%"></div>
                                                     </div>
@@ -1606,7 +1606,9 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             </td>
                                             <td>
                                                 <div class="d-flex align-items-center gap-2 emp-officer-row">
-                                                    <strong class="text-dark fs-xs emp-name" style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; max-width:100%;"><?= htmlspecialchars($rk['employee_name']) ?></strong>
+                                                    <div class="emp-name-wrap" style="min-width:0;">
+                                                        <strong class="text-dark fs-xs emp-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; max-width:100%;"><?= htmlspecialchars($rk['employee_name']) ?></strong>
+                                                    </div>
                                                     <?php if ($isMe): ?>
                                                         <span class="badge bg-primary text-white ms-1 fs-xxs">YOU</span>
                                                     <?php endif; ?>
@@ -1651,7 +1653,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             <td class="text-center fs-xs"><span class="badge badge-success"><?= $rk['connect_rate'] ?>%</span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($rk['converted_leads']) ?></span></td>
                                             <td>
-                                                <div class="d-flex align-items-center gap-2" style="min-width: 110px;">
+                                                <div class="d-flex align-items-center gap-2 score-progress">
                                                     <div class="progress flex-grow-1" style="height: 6px;">
                                                         <div class="progress-bar bg-warning" style="width: <?= min(100, $rk['calling_score']) ?>%"></div>
                                                     </div>
@@ -1659,7 +1661,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                 </div>
                                             </td>
                                             <td>
-                                                <div class="d-flex align-items-center gap-2" style="min-width: 110px;">
+                                                <div class="d-flex align-items-center gap-2 score-progress">
                                                     <div class="progress flex-grow-1" style="height: 6px;">
                                                         <div class="progress-bar bg-success" style="width: <?= min(100, $rk['sales_score']) ?>%"></div>
                                                     </div>
@@ -1668,13 +1670,13 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             </td>
                                             <td class="text-center">
                                                 <?php if ($rankIdx <= 3 && $rk['calling_score'] >= 50): ?>
-                                                    <span class="badge badge-warning fs-xs"><i class="bi bi-star-fill me-1"></i> TOP PERFORMER</span>
+                                                    <span class="badge badge-warning fs-xs status-badge-wrap" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="bi bi-star-fill me-1"></i> TOP PERFORMER</span>
                                                 <?php elseif ($rk['calling_score'] >= 70): ?>
-                                                    <span class="badge badge-success fs-xs">EXCELLENT</span>
+                                                    <span class="badge badge-success fs-xs status-badge-wrap" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">EXCELLENT</span>
                                                 <?php elseif ($rk['calling_score'] >= 40): ?>
-                                                    <span class="badge badge-primary fs-xs">ON TRACK</span>
+                                                    <span class="badge badge-primary fs-xs status-badge-wrap" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">ON TRACK</span>
                                                 <?php else: ?>
-                                                    <span class="badge badge-secondary fs-xs">NEEDS ATTENTION</span>
+                                                    <span class="badge badge-secondary fs-xs status-badge-wrap" style="display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">NEEDS ATTENTION</span>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
