@@ -1110,7 +1110,7 @@ function getPerformanceAlerts(mysqli $link, array $empRows, array $targets, ?int
 /**
  * Calculate Weighted Calling Productivity Score and Loan Sales Score with Telecaller Engagement
  */
-function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $link = null): array {
+function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $link = null, ?string $from = null, ?string $to = null): array {
     if ($link === null && isset($GLOBALS['link'])) {
         $link = $GLOBALS['link'];
     }
@@ -1138,9 +1138,17 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
         $table = tn('TBL_TELECALLER_ENGAGEMENT');
         $tableLogs = tn('TBL_CALL_LOGS');
         $idList = implode(',', array_map('intval', $userIds));
+        $xpDateFilter = '';
+        $logDateFilter = '';
+        if ($from !== null && $to !== null) {
+            $fromEscaped = $link->real_escape_string($from);
+            $toEscaped = $link->real_escape_string($to);
+            $xpDateFilter = " AND `event_date` >= '{$fromEscaped}' AND `event_date` <= '{$toEscaped}'";
+            $logDateFilter = " AND COALESCE(`call_time`, `created_at`) >= '{$fromEscaped}' AND COALESCE(`call_time`, `created_at`) < '{$toEscaped}' + INTERVAL 1 DAY";
+        }
 
         // 1. XP from engagement ledger
-        $resXp = @$link->query("SELECT `user_id`, SUM(`xp_earned`) as tot FROM `{$table}` WHERE `user_id` IN ({$idList}) AND `record_type` = 'xp' GROUP BY `user_id`");
+        $resXp = @$link->query("SELECT `user_id`, SUM(`xp_earned`) as tot FROM `{$table}` WHERE `user_id` IN ({$idList}) AND `record_type` = 'xp'{$xpDateFilter} GROUP BY `user_id`");
         if ($resXp) {
             while ($xRow = $resXp->fetch_assoc()) {
                 $xpMap[(int)$xRow['user_id']] = (int)$xRow['tot'];
@@ -1164,7 +1172,7 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
                            ELSE 5 
                        END) as est_xp
                 FROM `{$tableLogs}`
-                WHERE `user_id` IN ({$mList})
+                WHERE `user_id` IN ({$mList}){$logDateFilter}
                 GROUP BY `user_id`
             ");
             if ($resLogsXp) {

@@ -229,7 +229,7 @@ $supRows          = ($isSuperAdmin || $isAdmin || $isManager || $isSupervisor) ?
 $adminRows        = ($isSuperAdmin || $isAdmin) ? getAdminPerformanceRows($link, $from, $to, $isAdmin ? (int)USER_ID : null, $targets, $userRole, $managerIdParam) : [];
 $followupList     = getFollowupList($link, $selected_user_id, $teamIdParam, $userRole, 'all', 100, $managerIdParam);
 $alerts           = getPerformanceAlerts($link, $empRows, $targets, $selected_user_id, $userRole);
-$rankings         = calculateProductivityRankings($empRows, $targets);
+$rankings         = calculateProductivityRankings($empRows, $targets, $link, $from, $to);
 
 // Client Contacts Table Data (Filtered)
 $contactTableRows = [];
@@ -1610,7 +1610,7 @@ include __DIR__ . '/../../php_scripts/header.php';
             <div class="crm-card mb-3">
                 <div class="crm-card-header d-flex align-items-center justify-content-between">
                     <div class="crm-card-title mb-0"><i class="bi bi-trophy text-warning me-2"></i>Telecalling Productivity &amp; Sales Score Leaderboard</div>
-                    <span class="text-muted fs-xs">Ranked by 6-Factor Weighted Scoring Model with Caller Mastery XP</span>
+                    <span class="text-muted fs-xs">Ranked by 6-Factor Weighted Scoring Model with filtered Caller Mastery XP</span>
                 </div>
                 <div class="crm-card-body p-0">
                     <div class="table-responsive">
@@ -1626,6 +1626,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                     <th class="text-center">Connected</th>
                                     <th class="text-center">Connect %</th>
                                     <th class="text-center">Converted Leads</th>
+                                    <th>Total Talk Time</th>
                                     <th>Productivity Score</th>
                                     <th>Sales Score</th>
                                     <th class="text-center">Status Badge</th>
@@ -1692,6 +1693,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($rk['connected']) ?></span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-success"><?= $rk['connect_rate'] ?>%</span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($rk['converted_leads']) ?></span></td>
+                                            <td class="fs-xs text-nowrap"><?= htmlspecialchars($rk['talk_time_formatted'] ?? '00h 00m') ?></td>
                                             <td>
                                                 <div class="d-flex align-items-center gap-2 score-progress">
                                                     <div class="progress flex-grow-1" style="height: 6px;">
@@ -1722,7 +1724,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                         </tr>
                                     <?php $rankIdx++; endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="12" class="text-center py-4 text-muted fs-xs">No ranking data available for this window.</td></tr>
+                                    <tr><td colspan="13" class="text-center py-4 text-muted fs-xs">No ranking data available for this window.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
