@@ -2159,7 +2159,11 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
     xhr.send(formData);
 });
 
-function processUploadBatch(task_id) {
+let currentTaskId = null;
+const MAX_BATCH_RETRIES = 3;
+
+function processUploadBatch(task_id, retryCount = 0) {
+    currentTaskId = task_id;
     const progressBar = $('#uploadProgressBar');
     const percentText = $('#uploadPercent');
     const messageText = $('#uploadMessage');
@@ -2177,7 +2181,10 @@ function processUploadBatch(task_id) {
         processData: false,
         contentType: false,
         dataType: 'json',
+        timeout: 90000,
         success: function(resp) {
+            retryCount = 0;
+
             if (resp.stats) updateLiveStats(resp.stats);
             if (resp.logs) renderLiveLogs(resp.logs);
 
@@ -2185,7 +2192,7 @@ function processUploadBatch(task_id) {
                 progressBar.css('width', '100%').removeClass('bg-primary bg-danger').addClass('bg-success');
                 percentText.text('100%');
                 messageText.text('Import complete!');
-                resultDiv.show().addClass('alert-success').html('<strong>Success!</strong> ' + (resp.message || 'Import completed') + '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
+                resultDiv.show().removeClass('alert-danger alert-warning').addClass('alert-success').html('<strong>Success!</strong> ' + (resp.message || 'Import completed') + '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
                 setModalClosable(true);
                 setStep(5);
                 updateSummaryProgress(100, resp.message || 'Import completed successfully!');
@@ -2193,7 +2200,7 @@ function processUploadBatch(task_id) {
             } else if (resp.status === 'error') {
                 progressBar.addClass('bg-danger');
                 messageText.text('Upload failed');
-                resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> ' + (resp.message || resp.error || 'Unknown error') + '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
+                resultDiv.show().removeClass('alert-success alert-warning').addClass('alert-danger').html('<strong>Error:</strong> ' + (resp.message || resp.error || 'Unknown error') + '<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
                 setModalClosable(true);
                 updateSummaryProgress(resp.percent || 0, 'Import halted: ' + (resp.message || resp.error));
                 showNotification('Error', resp.message || resp.error || 'Unknown error', 'danger');
@@ -2202,18 +2209,66 @@ function processUploadBatch(task_id) {
                 percentText.text(resp.percent + '%');
                 messageText.text(resp.message || 'Processing records...');
                 updateSummaryProgress(resp.percent || 10, resp.message || 'Processing records...');
-                setTimeout(function() { processUploadBatch(task_id); }, 200);
+                setTimeout(function() { processUploadBatch(task_id, 0); }, 150);
             }
         },
-        error: function() {
+        error: function(xhr, status, errorThrown) {
+            if (retryCount < MAX_BATCH_RETRIES) {
+                const nextRetry = retryCount + 1;
+                const delayMs = nextRetry * 1500;
+                messageText.text(`Connection delay. Retrying batch (${nextRetry}/${MAX_BATCH_RETRIES})...`);
+                updateSummaryProgress(parseInt(percentText.text()) || 0, `Retrying batch (attempt ${nextRetry} of ${MAX_BATCH_RETRIES})...`);
+                setTimeout(function() {
+                    processUploadBatch(task_id, nextRetry);
+                }, delayMs);
+                return;
+            }
+
+            let errMsg = 'Network or server timeout occurred while processing data.';
+            if (xhr.status === 403) {
+                errMsg = 'Session expired or invalid CSRF token. Please refresh the page.';
+            } else if (xhr.status === 504 || xhr.status === 502) {
+                errMsg = 'Gateway timeout. The server took too long to process this batch.';
+            } else if (xhr.status === 500) {
+                errMsg = 'Server execution timeout (HTTP 500). Batch took longer than server execution limit.';
+            } else if (status === 'timeout') {
+                errMsg = 'Request timed out waiting for server response.';
+            }
+
+            try {
+                if (xhr.responseText) {
+                    const parsed = JSON.parse(xhr.responseText);
+                    if (parsed.error) errMsg = parsed.error;
+                }
+            } catch (e) {}
+
             progressBar.addClass('bg-danger');
-            messageText.text('Network error');
-            resultDiv.show().addClass('alert-danger').html('<strong>Error:</strong> Network error while checking progress.<br><button class="btn btn-sm btn-secondary mt-2 close-modal-btn">Close</button>');
+            messageText.text('Import paused: ' + errMsg);
+            resultDiv.show().removeClass('alert-success').addClass('alert-danger').html(
+                '<strong>Import Paused:</strong> ' + errMsg + '<br>' +
+                '<div class="mt-2 d-flex gap-2">' +
+                '<button type="button" class="btn btn-sm btn-primary" onclick="resumeUploadBatch()"><i class="bi bi-arrow-clockwise me-1"></i> Resume Import</button>' +
+                '<button type="button" class="btn btn-sm btn-secondary close-modal-btn">Close</button>' +
+                '</div>'
+            );
             setModalClosable(true);
-            updateSummaryProgress(0, 'Network error while checking progress');
-            showNotification('Network Error', 'Network error while checking progress', 'danger');
+            updateSummaryProgress(parseInt(percentText.text()) || 0, 'Import paused: ' + errMsg);
+            showNotification('Import Paused', errMsg, 'warning');
         }
     });
+}
+
+function resumeUploadBatch() {
+    if (!currentTaskId) return;
+    const progressBar = $('#uploadProgressBar');
+    const messageText = $('#uploadMessage');
+    const resultDiv = $('#uploadResult');
+
+    progressBar.removeClass('bg-danger').addClass('bg-primary');
+    messageText.text('Resuming batch import...');
+    resultDiv.hide();
+    setModalClosable(false);
+    processUploadBatch(currentTaskId, 0);
 }
 </script>
 
