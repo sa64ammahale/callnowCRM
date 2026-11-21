@@ -29,6 +29,7 @@ $start  = max(0, intval($_GET['start'] ?? 0));
 $length = intval($_GET['length'] ?? 10);
 $length = ($length <= 0) ? 250 : min($length, 2000);
 $search = trim($_GET['search']['value'] ?? '');
+$status = trim($_GET['status'] ?? '');
 $order  = $_GET['order'][0] ?? [];
 $col    = $order['column'] ?? 1;
 $dir    = $order['dir'] ?? 'desc';
@@ -57,6 +58,10 @@ if ($search !== '') {
     $like = "%$search%";
     $params = array_fill(0, 4, $like);
 }
+if ($status !== '') {
+    $where .= " AND TRIM(m.MAINDATABASE_CALL_DIALED_STATUS) = ?";
+    $params[] = $status;
+}
 
 // ORDER BY
 $orderby = $columns[$col] ?? 'm.MAINDATABASE_UPLOAD_DATETIME';
@@ -70,7 +75,7 @@ $totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . 
 $total = ($totalRes && $row = mysqli_fetch_assoc($totalRes)) ? (int)$row['c'] : 0;
 
 // Filtered records count
-if ($search === '') {
+if ($search === '' && $status === '') {
     $filtered = $total;
 } else {
     $countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " m 

@@ -433,6 +433,9 @@ if ($tc) $totalCount = (int)mysqli_fetch_row($tc)[0];
 $statusCounts = [];
 $sc = mysqli_query($link, "SELECT CALL_DIALED_STATUS, COUNT(*) as cnt FROM " . tn('TBL_TEMP') . " GROUP BY CALL_DIALED_STATUS ORDER BY cnt DESC");
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
+$statusOptions = [];
+$so = mysqli_query($link, "SELECT DISTINCT TRIM(CALL_DIALED_STATUS) AS status FROM " . tn('TBL_TEMP') . " WHERE CALL_DIALED_STATUS IS NOT NULL AND TRIM(CALL_DIALED_STATUS) <> '' ORDER BY status ASC");
+if ($so) while ($s = mysqli_fetch_assoc($so)) $statusOptions[] = $s['status'];
 
 $telecallers = [];
 $accessibleUserIds = getAccessibleUserIds($link);
@@ -566,13 +569,9 @@ include __DIR__ . '/../../php_scripts/header.php';
                 <div class="col-md-2 col-6">
                     <select id="status" class="form-select form-select-sm">
                         <option value="">All Statuses</option>
-                        <option>Not Called</option>
-                        <option>Dialed</option>
-                        <option>Connected</option>
-                        <option>Busy</option>
-                        <option>No Answer</option>
-                        <option>Do Not Call</option>
-                        <option>Pending</option>
+                        <?php foreach ($statusOptions as $statusOption): ?>
+                            <option value="<?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2 col-6">
@@ -771,6 +770,9 @@ $(document).ready(function() {
         ajax: {
             url: TEMP_URL,
             type: 'GET',
+            data: function (data) {
+                data.status = $('#status').val();
+            },
             dataSrc: function (json) {
                 if (json === null || typeof json !== 'object' || !json.data) {
                     console.error('DataTables: invalid response from server', json);

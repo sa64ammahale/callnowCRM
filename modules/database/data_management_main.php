@@ -8,6 +8,9 @@ $unused = mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) as c FROM " . 
 $statusCounts = [];
 $sc = mysqli_query($link, "SELECT MAINDATABASE_CALL_DIALED_STATUS, COUNT(*) as cnt FROM " . tn('TBL_MAIN') . " GROUP BY MAINDATABASE_CALL_DIALED_STATUS ORDER BY cnt DESC");
 if ($sc) while ($s = mysqli_fetch_assoc($sc)) $statusCounts[] = $s;
+$statusOptions = [];
+$so = mysqli_query($link, "SELECT DISTINCT TRIM(MAINDATABASE_CALL_DIALED_STATUS) AS status FROM " . tn('TBL_MAIN') . " WHERE MAINDATABASE_CALL_DIALED_STATUS IS NOT NULL AND TRIM(MAINDATABASE_CALL_DIALED_STATUS) <> '' ORDER BY status ASC");
+if ($so) while ($s = mysqli_fetch_assoc($so)) $statusOptions[] = $s['status'];
 
 $accessibleUserIds = getAccessibleUserIds($link);
 $userWhere = ["STATUS = 'Active'", "ROLE != 'Super Admin'"];
@@ -199,6 +202,16 @@ include __DIR__ . '/../../php_scripts/header.php';
                     </button>
                 </div>
             </div>
+            <div class="row g-2 align-items-center mt-1">
+                <div class="col-md-3 col-sm-6">
+                    <select id="status" class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        <?php foreach ($statusOptions as $statusOption): ?>
+                            <option value="<?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -381,6 +394,9 @@ $(document).ready(function() {
         ajax: {
             url: APP_BASE + '/modules/database/maindatabase_ajax/datatable',
             type: 'GET',
+            data: function (data) {
+                data.status = $('#status').val();
+            },
             dataSrc: function (json) {
                 if (json === null || typeof json !== 'object' || !json.data) {
                     console.error('DataTables: invalid response from server', json);
@@ -565,6 +581,10 @@ $(document).ready(function() {
     $('#refreshBtn').on('click', function() {
         table.ajax.reload();
         showNotification('Refreshed', 'Table data updated', 'info');
+    });
+
+    $('#status').on('change', function() {
+        table.ajax.reload();
     });
 });
 </script>
