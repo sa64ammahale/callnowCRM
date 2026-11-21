@@ -94,7 +94,7 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 ### modules/database/
 | File | Purpose | Notes |
 |---|---|---|
-| `upload_data.php` | CSV upload + archive | Was debug-logging sensitive data; now removed. Modernized with gradient header, colored metric cards, styled drop zone, progress modal, CSRF-fixed batch processing, robust CSV preview parser (quoted fields), reset button, and empty states. |
+| `upload_data.php` | CSV upload + archive | Redesigned with premium enterprise SaaS UI: page-scoped CSS, database icon header, visual 4-step workflow stepper, 3 selectable target cards (Staging/Main/Both), dashed dropzone with live file-selected card, dry-run & header switches, consent guard, 2x2 color-coded metric cards, live execution progress bar, activity logs, and cold storage archival. Backend logic 100% preserved. |
 | `ViewDND.php` | Permanent DND numbers list (gated `manage_database`) | Dual-database listing (queries `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC' and `dnd_registry`), origin badges (Main DB vs Temp DB), search, pagination, CSRF-protected. Conditional phone masking with reveal button for non-admins. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `ViewDND_data.php`. |
 | `ViewDND_data.php` | DataTables server-side JSON for ViewDND.php | GET-only, read-only; DND union (TEMP+MAIN+dnd_registry) SELECT/COUNT + search; returns permanent DND status badge (restoration disabled); supports `length=-1` full export. |
 | `data_management_temporary.php` | AJAX CRUD on TEMPORARY_DATABASE | Was missing role guard; now Admin/Manager |
