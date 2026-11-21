@@ -316,7 +316,7 @@ Column mapping applied:
   - Removed officer gating on Tab 9 (*Rankings & Scores*) so Sales Officers can view the leaderboard to track their performance.
   - Highlighting logged-in telecaller's own row (`YOU` badge).
   - Added **Mastery Level & XP** badge column (`Bronze Caller 🥉` to `Diamond Champion 👑`) and **Active Streak** fire badge column (`🔥 N days`).
-  - Integrated into `calculateProductivityRankings()` with batch querying for optimal performance. Rankings now calculate mastery XP and level within the selected report window and show each officer's matching total talk time.
+  - Integrated into `calculateProductivityRankings()` with batch querying for optimal performance. Rankings now calculate mastery XP and level within the selected report window, show each officer's matching talk time as `HH:MM:SS`, and compare it against the configured daily talk-time target scaled to the selected period.
 - **Automated Verification**:
   - Created `tests/test_lean_engagement.php` verifying schema, XP rules, mastery ranks, target bonus deduplication, streak math, and reporting integration (16/16 assertions passing 100%).
   - Whole-repository PHP lint passed with 0 syntax errors.

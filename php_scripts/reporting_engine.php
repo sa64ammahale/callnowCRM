@@ -1274,20 +1274,28 @@ function calculateProductivityRankings(array $empRows, array $targets, ?mysqli $
         $conn = (int)$r['connected'];
         $uniq = (int)$r['unique_called'];
         $inter = (int)$r['interested'];
-        $talkMin = round((int)$r['total_duration'] / 60);
+        $talkSeconds = max(0, (int)$r['total_duration']);
+        $periodDays = max(1, (int)($r['days_in_period'] ?? 1));
         $foCreated = (int)$r['fo_created'];
         $foComp = (int)$r['fo_completed'];
         $foRate = $foCreated > 0 ? ($foComp / $foCreated) : 1.0;
 
         $empTarget = max(1, (int)($r['target'] ?? $r['daily_calling_limit'] ?? $dailyTarget));
+        $connectionTarget = $dailyConn * $periodDays;
+        $leadTarget = $dailyLead * $periodDays;
+        $talkTargetSeconds = $dailyTalk * $periodDays * 60;
         $sTarget = min(1.0, $dials / $empTarget) * 30.0;
-        $sConn   = min(1.0, $conn / $dailyConn) * 20.0;
+        $sConn   = min(1.0, $conn / $connectionTarget) * 20.0;
         $sUniq   = min(1.0, $uniq / ($empTarget * 0.8)) * 15.0;
-        $sInter  = min(1.0, $inter / $dailyLead) * 15.0;
+        $sInter  = min(1.0, $inter / $leadTarget) * 15.0;
         $sFo     = min(1.0, $foRate) * 10.0;
-        $sTalk   = min(1.0, $talkMin / $dailyTalk) * 10.0;
+        $sTalk   = min(1.0, $talkSeconds / $talkTargetSeconds) * 10.0;
 
         $r['calling_score'] = round($sTarget + $sConn + $sUniq + $sInter + $sFo + $sTalk, 1);
+        $r['talk_time_hms'] = sprintf('%02d:%02d:%02d', floor($talkSeconds / 3600), floor(($talkSeconds % 3600) / 60), $talkSeconds % 60);
+        $r['talk_time_target_hms'] = sprintf('%02d:%02d:%02d', floor($talkTargetSeconds / 3600), floor(($talkTargetSeconds % 3600) / 60), $talkTargetSeconds % 60);
+        $r['talk_time_progress_pct'] = min(100, round(($talkSeconds / $talkTargetSeconds) * 100));
+        $r['talk_time_target_days'] = $periodDays;
 
         $leads = (int)$r['converted_leads'];
         $disbCount = (int)$r['disbursed_loans'];

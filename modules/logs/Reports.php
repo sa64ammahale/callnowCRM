@@ -1695,13 +1695,26 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             <td class="text-center fs-xs"><span class="badge badge-primary"><?= number_format($rk['connected']) ?></span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-success"><?= $rk['connect_rate'] ?>%</span></td>
                                             <td class="text-center fs-xs"><span class="badge badge-purple"><?= number_format($rk['converted_leads']) ?></span></td>
-                                            <td class="fs-xs text-nowrap"><?= htmlspecialchars($rk['talk_time_formatted'] ?? '00h 00m') ?></td>
+                                            <td style="min-width:120px;">
+                                                <?php
+                                                    $talkProgress = (int)($rk['talk_time_progress_pct'] ?? 0);
+                                                    $talkTargetDays = max(1, (int)($rk['talk_time_target_days'] ?? 1));
+                                                ?>
+                                                <div class="fs-xs fw-bold text-dark text-nowrap"><?= htmlspecialchars($rk['talk_time_hms'] ?? '00:00:00') ?></div>
+                                                <div class="progress mt-1" style="height:4px;" title="<?= $talkProgress ?>% of talk-time target">
+                                                    <div class="progress-bar bg-info" style="width:<?= $talkProgress ?>%"></div>
+                                                </div>
+                                                <div class="text-muted" style="font-size:9px; white-space:nowrap;">Target <?= htmlspecialchars($rk['talk_time_target_hms'] ?? '00:00:00') ?><?= $talkTargetDays > 1 ? ' · ' . $talkTargetDays . ' days' : '' ?></div>
+                                            </td>
                                             <td>
                                                 <div class="d-flex align-items-center gap-2 score-progress">
                                                     <div class="progress flex-grow-1" style="height: 6px;">
                                                         <div class="progress-bar bg-warning" style="width: <?= min(100, $rk['calling_score']) ?>%"></div>
                                                     </div>
-                                                    <span class="fs-xs fw-bold text-dark"><?= $rk['calling_score'] ?> / 100</span>
+                                                    <div class="text-end text-nowrap" style="line-height:1.05;">
+                                                        <div class="fs-xs fw-bold text-dark"><?= number_format((float)$rk['calling_score'], 1) ?></div>
+                                                        <div class="text-muted" style="font-size:9px;">OUT OF 100</div>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td>
@@ -1709,7 +1722,10 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                     <div class="progress flex-grow-1" style="height: 6px;">
                                                         <div class="progress-bar bg-success" style="width: <?= min(100, $rk['sales_score']) ?>%"></div>
                                                     </div>
-                                                    <span class="fs-xs fw-bold text-success"><?= $rk['sales_score'] ?> / 100</span>
+                                                    <div class="text-end text-nowrap" style="line-height:1.05;">
+                                                        <div class="fs-xs fw-bold text-success"><?= number_format((float)$rk['sales_score'], 1) ?></div>
+                                                        <div class="text-muted" style="font-size:9px;">OUT OF 100</div>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td class="text-center">
