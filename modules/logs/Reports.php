@@ -1619,7 +1619,6 @@ include __DIR__ . '/../../php_scripts/header.php';
                                 <tr>
                                     <th class="text-center" style="width: 60px;">Rank</th>
                                     <th>Sales Officer</th>
-                                    <th>Team</th>
                                     <th>Mastery Level</th>
                                     <th class="text-center">Streak</th>
                                     <th class="text-center">Total Dials</th>
@@ -1649,13 +1648,16 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                 <div class="d-flex align-items-center gap-2 emp-officer-row">
                                                     <div class="emp-name-wrap" style="min-width:0;">
                                                         <strong class="text-dark fs-xs emp-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; max-width:100%;"><?= htmlspecialchars($rk['employee_name']) ?></strong>
+                                                        <span class="d-inline-flex align-items-center gap-1 mt-1 px-2 py-1 rounded-pill text-primary-emphasis bg-primary-subtle border border-primary-subtle" style="font-size:10px; line-height:1; max-width:100%;">
+                                                            <i class="bi bi-people-fill"></i>
+                                                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><?= htmlspecialchars($rk['team_name'] ?: 'No Team') ?></span>
+                                                        </span>
                                                     </div>
                                                     <?php if ($isMe): ?>
                                                         <span class="badge bg-primary text-white ms-1 fs-xxs">YOU</span>
                                                     <?php endif; ?>
                                                 </div>
                                             </td>
-                                            <td class="fs-xs text-muted"><?= htmlspecialchars($rk['team_name'] ?: 'No Team') ?></td>
                                             <td>
                                                 <?php
                                                     $rkTheme = $rk['badge_theme'] ?? 'primary';
@@ -1724,7 +1726,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                         </tr>
                                     <?php $rankIdx++; endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="13" class="text-center py-4 text-muted fs-xs">No ranking data available for this window.</td></tr>
+                                    <tr><td colspan="12" class="text-center py-4 text-muted fs-xs">No ranking data available for this window.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
