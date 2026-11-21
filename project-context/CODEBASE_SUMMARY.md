@@ -95,10 +95,10 @@ Custom procedural PHP + MySQL telecalling CRM. No framework. ~40 files across ro
 | File | Purpose | Notes |
 |---|---|---|
 | `upload_data.php` | CSV upload + archive | Was debug-logging sensitive data; now removed. Modernized with gradient header, colored metric cards, styled drop zone, progress modal, CSRF-fixed batch processing, robust CSV preview parser (quoted fields), reset button, and empty states. |
-| `ViewDND.php` | Permanent DND numbers list (gated `manage_database`) | Dual-database listing (queries `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC' and `dnd_registry`), origin badges (Main DB vs Temp DB), search, pagination, CSRF-protected. Immutability enforced: "Unmark DND" / restore action permanently removed. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `ViewDND_data.php`. |
+| `ViewDND.php` | Permanent DND numbers list (gated `manage_database`) | Dual-database listing (queries `temporary_database` & `main_database` for 'Do Not Call'/'DND'/'DNC' and `dnd_registry`), origin badges (Main DB vs Temp DB), search, pagination, CSRF-protected. Conditional phone masking with reveal button for non-admins. Table enhanced with server-side DataTables (copy/csv/excel/print); JSON endpoint at `ViewDND_data.php`. |
 | `ViewDND_data.php` | DataTables server-side JSON for ViewDND.php | GET-only, read-only; DND union (TEMP+MAIN+dnd_registry) SELECT/COUNT + search; returns permanent DND status badge (restoration disabled); supports `length=-1` full export. |
 | `data_management_temporary.php` | AJAX CRUD on TEMPORARY_DATABASE | Was missing role guard; now Admin/Manager |
-| `data_management_main.php` | Main DB DataTables view + bulk ops | References bulk_assign.php (missing) |
+| `data_management_main.php` | Main DB DataTables view + bulk ops | Compact 2-tier toolbar matching Temp DB layout, date range filtering (`upload` vs `dialed`), debounced search, per-page selector, row click to `#editModal`, Quick Export dropdown (`Copy`, `CSV`, `Excel`), `Export Filtered CSV`, and `Export Full DB` redirect. Phone masking applied for non-admins. |
 | `add_update_status.php` | Insert/Update + bulk status by ID range (Admin) | CSRF-protected |
 | `add_single_number.php` | Add/Edit single customer record | Now role-guarded |
 

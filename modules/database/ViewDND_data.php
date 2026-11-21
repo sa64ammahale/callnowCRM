@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/phone_helper.php';
 requirePermission('manage_database');
 
 ensureCsrfToken();
@@ -160,9 +161,18 @@ while ($r = mysqli_fetch_assoc($result)) {
         }
     }
 
+    $canView = canViewFullPhone();
+    $rawMob = $r['mobile'] ?? '';
+    $mobHtml = '';
+    if ($canView || empty($rawMob)) {
+        $mobHtml = '<span class="font-monospace fs-xs">' . ($rawMob ? htmlspecialchars($rawMob, ENT_QUOTES, 'UTF-8') : '—') . '</span>';
+    } else {
+        $mobHtml = '<span class="phone-masked d-inline-block font-monospace fs-xs" style="cursor:pointer;" data-record-id="' . $id . '" data-source="' . $source . '" data-table="' . ($source === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN')) . '" title="Click to reveal number">' . mask_phone($rawMob) . '</span> <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="' . $id . '" data-source="' . $source . '" data-table="' . ($source === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN')) . '" title="Reveal number"><i class="bi bi-eye"></i></button>';
+    }
+
     $rows[] = [
         $r['name'] ?: '—',
-        '<span class="font-monospace fs-xs">' . ($r['mobile'] ?: '—') . '</span>',
+        $mobHtml,
         htmlspecialchars($r['company'] ?: '—', ENT_QUOTES, 'UTF-8'),
         $r['source'],
         $marked,

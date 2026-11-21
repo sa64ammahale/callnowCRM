@@ -2,6 +2,7 @@
 // ViewDND.php - Comprehensive Do-Not-Disturb (DND) numbers management across Main & Temporary Databases
 
 require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/phone_helper.php';
 requirePermission('manage_database');
 
 $csrf = ensureCsrfToken();
@@ -378,7 +379,12 @@ include __DIR__ . '/../../php_scripts/header.php';
                                     <strong class="text-dark fs-xs"><?= htmlspecialchars($r['name'] ?: '—') ?></strong>
                                 </td>
                                 <td>
-                                    <span class="badge badge-secondary fs-xs font-monospace"><?= htmlspecialchars($r['mobile'] ?: '—') ?></span>
+                                    <?php if (canViewFullPhone() || empty($r['mobile'])): ?>
+                                        <span class="badge badge-secondary fs-xs font-monospace"><?= htmlspecialchars($r['mobile'] ?: '—') ?></span>
+                                    <?php else: ?>
+                                        <span class="phone-masked badge badge-secondary fs-xs font-monospace" style="cursor:pointer;" data-record-id="<?= intval($r['ID']) ?>" data-source="<?= htmlspecialchars($r['source']) ?>" data-table="<?= $r['source'] === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN') ?>" title="Click to reveal number"><?= mask_phone($r['mobile'] ?: '') ?></span>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="<?= intval($r['ID']) ?>" data-source="<?= htmlspecialchars($r['source']) ?>" data-table="<?= $r['source'] === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN') ?>" title="Reveal number"><i class="bi bi-eye"></i></button>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <span class="text-muted fs-xs"><?= htmlspecialchars($r['company'] ?: '—') ?></span>
@@ -400,7 +406,7 @@ include __DIR__ . '/../../php_scripts/header.php';
                                 <td class="text-end pe-3">
                                     <div class="d-inline-flex align-items-center gap-1">
                                         <!-- Restore / Unmark DND -->
-                                        <form method="POST" class="d-inline" onsubmit="return confirm('Restore <?= htmlspecialchars($r['mobile']) ?> to active calling queue?');">
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Restore this record to active calling queue?');">
                                             <?= csrfField() ?>
                                             <input type="hidden" name="action" value="unmark">
                                             <input type="hidden" name="id" value="<?= intval($r['ID']) ?>">
@@ -592,6 +598,29 @@ $(document).ready(function() {
                 previous: '<i class="bi bi-chevron-left"></i>'
             }
         }
+    });
+
+    $(document).on('click', '.phone-reveal-btn', function () {
+        var btn = $(this);
+        var recordId = btn.data('record-id');
+        var source = btn.data('source');
+        var table = btn.data('table');
+        if (!recordId) return;
+        btn.prop('disabled', true).find('i').toggleClass('bi-eye bi-hourglass-top');
+        $.post(APP_BASE + '/modules/leads/ajax/phone_reveal.php', {
+            record_id: recordId, source: source, table: table, csrf_token: <?= json_encode($_SESSION['csrf_token'] ?? '') ?>
+        }, function (resp) {
+            btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+            if (resp.success && resp.mobile) {
+                btn.closest('td').find('.phone-masked').replaceWith('<a href="tel:' + resp.mobile + '" class="text-decoration-none font-monospace fw-bold text-success"><i class="bi bi-telephone me-1"></i>' + resp.mobile + '</a>');
+                btn.remove();
+            } else {
+                alert('Cannot reveal number: ' + (resp.error || 'Access denied'));
+            }
+        }, 'json').fail(function () {
+            btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
+            alert('Server error while revealing number.');
+        });
     });
 });
 </script>

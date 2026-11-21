@@ -184,9 +184,10 @@ include __DIR__ . '/../../php_scripts/header.php';
         </div>
     </div>
 
-    <!-- Action Toolbar -->
-    <div class="crm-card mb-3">
-        <div class="crm-card-body py-2">
+    <!-- Compact Toolbar (Row 1: Actions & Exports; Row 2: Unified Filter Strip) -->
+    <div class="crm-card mb-2">
+        <div class="crm-card-body p-2">
+            <!-- Top Row: Actions on Left, Exports on Right -->
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <button id="bulkAssignBtn" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#assignModal">
@@ -197,18 +198,60 @@ include __DIR__ . '/../../php_scripts/header.php';
                     </button>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button id="refreshBtn" class="btn btn-secondary btn-sm">
+                    <button id="refreshBtn" class="btn btn-secondary btn-sm" title="Refresh data">
                         <i class="bi bi-arrow-clockwise me-1"></i> Refresh
                     </button>
+                    <div class="dropdown">
+                        <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-download me-1"></i> Quick Export
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm fs-xs">
+                            <li><a class="dropdown-item dt-export-copy" href="javascript:void(0)"><i class="bi bi-copy me-2 text-muted"></i>Copy Table</a></li>
+                            <li><a class="dropdown-item dt-export-csv" href="javascript:void(0)"><i class="bi bi-filetype-csv me-2 text-muted"></i>CSV (Page)</a></li>
+                            <li><a class="dropdown-item dt-export-excel" href="javascript:void(0)"><i class="bi bi-file-earmark-excel me-2 text-muted"></i>Excel</a></li>
+                        </ul>
+                    </div>
+                    <?php if (can('export_db')): ?>
+                    <button id="exportFilteredBtn" class="btn btn-secondary btn-sm" title="Export matching filtered rows to CSV">
+                        <i class="bi bi-file-earmark-arrow-down me-1 text-success"></i> Export Filtered CSV
+                    </button>
+                    <a href="<?= url('modules/database/maindatabase_ajax/download_bach.php') ?>" target="_blank" class="btn btn-secondary btn-sm" title="Download entire database in batches">
+                        <i class="bi bi-cloud-download me-1 text-primary"></i> Export Full DB
+                    </a>
+                    <?php endif; ?>
                 </div>
             </div>
-            <div class="row g-2 align-items-center mt-1">
-                <div class="col-md-3 col-sm-6">
-                    <select id="status" class="form-select form-select-sm">
-                        <option value="">All Statuses</option>
-                        <?php foreach ($statusOptions as $statusOption): ?>
-                            <option value="<?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?></option>
-                        <?php endforeach; ?>
+            <!-- Bottom Row: Inline Compact Filter Strip -->
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2 pt-2 border-top">
+                <div class="input-group input-group-sm" style="max-width: 280px; flex: 1 1 200px;">
+                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text" id="searchQ" class="form-control border-start-0 ps-0" placeholder="Search name, mobile, company, package...">
+                </div>
+                <select id="status" class="form-select form-select-sm" style="width: auto; min-width: 130px;">
+                    <option value="">All Statuses</option>
+                    <?php foreach ($statusOptions as $statusOption): ?>
+                        <option value="<?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select id="dateType" class="form-select form-select-sm" style="width: auto; min-width: 140px;" title="Choose date field to filter">
+                    <option value="upload" selected>Uploaded Date</option>
+                    <option value="dialed">Last Dialed Date</option>
+                </select>
+                <div class="d-flex align-items-center gap-1">
+                    <input type="date" id="dateFrom" class="form-control form-control-sm" style="width: 135px;" title="Date From">
+                    <span class="text-muted fs-xs">to</span>
+                    <input type="date" id="dateTo" class="form-control form-control-sm" style="width: 135px;" title="Date To">
+                </div>
+                <button type="button" id="clearFiltersBtn" class="btn btn-link btn-sm text-decoration-none text-muted p-0 px-1" title="Clear all filters">
+                    <i class="bi bi-x-circle me-1"></i>Reset
+                </button>
+                <div class="ms-auto d-flex align-items-center gap-1">
+                    <span class="text-muted fs-xs">Show:</span>
+                    <select id="perPage" class="form-select form-select-sm" style="width: auto; min-width: 80px;">
+                        <option value="100">100</option>
+                        <option value="250" selected>250</option>
+                        <option value="500">500</option>
+                        <option value="1000">1000</option>
                     </select>
                 </div>
             </div>
@@ -390,12 +433,16 @@ $(document).ready(function() {
         serverSide: true,
         responsive: true,
         destroy: true,
-        searchDelay: 400,
+        searchDelay: 350,
         ajax: {
             url: APP_BASE + '/modules/database/maindatabase_ajax/datatable',
             type: 'GET',
             data: function (data) {
+                data.q = $('#searchQ').val().trim();
                 data.status = $('#status').val();
+                data.date_type = $('#dateType').val();
+                data.from = $('#dateFrom').val();
+                data.to = $('#dateTo').val();
             },
             dataSrc: function (json) {
                 if (json === null || typeof json !== 'object' || !json.data) {
@@ -408,35 +455,11 @@ $(document).ready(function() {
         pageLength: 250,
         lengthMenu: [[100, 250, 500, 1000], [100, 250, 500, 1000]],
         order: [[7, 'desc']],
-        dom: '<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom"<"d-flex align-items-center gap-2"lB><"ms-auto"f>>rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
+        dom: 'rt<"p-2 d-flex flex-wrap justify-content-between align-items-center gap-2 border-top"ip>',
         buttons: [
-            { extend: 'copy', text: '<i class="bi bi-copy me-1"></i> Copy', className: 'btn btn-secondary btn-sm' },
-            { extend: 'csv', text: '<i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV', className: 'btn btn-secondary btn-sm', title: 'MainDatabase_Export_' + new Date().toISOString().slice(0,10) },
-            { extend: 'excel', text: '<i class="bi bi-file-excel me-1"></i> Excel', className: 'btn btn-secondary btn-sm' }
-            <?php if (can('export_db')): ?>
-            ,
-            {
-                text: '<i class="bi bi-cloud-download me-1"></i> Export Full DB',
-                className: 'btn btn-primary btn-sm',
-                action: function () {
-                    $.get(APP_BASE + '/modules/database/maindatabase_ajax/get_total_count', function (total) {
-                        total = parseInt(total);
-                        if (total === 0) return showNotification('Empty', 'No data found', 'info');
-            
-                        if (total > 100000 && !confirm(`Notice: ${total.toLocaleString()} records.\nThis will download in multiple CSV parts.\n\nContinue?`)) {
-                            return;
-                        }
-            
-                        const win = window.open(APP_BASE + '/modules/database/maindatabase_ajax/download_bach', '_blank');
-                        if (win) {
-                            showNotification('Export Started', `${total.toLocaleString()} records downloading`, 'success');
-                        } else {
-                            showNotification('Popup Blocked!', 'Please allow popups', 'danger');
-                        }
-                    });
-                }
-            }
-            <?php endif; ?>
+            { extend: 'copy', className: 'd-none' },
+            { extend: 'csv', className: 'd-none', title: 'MainDatabase_Export_' + new Date().toISOString().slice(0,10) },
+            { extend: 'excel', className: 'd-none' }
         ],
         columnDefs: [
             { orderable: false, targets: 0, className: 'text-center' },
@@ -583,8 +606,48 @@ $(document).ready(function() {
         showNotification('Refreshed', 'Table data updated', 'info');
     });
 
-    $('#status').on('change', function() {
+    $('.dt-export-copy').on('click', function() { table.button('.buttons-copy').trigger(); });
+    $('.dt-export-csv').on('click', function() { table.button('.buttons-csv').trigger(); });
+    $('.dt-export-excel').on('click', function() { table.button('.buttons-excel').trigger(); });
+
+    $('#exportFilteredBtn').on('click', function() {
+        const form = $('<form>', {
+            method: 'POST',
+            action: APP_BASE + '/modules/database/maindatabase_ajax/export_csv.php',
+            target: '_blank'
+        });
+        form.append($('<input>', { type: 'hidden', name: 'csrf_token', value: CSRF_TOKEN }));
+        form.append($('<input>', { type: 'hidden', name: 'q', value: $('#searchQ').val().trim() }));
+        form.append($('<input>', { type: 'hidden', name: 'status', value: $('#status').val() }));
+        form.append($('<input>', { type: 'hidden', name: 'date_type', value: $('#dateType').val() }));
+        form.append($('<input>', { type: 'hidden', name: 'from', value: $('#dateFrom').val() }));
+        form.append($('<input>', { type: 'hidden', name: 'to', value: $('#dateTo').val() }));
+        $('body').append(form);
+        form.submit();
+        form.remove();
+    });
+
+    let searchTimer = null;
+    $('#searchQ').on('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() { table.ajax.reload(); }, 350);
+    });
+
+    $('#status, #dateType, #dateFrom, #dateTo').on('change', function() {
         table.ajax.reload();
+    });
+
+    $('#clearFiltersBtn').on('click', function() {
+        $('#searchQ').val('');
+        $('#status').val('');
+        $('#dateType').val('upload');
+        $('#dateFrom').val('');
+        $('#dateTo').val('');
+        table.ajax.reload();
+    });
+
+    $('#perPage').on('change', function() {
+        table.page.len(parseInt($(this).val(), 10)).draw();
     });
 });
 

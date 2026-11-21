@@ -24,15 +24,18 @@ if (!$link) {
     dt_fatal($error);
 }
 
-$draw   = intval($_GET['draw'] ?? 0);
-$start  = max(0, intval($_GET['start'] ?? 0));
-$length = intval($_GET['length'] ?? 10);
-$length = ($length <= 0) ? 250 : min($length, 2000);
-$search = trim($_GET['search']['value'] ?? '');
-$status = trim($_GET['status'] ?? '');
-$order  = $_GET['order'][0] ?? [];
-$col    = $order['column'] ?? 1;
-$dir    = $order['dir'] ?? 'desc';
+$draw     = intval($_GET['draw'] ?? 0);
+$start    = max(0, intval($_GET['start'] ?? 0));
+$length   = intval($_GET['length'] ?? 10);
+$length   = ($length <= 0) ? 250 : min($length, 2000);
+$search   = trim($_GET['q'] ?? ($_GET['search']['value'] ?? ''));
+$status   = trim($_GET['status'] ?? '');
+$dateType = trim($_GET['date_type'] ?? 'upload');
+$from     = trim($_GET['from'] ?? '');
+$to       = trim($_GET['to'] ?? '');
+$order    = $_GET['order'][0] ?? [];
+$col      = $order['column'] ?? 1;
+$dir      = $order['dir'] ?? 'desc';
 
 // Map DataTables column index → DB column
 $columns = [
@@ -50,17 +53,31 @@ $columns = [
 $contactScope = getHierarchyContactFilterSQL($link, (int)USER_ID, USER_ROLE, 'm', defined('USER_TEAM_ID') ? (int)USER_TEAM_ID : null);
 $where = "WHERE $contactScope";
 $params = [];
+
 if ($search !== '') {
     $where .= " AND (m.MAINDATABASE_MOBILE LIKE ? 
                 OR m.MAINDATABASE_NAME LIKE ? 
                 OR m.MAINDATABASE_COMPANY LIKE ? 
+                OR m.MAINDATABASE_PACKAGE LIKE ? 
                 OR m.MAINDATABASE_OTHER_INFO LIKE ?)";
     $like = "%$search%";
-    $params = array_fill(0, 4, $like);
+    for ($i = 0; $i < 5; $i++) {
+        $params[] = $like;
+    }
 }
 if ($status !== '') {
     $where .= " AND TRIM(m.MAINDATABASE_CALL_DIALED_STATUS) = ?";
     $params[] = $status;
+}
+
+$dateCol = ($dateType === 'dialed') ? 'm.LAST_DIALED_DATE_TIME' : 'm.MAINDATABASE_UPLOAD_DATETIME';
+if ($from !== '') {
+    $where .= " AND DATE($dateCol) >= ?";
+    $params[] = $from;
+}
+if ($to !== '') {
+    $where .= " AND DATE($dateCol) <= ?";
+    $params[] = $to;
 }
 
 // ORDER BY
@@ -75,17 +92,21 @@ $totalRes = mysqli_query($link, "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . 
 $total = ($totalRes && $row = mysqli_fetch_assoc($totalRes)) ? (int)$row['c'] : 0;
 
 // Filtered records count
-if ($search === '' && $status === '') {
+if ($search === '' && $status === '' && $from === '' && $to === '') {
     $filtered = $total;
 } else {
     $countQuery = "SELECT COUNT(*) AS c FROM " . tn('TBL_MAIN') . " m 
                    LEFT JOIN " . tn('TBL_USERS') . " u ON m.MAINDATABASE_CALL_DIALED_USER = u.ID 
                    $where";
     $stmt = mysqli_prepare($link, $countQuery);
-    if ($params) mysqli_stmt_bind_param($stmt, str_repeat('s', count($params)), ...$params);
+    if (!empty($params)) {
+        $types = str_repeat('s', count($params));
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+    }
     mysqli_stmt_execute($stmt);
     $filteredRes = mysqli_stmt_get_result($stmt);
     $filtered = ($filteredRes && $row = mysqli_fetch_assoc($filteredRes)) ? (int)$row['c'] : 0;
+    mysqli_stmt_close($stmt);
 }
 
 // Data query
@@ -104,10 +125,11 @@ $sql = "SELECT m.ID,
         LIMIT ?, ?";
 
 $stmt = mysqli_prepare($link, $sql);
-$params[] = $start;
-$params[] = $length;
-$types = str_repeat('s', count($params)-2) . 'ii';
-mysqli_stmt_bind_param($stmt, $types, ...$params);
+$dataParams = $params;
+$dataParams[] = $start;
+$dataParams[] = $length;
+$types = str_repeat('s', count($params)) . 'ii';
+mysqli_stmt_bind_param($stmt, $types, ...$dataParams);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 if ($result === false) {
