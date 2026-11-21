@@ -588,7 +588,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
                 $lr['lead_id'],
                 $lr['cust_id'] ?: 'None',
                 $lr['name'],
-                $lr['mobile'],
+                canViewFullPhone() ? $lr['mobile'] : mask_phone($lr['mobile']),
                 $lr['company'] ?: '',
                 $lr['officer_name'] ?: 'Unassigned',
                 $lr['team_name'] ?: 'No Team',
@@ -612,7 +612,7 @@ if (isset($_GET['export']) && in_array($_GET['export'], ['csv', 'excel'])) {
                 $dr['call_time'] ? date('d-m-Y H:i:s', strtotime($dr['call_time'])) : '',
                 $dr['officer_name'] ?: 'Unknown',
                 $dr['cust_name'] ?: '—',
-                $dr['cust_mobile'] ?: '',
+                canViewFullPhone() ? ($dr['cust_mobile'] ?: '') : mask_phone($dr['cust_mobile'] ?: ''),
                 (int)$dr['call_duration'] . 's',
                 $dr['call_status'],
                 $dr['source'],
@@ -1189,7 +1189,21 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                 <?= $l['cust_id'] ? '#' . $l['cust_id'] : '—' ?>
                                             </td>
                                             <td><strong class="text-dark fs-xs"><?= htmlspecialchars($l['name']) ?></strong></td>
-                                            <td class="font-monospace fs-xs"><?= htmlspecialchars($l['mobile']) ?></td>
+                                            <td>
+                                                <?php $lCanView = canViewFullPhone(); $lMobile = $l['mobile'] ?? ''; ?>
+                                                <?php if ($lCanView || empty($lMobile)): ?>
+                                                    <?php if (!empty($lMobile)): ?>
+                                                        <a href="tel:<?= urlencode($lMobile) ?>" class="text-decoration-none font-monospace fs-xs">
+                                                            <?= htmlspecialchars($lMobile) ?>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <span class="text-muted font-monospace fs-xs">—</span>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <span class="phone-masked d-inline-block font-monospace fs-xs" style="cursor:pointer;" data-record-id="<?= (int)$l['lead_id'] ?>" data-source="LEADS" data-table="<?= tn('TBL_LEADS') ?>" title="Click to reveal number"><?= mask_phone($lMobile) ?></span>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="<?= (int)$l['lead_id'] ?>" data-source="LEADS" data-table="<?= tn('TBL_LEADS') ?>" title="Reveal number"><i class="bi bi-eye"></i></button>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="fs-xs text-dark"><?= htmlspecialchars($l['officer_name'] ?: 'Unassigned') ?></td>
                                             <td class="fs-xs text-muted"><?= htmlspecialchars($l['team_name'] ?: 'No Team') ?></td>
                                             <td><span class="badge badge-secondary fs-xs"><?= htmlspecialchars($l['loan_type'] ?: 'Personal Loan') ?></span></td>
@@ -1762,7 +1776,33 @@ include __DIR__ . '/../../php_scripts/header.php';
                                             </td>
                                             <td class="fs-xs fw-semibold text-dark"><?= htmlspecialchars($dr['officer_name'] ?: 'Unknown') ?></td>
                                             <td><strong class="text-dark fs-xs"><?= htmlspecialchars($dr['cust_name'] ?: '—') ?></strong></td>
-                                            <td class="font-monospace fs-xs"><?= htmlspecialchars($dr['cust_mobile'] ?: '—') ?></td>
+                                            <td>
+                                                <?php 
+                                                $drCanView = canViewFullPhone(); 
+                                                $drMobile = $dr['cust_mobile'] ?? ''; 
+                                                ?>
+                                                <?php if ($drCanView || empty($drMobile)): ?>
+                                                    <?php if (!empty($drMobile)): ?>
+                                                        <a href="tel:<?= urlencode($drMobile) ?>" class="text-decoration-none font-monospace fs-xs">
+                                                            <?= htmlspecialchars($drMobile) ?>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <span class="text-muted font-monospace fs-xs">—</span>
+                                                    <?php endif; ?>
+                                                <?php else: 
+                                                    $drRecId = !empty($dr['lead_id']) ? (int)$dr['lead_id'] : (int)($dr['client_contact_id'] ?? 0);
+                                                    $drSrc = !empty($dr['lead_id']) ? 'LEADS' : strtoupper($dr['source'] ?: 'MAIN');
+                                                    $drTbl = !empty($dr['lead_id']) ? tn('TBL_LEADS') : ($drSrc === 'TEMP' ? tn('TBL_TEMP') : tn('TBL_MAIN'));
+                                                    if ($drRecId <= 0) {
+                                                        $drRecId = (int)$dr['id'];
+                                                        $drSrc = 'CALL_LOGS';
+                                                        $drTbl = tn('TBL_CALL_LOGS');
+                                                    }
+                                                ?>
+                                                    <span class="phone-masked d-inline-block font-monospace fs-xs" style="cursor:pointer;" data-record-id="<?= $drRecId ?>" data-source="<?= $drSrc ?>" data-table="<?= $drTbl ?>" title="Click to reveal number"><?= mask_phone($drMobile) ?></span>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary phone-reveal-btn ms-1" data-record-id="<?= $drRecId ?>" data-source="<?= $drSrc ?>" data-table="<?= $drTbl ?>" title="Reveal number"><i class="bi bi-eye"></i></button>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>
                                                 <span class="badge badge-secondary fs-xs">
                                                     <i class="bi bi-stopwatch me-1"></i> <?= (int)$dr['call_duration'] ?>s
@@ -1943,6 +1983,8 @@ if (document.getElementById('dispositionDoughnutChart')) {
     });
 }
 
+const APP_BASE = <?= json_encode(defined('APP_BASE') ? APP_BASE : '') ?>;
+
 // Phone reveal click handler
 $(document).on('click', '.phone-reveal-btn', function () {
     var btn = $(this);
@@ -1951,7 +1993,7 @@ $(document).on('click', '.phone-reveal-btn', function () {
     var table = btn.data('table');
     if (!recordId) return;
     btn.prop('disabled', true).find('i').toggleClass('bi-eye bi-hourglass-top');
-    $.post('../../php_scripts/phone_reveal.php', {record_id: recordId, source: source, table: table, csrf_token: '<?= $_SESSION['csrf_token'] ?? '' ?>'}, function (resp) {
+    $.post(APP_BASE + '/modules/leads/ajax/phone_reveal.php', {record_id: recordId, source: source, table: table, csrf_token: '<?= $_SESSION['csrf_token'] ?? '' ?>'}, function (resp) {
         btn.prop('disabled', false).find('i').toggleClass('bi-hourglass-top bi-eye');
         if (resp.success && resp.mobile) {
             btn.closest('td').find('.phone-masked').replaceWith('<a href="tel:' + resp.mobile + '" class="text-decoration-none font-monospace fw-bold text-success"><i class="bi bi-telephone me-1"></i>' + resp.mobile + '</a>');

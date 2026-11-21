@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../php_scripts/auth.php';
+require_once __DIR__ . '/../../php_scripts/phone_helper.php';
 requirePermission('manage_database');
 
 if (session_status() === PHP_SESSION_NONE) session_start();
@@ -401,7 +402,13 @@ include __DIR__ . '/../../php_scripts/header.php';
                                 <tr>
                                     <td><span class="font-monospace text-muted fs-xs">#<?= (int)$r['ID'] ?></span></td>
                                     <td><strong class="text-dark fs-xs"><?= htmlspecialchars($r['CUST_NAME'] ?: '—') ?></strong></td>
-                                    <td><span class="badge badge-secondary font-monospace fs-xs"><?= htmlspecialchars($r['CUST_MOBILE']) ?></span></td>
+                                    <td>
+                                        <?php if (canViewFullPhone()): ?>
+                                            <span class="badge badge-secondary font-monospace fs-xs"><?= htmlspecialchars($r['CUST_MOBILE']) ?></span>
+                                        <?php else: ?>
+                                            <span class="badge badge-secondary font-monospace fs-xs"><?= mask_phone($r['CUST_MOBILE']) ?></span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><span class="text-muted fs-xs"><?= htmlspecialchars($r['CUST_COMPANY'] ?: '—') ?></span></td>
                                     <td><span class="text-muted fs-xs"><?= htmlspecialchars($r['CUST_PACKAGE'] ?: '—') ?></span></td>
                                     <td>

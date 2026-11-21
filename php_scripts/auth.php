@@ -52,7 +52,15 @@ function isSuperAdmin() { return USER_ROLE === 'Super Admin' || USER_ID === 1; }
 function isManager() { return USER_ROLE === 'Manager'; }
 function isSupervisor() { return USER_ROLE === 'Supervisor'; }
 function isOfficer() { return USER_ROLE === 'Officer'; }
-function canViewFullPhone(): bool { return isAdmin() || isSuperAdmin(); }
+function canViewFullPhone(): bool {
+    if (defined('USER_ID') && (int)USER_ID === 1) return true;
+    $role = defined('USER_ROLE') ? USER_ROLE : ($_SESSION['role'] ?? '');
+    if (function_exists('getNormalizedRole')) {
+        $norm = getNormalizedRole($role);
+        return in_array($norm, ['Super Admin', 'Admin'], true);
+    }
+    return in_array($role, ['Super Admin', 'Admin'], true);
+}
 
 // Require role
 function requireRole($TBL_ROLES) {

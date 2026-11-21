@@ -883,6 +883,28 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - Added fallback implementations of `canManageTeams()` and `canViewAllTeams()` in `php_scripts/hierarchy_engine.php` (guarded with `!function_exists`), ensuring any script loading `auth.php` has immediate access to these helpers without missing-function fatal errors.
 - **Verification**: Batch lint across all 91 PHP files passed with 0 errors; verified role permissions and team assignment scoping across Super Admin, Admin, Manager, and Supervisor roles.
 
+## Completed Goal (2026-11-21): Comprehensive Number Masking Across All Roles & Reports
+- **Identified Issues & Root Causes**:
+  1. **Reports Call Logs Audit Trail (`Reports.php:1765`)**: Tab 10 rendered raw unmasked mobile numbers (`$dr['cust_mobile']`) with no role checks or reveal buttons.
+  2. **Reports Converted Leads (`Reports.php:1192`)**: Tab 3 rendered raw unmasked mobile numbers (`$l['mobile']`).
+  3. **Reports Calling Registry JS Error (`Reports.php:1954`)**: Click handler called `APP_BASE + '/modules/leads/ajax/phone_reveal.php'` where `APP_BASE` was undefined in JS.
+  4. **Missing Endpoint Forwarder (`php_scripts/phone_reveal.php`)**: `lead_list.php`, `lead_pipeline.php`, and `leads_dashboard.php` posted to `../../php_scripts/phone_reveal.php`, which had been moved to `modules/leads/ajax/phone_reveal.php`.
+  5. **Data Management Reveal Handlers**: `data_management_main.php` and `data_management_temporary.php` DataTables rendered `.phone-reveal-btn` eye buttons but lacked the click handler script.
+  6. **Add Update Status Table (`add_update_status.php:404`)**: Recent activity logs table rendered raw unmasked customer phone numbers.
+  7. **Role Normalization in `canViewFullPhone()`**: Updated `php_scripts/auth.php` so `canViewFullPhone()` normalizes roles (`getNormalizedRole`) and strictly permits only `Super Admin` and `Admin`. Managers, Supervisors, Officers, and all other users are masked.
+- **Implemented Fixes**:
+  - **`php_scripts/auth.php`**: `canViewFullPhone()` normalizes roles and grants unmasked view solely to `Super Admin` and `Admin`.
+  - **`php_scripts/phone_reveal.php`**: Created forwarder pointing to `modules/leads/ajax/phone_reveal.php`.
+  - **`modules/leads/ajax/phone_reveal.php`**: Added support for `CALL_LOGS` / `CALL_LOG` sources and normalized `LEAD` to `LEADS`.
+  - **`modules/logs/Reports.php`**: Added conditional masking and eye reveal button in Tab 2 (Client Contacts), Tab 3 (Converted Leads), and Tab 10 (Call Logs Audit Trail); masked phone numbers in CSV/Excel exports for non-admins; added `const APP_BASE` in JS.
+  - **`modules/database/data_management_main.php` & `data_management_temporary.php`**: Added `.phone-reveal-btn` click handlers.
+  - **`modules/database/add_update_status.php`**: Masked customer mobile in recent logs table.
+- **Verification**:
+  - Verified role scoping across Super Admin, Admin, Manager, Supervisor, Officer, Telecaller (`Super Admin` & `Admin` = full, all others = masked).
+  - Verified bullet masking output format (`••••••7374`).
+  - Batch PHP lint across all 95 project files: 0 errors detected.
+
+
 
 
 
