@@ -904,6 +904,13 @@ Strictly aligned the entire project with `zoho-crm-ui-ux-skill.md` (enterprise h
   - Verified bullet masking output format (`••••••7374`).
   - Batch PHP lint across all 95 project files: 0 errors detected.
 
+## Completed Goal (2026-11-21): Telecaller Repeat-Lead Cooldown Repair
+- `php_scripts/lead_distribution_engine.php` now prevents a telecaller from receiving a phone number for 24 hours after any reservation, including an expired uncalled reservation. This closes the former 2-hour repeat window.
+- Starting a call now immediately records the attempt as `Ringing`, sets the existing canonical `LAST_DIALED_DATE_TIME`, and increments the call count. An unsubmitted call therefore enters the P2 unconnected retry path after the established 4-hour global retry cooldown instead of returning as a fresh P0 lead.
+- P0 SQL and the in-memory allocation guard use the same 24-hour per-telecaller reservation exclusion. Cross-user post-dial protection remains 4 hours so P2 retries retain their intended four-hour behavior.
+- Fixed duplicate call-count increments: the selected record is no longer updated a second time during normalized-phone synchronization.
+- Verification: `C:\xampp\php\php.exe -l php_scripts\lead_distribution_engine.php` passed; `tests/test_lead_distribution_engine.php` passed 34/34 assertions.
+
 
 
 

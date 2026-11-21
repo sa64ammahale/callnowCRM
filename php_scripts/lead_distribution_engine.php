@@ -272,14 +272,14 @@ function startCallLock(mysqli $link, int $userId, string $reservationToken, int 
     $resolvedPhone = trim((string)($res['phone_number_10'] ?? ''));
 
     if ($resolvedSource === 'TEMP') {
-        $upT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET LAST_DIALED_DATE_TIME = NOW(), CALL_DIALED_TELECALLER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE ID = ?");
+        $upT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = 'Ringing', LAST_DIALED_DATE_TIME = NOW(), CALL_DIALED_TELECALLER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE ID = ?");
         if ($upT) {
             $upT->bind_param('ii', $userId, $resolvedLeadId);
             $upT->execute();
             $upT->close();
         }
     } else {
-        $upM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW(), MAINDATABASE_CALL_DIALED_USER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE ID = ?");
+        $upM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = 'Ringing', LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW(), MAINDATABASE_CALL_DIALED_USER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE ID = ?");
         if ($upM) {
             $upM->bind_param('ii', $userId, $resolvedLeadId);
             $upM->execute();
@@ -288,15 +288,15 @@ function startCallLock(mysqli $link, int $userId, string $reservationToken, int 
     }
 
     if (!empty($resolvedPhone)) {
-        $upAllT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET LAST_DIALED_DATE_TIME = NOW(), CALL_DIALED_TELECALLER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ?");
+        $upAllT = $link->prepare("UPDATE " . tn('TBL_TEMP') . " SET CALL_DIALED_STATUS = CASE WHEN CALL_DIALED_STATUS IS NULL OR CALL_DIALED_STATUS = '' OR CALL_DIALED_STATUS = 'Not Called' OR CALL_DIALED_STATUS = 'Pending' THEN 'Ringing' ELSE CALL_DIALED_STATUS END, LAST_DIALED_DATE_TIME = NOW(), CALL_DIALED_TELECALLER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ? AND ID <> ?");
         if ($upAllT) {
-            $upAllT->bind_param('is', $userId, $resolvedPhone);
+            $upAllT->bind_param('isi', $userId, $resolvedPhone, $resolvedLeadId);
             $upAllT->execute();
             $upAllT->close();
         }
-        $upAllM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW(), MAINDATABASE_CALL_DIALED_USER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ?");
+        $upAllM = $link->prepare("UPDATE " . tn('TBL_MAIN') . " SET MAINDATABASE_CALL_DIALED_STATUS = CASE WHEN MAINDATABASE_CALL_DIALED_STATUS IS NULL OR MAINDATABASE_CALL_DIALED_STATUS = '' OR MAINDATABASE_CALL_DIALED_STATUS = 'Not Called' OR MAINDATABASE_CALL_DIALED_STATUS = 'Pending' THEN 'Ringing' ELSE MAINDATABASE_CALL_DIALED_STATUS END, LAST_DIALED_DATE_TIME = NOW(), MAINDATABASE_CALL_DIAL_TIME = NOW(), MAINDATABASE_CALL_DIALED_USER = ?, CALL_COUNT = COALESCE(CALL_COUNT, 0) + 1 WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ? AND ID <> ?");
         if ($upAllM) {
-            $upAllM->bind_param('is', $userId, $resolvedPhone);
+            $upAllM->bind_param('isi', $userId, $resolvedPhone, $resolvedLeadId);
             $upAllM->execute();
             $upAllM->close();
         }
@@ -924,7 +924,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
           AND NOT EXISTS (
               SELECT 1 FROM lead_reservations lr 
               WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(t.CUST_MOBILE, '[^0-9]', ''), 10)
-                AND (lr.state IN ('RESERVED', 'DIALING') OR (lr.state = 'COMPLETED' AND (lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR)) OR (lr.telecaller_id = ? AND (lr.reserved_at >= NOW() - INTERVAL 2 HOUR OR (lr.state = 'SKIPPED' AND lr.reserved_at >= NOW() - INTERVAL 90 DAY))))
+                AND (lr.state IN ('RESERVED', 'DIALING') OR (lr.state = 'COMPLETED' AND (lr.dialing_started_at >= NOW() - INTERVAL 4 HOUR OR lr.completed_at >= NOW() - INTERVAL 4 HOUR)) OR (lr.telecaller_id = ? AND (lr.reserved_at >= NOW() - INTERVAL 24 HOUR OR (lr.state = 'SKIPPED' AND lr.reserved_at >= NOW() - INTERVAL 90 DAY))))
           )
           AND NOT EXISTS (
               SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -972,7 +972,7 @@ function queryWaterfallP0(mysqli $link, int $userId, int $limit, array $excluded
               AND NOT EXISTS (
                   SELECT 1 FROM lead_reservations lr 
                   WHERE lr.phone_number_10 = RIGHT(REGEXP_REPLACE(m.MAINDATABASE_MOBILE, '[^0-9]', ''), 10)
-                    AND (lr.state IN ('RESERVED', 'DIALING') OR (lr.state = 'COMPLETED' AND (lr.dialing_started_at >= NOW() - INTERVAL 12 HOUR OR lr.completed_at >= NOW() - INTERVAL 12 HOUR)) OR (lr.telecaller_id = ? AND (lr.reserved_at >= NOW() - INTERVAL 2 HOUR OR (lr.state = 'SKIPPED' AND lr.reserved_at >= NOW() - INTERVAL 90 DAY))))
+                    AND (lr.state IN ('RESERVED', 'DIALING') OR (lr.state = 'COMPLETED' AND (lr.dialing_started_at >= NOW() - INTERVAL 4 HOUR OR lr.completed_at >= NOW() - INTERVAL 4 HOUR)) OR (lr.telecaller_id = ? AND (lr.reserved_at >= NOW() - INTERVAL 24 HOUR OR (lr.state = 'SKIPPED' AND lr.reserved_at >= NOW() - INTERVAL 90 DAY))))
               )
               AND NOT EXISTS (
                   SELECT 1 FROM " . tn('TBL_DND_REGISTRY') . " dr 
@@ -1254,7 +1254,7 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone, int $currentUser
         if ($isReserved) return true;
     }
 
-    $resRecentQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND state IN ('COMPLETED', 'DIALING') AND (dialing_started_at >= NOW() - INTERVAL 12 HOUR OR completed_at >= NOW() - INTERVAL 12 HOUR) LIMIT 1");
+    $resRecentQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND state IN ('COMPLETED', 'DIALING') AND (dialing_started_at >= NOW() - INTERVAL 4 HOUR OR completed_at >= NOW() - INTERVAL 4 HOUR) LIMIT 1");
     if ($resRecentQ) {
         $resRecentQ->bind_param('s', $cleanPhone);
         $resRecentQ->execute();
@@ -1263,7 +1263,7 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone, int $currentUser
         if ($isRecentlyDialedRes) return true;
     }
 
-    $mainDialQ = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ? AND LAST_DIALED_DATE_TIME IS NOT NULL AND LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 12 HOUR LIMIT 1");
+    $mainDialQ = $link->prepare("SELECT ID FROM " . tn('TBL_MAIN') . " WHERE RIGHT(REGEXP_REPLACE(MAINDATABASE_MOBILE, '[^0-9]', ''), 10) = ? AND LAST_DIALED_DATE_TIME IS NOT NULL AND LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 4 HOUR LIMIT 1");
     if ($mainDialQ) {
         $mainDialQ->bind_param('s', $cleanPhone);
         $mainDialQ->execute();
@@ -1272,7 +1272,7 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone, int $currentUser
         if ($isMainDialed) return true;
     }
 
-    $tempDialQ = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ? AND LAST_DIALED_DATE_TIME IS NOT NULL AND LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 12 HOUR LIMIT 1");
+    $tempDialQ = $link->prepare("SELECT ID FROM " . tn('TBL_TEMP') . " WHERE RIGHT(REGEXP_REPLACE(CUST_MOBILE, '[^0-9]', ''), 10) = ? AND LAST_DIALED_DATE_TIME IS NOT NULL AND LAST_DIALED_DATE_TIME >= NOW() - INTERVAL 4 HOUR LIMIT 1");
     if ($tempDialQ) {
         $tempDialQ->bind_param('s', $cleanPhone);
         $tempDialQ->execute();
@@ -1309,7 +1309,7 @@ function isPhoneReservedOrDnd(mysqli $link, string $cleanPhone, int $currentUser
             if ($isSkipped) return true;
         }
 
-        $userRepeatQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND telecaller_id = ? AND reserved_at >= NOW() - INTERVAL 2 HOUR LIMIT 1");
+        $userRepeatQ = $link->prepare("SELECT id FROM lead_reservations WHERE phone_number_10 COLLATE utf8mb4_general_ci = ? AND telecaller_id = ? AND reserved_at >= NOW() - INTERVAL 24 HOUR LIMIT 1");
         if ($userRepeatQ) {
             $userRepeatQ->bind_param('si', $cleanPhone, $currentUserId);
             $userRepeatQ->execute();
