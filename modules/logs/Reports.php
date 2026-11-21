@@ -1706,27 +1706,13 @@ include __DIR__ . '/../../php_scripts/header.php';
                                                 </div>
                                                 <div class="text-muted" style="font-size:9px; white-space:nowrap;">Target <?= htmlspecialchars($rk['talk_time_target_hms'] ?? '00:00:00') ?><?= $talkTargetDays > 1 ? ' · ' . $talkTargetDays . ' days' : '' ?></div>
                                             </td>
-                                            <td>
-                                                <div class="d-flex align-items-center gap-2 score-progress">
-                                                    <div class="progress flex-grow-1" style="height: 6px;">
-                                                        <div class="progress-bar bg-warning" style="width: <?= min(100, $rk['calling_score']) ?>%"></div>
-                                                    </div>
-                                                    <div class="text-end text-nowrap" style="line-height:1.05;">
-                                                        <div class="fs-xs fw-bold text-dark"><?= number_format((float)$rk['calling_score'], 1) ?></div>
-                                                        <div class="text-muted" style="font-size:9px;">OUT OF 100</div>
-                                                    </div>
-                                                </div>
+                                            <td class="text-center">
+                                                <div class="fw-bold text-dark" style="font-size:14px; line-height:1.1;"><?= number_format((float)$rk['calling_score'], 1) ?></div>
+                                                <div class="text-muted text-uppercase" style="font-size:9px; line-height:1.1;">out of 100</div>
                                             </td>
-                                            <td>
-                                                <div class="d-flex align-items-center gap-2 score-progress">
-                                                    <div class="progress flex-grow-1" style="height: 6px;">
-                                                        <div class="progress-bar bg-success" style="width: <?= min(100, $rk['sales_score']) ?>%"></div>
-                                                    </div>
-                                                    <div class="text-end text-nowrap" style="line-height:1.05;">
-                                                        <div class="fs-xs fw-bold text-success"><?= number_format((float)$rk['sales_score'], 1) ?></div>
-                                                        <div class="text-muted" style="font-size:9px;">OUT OF 100</div>
-                                                    </div>
-                                                </div>
+                                            <td class="text-center">
+                                                <div class="fw-bold text-success" style="font-size:14px; line-height:1.1;"><?= number_format((float)$rk['sales_score'], 1) ?></div>
+                                                <div class="text-muted text-uppercase" style="font-size:9px; line-height:1.1;">out of 100</div>
                                             </td>
                                             <td class="text-center">
                                                 <?php if ($rankIdx <= 3 && $rk['calling_score'] >= 50): ?>
